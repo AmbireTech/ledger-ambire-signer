@@ -80,19 +80,26 @@ class P2Type(IntEnum):
 class CommandBuilder:
     _CLA: int = 0xE0
 
+    # Address Book uses its own CLA/INS (distinct from the Ethereum app's).
+    _AB_CLA: int = 0xB0
+    _AB_INS: int = 0x10
+    _AB_P2_FIRST_CHUNK: int = 0x00
+    _AB_P2_NEXT_CHUNK: int = 0x80
+
     def _intToBytes(self, i: int) -> bytes:
         if i == 0:
             return b"\x00"
         return i.to_bytes(math.ceil(i.bit_length() / 8), 'big')
 
     def _serialize(self,
-                   ins: InsType,
+                   ins: Union[InsType, int],
                    p1: int,
                    p2: int,
-                   cdata: Union[bytes, bytearray] = bytes()) -> bytes:
+                   cdata: Union[bytes, bytearray] = bytes(),
+                   cla: Optional[int] = None) -> bytes:
 
         header = bytearray()
-        header.append(self._CLA)
+        header.append(self._CLA if cla is None else cla)
         header.append(ins)
         header.append(p1)
         header.append(p2)
@@ -431,6 +438,22 @@ class CommandBuilder:
             p1 = 0
         return chunks
 
+    def provide_address_book(self, subcommand: int, tlv_payload: bytes) -> list[bytes]:
+        """Encapsulate an Address Book TLV payload into one or more APDUs.
+
+        The Address Book uses its own CLA/INS. P1 selects the sub-command and
+        P2 carries the chunking flag (0x00 first chunk, 0x80 continuation).
+        Every sub-command uses the same chunked transport: the payload is
+        prefixed with its 2-byte big-endian total length and split over
+        255-byte chunks (a payload fitting in one chunk still carries the
+        prefix). The firmware reassembles it in reassemble_chunks().
+        """
+        return self.common_tlv_serialize(self._AB_INS,
+                                         tlv_payload,
+                                         p1l=[subcommand],
+                                         p2l=[self._AB_P2_FIRST_CHUNK, self._AB_P2_NEXT_CHUNK],
+                                         cla=self._AB_CLA)
+
     def get_public_addr(self,
                         display: bool,
                         chaincode: bool,
@@ -544,11 +567,12 @@ class CommandBuilder:
                                payload)
 
     def common_tlv_serialize(self,
-                             ins: InsType,
+                             ins: Union[InsType, int],
                              tlv_payload: bytes,
                              p1l: list[int] = [0x01, 0x00],
                              p2l: list[int] = [0x00],
-                             payload: bytes = bytes()) -> list[bytes]:
+                             payload: bytes = bytes(),
+                             cla: Optional[int] = None) -> list[bytes]:
         assert len(p1l) in [1, 2]
         assert len(p2l) in [1, 2]
         chunks = []
@@ -560,7 +584,8 @@ class CommandBuilder:
             chunks.append(self._serialize(ins,
                                           p1,
                                           p2,
-                                          payload[:0xff]))
+                                          payload[:0xff],
+                                          cla=cla))
             payload = payload[0xff:]
             # -1 so it works with a list of 1 or 2 items
             p1 = p1l[-1]

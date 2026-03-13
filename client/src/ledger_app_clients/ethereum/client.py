@@ -31,6 +31,7 @@ from .safe import SafeAccount, AccountType
 from .gating import Gating
 from .trusted_name import TrustedName, TrustedNameSource
 from .token_info import TokenInfo
+from .address_book import AddressBookCommand
 
 
 class EIP712CalldataParamPresence(IntEnum):
@@ -503,7 +504,7 @@ class EthAppClient:
             self._exchange(chunk)
         return self._exchange_async(chunks[-1])
 
-    def provide_gating(self, gating_descriptor: Gating):
+    def provide_gating(self, gating_descriptor: Gating) -> RAPDU:
         # Send ledgerPKI certificate
         self.send_pki_certificate(GATING_PARTNER)
 
@@ -519,4 +520,16 @@ class EthAppClient:
         chunks = self._cmd_builder.provide_token_info(token_info.serialize())
         for chunk in chunks[:-1]:
             self._exchange(chunk)
+        return self._exchange(chunks[-1])
+
+    def provide_address_book(self,
+                             command: AddressBookCommand,
+                             async_mode: bool = True) -> RAPDU:
+        chunks = self._cmd_builder.provide_address_book(command.subcommand, command.serialize())
+        # Intermediate chunks are always synchronous (device responds 9000).
+        for chunk in chunks[:-1]:
+            self._exchange(chunk)
+        # The last chunk may trigger the UI flow, hence the async option.
+        if async_mode:
+            return self._exchange_async(chunks[-1])
         return self._exchange(chunks[-1])
