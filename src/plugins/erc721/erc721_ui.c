@@ -123,6 +123,10 @@ static void set_transfer_ui(ethQueryContractUI_t *msg, erc721_context_t *context
 void handle_query_contract_ui_721(ethQueryContractUI_t *msg) {
     erc721_context_t *context = (erc721_context_t *) msg->pluginContext;
 
+    if (msg->item1 == NULL) {
+        msg->result = ETH_PLUGIN_RESULT_ERROR;
+        return;
+    }
     msg->result = ETH_PLUGIN_RESULT_OK;
     switch (context->selectorIndex) {
         case APPROVE:
