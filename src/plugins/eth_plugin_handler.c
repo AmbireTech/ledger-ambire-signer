@@ -12,6 +12,8 @@
 #include "swap_with_calldata_plugin.h"
 #include "eip7002_plugin.h"
 #include "eip7251_plugin.h"
+#include "manage_asset_info.h"
+#include "utils.h"
 
 // All internal alias names start with 'minus'
 
@@ -77,22 +79,14 @@ void eth_plugin_prepare_query_contract_ui(ethQueryContractUI_t *query_contract_u
 
     explicit_bzero((uint8_t *) query_contract_ui, sizeof(ethQueryContractUI_t));
 
-    // If no extra information was found, set the pointer to NULL
-    if (NO_EXTRA_INFO(tmpCtx, 0)) {
-        query_contract_ui->item1 = NULL;
-    } else {
-        query_contract_ui->item1 = &tmpCtx.transactionContext.extraInfo[0];
-    }
+    chain_id = get_tx_chain_id();
 
-    // If no extra information was found, set the pointer to NULL
-    if (NO_EXTRA_INFO(tmpCtx, 1)) {
-        query_contract_ui->item2 = NULL;
-    } else {
-        query_contract_ui->item2 = &tmpCtx.transactionContext.extraInfo[1];
-    }
+    query_contract_ui->item1 =
+        get_matching_asset_info(&chain_id, dataContext.tokenContext.token_lookup1);
+    query_contract_ui->item2 =
+        get_matching_asset_info(&chain_id, dataContext.tokenContext.token_lookup2);
 
     query_contract_ui->screenIndex = screen_index;
-    chain_id = get_tx_chain_id();
     strlcpy(query_contract_ui->network_ticker,
             get_displayable_ticker(&chain_id, g_chain_config, true),
             sizeof(query_contract_ui->network_ticker));
