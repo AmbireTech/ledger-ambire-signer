@@ -1,5 +1,6 @@
 #include <inttypes.h>
 #include "os_print.h"
+#include "common_utils.h"
 #include "gtp_param_raw.h"
 #include "gtp_field.h"
 #include "uint256.h"
@@ -107,7 +108,7 @@ bool format_uint(const s_field *field,
         return false;
     }
 
-    return *to_be_displayed ? tostring256(&value256, 10, buf, buf_size) : true;
+    return *to_be_displayed ? uint256_to_decimal(value->ptr, value->length, buf, buf_size) : true;
 }
 
 bool format_int(const s_value *def, const s_parsed_value *value, char *buf, size_t buf_size) {

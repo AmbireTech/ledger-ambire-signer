@@ -535,15 +535,11 @@ static bool ui_712_format_int(const uint8_t *data,
  * @return if the formatting was successful
  */
 static bool ui_712_format_uint(const uint8_t *data, uint8_t length, bool first) {
-    uint256_t value256;
-
     // no reason for an integer to be received over multiple chunks
     if (!first) {
         return false;
     }
-    convertUint256BE(data, length, &value256);
-    tostring256(&value256, 10, strings.tmp.tmp, sizeof(strings.tmp.tmp));
-    return true;
+    return uint256_to_decimal(data, length, strings.tmp.tmp, sizeof(strings.tmp.tmp));
 }
 
 static s_amount_join *get_amount_join(uint8_t token_idx) {
