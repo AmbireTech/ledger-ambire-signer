@@ -223,6 +223,24 @@ class ContainerPath(IntEnum):
     CHAIN_ID = 0x03
 
 
+class MapRef(TlvSerializable):
+    version: int
+    id: int
+    key: "Value"
+
+    def __init__(self, version: int, id: int, key: "Value"):
+        self.version = version
+        self.id = id
+        self.key = key
+
+    def serialize(self) -> bytes:
+        payload = bytearray()
+        payload += self.serialize_field(0x00, self.version)
+        payload += self.serialize_field(0x01, self.id)
+        payload += self.serialize_field(0x02, self.key.serialize())
+        return payload
+
+
 class Value(TlvSerializable):
     version: int
     type_family: TypeFamily
@@ -230,6 +248,7 @@ class Value(TlvSerializable):
     data_path: Optional[DataPath]
     container_path: Optional[ContainerPath]
     constant: Optional[bytes]
+    map_ref: Optional[MapRef]
 
     def __init__(self,
                  version: int,
@@ -237,13 +256,15 @@ class Value(TlvSerializable):
                  type_size: Optional[int] = None,
                  data_path: Optional[DataPath] = None,
                  container_path: Optional[ContainerPath] = None,
-                 constant: Optional[bytes] = None):
+                 constant: Optional[bytes] = None,
+                 map_ref: Optional[MapRef] = None):
         self.version = version
         self.type_family = type_family
         self.type_size = type_size
         self.data_path = data_path
         self.container_path = container_path
         self.constant = constant
+        self.map_ref = map_ref
 
     def serialize(self) -> bytes:
         payload = bytearray()
@@ -257,6 +278,8 @@ class Value(TlvSerializable):
             payload += self.serialize_field(0x04, self.container_path)
         if self.constant is not None:
             payload += self.serialize_field(0x05, self.constant)
+        if self.map_ref is not None:
+            payload += self.serialize_field(0x06, self.map_ref.serialize())
         return payload
 
 

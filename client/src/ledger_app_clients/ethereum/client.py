@@ -433,6 +433,15 @@ class EthAppClient:
             self._exchange(chunk)
         return self._exchange(chunks[-1])
 
+    def provide_map_entry(self, payload: bytes) -> RAPDU:
+        # Send ledgerPKI certificate
+        self.send_pki_certificate(CALLDATA_PARTNER)
+
+        chunks = self._cmd_builder.provide_map_entry(payload)
+        for chunk in chunks[:-1]:
+            self._exchange(chunk)
+        return self._exchange(chunks[-1])
+
     def provide_transaction_info(self, payload: bytes) -> RAPDU:
         # Send ledgerPKI certificate
         self.send_pki_certificate(CALLDATA_PARTNER)
