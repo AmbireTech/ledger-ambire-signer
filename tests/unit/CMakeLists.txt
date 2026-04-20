@@ -80,6 +80,8 @@ include_directories(
   ${PLUGIN_DIR}
   ${APP_DIR}/features/generic_tx_parser
   ${APP_DIR}/features/provide_trusted_name
+  ${APP_DIR}/features/provide_map_entry
+  ${APP_DIR}/features/provide_proxy_info
   ${APP_DIR}/features/get_public_key
   ${APP_DIR}/features/sign_tx
   ${APP_DIR}/features/get_challenge
@@ -220,6 +222,7 @@ target_link_libraries(test_param_raw PUBLIC
                       gcov
                       ${LIBBSD_LIBRARIES}
                       -Wl,--wrap=add_to_field_table
+                      -Wl,--wrap=get_matching_map_entry
 )
 
 add_test(test_param_raw test_param_raw)
@@ -267,3 +270,43 @@ target_link_libraries(test_field_validation PUBLIC
 )
 
 add_test(test_field_validation test_field_validation)
+
+# MAP_ENTRY test
+add_executable(test_provide_map_entry
+  ${SRC_DIR}/test_provide_map_entry.c
+  ${APP_DIR}/features/provide_map_entry/map_entry.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/src/os_printf.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+target_compile_definitions(test_provide_map_entry PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+)
+
+target_link_libraries(test_provide_map_entry PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=get_current_tx_info
+                      -Wl,--wrap=get_current_calldata
+                      -Wl,--wrap=calldata_get_selector
+                      -Wl,--wrap=get_implem_contract
+)
+
+add_test(test_provide_map_entry test_provide_map_entry)

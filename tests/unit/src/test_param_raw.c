@@ -24,6 +24,7 @@
 #include "common_utils.h"
 #include "read.h"
 #include "write.h"
+#include "map_entry.h"
 
 strings_t strings;
 
@@ -72,6 +73,29 @@ const chain_config_t *g_chain_config = &chainConfig_storage;
                                         .constant = {.size = strlen(str_data)}}}; \
     memcpy(param_name.value.constant.buf, str_data, strlen(str_data));
 
+// Helper macro to create a MAP_REF parameter.
+// The key is a CONSTANT VALUE TLV encoding {0xAB, 0xCD} (2 bytes),
+// so get_matching_map_entry will be called with key_size=2.
+#define CREATE_MAP_REF_PARAM(param_name, map_id)                                               \
+    static const uint8_t param_name##_key_tlv[] = {                                            \
+        0x00,                                                                                  \
+        0x01,                                                                                  \
+        0x01, /* VERSION = 1 */                                                                \
+        0x01,                                                                                  \
+        0x01,                                                                                  \
+        TF_BYTES, /* TYPE_FAMILY = TF_BYTES */                                                 \
+        0x05,                                                                                  \
+        0x02,                                                                                  \
+        0xAB,                                                                                  \
+        0xCD, /* CONSTANT = {0xAB, 0xCD} */                                                    \
+    };                                                                                         \
+    s_param_raw param_name = {                                                                 \
+        .version = 1,                                                                          \
+        .value = {.type_family = TF_STRING,                                                    \
+                  .source = SOURCE_MAP_REF,                                                    \
+                  .map_ref = {.id = (map_id), .key_tlv_size = sizeof(param_name##_key_tlv)}}}; \
+    memcpy(param_name.value.map_ref.key_tlv, param_name##_key_tlv, sizeof(param_name##_key_tlv));
+
 // =============================================================================
 // Mock functions
 // =============================================================================
@@ -85,6 +109,22 @@ bool __wrap_add_to_field_table(e_param_type param_type, const char *name, const 
     check_expected(value);
     return (bool) mock();
 }
+
+/**
+ * @brief Mock implementation of get_matching_map_entry
+ */
+const s_map_entry *__wrap_get_matching_map_entry(uint8_t id, const uint8_t *key, uint8_t key_size) {
+    (void) key;
+    check_expected(id);
+    check_expected(key_size);
+    return (const s_map_entry *) mock();
+}
+
+// Static map entry used by MAP_REF tests
+static const s_map_entry map_entry_hello = {
+    .value = {'H', 'e', 'l', 'l', 'o'},
+    .value_size = 5,
+};
 
 // =============================================================================
 // Test cases - TF_UINT
@@ -633,6 +673,102 @@ static void test_raw_string(void **state) {
 }
 
 // =============================================================================
+// Test cases - SOURCE_MAP_REF
+// =============================================================================
+
+/**
+ * @brief MAP_REF with a matching entry: the mapped value is displayed as a string.
+ */
+static void test_raw_map_ref_found(void **state) {
+    (void) state;
+
+    CREATE_MAP_REF_PARAM(param, 0);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_ALWAYS,
+                     .constraints = NULL,
+                     .param_raw = param,
+                     .name = "Event name"};
+
+    expect_value(__wrap_get_matching_map_entry, id, 0);
+    expect_value(__wrap_get_matching_map_entry, key_size, 2);
+    will_return(__wrap_get_matching_map_entry, &map_entry_hello);
+
+    expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_RAW);
+    expect_string(__wrap_add_to_field_table, name, "Event name");
+    expect_string(__wrap_add_to_field_table, value, "Hello");
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_raw(&field));
+}
+
+/**
+ * @brief MAP_REF with no matching entry: format_param_raw returns false.
+ */
+static void test_raw_map_ref_not_found(void **state) {
+    (void) state;
+
+    CREATE_MAP_REF_PARAM(param, 1);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_ALWAYS,
+                     .constraints = NULL,
+                     .param_raw = param,
+                     .name = "Event name"};
+
+    expect_value(__wrap_get_matching_map_entry, id, 1);
+    expect_value(__wrap_get_matching_map_entry, key_size, 2);
+    will_return(__wrap_get_matching_map_entry, NULL);
+
+    assert_false(format_param_raw(&field));
+}
+
+/**
+ * @brief MAP_REF whose KEY is itself a MAP_REF: rejected (nested MAP_REF unsupported).
+ *
+ * The key_tlv encodes a VALUE with tag 0x06 (MAP_REF), which causes value_get()
+ * to detect key_value.source == SOURCE_MAP_REF and return false before calling
+ * get_matching_map_entry.
+ */
+static void test_raw_map_ref_nested_rejected(void **state) {
+    (void) state;
+
+    // Inner-inner constant key TLV (9 bytes): VERSION + TYPE_FAMILY + CONSTANT={0xFF}
+    // Inner MAP_REF TLV (17 bytes): VERSION + ID=5 + KEY(inner constant)
+    // Nested key VALUE TLV (25 bytes): VERSION + TYPE_FAMILY + MAP_REF(inner)
+    // clang-format off
+    static const uint8_t nested_key_tlv[] = {
+        0x00, 0x01, 0x01,        /* outer VALUE: VERSION = 1 */
+        0x01, 0x01, TF_BYTES,    /* outer VALUE: TYPE_FAMILY = TF_BYTES */
+        0x06, 0x11,              /* outer VALUE: MAP_REF tag, len=17 */
+          /* inner MAP_REF TLV (17 bytes): */
+          0x00, 0x01, 0x01,      /* inner MAP_REF: VERSION = 1 */
+          0x01, 0x01, 0x05,      /* inner MAP_REF: ID = 5 */
+          0x02, 0x09,            /* inner MAP_REF: KEY tag, len=9 */
+            /* inner KEY VALUE TLV (9 bytes): */
+            0x00, 0x01, 0x01,    /* inner KEY VALUE: VERSION = 1 */
+            0x01, 0x01, TF_BYTES,/* inner KEY VALUE: TYPE_FAMILY = TF_BYTES */
+            0x05, 0x01, 0xFF,    /* inner KEY VALUE: CONSTANT = {0xFF} */
+    };
+    // clang-format on
+
+    s_param_raw param = {.version = 1,
+                         .value = {.type_family = TF_STRING,
+                                   .source = SOURCE_MAP_REF,
+                                   .map_ref = {.id = 0, .key_tlv_size = sizeof(nested_key_tlv)}}};
+    memcpy(param.value.map_ref.key_tlv, nested_key_tlv, sizeof(nested_key_tlv));
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_ALWAYS,
+                     .constraints = NULL,
+                     .param_raw = param,
+                     .name = "Event name"};
+
+    // get_matching_map_entry must NOT be called (rejected before lookup)
+    assert_false(format_param_raw(&field));
+}
+
+// =============================================================================
 // Test runner
 // =============================================================================
 
@@ -665,6 +801,11 @@ int main(void) {
 
         // STRING tests
         cmocka_unit_test(test_raw_string),
+
+        // MAP_REF tests
+        cmocka_unit_test(test_raw_map_ref_found),
+        cmocka_unit_test(test_raw_map_ref_not_found),
+        cmocka_unit_test(test_raw_map_ref_nested_rejected),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
