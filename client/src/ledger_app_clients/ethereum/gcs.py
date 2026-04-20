@@ -426,25 +426,33 @@ class ParamUnit(FieldParam):
         return payload
 
 
+class TrustedNameValueType(IntEnum):
+    STANDARD = 0x00
+    INTEROPERABLE = 0x01
+
+
 class ParamTrustedName(FieldParam):
     version: int
     value: Value
     types: list[TrustedNameType]
     sources: list[TrustedNameSource]
     sender_addrs: Optional[list[bytes]]
+    value_type: Optional[TrustedNameValueType]
 
     def __init__(self,
                  version: int,
                  value: Value,
                  types: list[TrustedNameType],
                  sources: list[TrustedNameSource],
-                 sender_addrs: Optional[list[bytes]] = None):
+                 sender_addrs: Optional[list[bytes]] = None,
+                 value_type: Optional[TrustedNameValueType] = None):
         self.type = ParamType.TRUSTED_NAME
         self.version = version
         self.value = value
         self.types = types
         self.sources = sources
         self.sender_addrs = sender_addrs
+        self.value_type = value_type
 
     def serialize(self) -> bytes:
         payload = bytearray()
@@ -461,6 +469,8 @@ class ParamTrustedName(FieldParam):
         if self.sender_addrs is not None:
             for addr in self.sender_addrs:
                 payload += self.serialize_field(0x04, addr)
+        if self.value_type is not None:
+            payload += self.serialize_field(0x05, self.value_type)
         return payload
 
 
