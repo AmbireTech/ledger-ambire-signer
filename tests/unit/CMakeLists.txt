@@ -172,6 +172,7 @@ target_link_libraries(test_param_trusted_name PUBLIC
                       -Wl,--wrap=get_public_key
                       -Wl,--wrap=get_current_tx_chain_id
                       -Wl,--wrap=add_to_field_table
+                      -Wl,--wrap=get_network_as_string_from_chain_id
 )
 
 add_test(test_param_trusted_name test_param_trusted_name)

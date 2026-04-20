@@ -26,6 +26,7 @@
 #include "get_public_key.h"
 #include "tx_ctx.h"
 #include "common_utils.h"
+#include "network.h"
 
 strings_t strings;
 
@@ -46,6 +47,22 @@ const chain_config_t *g_chain_config = &chainConfig_storage;
                                        .sources = {TN_SOURCE_CAL},                      \
                                        .sender_addr_count = 0};                         \
     memcpy(param_name.value.constant.buf, param_name##_addr, ADDRESS_LENGTH);
+
+// Helper macro to create an EIP-7930 interoperable address param
+// Format: [chain_id_byte (1 byte)][EVM address (20 bytes)] = 21 bytes total
+#define CREATE_INTEROP_PARAM(param_name, chain_id_byte, ...)                                \
+    uint8_t param_name##_eip7930[1 + ADDRESS_LENGTH] = {chain_id_byte, __VA_ARGS__};        \
+    s_param_trusted_name param_name = {.version = 1,                                        \
+                                       .value = {.type_family = TF_BYTES,                   \
+                                                 .source = SOURCE_CONSTANT,                 \
+                                                 .constant = {.size = 1 + ADDRESS_LENGTH}}, \
+                                       .type_count = 1,                                     \
+                                       .types = {TN_TYPE_ACCOUNT},                          \
+                                       .source_count = 1,                                   \
+                                       .sources = {TN_SOURCE_CAL},                          \
+                                       .sender_addr_count = 0,                              \
+                                       .value_type = TNVT_INTEROPERABLE};                   \
+    memcpy(param_name.value.constant.buf, param_name##_eip7930, sizeof(param_name##_eip7930));
 
 // =============================================================================
 // Mock functions
@@ -106,6 +123,17 @@ uint16_t __wrap_get_public_key(uint8_t *out, size_t out_size) {
         memcpy(out, wallet_addr, ADDRESS_LENGTH);
     }
     return status;
+}
+
+/**
+ * @brief Mock implementation of get_network_as_string_from_chain_id
+ */
+bool __wrap_get_network_as_string_from_chain_id(char *out, size_t out_size, uint64_t chain_id) {
+    check_expected(chain_id);
+    const char *name = (const char *) mock();
+    if (name == NULL) return false;
+    strlcpy(out, name, out_size);
+    return true;
 }
 
 // =============================================================================
@@ -444,6 +472,112 @@ static void test_trusted_name_chain_id_zero(void **state) {
     assert_false(format_param_trusted_name(&field));
 }
 
+/**
+ * @brief Test INTEROPERABLE address with trusted name and known network
+ */
+static void test_trusted_name_interoperable_named(void **state) {
+    (void) state;
+
+    // clang-format off
+    CREATE_INTEROP_PARAM(param, 0x01,
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00,
+        0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33, 0x44
+    );
+    // clang-format on
+
+    s_field field = {.param_type = PARAM_TYPE_TRUSTED_NAME,
+                     .visibility = PARAM_VISIBILITY_ALWAYS,
+                     .constraints = NULL,
+                     .param_trusted_name = param,
+                     .name = "To"};
+
+    // No get_current_tx_chain_id call — chain_id comes from EIP-7930 bytes
+    static s_trusted_name trusted = {.name = "Vitalik.eth"};
+    expect_any(__wrap_get_trusted_name, chain_id);
+    expect_any(__wrap_get_trusted_name, addr);
+    will_return(__wrap_get_trusted_name, &trusted);
+
+    expect_value(__wrap_get_network_as_string_from_chain_id, chain_id, 1);
+    will_return(__wrap_get_network_as_string_from_chain_id, "Ethereum");
+
+    expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_TRUSTED_NAME);
+    expect_string(__wrap_add_to_field_table, name, field.name);
+    expect_string(__wrap_add_to_field_table, value, "Vitalik.eth (Ethereum)");
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_trusted_name(&field));
+}
+
+/**
+ * @brief Test INTEROPERABLE address without trusted name (raw address) with known network
+ */
+static void test_trusted_name_interoperable_raw(void **state) {
+    (void) state;
+
+    // clang-format off
+    CREATE_INTEROP_PARAM(param, 0x01,
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00,
+        0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33, 0x44
+    );
+    // clang-format on
+
+    s_field field = {.param_type = PARAM_TYPE_TRUSTED_NAME,
+                     .visibility = PARAM_VISIBILITY_ALWAYS,
+                     .constraints = NULL,
+                     .param_trusted_name = param,
+                     .name = "To"};
+
+    expect_any(__wrap_get_trusted_name, chain_id);
+    expect_any(__wrap_get_trusted_name, addr);
+    will_return(__wrap_get_trusted_name, NULL);
+
+    expect_value(__wrap_get_network_as_string_from_chain_id, chain_id, 1);
+    will_return(__wrap_get_network_as_string_from_chain_id, "Ethereum");
+
+    expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_RAW);
+    expect_string(__wrap_add_to_field_table, name, field.name);
+    expect_string(__wrap_add_to_field_table,
+                  value,
+                  "0x11223344556677889900aabbccddeEfF11223344 (Ethereum)");
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_trusted_name(&field));
+}
+
+/**
+ * @brief Test INTEROPERABLE address with unknown network (no suffix appended)
+ */
+static void test_trusted_name_interoperable_unknown_network(void **state) {
+    (void) state;
+
+    // clang-format off
+    CREATE_INTEROP_PARAM(param, 0x01,
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00,
+        0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33, 0x44
+    );
+    // clang-format on
+
+    s_field field = {.param_type = PARAM_TYPE_TRUSTED_NAME,
+                     .visibility = PARAM_VISIBILITY_ALWAYS,
+                     .constraints = NULL,
+                     .param_trusted_name = param,
+                     .name = "To"};
+
+    expect_any(__wrap_get_trusted_name, chain_id);
+    expect_any(__wrap_get_trusted_name, addr);
+    will_return(__wrap_get_trusted_name, NULL);
+
+    expect_value(__wrap_get_network_as_string_from_chain_id, chain_id, 1);
+    will_return(__wrap_get_network_as_string_from_chain_id, NULL);  // unknown network
+
+    expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_RAW);
+    expect_string(__wrap_add_to_field_table, name, field.name);
+    expect_string(__wrap_add_to_field_table, value, "0x11223344556677889900aabbccddeEfF11223344");
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_trusted_name(&field));
+}
+
 // =============================================================================
 // Test runner
 // =============================================================================
@@ -458,6 +592,9 @@ int main(void) {
         cmocka_unit_test(test_trusted_name_if_not_in_no_match),
         cmocka_unit_test(test_trusted_name_sender_addr_replacement),
         cmocka_unit_test(test_trusted_name_chain_id_zero),
+        cmocka_unit_test(test_trusted_name_interoperable_named),
+        cmocka_unit_test(test_trusted_name_interoperable_raw),
+        cmocka_unit_test(test_trusted_name_interoperable_unknown_network),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
