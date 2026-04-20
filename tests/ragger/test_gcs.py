@@ -23,9 +23,10 @@ from client.gcs import (
     Field, ParamType, ParamRaw, Value, TypeFamily, DataPath, ParamTrustedName,
     ParamNFT, ParamDatetime, DatetimeType, ParamTokenAmount, ParamToken, ParamCalldata,
     ParamAmount, ParamEnum, ContainerPath, TxInfo, ParamNetwork, VisibleType,
-    TrustedNameValueType
+    TrustedNameValueType, MapRef
 )
 from client.enum_value import EnumValue
+from client.map_entry import MapEntry
 from client.tx_simu import TxSimu
 from client.proxy_info import ProxyInfo
 from client.dynamic_networks import DynamicNetwork
@@ -357,6 +358,225 @@ def test_gcs_poap(scenario_navigator: NavigateWithScenario,
             scenario_navigator.review_approve_with_warning()
         else:
             scenario_navigator.review_approve()
+
+
+def test_gcs_map_entry(scenario_navigator: NavigateWithScenario):
+    """Test MAP_ENTRY feature: maps a calldata uint256 (eventId) to a human-readable event name."""
+    backend = scenario_navigator.backend
+    app_client = EthAppClient(backend)
+
+    with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    eventId = 175676
+    # pylint: disable=line-too-long
+    data = contract.encode_abi("mintToken", [
+        eventId,
+        7163978,
+        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+        1730621615,
+        bytes.fromhex("8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c")
+    ])
+    # pylint: enable=line-too-long
+    tx_params = {
+        "nonce": 235,
+        "maxFeePerGas": Web3.to_wei(100, "gwei"),
+        "maxPriorityFeePerGas": Web3.to_wei(10, "gwei"),
+        "gas": 44001,
+        "to": bytes.fromhex("0bb4D3e88243F4A057Db77341e6916B0e449b158"),
+        "data": data,
+        "chainId": 1
+    }
+
+    with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
+        pass
+
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/poap.abi.json", "mintToken")
+
+    # MAP_REF key: the eventId Value (uint256 from calldata)
+    event_id_key_value = Value(
+        1,
+        TypeFamily.UINT,
+        type_size=32,
+        data_path=DataPath(1, param_paths["eventId"]),
+    )
+
+    fields = [
+            Field(
+                1,
+                "Event name",
+                ParamRaw(
+                    1,
+                    Value(
+                        1,
+                        TypeFamily.STRING,
+                        map_ref=MapRef(version=1, id=0, key=event_id_key_value),
+                    )
+                )
+            ),
+            Field(
+                1,
+                "Token ID",
+                ParamRaw(
+                    1,
+                    Value(
+                        1,
+                        TypeFamily.UINT,
+                        type_size=32,
+                        data_path=DataPath(1, param_paths["tokenId"]),
+                    )
+                )
+            ),
+            Field(
+                1,
+                "Receiver",
+                ParamRaw(
+                    1,
+                    Value(
+                        1,
+                        TypeFamily.ADDRESS,
+                        data_path=DataPath(1, param_paths["receiver"]),
+                    )
+                )
+            ),
+    ]
+
+    inst_hash = compute_inst_hash(fields)
+
+    tx_info = TxInfo(
+        1,
+        tx_params["chainId"],
+        tx_params["to"],
+        get_selector_from_data(tx_params["data"]),
+        inst_hash,
+        "mint POAP",
+        creator_name="POAP",
+        creator_legal_name="Proof of Attendance Protocol",
+        creator_url="poap.xyz",
+        contract_name="PoapBridge",
+        deploy_date=1646305200
+    )
+
+    app_client.provide_map_entry(MapEntry(
+        version=1,
+        chain_id=tx_params["chainId"],
+        contract_addr=tx_params["to"],
+        selector=get_selector_from_data(tx_params["data"]),
+        id=0,
+        key=eventId.to_bytes(32, "big"),  # 32-byte big-endian (ABI uint256 encoding)
+        value=b"EthCC Paris",
+    ).serialize())
+
+    app_client.provide_transaction_info(tx_info.serialize())
+
+    for field in fields:
+        app_client.provide_transaction_field_desc(field.serialize())
+
+    with app_client.sign(mode=SignMode.START_FLOW):
+        scenario_navigator.review_approve()
+
+
+def test_gcs_map_entry_chain_id_key(scenario_navigator: NavigateWithScenario):
+    """Test MAP_ENTRY with ContainerPath.CHAIN_ID as key: maps chain_id to a network name."""
+    backend = scenario_navigator.backend
+    app_client = EthAppClient(backend)
+
+    with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    # pylint: disable=line-too-long
+    data = contract.encode_abi("mintToken", [
+        175676,
+        7163978,
+        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+        1730621615,
+        bytes.fromhex("8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c")
+    ])
+    # pylint: enable=line-too-long
+    tx_params = {
+        "nonce": 235,
+        "maxFeePerGas": Web3.to_wei(100, "gwei"),
+        "maxPriorityFeePerGas": Web3.to_wei(10, "gwei"),
+        "gas": 44001,
+        "to": bytes.fromhex("0bb4D3e88243F4A057Db77341e6916B0e449b158"),
+        "data": data,
+        "chainId": 1
+    }
+
+    with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
+        pass
+
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/poap.abi.json", "mintToken")
+
+    # MAP_REF key: chain_id from the RLP transaction context (ContainerPath.CHAIN_ID).
+    # The C implementation exposes the chain_id as an 8-byte big-endian uint64, so the
+    # MAP_ENTRY key must be encoded the same way: chain_id=1 → (1).to_bytes(8, "big").
+    chain_id_key_value = Value(
+        1,
+        TypeFamily.UINT,
+        container_path=ContainerPath.CHAIN_ID,
+    )
+
+    fields = [
+        Field(
+            1,
+            "Network",
+            ParamRaw(
+                1,
+                Value(
+                    1,
+                    TypeFamily.STRING,
+                    map_ref=MapRef(version=1, id=1, key=chain_id_key_value),
+                )
+            )
+        ),
+        Field(
+            1,
+            "Token ID",
+            ParamRaw(
+                1,
+                Value(
+                    1,
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["tokenId"]),
+                )
+            )
+        ),
+    ]
+
+    inst_hash = compute_inst_hash(fields)
+
+    tx_info = TxInfo(
+        1,
+        tx_params["chainId"],
+        tx_params["to"],
+        get_selector_from_data(tx_params["data"]),
+        inst_hash,
+        "mint POAP",
+        creator_name="POAP",
+        creator_legal_name="Proof of Attendance Protocol",
+        creator_url="poap.xyz",
+        contract_name="PoapBridge",
+        deploy_date=1646305200
+    )
+
+    # MAP_ENTRY key is the 8-byte big-endian encoding of chain_id=1
+    app_client.provide_map_entry(MapEntry(
+        version=1,
+        chain_id=tx_params["chainId"],
+        contract_addr=tx_params["to"],
+        selector=get_selector_from_data(tx_params["data"]),
+        id=1,
+        key=tx_params["chainId"].to_bytes(8, "big"),
+        value=b"Ethereum",
+    ).serialize())
+
+    app_client.provide_transaction_info(tx_info.serialize())
+
+    for field in fields:
+        app_client.provide_transaction_field_desc(field.serialize())
+
+    with app_client.sign(mode=SignMode.START_FLOW):
+        scenario_navigator.review_approve()
 
 
 @pytest.mark.parametrize(
