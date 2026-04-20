@@ -4,8 +4,6 @@
 #include "get_public_key.h"
 #include "ox_ec.h"
 
-#define ZERO(x) explicit_bzero(&x, sizeof(x))
-
 void handle_check_address(check_address_parameters_t* params, chain_config_t* chain_config) {
     params->result = 0;
     PRINTF("Params on the address %d\n", (unsigned int) params);
