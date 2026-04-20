@@ -100,38 +100,6 @@ static void setting_toggle_callback(int token, uint8_t index, int page) {
     }
 }
 
-const nbgl_icon_details_t *get_app_icon(bool caller_icon) {
-    const nbgl_icon_details_t *icon = NULL;
-
-    if (caller_icon && caller_app) {
-        if (caller_app->icon) {
-            icon = caller_app->icon;
-        }
-    } else {
-        icon = &ICONGLYPH;
-    }
-    if (icon == NULL) {
-        PRINTF("%s(%s) returned NULL!\n", __func__, (caller_icon ? "true" : "false"));
-    }
-    return icon;
-}
-
-static const nbgl_icon_details_t *get_home_icon(void) {
-    const nbgl_icon_details_t *icon = NULL;
-
-    if (caller_app) {
-        if (caller_app->icon) {
-            icon = caller_app->icon;
-        }
-    } else {
-        icon = &ICONHOME;
-    }
-    if (icon == NULL) {
-        PRINTF("%s returned NULL!\n", __func__);
-    }
-    return icon;
-}
-
 /**
  * Prepare settings, app infos and call the HomeAndSettings use case
  *

@@ -8,7 +8,6 @@
 #include "plugins.h"
 #include "trusted_name.h"
 #include "caller_api.h"
-#include "network_icons.h"
 #include "network.h"
 #include "cmd_get_tx_simulation.h"
 #include "cmd_get_gating.h"
@@ -56,38 +55,6 @@ static void reviewChoice(bool confirm) {
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_REJECTED, ui_idle);
     }
     _cleanup();
-}
-
-/**
- * Retrieve the icon for the Transaction
- *
- * @param[in] fromPlugin If true, the data is coming from a plugin, otherwise it is a standard
- * transaction
- * @return Pointer to the icon details structure, or NULL if no icon is available
- */
-const nbgl_icon_details_t *get_tx_icon(bool fromPlugin) {
-    const nbgl_icon_details_t *icon = NULL;
-
-    if (fromPlugin && (pluginType == PLUGIN_TYPE_EXTERNAL)) {
-        if ((caller_app != NULL) && (caller_app->name != NULL)) {
-            if (strcmp(strings.common.toAddress, caller_app->name) == 0) {
-                icon = get_app_icon(true);
-            }
-        }
-        // icon is NULL in this case
-        // Check with Alex if this is expected or a bug
-    } else if ((caller_app != NULL) && !fromPlugin) {
-        // Clone case
-        icon = get_app_icon(true);
-    } else {
-        uint64_t chain_id = get_tx_chain_id();
-        if (chain_id == g_chain_config->chain_id) {
-            icon = get_app_icon(false);
-        } else {
-            icon = get_network_icon_from_chain_id(&chain_id);
-        }
-    }
-    return icon;
 }
 
 // Force operation to be lowercase
