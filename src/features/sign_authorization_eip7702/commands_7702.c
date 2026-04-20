@@ -1,4 +1,5 @@
 #include "shared_context.h"
+#include "format.h"
 #include "app_mem_utils.h"
 #include "apdu_constants.h"
 #include "tlv_apdu.h"
@@ -158,9 +159,9 @@ static bool handle_auth7702_tlv(const buffer_t *buf) {
         networkName = get_network_name_from_chain_id(&auth7702->chainId);
         if (networkName == NULL) {
             // Display the numeric chainId if no name was found
-            if (!u64_to_string(auth7702->chainId,
-                               strings.common.network_name,
-                               sizeof(strings.common.network_name))) {
+            if (!format_u64(strings.common.network_name,
+                            sizeof(strings.common.network_name),
+                            auth7702->chainId)) {
                 // return SWO_PARAMETER_ERROR_NO_INFO;
                 // Do not crash if the chain id is too long
                 strings.common.network_name[0] = '?';

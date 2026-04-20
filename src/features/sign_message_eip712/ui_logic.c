@@ -308,7 +308,7 @@ bool ui_712_review_network(const uint64_t *chain_id) {
     }
     ui_712_set_title(title, strlen(title));
     if ((buf = get_network_name_from_chain_id(chain_id)) == NULL) {
-        if (!u64_to_string(*chain_id, strings.tmp.tmp, NETWORK_STRING_MAX_SIZE)) {
+        if (!format_u64(strings.tmp.tmp, NETWORK_STRING_MAX_SIZE, *chain_id)) {
             return false;
         }
         buf = strings.tmp.tmp;
