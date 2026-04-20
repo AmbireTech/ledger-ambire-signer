@@ -222,10 +222,7 @@ end:
  * @param[in] flags io_exchange flag
  * @return whether the handling of the APDU was successful or not
  */
-uint16_t handle_sign_personal_message(uint8_t p1,
-                                      const uint8_t *const payload,
-                                      uint8_t length,
-                                      unsigned int *flags) {
+uint16_t handle_sign_personal_message(uint8_t p1, const uint8_t *const payload, uint8_t length) {
     uint8_t *data = (uint8_t *) payload;
     uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
 
@@ -280,7 +277,6 @@ uint16_t handle_sign_personal_message(uint8_t p1,
             return sw;
         }
         ui_191_start(signMsgCtx->display_buffer);
-        *flags |= IO_ASYNCH_REPLY;
         return APDU_NO_RESPONSE;
     }
     return SWO_SUCCESS;

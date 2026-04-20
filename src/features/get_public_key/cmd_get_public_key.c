@@ -10,7 +10,6 @@ uint16_t handle_get_public_key(uint8_t p1,
                                uint8_t p2,
                                const uint8_t *dataBuffer,
                                uint8_t dataLength,
-                               unsigned int *flags,
                                unsigned int *tx) {
     bip32_path_t bip32;
     cx_err_t error = CX_INTERNAL_ERROR;
@@ -65,7 +64,6 @@ uint16_t handle_get_public_key(uint8_t p1,
              tmpCtx.publicKeyContext.address);
     // don't unnecessarily pass the current app's chain ID
     ui_display_public_key(g_chain_config->chain_id == chain_id ? NULL : &chain_id);
-    *flags |= IO_ASYNCH_REPLY;
     // Return code will be sent after UI approve/cancel
     error = 0;
 end:

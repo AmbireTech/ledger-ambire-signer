@@ -456,11 +456,7 @@ void handle_tx_simulation_opt_in(bool response_expected) {
  * @param[in] length of the buffer
  * @return APDU Response code
  */
-uint16_t handle_tx_simulation(uint8_t p1,
-                              uint8_t p2,
-                              const uint8_t *data,
-                              uint8_t length,
-                              unsigned int *flags) {
+uint16_t handle_tx_simulation(uint8_t p1, uint8_t p2, const uint8_t *data, uint8_t length) {
     uint16_t sw = SWO_NOT_SUPPORTED_ERROR_NO_INFO;
 
     switch (p1) {
@@ -480,7 +476,6 @@ uint16_t handle_tx_simulation(uint8_t p1,
         case 0x01:
             // TX Simulation Opt-In
             handle_tx_simulation_opt_in(true);
-            *flags |= IO_ASYNCH_REPLY;
             sw = APDU_NO_RESPONSE;
             break;
         default:

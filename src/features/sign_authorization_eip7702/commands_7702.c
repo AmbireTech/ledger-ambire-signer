@@ -186,8 +186,7 @@ end:
 
 uint16_t handle_sign_eip7702_authorization(uint8_t p1,
                                            const uint8_t *dataBuffer,
-                                           uint8_t dataLength,
-                                           unsigned int *flags) {
+                                           uint8_t dataLength) {
     g_7702_sw = SWO_PARAMETER_ERROR_NO_INFO;
     if (p1 == P1_FIRST_CHUNK) {
         if ((dataBuffer =
@@ -199,6 +198,5 @@ uint16_t handle_sign_eip7702_authorization(uint8_t p1,
     if (!tlv_from_apdu(p1 == P1_FIRST_CHUNK, dataLength, dataBuffer, &handle_auth7702_tlv)) {
         return g_7702_sw;
     }
-    *flags |= IO_ASYNCH_REPLY;
     return APDU_NO_RESPONSE;
 }
