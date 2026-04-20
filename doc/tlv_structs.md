@@ -269,6 +269,7 @@ If the network is not found, the device falls back to displaying the raw chain I
 | DATA_PATH      | 0x03 | DATA_PATH       | path to value in serialized transaction | x        | `$.display.formats.<format id>.fields.[<field id>].path`  |
 | CONTAINER_PATH | 0x04 | `ContainerPath` | container value enum                    | x        | `$.display.formats.<format id>.fields.[<field id>].path`  |
 | CONSTANT       | 0x05 | uint8[]         | literal value                           | x        | `$.display.formats.<format id>.fields.[<field id>].value` |
+| MAP_REF        | 0x06 | MAP_REF         | reference to a map entry                | x        | `$.metadata.maps.<map id>`                                |
 
 with `TypeFamily` enum defined as:
 
@@ -292,7 +293,7 @@ and `ContainerPath` enum defined as:
 | VALUE    | 0x02  |
 | CHAIN_ID | 0x03  |
 
-> __Note__: The TLV payload must include exactly one of `DATA_PATH`, `CONTAINER_PATH` or `CONSTANT`.
+> __Note__: The TLV payload must include exactly one of `DATA_PATH`, `CONTAINER_PATH`, `CONSTANT` or `MAP_REF`.
 
 ### DATA_PATH
 
@@ -340,6 +341,42 @@ In version 1 of the protocol:
 |---------|------|-----------------|--------------------------|----------|-----------------|
 | START   | 0x01 | int16           | start index (inclusive)  | x        |                 |
 | END     | 0x02 | int16           | end index (exclusive)    | x        |                 |
+
+## MAP_ENTRY
+
+Provided via `PROVIDE_MAP_ENTRY` APDU (INS `0x3A`). Signed by CAL. Associates a key with a
+value for context-dependent constants. The wallet resolves the key from the transaction context
+and sends only the matching entry to the device.
+
+| Name          | Tag  | Payload type | Description                                                    | Optional | Source / value                                             |
+|---------------|------|--------------|----------------------------------------------------------------|----------|------------------------------------------------------------|
+| VERSION       | 0x00 | uint8        | struct version                                                 |          | constant: `0x0`                                            |
+| CHAIN_ID      | 0x01 | uint64       | EIP-155 chain ID                                               |          | `$.context.contract.deployments.[<deployment id>].chainId` |
+| CONTRACT_ADDR | 0x02 | uint8[20]    | EVM contract address                                           |          | `$.context.contract.deployments.[<deployment id>].address` |
+| SELECTOR      | 0x03 | uint8[4]     | function selector                                              |          |                                                            |
+| ID            | 0x04 | uint8        | map identifier (to differentiate multiple maps in a contract)  |          |                                                            |
+| KEY           | 0x05 | uint8[]      | map key (raw bytes)                                            |          | `$.metadata.maps.<map id>.<key>`                           |
+| VALUE         | 0x06 | uint8[]      | map value (raw bytes)                                          |          | `$.metadata.maps.<map id>.<key>.value`                     |
+| SIGNATURE     | 0xff | uint8[]      | signature of all the other struct fields                       |          | computed by CAL                                            |
+
+> [!NOTE]
+> The device verifies the KEY matches the value resolved from the transaction context before using the VALUE.
+> If no matching MAP_ENTRY is found in the current context, the clear signing flow is aborted.
+
+### MAP_REF
+
+Embedded as VALUE tag `0x06`. References a stored MAP_ENTRY by ID and key.
+
+| Name    | Tag  | Payload type | Description                            | Optional | Source / value  |
+|---------|------|--------------|----------------------------------------|----------|-----------------|
+| VERSION | 0x00 | uint8        | struct version                         |          | constant: `0x0` |
+| ID      | 0x01 | uint8        | map identifier (references MAP_ENTRY)  |          |                 |
+| KEY     | 0x02 | VALUE        | key to look up in the stored MAP_ENTRY |          |                 |
+
+> [!NOTE]
+> The KEY is a VALUE that specifies where to get the key from the transaction context.
+> Common key sources: `CONTAINER_PATH` with `CHAIN_ID` for chain-dependent values, or `DATA_PATH` for keys in calldata.
+> Nested MAP_REF keys (MAP_REF within MAP_REF KEY) are not supported.
 
 ## PROXY_INFO
 

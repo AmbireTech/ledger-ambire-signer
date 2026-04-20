@@ -43,6 +43,7 @@ The following APDUs are managed by the application. They are detailed in the fol
 | SIGN EIP 7702 AUTHORIZATION                                                       | 0x34
 | PROVIDE SAFE ACCOUNT                                                              | 0x36
 | PROVIDE GATED SIGNING                                                             | 0x38
+| PROVIDE MAP ENTRY                                                                 | 0x3A
 |==============================================================================================================================
 
 
@@ -1752,6 +1753,54 @@ _Input data_
 _Output data_
 
 None
+
+
+### PROVIDE MAP ENTRY
+
+#### Description
+
+This command provides the app with a key/value entry for a specific contract, function selector,
+and chain ID.  The entry is signed by CAL and stored on the device until a new signing session
+starts.  When the Generic Transaction Parser encounters a `MAP_REF` parameter, the device looks
+up the stored entries and resolves the display value from the matching `MAP_ENTRY`.
+
+The descriptor is sent in TLV (Tag-Length-Value) mode.
+
+#### Coding
+
+_Command_
+
+[width="80%"]
+|==============================================================================================================================
+| *CLA* | *INS*  | *P1*               | *P2*       | *Lc*
+|   E0  |   3A   |  01 : first chunk +
+                   00 : following chunk
+                                      |   00       | variable | variable
+|==============================================================================================================================
+
+_Input data_
+
+###### If P1 == first chunk
+
+[width="80%"]
+|======================================================================
+| *Description*                                       | *Length (byte)*
+| Payload length                                      | 2
+| link:tlv_structs.md#map_entry[MAP_ENTRY struct]     | variable
+|======================================================================
+
+###### If P1 == following chunk
+
+[width="80%"]
+|======================================================================
+| *Description*                                       | *Length (byte)*
+| link:tlv_structs.md#map_entry[MAP_ENTRY struct]     | variable
+|======================================================================
+
+_Output data_
+
+None
+
 
 ## Transport protocol
 

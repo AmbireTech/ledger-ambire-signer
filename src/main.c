@@ -39,6 +39,8 @@
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "cmd_enum_value.h"
+#include "cmd_map_entry.h"
+#include "map_entry.h"
 #include "cmd_tx_info.h"
 #include "cmd_field.h"
 #include "cmd_get_tx_simulation.h"
@@ -95,6 +97,7 @@ void reset_app_context(void) {
     }
     trusted_name_cleanup();
     enum_value_cleanup();
+    map_entry_cleanup();
     memset((uint8_t *) &txContext, 0, sizeof(txContext));
     memset((uint8_t *) &tmpContent, 0, sizeof(tmpContent));
     clear_safe_account();
@@ -289,6 +292,10 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
 
         case INS_PROVIDE_GATING:
             sw = handle_gating(cmd->p1, cmd->p2, cmd->data, cmd->lc);
+            break;
+
+        case INS_PROVIDE_MAP_ENTRY:
+            sw = handle_map_entry(cmd->p1, cmd->p2, cmd->lc, cmd->data);
             break;
 
         default:
