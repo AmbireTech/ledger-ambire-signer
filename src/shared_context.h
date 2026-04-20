@@ -40,9 +40,7 @@ typedef struct internalStorage_t {
     // hidden setting (not shown in the UI)
     bool tx_check_opt_in;
 #endif
-#ifdef HAVE_GATING_SUPPORT
     uint8_t gating_counter;
-#endif
     bool eip7702_enable;
     bool displayHash;
     bool initialized;

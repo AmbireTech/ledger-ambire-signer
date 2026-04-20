@@ -100,9 +100,7 @@ void reset_app_context(void) {
     clear_safe_account();
     ui_all_cleanup();
     proxy_cleanup();
-#ifdef HAVE_GATING_SUPPORT
     clear_gating();
-#endif
 }
 
 void app_quit(void) {
@@ -289,11 +287,9 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
             sw = handle_safe_account(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
 
-#ifdef HAVE_GATING_SUPPORT
         case INS_PROVIDE_GATING:
             sw = handle_gating(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
-#endif
 
         default:
             sw = SWO_INVALID_INS;

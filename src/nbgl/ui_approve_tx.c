@@ -40,9 +40,7 @@ static void _cleanup(void) {
 #ifdef HAVE_TRANSACTION_CHECKS
     clear_tx_simulation();
 #endif
-#ifdef HAVE_GATING_SUPPORT
     clear_gating();
-#endif
 }
 
 // Review callback function to handle user confirmation or cancellation
@@ -404,12 +402,10 @@ uint16_t ux_approve_tx(bool fromPlugin) {
     explicit_bzero(&warning, sizeof(nbgl_warning_t));
     if (tmpContent.txContent.dataPresent) {
         warning.predefinedSet |= SET_BIT(BLIND_SIGNING_WARN);
-#ifdef HAVE_GATING_SUPPORT
         warning.predefinedSet |= SET_BIT(GATED_SIGNING_WARN);
         if (set_gating_warning() == false) {
             return SWO_INCORRECT_DATA;
         }
-#endif
     }
 #ifdef HAVE_TRANSACTION_CHECKS
     set_tx_simulation_warning();
