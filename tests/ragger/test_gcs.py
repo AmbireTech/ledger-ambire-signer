@@ -22,7 +22,8 @@ from client.utils import get_selector_from_data
 from client.gcs import (
     Field, ParamType, ParamRaw, Value, TypeFamily, DataPath, ParamTrustedName,
     ParamNFT, ParamDatetime, DatetimeType, ParamTokenAmount, ParamToken, ParamCalldata,
-    ParamAmount, ParamEnum, ContainerPath, TxInfo, ParamNetwork, VisibleType
+    ParamAmount, ParamEnum, ContainerPath, TxInfo, ParamNetwork, VisibleType,
+    TrustedNameValueType
 )
 from client.enum_value import EnumValue
 from client.tx_simu import TxSimu
@@ -215,10 +216,7 @@ def test_gcs_poap(scenario_navigator: NavigateWithScenario,
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
     # pylint: disable=line-too-long
     data = contract.encode_abi("mintToken", [
         175676,
@@ -680,6 +678,93 @@ def test_gcs_constraints(scenario_navigator: NavigateWithScenario,
 
         with app_client.sign(mode=SignMode.START_FLOW):
             scenario_navigator.review_approve(test_name=scenario_navigator.test_name + f"_{test_config}")
+
+
+@pytest.mark.parametrize("test_config", ["named", "raw"])
+def test_gcs_interoperable_address(scenario_navigator: NavigateWithScenario, test_config: str):
+    app_client = EthAppClient(scenario_navigator.backend)
+
+    # EIP-7930 binary encoding for Ethereum mainnet (chain_id=1):
+    # 1 byte chain_id + 20 bytes EVM address = 21 bytes
+    interop_chain_id = 1
+    interop_addr = bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D")
+    eip7930_bytes = bytes([interop_chain_id]) + interop_addr
+
+    with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    # pylint: disable=line-too-long
+    data = contract.encode_abi("mintToken", [
+        175676,
+        7163978,
+        bytes.fromhex("0000000000000000000000000000000000000000"),
+        1730621615,
+        eip7930_bytes,  # signature field carries the EIP-7930 interoperable address
+    ])
+    # pylint: enable=line-too-long
+    tx_params = {
+        "nonce": 235,
+        "maxFeePerGas": Web3.to_wei(100, "gwei"),
+        "maxPriorityFeePerGas": Web3.to_wei(10, "gwei"),
+        "gas": 44001,
+        # PoapBridge
+        "to": bytes.fromhex("0bb4D3e88243F4A057Db77341e6916B0e449b158"),
+        "data": data,
+        "chainId": 1,
+    }
+
+    with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
+        pass
+
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/poap.abi.json", "mintToken")
+    fields = [
+        Field(
+            1,
+            "Destination",
+            ParamTrustedName(
+                1,
+                Value(
+                    1,
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["signature"]),
+                ),
+                [TrustedNameType.ACCOUNT],
+                [TrustedNameSource.ENS],
+                value_type=TrustedNameValueType.INTEROPERABLE,
+            ),
+        ),
+    ]
+
+    inst_hash = compute_inst_hash(fields)
+    tx_info = TxInfo(
+        1,
+        tx_params["chainId"],
+        tx_params["to"],
+        get_selector_from_data(tx_params["data"]),
+        inst_hash,
+        "mint POAP",
+        creator_name="POAP",
+        creator_legal_name="Proof of Attendance Protocol",
+        creator_url="poap.xyz",
+        contract_name="PoapBridge",
+        deploy_date=1646305200,
+    )
+
+    if test_config == "named":
+        challenge = ResponseParser.challenge(app_client.get_challenge().data)
+        app_client.provide_trusted_name(TrustedName(2,
+                                                    interop_addr,
+                                                    "ledger.eth",
+                                                    tn_type=TrustedNameType.ACCOUNT,
+                                                    tn_source=TrustedNameSource.ENS,
+                                                    chain_id=interop_chain_id,
+                                                    challenge=challenge))
+
+    app_client.provide_transaction_info(tx_info.serialize())
+    for field in fields:
+        app_client.provide_transaction_field_desc(field.serialize())
+
+    with app_client.sign(mode=SignMode.START_FLOW):
+        scenario_navigator.review_approve(test_name=scenario_navigator.test_name + f"_{test_config}")
 
 
 def test_gcs_1inch(scenario_navigator: NavigateWithScenario):
