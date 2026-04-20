@@ -183,10 +183,24 @@ This struct can contain `NATIVE_CURRENCY` multiple times for multiple addresses.
 | TYPES          | 0x02 | TrustedNameType[]   | allowed types for types for trusted name   |          | `$.display.formats.<format id>.fields.[<field id>].params.types`         |
 | SOURCES        | 0x03 | TrustedNameSource[] | allowed sources for types for trusted name |          | `$.display.formats.<format id>.fields.[<field id>].params.sources`       |
 | SENDER_ADDRESS | 0x04 | uint8[20]           | address to interpret as the sender         | x        | `$.display.formats.<format id>.fields.[<field id>].params.senderAddress` |
+| VALUE_TYPE     | 0x05 | uint8               | `TrustedNameValueType` (default: STANDARD) | x        | `$.display.formats.<format id>.fields.[<field id>].params.valueType`     |
 
 This struct can contain `SENDER_ADDRESS` multiple times for multiple addresses.
 
-with `TrustedNameType` enum defined as:
+When `VALUE_TYPE` is absent it defaults to `STANDARD`.
+When `VALUE_TYPE` is `INTEROPERABLE`, `VALUE` holds EIP-7930-encoded bytes
+(`[chain_id (1–8 bytes, big-endian)][address (20 bytes)]`).
+The device extracts the chain ID and EVM address, may display the chain as a network
+name suffix, and applies trusted name resolution to the address part.
+
+with `TrustedNameValueType` enum defined as:
+
+| Name          | Value | Description                                                      |
+|---------------|-------|------------------------------------------------------------------|
+| STANDARD      | 0x00  | VALUE is a 20-byte EVM address (default).                        |
+| INTEROPERABLE | 0x01  | VALUE is an EIP-7930 interoperable address (chain_id + address). |
+
+and `TrustedNameType` enum defined as:
 
 | Name            | Value | Description                                                                                        |
 |-----------------|-------|----------------------------------------------------------------------------------------------------|

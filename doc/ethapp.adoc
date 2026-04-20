@@ -1333,6 +1333,19 @@ None
 ### TRANSACTION FIELD DESCRIPTION
 
 #### Description
+
+This command provides a field description for the Generic Transaction Parser (GCS).
+
+Each field can carry a `PARAM_TRUSTED_NAME` parameter, which supports two value types:
+
+* *STANDARD* (default): the value is a 20-byte EVM address.
+* *INTEROPERABLE* (EIP-7930): the value is a variable-length binary blob encoding
+  `[chain_id (1–8 bytes, big-endian)][address (20 bytes)]`.
+  The device extracts the chain ID and EVM address, may display the chain as a
+  network-name suffix, and applies trusted-name resolution to the address part.
+
+See link:tlv_structs.md#param_trusted_name[PARAM_TRUSTED_NAME struct] for the full field layout.
+
 #### Coding
 
 _Command_
