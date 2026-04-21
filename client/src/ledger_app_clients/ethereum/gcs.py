@@ -567,6 +567,8 @@ class FieldTag(IntEnum):
     NAME = 0x01
     PARAM_TYPE = 0x02
     PARAM = 0x03
+    VISIBLE = 0x04
+    CONSTRAINT = 0x05
 
 
 class VisibleType(IntEnum):
@@ -601,8 +603,8 @@ class Field(TlvSerializable):
         payload += self.serialize_field(FieldTag.PARAM_TYPE, self.param.type)
         payload += self.serialize_field(FieldTag.PARAM, self.param.serialize())
         if self.visible is not None:
-            payload += self.serialize_field(0x04, self.visible)
+            payload += self.serialize_field(FieldTag.VISIBLE, self.visible)
         if self.constraints is not None:
             for constraint in self.constraints:
-                payload += self.serialize_field(0x05, constraint)
+                payload += self.serialize_field(FieldTag.CONSTRAINT, constraint)
         return payload
