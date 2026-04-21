@@ -97,6 +97,7 @@ with `ParamType` enum defined as:
 | CALLDATA     | 0x09  |
 | TOKEN        | 0x0a  |
 | NETWORK      | 0x0b  |
+| GROUP        | 0x0c  |
 
 with `VisibleType` enum defined as:
 
@@ -258,6 +259,36 @@ The device looks up the network name from the chain ID using:
 2. Built-in networks
 
 If the network is not found, the device falls back to displaying the raw chain ID.
+
+### PARAM_GROUP
+
+| Name           | Tag  | Payload type | Description                               | Optional | Source / value                                                           |
+|----------------|------|--------------|-------------------------------------------|----------|--------------------------------------------------------------------------|
+| VERSION        | 0x00 | uint8        | struct version                            |          | constant: `0x01`                                                         |
+| ITERATION_TYPE | 0x01 | uint8        | iteration order (`GroupIterationType`)    | x        | `$.display.formats.<format id>.fields.[<field id>].params.iterationType` |
+| FIELD          | 0x02 | FIELD        | a sub-field within the group (repeatable) |          | `$.display.formats.<format id>.fields.[<field id>].params.fields`        |
+
+`FIELD` may appear multiple times (one per sub-field).
+
+with `GroupIterationType` enum defined as:
+
+| Name       | Value | Description                                                                               |
+|------------|-------|-------------------------------------------------------------------------------------------|
+| BUNDLED    | 0x00  | Sub-fields are displayed interleaved by array index (e.g. ID[0]+Value[0], ID[1]+Value[1]) |
+| SEQUENTIAL | 0x01  | All elements of each sub-field are displayed before moving to the next (default order)    |
+
+> __Notes__:
+>
+> - `ITERATION_TYPE` defaults to `BUNDLED` (0x00) if not present.
+> - Each `FIELD` payload is a fully encoded `FIELD` struct (same format as a top-level field descriptor).
+> - `BUNDLED` iteration is not yet fully implemented; the device falls back to `SEQUENTIAL` order.
+>   The root cause is architectural: `format_field` currently iterates over __all__ array elements of a
+>   sub-field in one call (via `value_get` → full element collection), so the group formatter has no way
+>   to request "element *i* only" from each sub-field.  Implementing true interleaving would require either
+>   (a) a new per-element formatter API (e.g. `format_field_at_index`) exposed to the group layer, or
+>   (b) post-processing the field table to reorder entries by array index after sequential formatting.
+>   Both options require a non-trivial API or architecture revision; the spec flags this as
+>   "ADR required (new TLV in descriptors)".
 
 ### VALUE
 

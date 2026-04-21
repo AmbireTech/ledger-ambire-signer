@@ -1337,6 +1337,15 @@ None
 
 This command provides a field description for the Generic Transaction Parser (GCS).
 
+A field can carry a `PARAM_GROUP` parameter (type `0x0c`) to logically group multiple
+sub-fields under a single descriptor. Each sub-field is a fully encoded `FIELD` struct
+embedded in the group payload. The group supports two iteration strategies for array
+fields: `SEQUENTIAL` (all elements of each sub-field before moving to the next) and
+`BUNDLED` (sub-fields interleaved by array index — not yet fully implemented, falls back
+to `SEQUENTIAL`).
+
+See link:tlv_structs.md#param_group[PARAM_GROUP struct] for the full field layout.
+
 Each field can carry a `PARAM_TRUSTED_NAME` parameter, which supports two value types:
 
 * *STANDARD* (default): the value is a 20-byte EVM address.
