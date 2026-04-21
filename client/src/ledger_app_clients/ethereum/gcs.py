@@ -100,6 +100,7 @@ class ParamType(IntEnum):
     CALLDATA = 0x09
     TOKEN = 0x0a
     NETWORK = 0x0b
+    GROUP = 0x0c
 
 
 class TypeFamily(IntEnum):
@@ -610,6 +611,11 @@ class VisibleType(IntEnum):
     IF_NOT_IN = 0x02
 
 
+class GroupIterationType(IntEnum):
+    BUNDLED = 0x00
+    SEQUENTIAL = 0x01
+
+
 class Field(TlvSerializable):
     version: int
     name: str
@@ -640,4 +646,28 @@ class Field(TlvSerializable):
         if self.constraints is not None:
             for constraint in self.constraints:
                 payload += self.serialize_field(FieldTag.CONSTRAINT, constraint)
+        return payload
+
+
+class ParamGroup(FieldParam):
+    """PARAM_GROUP: a collection of sub-fields with controlled iteration."""
+    version: int
+    iteration_type: GroupIterationType
+    fields: list[Field]
+
+    def __init__(self,
+                 version: int,
+                 iteration_type: GroupIterationType,
+                 fields: list[Field]):
+        self.type = ParamType.GROUP
+        self.version = version
+        self.iteration_type = iteration_type
+        self.fields = fields
+
+    def serialize(self) -> bytes:
+        payload = bytearray()
+        payload += self.serialize_field(0x00, self.version)
+        payload += self.serialize_field(0x01, self.iteration_type)
+        for field in self.fields:
+            payload += self.serialize_field(0x02, field.serialize())
         return payload
