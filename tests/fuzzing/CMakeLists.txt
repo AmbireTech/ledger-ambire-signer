@@ -53,6 +53,7 @@ target_include_directories(
          ${APP_SRC}/features/sign_authorization_eip7702
          ${APP_SRC}/features/provide_safe_account
          ${APP_SRC}/features/provide_gating
+         ${APP_SRC}/features/provide_map_entry
          ${APP_SRC}/features/sign_message_eip712_common
          ${APP_SRC}/features/sign_message_eip712
          ${APP_SRC}/features/set_plugin
