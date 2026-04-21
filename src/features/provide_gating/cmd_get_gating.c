@@ -16,8 +16,6 @@
  *
  ********************************************************************************/
 
-#ifdef HAVE_GATING_SUPPORT
-
 #include "cmd_get_gating.h"
 #include "app_mem_utils.h"
 #include "apdu_constants.h"
@@ -673,5 +671,3 @@ bool set_gating_warning(void) {
     set_gating_ui_screen();
     return true;
 }
-
-#endif  // HAVE_GATING_SUPPORT

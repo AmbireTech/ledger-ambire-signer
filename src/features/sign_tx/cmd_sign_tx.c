@@ -109,11 +109,7 @@ uint16_t handle_parsing_status(parserStatus_e status) {
     return sw;
 }
 
-uint16_t handle_sign(uint8_t p1,
-                     uint8_t p2,
-                     const uint8_t *payload,
-                     uint8_t length,
-                     unsigned int *flags) {
+uint16_t handle_sign(uint8_t p1, uint8_t p2, const uint8_t *payload, uint8_t length) {
     uint16_t sw = APDU_NO_RESPONSE;
     uint8_t offset = 0;
 
@@ -163,7 +159,6 @@ uint16_t handle_sign(uint8_t p1,
                 ui_gcs_cleanup();
                 return SWO_NOT_SUPPORTED_ERROR_NO_INFO;
             }
-            *flags |= IO_ASYNCH_REPLY;
             return APDU_NO_RESPONSE;
         default:
             return SWO_WRONG_P1_P2;
@@ -188,7 +183,6 @@ uint16_t handle_sign(uint8_t p1,
         return sw;
     }
 
-    *flags |= IO_ASYNCH_REPLY;
     // Return code will be sent after UI approve/cancel
     return sw;
 }

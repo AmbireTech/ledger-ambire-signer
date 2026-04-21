@@ -20,6 +20,7 @@
 #endif
 
 const nbgl_icon_details_t* get_app_icon(bool caller_icon);
+const nbgl_icon_details_t* get_home_icon(void);
 const nbgl_icon_details_t* get_tx_icon(bool fromPlugin);
 
 // Global Warning struct for NBGL review flows

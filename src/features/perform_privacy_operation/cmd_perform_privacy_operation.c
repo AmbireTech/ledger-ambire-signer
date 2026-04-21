@@ -27,7 +27,6 @@ uint16_t handle_perform_privacy_operation(uint8_t p1,
                                           uint8_t p2,
                                           const uint8_t *dataBuffer,
                                           uint8_t dataLength,
-                                          unsigned int *flags,
                                           unsigned int *tx) {
     cx_ecfp_private_key_t privateKey;
     uint8_t privateKeyData[PRIVATE_KEY_LENGTH];
@@ -107,7 +106,6 @@ uint16_t handle_perform_privacy_operation(uint8_t p1,
     } else {
         ui_display_privacy_shared_secret();
     }
-    *flags |= IO_ASYNCH_REPLY;
     // Return code will be sent after UI approve/cancel
     error = APDU_NO_RESPONSE;
 end:

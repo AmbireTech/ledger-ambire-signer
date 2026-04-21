@@ -63,7 +63,6 @@ uint16_t handle_get_eth2_public_key(uint8_t p1,
                                     uint8_t p2,
                                     const uint8_t *dataBuffer,
                                     uint8_t dataLength,
-                                    unsigned int *flags,
                                     unsigned int *tx) {
     bip32_path_t bip32;
     cx_err_t error = CX_INTERNAL_ERROR;
@@ -91,7 +90,6 @@ uint16_t handle_get_eth2_public_key(uint8_t p1,
         return SWO_SUCCESS;
     }
     ui_display_public_eth2();
-    *flags |= IO_ASYNCH_REPLY;
     // Return code will be sent after UI approve/cancel
     error = 0;
 end:

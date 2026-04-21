@@ -1,5 +1,5 @@
-#include <inttypes.h>
 #include "os_print.h"
+#include "common_utils.h"
 #include "gtp_param_raw.h"
 #include "gtp_field.h"
 #include "uint256.h"
@@ -107,7 +107,7 @@ bool format_uint(const s_field *field,
         return false;
     }
 
-    return *to_be_displayed ? tostring256(&value256, 10, buf, buf_size) : true;
+    return *to_be_displayed ? uint256_to_decimal(value->ptr, value->length, buf, buf_size) : true;
 }
 
 bool format_int(const s_value *def, const s_parsed_value *value, char *buf, size_t buf_size) {
@@ -134,19 +134,19 @@ bool format_int(const s_value *def, const s_parsed_value *value, char *buf, size
             break;
         case 64:
             uv.value64 = read_u64_be(tmp, 0);
-            ret = snprintf(buf, buf_size, "%" PRId64, uv.value64) > 0;
+            ret = format_i64(buf, buf_size, uv.value64);
             break;
         case 32:
             uv.value32 = read_u32_be(tmp, 0);
-            ret = snprintf(buf, buf_size, "%" PRId32, uv.value32) > 0;
+            ret = format_i64(buf, buf_size, (int64_t) uv.value32);
             break;
         case 16:
             uv.value16 = read_u16_be(tmp, 0);
-            ret = snprintf(buf, buf_size, "%u" PRId16, uv.value16) > 0;
+            ret = format_i64(buf, buf_size, (int64_t) uv.value16);
             break;
         case 8:
             uv.value8 = value->ptr[0];
-            ret = snprintf(buf, buf_size, "%u" PRId8, uv.value8) > 0;
+            ret = format_i64(buf, buf_size, (int64_t) uv.value8);
             break;
         default:
             ret = false;

@@ -272,9 +272,7 @@ bool max_transaction_fee_to_string(const txInt256_t *BEGasPrice,
 }
 
 static void nonce_to_string(const txInt256_t *nonce, char *out, size_t out_size) {
-    uint256_t nonce_uint256;
-    convertUint256BE(nonce->value, nonce->length, &nonce_uint256);
-    tostring256(&nonce_uint256, 10, out, out_size);
+    uint256_to_decimal(nonce->value, nonce->length, out, out_size);
 }
 
 __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContext_t *context) {

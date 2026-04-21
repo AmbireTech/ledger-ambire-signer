@@ -10,8 +10,9 @@
 #define PLUGIN_ID_LENGTH 30
 
 // Address length
-#define ADDRESS_LENGTH_STR     ((ADDRESS_LENGTH * 2) + 1)  // 2 hex chars per byte + '\0'
-#define ADDRESS_LENGTH_HEX_STR (ADDRESS_LENGTH_STR + 2)    // with '0x' prefix
+#define ADDRESS_LENGTH_HEX     (ADDRESS_LENGTH * 2)      // 2 hex chars per byte
+#define ADDRESS_LENGTH_STR     (ADDRESS_LENGTH_HEX + 1)  // + '\0'
+#define ADDRESS_LENGTH_HEX_STR (ADDRESS_LENGTH_STR + 2)  // with '0x' prefix
 
 // Cryptographic key and signature sizes
 #define PRIVATE_KEY_LENGTH 64  // Private key material buffer size
@@ -39,9 +40,7 @@ typedef struct internalStorage_t {
     // hidden setting (not shown in the UI)
     bool tx_check_opt_in;
 #endif
-#ifdef HAVE_GATING_SUPPORT
     uint8_t gating_counter;
-#endif
     bool eip7702_enable;
     bool displayHash;
     bool initialized;

@@ -188,7 +188,7 @@ bool get_network_as_string_from_chain_id(char *out, size_t out_size, uint64_t ch
 
     if (name == NULL) {
         // No network name found so simply copy the chain ID as the network name.
-        if (!u64_to_string(chain_id, out, out_size)) {
+        if (!format_u64(out, out_size, chain_id)) {
             return false;
         }
     } else {

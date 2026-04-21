@@ -100,9 +100,7 @@ void reset_app_context(void) {
     clear_safe_account();
     ui_all_cleanup();
     proxy_cleanup();
-#ifdef HAVE_GATING_SUPPORT
     clear_gating();
-#endif
 }
 
 void app_quit(void) {
@@ -112,18 +110,15 @@ void app_quit(void) {
 }
 
 uint16_t io_seproxyhal_send_status(uint16_t sw, uint32_t tx, bool reset, bool idle) {
-    uint16_t err = 0;
     if (reset) {
         reset_app_context();
     }
-    U2BE_ENCODE(G_io_tx_buffer, tx, sw);
-    tx += 2;
-    err = io_exchange(CHANNEL_APDU | IO_RETURN_AFTER_TX, tx);
+    int err = io_send_response_pointer(G_io_tx_buffer, tx, sw);
     if (idle) {
         // Display back the original UX
         ui_idle();
     }
-    return err;
+    return (uint16_t) (err < 0 ? 1 : 0);
 }
 
 const uint8_t *parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, bip32_path_t *bip32) {
@@ -153,7 +148,21 @@ const uint8_t *parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, bip32_
     return dataBuffer;
 }
 
-static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
+/**
+ * Main APDU dispatcher.
+ *
+ * This function validates the APDU class byte and routes each supported
+ * instruction (INS) to its dedicated handler. Handlers are responsible for
+ * parsing command data, producing response bytes, and updating `*tx` with the
+ * response length when applicable. The returned status word (`sw`) is sent
+ * back to the host by the caller.
+ *
+ * Maintenance note:
+ * - Keep one case per INS value.
+ * - Prefer delegating parsing/business logic to dedicated handlers.
+ * - Preserve existing state-reset and cleanup behavior when adding new cases.
+ */
+static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
     uint16_t sw = APDU_NO_RESPONSE;
 
     if (cmd->cla != CLA) {
@@ -163,7 +172,7 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
     switch (cmd->ins) {
         case INS_GET_PUBLIC_KEY:
             forget_known_assets();
-            sw = handle_get_public_key(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            sw = handle_get_public_key(cmd->p1, cmd->p2, cmd->data, cmd->lc, tx);
             break;
 
         case INS_PROVIDE_ERC20_TOKEN_INFORMATION:
@@ -183,11 +192,11 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
             break;
 
         case INS_PERFORM_PRIVACY_OPERATION:
-            sw = handle_perform_privacy_operation(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            sw = handle_perform_privacy_operation(cmd->p1, cmd->p2, cmd->data, cmd->lc, tx);
             break;
 
         case INS_SIGN:
-            sw = handle_sign(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags);
+            sw = handle_sign(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
 
         case INS_GET_APP_CONFIGURATION:
@@ -196,17 +205,17 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
 
         case INS_SIGN_PERSONAL_MESSAGE:
             forget_known_assets();
-            sw = handle_sign_personal_message(cmd->p1, cmd->data, cmd->lc, flags);
+            sw = handle_sign_personal_message(cmd->p1, cmd->data, cmd->lc);
             break;
 
         case INS_SIGN_EIP_712_MESSAGE:
             switch (cmd->p2) {
                 case P2_EIP712_LEGACY_IMPLEM:
                     forget_known_assets();
-                    sw = handle_sign_eip712_message_v0(cmd->p1, cmd->data, cmd->lc, flags);
+                    sw = handle_sign_eip712_message_v0(cmd->p1, cmd->data, cmd->lc);
                     break;
                 case P2_EIP712_FULL_IMPLEM:
-                    sw = handle_eip712_sign(cmd->data, cmd->lc, flags);
+                    sw = handle_eip712_sign(cmd->data, cmd->lc);
                     break;
                 default:
                     sw = SWO_WRONG_P1_P2;
@@ -216,7 +225,7 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
 #ifdef HAVE_ETH2
         case INS_GET_ETH2_PUBLIC_KEY:
             forget_known_assets();
-            sw = handle_get_eth2_public_key(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            sw = handle_get_eth2_public_key(cmd->p1, cmd->p2, cmd->data, cmd->lc, tx);
             break;
 
         case INS_SET_ETH2_WITHDRAWAL_INDEX:
@@ -229,11 +238,11 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
             break;
 
         case INS_EIP712_STRUCT_IMPL:
-            sw = handle_eip712_struct_impl(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags);
+            sw = handle_eip712_struct_impl(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
 
         case INS_EIP712_FILTERING:
-            sw = handle_eip712_filtering(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags);
+            sw = handle_eip712_filtering(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
 
         case INS_GET_CHALLENGE:
@@ -266,23 +275,21 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
 
 #ifdef HAVE_TRANSACTION_CHECKS
         case INS_PROVIDE_TX_SIMULATION:
-            sw = handle_tx_simulation(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags);
+            sw = handle_tx_simulation(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
 #endif
 
         case INS_SIGN_EIP7702_AUTHORIZATION:
-            sw = handle_sign_eip7702_authorization(cmd->p1, cmd->data, cmd->lc, flags);
+            sw = handle_sign_eip7702_authorization(cmd->p1, cmd->data, cmd->lc);
             break;
 
         case INS_PROVIDE_SAFE_ACCOUNT:
-            sw = handle_safe_account(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags);
+            sw = handle_safe_account(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
 
-#ifdef HAVE_GATING_SUPPORT
         case INS_PROVIDE_GATING:
             sw = handle_gating(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
-#endif
 
         default:
             sw = SWO_INVALID_INS;
@@ -292,11 +299,8 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
 }
 
 void app_main(void) {
-    uint32_t rx = 0;
     uint32_t tx = 0;
-    uint32_t flags = 0;
     uint16_t sw = APDU_NO_RESPONSE;
-    bool quit_now = false;
     command_t cmd = {0};
 
     // DESIGN NOTE: the bootloader ignores the way APDU are fetched. The only
@@ -308,9 +312,9 @@ void app_main(void) {
     for (;;) {
         BEGIN_TRY {
             TRY {
-                rx = io_exchange(CHANNEL_APDU | flags, tx);
+                int rx = io_recv_command();
 
-                if (apdu_parser(&cmd, G_io_tx_buffer, rx) == false) {
+                if (apdu_parser(&cmd, G_io_apdu_buffer, (size_t) rx) == false) {
                     PRINTF("=> BAD LENGTH: %d\n", rx);
                     sw = SWO_WRONG_DATA_LENGTH;
                 } else {
@@ -325,8 +329,7 @@ void app_main(void) {
                            cmd.data);
 
                     tx = 0;
-                    flags = 0;
-                    sw = handleApdu(&cmd, &flags, &tx);
+                    sw = handleApdu(&cmd, &tx);
                 }
             }
             CATCH(EXCEPTION_IO_RESET) {
@@ -343,35 +346,20 @@ void app_main(void) {
             }
         }
         END_TRY;
+
         if (sw == APDU_NO_RESPONSE) {
             // Nothing to report
             continue;
         }
-        quit_now = G_called_from_swap && G_swap_response_ready;
+
         if ((sw != SWO_SUCCESS) && (sw != SWO_COMMAND_CODE_NOT_SUPPORTED)) {
             if ((sw & 0xF000) != 0x6000) {
-                // Internal error
                 sw = SWO_NOT_SUPPORTED_ERROR_NO_INFO | (sw & 0x7FF);
             }
             reset_app_context();
-            flags &= ~IO_ASYNCH_REPLY;
         }
 
-        // Report Status Word
-        U2BE_ENCODE(G_io_tx_buffer, tx, sw);
-        tx += 2;
-
-        // If we are in swap mode and have validated a TX, we send it and immediately quit
-        if (quit_now) {
-            if (io_exchange(CHANNEL_APDU | IO_RETURN_AFTER_TX, tx) == 0) {
-                // In case of success, the apdu is sent immediately and eth exits
-                // Reaching this code means we encountered an error
-                swap_finalize_exchange_sign_transaction(false);
-            } else {
-                PRINTF("Unrecoverable\n");
-                app_quit();
-            }
-        }
+        io_send_response_pointer(G_io_tx_buffer, tx, sw);
     }
 }
 

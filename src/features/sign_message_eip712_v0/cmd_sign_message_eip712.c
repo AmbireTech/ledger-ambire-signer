@@ -3,10 +3,7 @@
 #include "common_ui.h"
 #include "common_712.h"
 
-uint16_t handle_sign_eip712_message_v0(uint8_t p1,
-                                       const uint8_t *workBuffer,
-                                       uint8_t dataLength,
-                                       unsigned int *flags) {
+uint16_t handle_sign_eip712_message_v0(uint8_t p1, const uint8_t *workBuffer, uint8_t dataLength) {
     uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
 
     if (p1 != 0x00) {
@@ -34,6 +31,5 @@ uint16_t handle_sign_eip712_message_v0(uint8_t p1,
         return sw;
     }
 
-    *flags |= IO_ASYNCH_REPLY;
     return APDU_NO_RESPONSE;
 }

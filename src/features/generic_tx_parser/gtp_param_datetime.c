@@ -6,6 +6,7 @@
 #include "shared_context.h"
 #include "tlv_library.h"
 #include "tlv_utils.h"
+#include "common_utils.h"
 
 #define PARAM_DATETIME_TAGS(X)                               \
     X(0x00, TAG_VERSION, handle_version, ENFORCE_UNIQUE_TAG) \
@@ -52,8 +53,6 @@ bool format_param_datetime(const s_param_datetime *param, const char *name) {
     size_t buf_size = sizeof(strings.tmp.tmp);
     uint8_t time_buf[sizeof(time_t)] = {0};
     time_t timestamp;
-    uint256_t block_height;
-
     if ((ret = value_get(&param->value, &collec))) {
         for (int i = 0; i < collec.size; ++i) {
             if (param->type == DT_UNIX) {
@@ -71,8 +70,10 @@ bool format_param_datetime(const s_param_datetime *param, const char *name) {
                     }
                 }
             } else if (param->type == DT_BLOCKHEIGHT) {
-                convertUint256BE(collec.value[i].ptr, collec.value[i].length, &block_height);
-                if (!(ret = tostring256(&block_height, 10, buf, buf_size))) {
+                if (!(ret = uint256_to_decimal(collec.value[i].ptr,
+                                               collec.value[i].length,
+                                               buf,
+                                               buf_size))) {
                     break;
                 }
             }
