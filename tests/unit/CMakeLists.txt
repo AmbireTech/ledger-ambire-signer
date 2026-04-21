@@ -349,3 +349,95 @@ target_link_libraries(test_param_group PUBLIC
 )
 
 add_test(test_param_group test_param_group)
+
+# TOKEN_AMOUNT parameter broadcast test
+add_executable(test_param_token_amount
+  ${SRC_DIR}/test_param_token_amount.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_token_amount.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/utils.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/src/os_printf.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_token_amount PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_SPRINTF
+  HAVE_SNPRINTF
+  HAVE_SNPRINTF_FORMAT_U
+  HAVE_MATH
+)
+
+set_source_files_properties(${BOLOS_SDK}/src/os_printf.c PROPERTIES COMPILE_FLAGS "-Wno-implicit-function-declaration")
+
+target_link_libraries(test_param_token_amount PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=value_get
+                      -Wl,--wrap=value_cleanup
+                      -Wl,--wrap=handle_value_struct
+                      -Wl,--wrap=get_current_tx_info
+                      -Wl,--wrap=get_asset_info_by_addr
+                      -Wl,--wrap=add_to_field_table
+                      -Wl,--wrap=get_displayable_ticker
+)
+
+add_test(test_param_token_amount test_param_token_amount)
+
+# CALLDATA parameter broadcast test
+add_executable(test_param_calldata
+  ${SRC_DIR}/test_param_calldata.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_calldata.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_calldata PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_SPRINTF
+  HAVE_SNPRINTF
+)
+
+target_link_libraries(test_param_calldata PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=value_get
+                      -Wl,--wrap=value_cleanup
+                      -Wl,--wrap=handle_value_struct
+                      -Wl,--wrap=tx_ctx_init
+                      -Wl,--wrap=calldata_init
+                      -Wl,--wrap=calldata_append
+                      -Wl,--wrap=calldata_delete
+)
+
+add_test(test_param_calldata test_param_calldata)
