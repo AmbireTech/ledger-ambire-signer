@@ -32,15 +32,17 @@ static bool handle_param_type(const tlv_data_t *data, s_field_ctx *context);
 static bool handle_param(const tlv_data_t *data, s_field_ctx *context);
 static bool handle_param_visible(const tlv_data_t *data, s_field_ctx *context);
 static bool handle_param_constraint(const tlv_data_t *data, s_field_ctx *context);
+static bool handle_separator(const tlv_data_t *data, s_field_ctx *context);
 
 // Define TLV tags for Field
-#define FIELD_TAGS(X)                                              \
-    X(0x00, TAG_VERSION, handle_version, ENFORCE_UNIQUE_TAG)       \
-    X(0x01, TAG_NAME, handle_name, ENFORCE_UNIQUE_TAG)             \
-    X(0x02, TAG_PARAM_TYPE, handle_param_type, ENFORCE_UNIQUE_TAG) \
-    X(0x03, TAG_PARAM, handle_param, ENFORCE_UNIQUE_TAG)           \
-    X(0x04, TAG_VISIBLE, handle_param_visible, ENFORCE_UNIQUE_TAG) \
-    X(0x05, TAG_CONSTRAINT, handle_param_constraint, ALLOW_MULTIPLE_TAG)
+#define FIELD_TAGS(X)                                                    \
+    X(0x00, TAG_VERSION, handle_version, ENFORCE_UNIQUE_TAG)             \
+    X(0x01, TAG_NAME, handle_name, ENFORCE_UNIQUE_TAG)                   \
+    X(0x02, TAG_PARAM_TYPE, handle_param_type, ENFORCE_UNIQUE_TAG)       \
+    X(0x03, TAG_PARAM, handle_param, ENFORCE_UNIQUE_TAG)                 \
+    X(0x04, TAG_VISIBLE, handle_param_visible, ENFORCE_UNIQUE_TAG)       \
+    X(0x05, TAG_CONSTRAINT, handle_param_constraint, ALLOW_MULTIPLE_TAG) \
+    X(0x06, TAG_SEPARATOR, handle_separator, ENFORCE_UNIQUE_TAG)
 
 // Generate TLV parser for Field
 DEFINE_TLV_PARSER(FIELD_TAGS, NULL, field_tlv_parser)
@@ -54,6 +56,14 @@ static bool handle_name(const tlv_data_t *data, s_field_ctx *context) {
                            data->value.size,
                            context->field->name,
                            sizeof(context->field->name));
+    return true;
+}
+
+static bool handle_separator(const tlv_data_t *data, s_field_ctx *context) {
+    str_cpy_explicit_trunc((const char *) data->value.ptr,
+                           data->value.size,
+                           context->field->separator,
+                           sizeof(context->field->separator));
     return true;
 }
 

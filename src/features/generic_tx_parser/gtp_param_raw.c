@@ -275,6 +275,27 @@ static bool format_string(const s_value *def,
     return true;
 }
 
+static bool format_separator(const char *tmpl, int idx) {
+    char buf[MAX_SEPARATOR_SIZE];
+    const char *placeholder = "{index}";
+    const char *pos = strstr(tmpl, placeholder);
+
+    if (pos == NULL) {
+        return add_to_field_table(PARAM_TYPE_SEPARATOR, tmpl, "", NULL);
+    }
+
+    char idx_str[12];
+    snprintf(idx_str, sizeof(idx_str), "%d", idx);
+    snprintf(buf,
+             sizeof(buf),
+             "%.*s%s%s",
+             (int) (pos - tmpl),
+             tmpl,
+             idx_str,
+             pos + strlen(placeholder));
+    return add_to_field_table(PARAM_TYPE_SEPARATOR, buf, "", NULL);
+}
+
 bool format_param_raw(const s_field *field) {
     bool ret = false;
     s_parsed_value_collection collec = {0};
@@ -308,6 +329,10 @@ bool format_param_raw(const s_field *field) {
                 case TF_FIXED:
                 default:
                     ret = false;
+            }
+            // Emit separator (page break or labeled header) before each element
+            if (ret && to_be_displayed && field->separator[0] != '\0') {
+                ret = format_separator(field->separator, i + 1);
             }
             // Add to field table only if required to be displayed
             if (ret && to_be_displayed) {

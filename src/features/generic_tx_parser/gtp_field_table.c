@@ -75,6 +75,10 @@ bool add_to_field_table(e_param_type type,
         node->field.start_intent = true;
         type = PARAM_TYPE_RAW;  // store as raw
         PRINTF("[Intent] Start\n");
+    } else if (type == PARAM_TYPE_SEPARATOR) {
+        // Special handling for separator
+        node->field.is_separator = true;
+        type = PARAM_TYPE_RAW;  // store as raw
     } else {
         node->field.end_intent = validate_instruction_hash();
         if (node->field.end_intent) {

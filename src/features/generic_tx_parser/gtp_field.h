@@ -20,6 +20,7 @@
 #include "lists.h"
 
 #define MAX_FIELD_NAME_SIZE 21
+#define MAX_SEPARATOR_SIZE  32
 
 typedef enum {
     PARAM_TYPE_RAW = 0,
@@ -35,9 +36,9 @@ typedef enum {
     PARAM_TYPE_TOKEN,
     PARAM_TYPE_NETWORK,
     PARAM_TYPE_GROUP,
-    // Internal type — never sent via APDU. Marks a transaction-intent boundary
-    // in batch review flows (see gtp_field_table.c).
-    PARAM_TYPE_INTENT,
+    // Internal types — never sent via APDU.
+    PARAM_TYPE_INTENT,     // marks a transaction-intent boundary in batch flows
+    PARAM_TYPE_SEPARATOR,  // centered page break label emitted before each array element
 } e_param_type;
 
 typedef enum {
@@ -56,6 +57,7 @@ typedef struct s_field_constraint {
 typedef struct s_field {
     uint8_t version;
     char name[MAX_FIELD_NAME_SIZE];
+    char separator[MAX_SEPARATOR_SIZE];
     e_param_type param_type;
     union {
         s_param_raw param_raw;

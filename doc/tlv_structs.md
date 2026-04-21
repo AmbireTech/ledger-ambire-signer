@@ -65,14 +65,15 @@
 It contains no signature since the signed TRANSACTION_INFO struct already has a hash of all the FIELD
 structs, which attests of the authenticity, order and completeness of all FIELD structs.
 
-| Name       | Tag  | Payload type | Description                         | Optional | Source / value                                              |
-|------------|------|--------------|-------------------------------------|----------|-------------------------------------------------------------|
-| VERSION    | 0x00 | uint8        | struct version                      |          | constant: `0x0`                                             |
-| NAME       | 0x01 | char[]       | field display name (ASCII)          |          | `$.display.formats.<format id>.fields.[<field id>].label`   |
-| PARAM_TYPE | 0x02 | uint8        | `ParamType`                         |          | `$.display.formats.<format id>.fields.[<field id>].params`  |
-| PARAM      | 0x03 | PARAM_*      |                                     |          | `$.display.formats.<format id>.fields.[<field id>].params`  |
-| VISIBLE    | 0x04 | uint8        | `VisibleType` visibility condition  | x        | `$.display.formats.<format id>.fields.[<field id>].visible` |
-| CONSTRAINT | 0x05 | uint8[]      | constraint value (raw bytes)        | x        | `$.display.formats.<format id>.fields.[<field id>].visible` |
+| Name       | Tag  | Payload type | Description                         | Optional | Source / value                                                |
+|------------|------|--------------|-------------------------------------|----------|---------------------------------------------------------------|
+| VERSION    | 0x00 | uint8        | struct version                      |          | constant: `0x0`                                               |
+| NAME       | 0x01 | char[]       | field display name (ASCII)          |          | `$.display.formats.<format id>.fields.[<field id>].label`     |
+| PARAM_TYPE | 0x02 | uint8        | `ParamType`                         |          | `$.display.formats.<format id>.fields.[<field id>].params`    |
+| PARAM      | 0x03 | PARAM_*      |                                     |          | `$.display.formats.<format id>.fields.[<field id>].params`    |
+| VISIBLE    | 0x04 | uint8        | `VisibleType` visibility condition  | x        | `$.display.formats.<format id>.fields.[<field id>].visible`   |
+| CONSTRAINT | 0x05 | uint8[]      | constraint value (raw bytes)        | x        | `$.display.formats.<format id>.fields.[<field id>].visible`   |
+| SEPARATOR  | 0x06 | char[]       | separator for array iteration       | x        | `$.display.formats.<format id>.fields.[<field id>].separator` |
 
 > __Notes__:
 >
@@ -80,6 +81,9 @@ structs, which attests of the authenticity, order and completeness of all FIELD 
 > - `VISIBLE` can be present only once and should be served before any `CONSTRAINT`
 > - `CONSTRAINT` is only present when `VISIBLE` is `MUST_BE` or `IF_NOT_IN`
 > - `CONSTRAINT` tag can appear multiple times for multiple allowed/excluded values (OR semantics). The limit is 5 constraints.
+> - `SEPARATOR` is optional and only meaningful for array-typed fields;
+>   `{index}` in the string is replaced with the 1-based element index at display time
+>   (e.g. `"Token {index}"` → `"Token 1"`, `"Token 2"`, ...)
 
 with `ParamType` enum defined as:
 

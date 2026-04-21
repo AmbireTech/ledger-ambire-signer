@@ -405,6 +405,7 @@ bool ui_gcs(void) {
     uint8_t nbPairs = 0;
     uint8_t pair = 0;
     uint8_t tx_idx = 0;
+    bool had_separator = false;
     const s_tx_info *info_tx = get_current_tx_info();
 
     explicit_bzero(&warning, sizeof(nbgl_warning_t));
@@ -500,6 +501,14 @@ bool ui_gcs(void) {
             g_pairs[pair].centeredInfo = true;
             pair++;
         }
+        if (field->is_separator) {
+            had_separator = true;
+            g_pairs[pair].item = field->key;
+            g_pairs[pair].value = field->value;
+            g_pairs[pair].centeredInfo = true;
+            pair++;
+            continue;
+        }
         g_pairs[pair].item = field->key;
         g_pairs[pair].value = field->value;
 
@@ -516,6 +525,9 @@ bool ui_gcs(void) {
         }
     }
 
+    if (had_separator) {
+        g_pairs[pair].forcePageStart = true;
+    }
     if (show_network) {
         if (pair >= g_pairsList->nbPairs - 1) {
             PRINTF("Error: No more pairs available for network!\n");
@@ -546,6 +558,10 @@ bool ui_gcs(void) {
     index_allocated[pair] = true;
 
 #ifndef FUZZ
+    // Correct the pair count: empty separators are in the field table but
+    // do not consume a pair slot, so nbPairs may over-estimate.
+    g_pairsList->nbPairs = pair + 1;
+
     nbgl_useCaseAdvancedReview(TYPE_TRANSACTION,
                                g_pairsList,
                                get_tx_icon(false),
