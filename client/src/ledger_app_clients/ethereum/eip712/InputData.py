@@ -191,18 +191,14 @@ encoding_functions[EIP712FieldType.FIX_BYTES] = encode_bytes_fix
 encoding_functions[EIP712FieldType.DYN_BYTES] = encode_bytes_dyn
 
 
-def send_filtering_token(token_idx: int):
-    assert token_idx < len(filtering_tokens)
-    if len(filtering_tokens[token_idx]) > 0:
-        token = filtering_tokens[token_idx]
-        if not token["sent"]:
-            response = app_client.provide_token_metadata(token["ticker"],
-                                                         bytes.fromhex(token["addr"][2:]),
-                                                         token["decimals"],
-                                                         token["chain_id"])
-            assert response.status == StatusWord.OK, \
-                f"Error sending token metadata for {token['ticker']}: {response.status}"
-            token["sent"] = True
+def send_all_filtering_tokens(tokens: list[dict]):
+    for token in tokens:
+        response = app_client.provide_token_metadata(token["ticker"],
+                                                     bytes.fromhex(token["addr"][2:]),
+                                                     token["decimals"],
+                                                     token["chain_id"])
+        assert response.status == StatusWord.OK, \
+            f"Error sending token metadata for {token['ticker']}: {response.status}"
 
 
 def send_filter(path: str, discarded: bool) -> Optional[Callable]:
@@ -210,18 +206,16 @@ def send_filter(path: str, discarded: bool) -> Optional[Callable]:
     assert path in filtering_paths.keys()
 
     if filtering_paths[path]["type"].startswith("amount_join_"):
-        if "token" in filtering_paths[path].keys():
-            token_idx = filtering_paths[path]["token"]
-            send_filtering_token(token_idx)
+        if "id" in filtering_paths[path].keys():
+            join_id = filtering_paths[path]["id"]
         else:
             # Permit (ERC-2612)
-            send_filtering_token(0)
-            token_idx = 0xff
+            join_id = 0xff
         if filtering_paths[path]["type"].endswith("_token"):
-            send_filtering_amount_join_token(path, token_idx, discarded)
+            send_filtering_amount_join_token(path, join_id, discarded)
         elif filtering_paths[path]["type"].endswith("_value"):
             send_filtering_amount_join_value(path,
-                                             token_idx,
+                                             join_id,
                                              filtering_paths[path]["name"],
                                              discarded)
     elif filtering_paths[path]["type"] == "datetime":
@@ -366,29 +360,29 @@ def send_filtering_message_info(display_name: str, filters_count: int):
         f"Error sending filtering message info for {display_name}: {response.status}"
 
 
-def send_filtering_amount_join_token(path: str, token_idx: int, discarded: bool):
+def send_filtering_amount_join_token(path: str, join_id: int, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 11)
     to_sign += path.encode()
-    to_sign.append(token_idx)
+    to_sign.append(join_id)
     sig = keychain.sign_data(keychain.Key.CAL, to_sign)
-    with app_client.eip712_filtering_amount_join_token(token_idx, sig, discarded):
+    with app_client.eip712_filtering_amount_join_token(join_id, sig, discarded):
         pass
     response = app_client.response()
     assert response.status == StatusWord.OK, \
-        f"Error sending filtering amount join token for {path} with token index {token_idx}: {response.status}"
+        f"Error sending filtering amount join token for {path} with token index {join_id}: {response.status}"
 
 
-def send_filtering_amount_join_value(path: str, token_idx: int, display_name: str, discarded: bool):
+def send_filtering_amount_join_value(path: str, join_id: int, display_name: str, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 22)
     to_sign += path.encode()
     to_sign += display_name.encode()
-    to_sign.append(token_idx)
+    to_sign.append(join_id)
     sig = keychain.sign_data(keychain.Key.CAL, to_sign)
-    with app_client.eip712_filtering_amount_join_value(token_idx, display_name, sig, discarded):
+    with app_client.eip712_filtering_amount_join_value(join_id, display_name, sig, discarded):
         pass
     response = app_client.response()
     assert response.status == StatusWord.OK, \
-        f"Error sending filtering amount join value for {path} with token index {token_idx}: {response.status}"
+        f"Error sending filtering amount join value for {path} with token index {join_id}: {response.status}"
 
 
 def send_filtering_datetime(path: str, display_name: str, discarded: bool):
@@ -536,9 +530,6 @@ def prepare_filtering(data_json, filtr_data):
 
     if "tokens" in filtr_data:
         filtering_tokens = filtr_data["tokens"]
-        for token in filtering_tokens:
-            if len(token) > 0:
-                token["sent"] = False
     else:
         filtering_tokens = []
 
@@ -627,6 +618,7 @@ def process_data(aclient: EthAppClient,
         assert response.status == StatusWord.OK, \
             f"Error activating filtering: {response.status}"
         prepare_filtering(data_json, filters)
+        send_all_filtering_tokens(filtering_tokens)
 
     # Send ledgerPKI certificate
     app_client.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_COIN_META)
