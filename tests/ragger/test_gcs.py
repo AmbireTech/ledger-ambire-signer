@@ -3821,3 +3821,95 @@ def test_gcs_batch_complex(scenario_navigator: NavigateWithScenario) -> None:
 
     with app_client.sign(mode=SignMode.START_FLOW):
         scenario_navigator.review_approve()
+
+
+def test_gcs_iteration_broadcast(scenario_navigator: NavigateWithScenario):
+    """Test §3.1.8 iteration broadcast: secondary array of size 1 is repeated across
+    all iterations of the primary array.
+
+    batchTransferSameToken(address token, address[] recipients, uint256[] amounts)
+    is called with 1 token address but 2 amounts.  The ParamTokenAmount field
+    descriptor has value→amounts (size 2) and token→token (size 1).  The device
+    must broadcast the single token entry and display both amounts labelled with
+    the USDC ticker, rather than rejecting the size mismatch.
+    """
+    backend = scenario_navigator.backend
+    app_client = EthAppClient(backend)
+
+    usdc_address = bytes.fromhex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+    recipient0 = bytes.fromhex("1111111111111111111111111111111111111111")
+    recipient1 = bytes.fromhex("2222222222222222222222222222222222222222")
+    usdc_decimals = 6
+    amount0 = int(100 * 10**usdc_decimals)   # 100 USDC
+    amount1 = int(250 * 10**usdc_decimals)   # 250 USDC
+
+    with open(f"{ABIS_FOLDER}/broadcast.json", encoding="utf-8") as f:
+        contract = Web3().eth.contract(abi=json.load(f), address=None)
+
+    data = contract.encode_abi("batchTransferSameToken", [
+        usdc_address,
+        [recipient0, recipient1],
+        [amount0, amount1],
+    ])
+
+    tx_params = {
+        "nonce": 1,
+        "maxFeePerGas": Web3.to_wei(20, "gwei"),
+        "maxPriorityFeePerGas": Web3.to_wei(2, "gwei"),
+        "gas": 60000,
+        "to": bytes.fromhex("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
+        "data": data,
+        "chainId": 1,
+    }
+
+    with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
+        pass
+
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/broadcast.json", "batchTransferSameToken")
+
+    # value → amounts[] (2 elements), token → token (1 element — broadcast)
+    fields = [
+        Field(
+            1,
+            "Amount",
+            ParamTokenAmount(
+                1,
+                Value(
+                    1,
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["amounts"]),
+                ),
+                token=Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["token"]),
+                ),
+            )
+        ),
+    ]
+
+    inst_hash = compute_inst_hash(fields)
+
+    tx_info = TxInfo(
+        1,
+        tx_params["chainId"],
+        tx_params["to"],
+        get_selector_from_data(tx_params["data"]),
+        inst_hash,
+        "Batch transfer same token",
+        creator_name="Acme",
+        creator_legal_name="Acme Protocol Inc.",
+        creator_url="acme.finance",
+        contract_name="Batch Distributor",
+        deploy_date=1704067200,
+    )
+
+    app_client.provide_transaction_info(tx_info.serialize())
+    app_client.provide_token_metadata("USDC", usdc_address, usdc_decimals, tx_params["chainId"])
+
+    for field in fields:
+        app_client.provide_transaction_field_desc(field.serialize())
+
+    with app_client.sign(mode=SignMode.START_FLOW):
+        scenario_navigator.review_approve()
