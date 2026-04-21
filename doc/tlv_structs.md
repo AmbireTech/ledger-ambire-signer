@@ -138,6 +138,12 @@ with `VisibleType` enum defined as:
 
 This struct can contain `NATIVE_CURRENCY` multiple times for multiple addresses.
 
+> __Notes__:
+>
+> - When `VALUE` and `TOKEN` reference arrays of different lengths, iteration is still allowed if
+>   `TOKEN` has exactly one element — that single token address is then broadcast (repeated) for
+>   every element of `VALUE`. Arrays whose sizes differ and neither is 1 are rejected.
+
 ### PARAM_NFT
 
 | Name       | Tag  | Payload type | Description                         | Optional | Source / value                                                            |
@@ -239,6 +245,12 @@ and `TrustedNameSource` enum defined as:
 | SELECTOR        | 0x04 | VALUE        |                                         |    x     |                                                                                  |
 | AMOUNT          | 0x05 | VALUE        |                                         |    x     |                                                                                  |
 | SPENDER         | 0x06 | VALUE        |                                         |    x     |                                                                                  |
+
+> __Notes__:
+>
+> - `CALLEE` and all optional VALUE fields (`CHAIN_ID`, `SELECTOR`, `AMOUNT`, `SPENDER`) may
+>   reference an array with a single element; that value is then broadcast (repeated) for every
+>   calldata iteration. Arrays whose sizes differ from the calldata count and are not 1 are rejected.
 
 ### PARAM_TOKEN
 

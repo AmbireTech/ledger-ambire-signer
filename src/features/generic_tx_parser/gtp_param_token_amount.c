@@ -145,7 +145,7 @@ bool format_param_token_amount(const s_param_token_amount *param, const char *na
     if ((ret = value_get(&param->value, &collec_value))) {
         if (param->has_token) {
             if ((ret = value_get(&param->token, &collec_token))) {
-                if (collec_value.size != collec_token.size) {
+                if (collec_token.size != collec_value.size && collec_token.size != 1) {
                     PRINTF("Error: mismatch between counts of value & token!\n");
                     ret = false;
                 }
@@ -153,10 +153,11 @@ bool format_param_token_amount(const s_param_token_amount *param, const char *na
         }
         if (ret) {
             for (int i = 0; i < collec_value.size; ++i) {
+                int ti = collec_token.size == 1 ? 0 : i;
                 if (!(ret = process_token_amount(param,
                                                  name,
                                                  &collec_value.value[i],
-                                                 &collec_token.value[i]))) {
+                                                 &collec_token.value[ti]))) {
                     break;
                 }
             }
