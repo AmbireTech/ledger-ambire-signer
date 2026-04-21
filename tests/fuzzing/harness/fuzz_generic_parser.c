@@ -16,12 +16,12 @@ int fuzzGenericParserFieldCmd(const uint8_t *data, size_t size) {
     // Use buffer_t with lib_tlv API
     buffer_t buf = {.ptr = (uint8_t *) data, .size = size, .offset = 0};
     if (!handle_field_struct(&buf, &ctx)) {
-        cleanup_field_constraints(&field);
+        cleanup_field(&field);
         return 0;
     }
 
     if (!verify_field_struct(&ctx)) {
-        cleanup_field_constraints(&field);
+        cleanup_field(&field);
         return 0;
     }
 
