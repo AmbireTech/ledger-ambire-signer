@@ -368,7 +368,7 @@ with `DelegationType` enum defined as :
 | CHAIN_ID          | 0x23 | uint64       | Network chain ID              |                                 |
 | NETWORK_NAME      | 0x52 | char[31]     | Network name (without '\0')   |                                 |
 | NETWORK_TICKER    | 0x24 | char[10]     | Network ticker (without '\0') |                                 |
-| NETWORK_ICON_HASH | 0x53 | uint8[32]    | _sha256_ of the network icon  |                                 |
+| NETWORK_ICON_HASH | 0x53 | uint8[32]    | *sha256* of the network icon  |                                 |
 | SIGNATURE         | 0x15 | uint8[]      | Signature of the structure    |                                 |
 
 The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
@@ -382,7 +382,7 @@ The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
 | ADDRESS                       | 0x22 | uint8[20]    | Ethereum `From` Address                  |                                 |
 | CHAIN_ID                      | 0x23 | uint64       | Transaction chain ID                     |                                 |
 | TX_HASH                       | 0x27 | uint8[32]    | Hash of the Tx that was simulated        |                                 |
-| DOMAIN_HASH                   | 0x28 | uint8[32]    | _Domain Hash_ for EIP712                 |                                 |
+| DOMAIN_HASH                   | 0x28 | uint8[32]    | *Domain Hash* for EIP712                 |                                 |
 | TX_CHECKS_NORMALIZED_RISK     | 0x80 | uint8        | Normalized risk score of the transaction |                                 |
 | TX_CHECKS_NORMALIZED_CATEGORY | 0x81 | uint8        | Main category explaining the risk score  |                                 |
 | TX_CHECKS_PROVIDER_MSG        | 0x82 | char[30]     | Provider specific message                |                                 |
@@ -392,20 +392,20 @@ The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
 
 The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
 
-The _Risk Score_ is normalized and interpreted like this:
+The *Risk Score* is normalized and interpreted like this:
 
 - `0`: Benign
 - `1`: Warning
 - `2`: Malicious
 
-The _Main Category_ is normalized and interpreted like this:
+The *Main Category* is normalized and interpreted like this:
 
 - `1`: Others
 - `2`: Address
 - `3`: dApp
 - `4`: Losing Operation
 
-The _Simulation Type_ is normalized and interpreted like this:
+The *Simulation Type* is normalized and interpreted like this:
 
 - `0`: Transaction
 - `1`: Typed Data (EIP-712)
@@ -428,7 +428,7 @@ The _Simulation Type_ is normalized and interpreted like this:
 
 The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
 
-The _Role_ is normalized and interpreted like this:
+The *Role* is normalized and interpreted like this:
 
 - `0`: Signer
 - `1`: Proposer
