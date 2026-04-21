@@ -603,6 +603,7 @@ class FieldTag(IntEnum):
     PARAM = 0x03
     VISIBLE = 0x04
     CONSTRAINT = 0x05
+    SEPARATOR = 0x06
 
 
 class VisibleType(IntEnum):
@@ -622,18 +623,21 @@ class Field(TlvSerializable):
     param: FieldParam
     visible: Optional[VisibleType]
     constraints: Optional[list[bytes]]
+    separator: Optional[str]
 
     def __init__(self,
                  version: int,
                  name: str,
                  param: FieldParam,
                  visible: Optional[VisibleType] = None,
-                 constraints: Optional[list[bytes]] = None):
+                 constraints: Optional[list[bytes]] = None,
+                 separator: Optional[str] = None):
         self.version = version
         self.name = name
         self.param = param
         self.visible = visible
         self.constraints = constraints
+        self.separator = separator
 
     def serialize(self) -> bytes:
         payload = bytearray()
@@ -646,6 +650,8 @@ class Field(TlvSerializable):
         if self.constraints is not None:
             for constraint in self.constraints:
                 payload += self.serialize_field(FieldTag.CONSTRAINT, constraint)
+        if self.separator is not None:
+            payload += self.serialize_field(FieldTag.SEPARATOR, self.separator)
         return payload
 
 
