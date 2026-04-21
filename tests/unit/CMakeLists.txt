@@ -310,3 +310,42 @@ target_link_libraries(test_provide_map_entry PUBLIC
 )
 
 add_test(test_provide_map_entry test_provide_map_entry)
+
+# GROUP parameter test
+add_executable(test_param_group
+  ${SRC_DIR}/test_param_group.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_group.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_group PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+)
+
+target_link_libraries(test_param_group PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=format_field
+                      -Wl,--wrap=handle_field_struct
+                      -Wl,--wrap=verify_field_struct
+                      -Wl,--wrap=cleanup_field
+                      -Wl,--wrap=cleanup_field_constraints
+)
+
+add_test(test_param_group test_param_group)
