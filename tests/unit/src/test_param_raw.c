@@ -769,6 +769,76 @@ static void test_raw_map_ref_nested_rejected(void **state) {
 }
 
 // =============================================================================
+// Test cases - SEPARATOR
+// =============================================================================
+
+/**
+ * @brief Separator without {index}: emitted verbatim, then the value.
+ */
+static void test_raw_uint_separator_literal(void **state) {
+    (void) state;
+
+    uint8_t value_data[INT256_LENGTH] = {0};
+    value_data[INT256_LENGTH - 1] = 42;
+
+    CREATE_UINT_PARAM(param, value_data, INT256_LENGTH);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_ALWAYS,
+                     .constraints = NULL,
+                     .param_raw = param,
+                     .name = "Amount",
+                     .separator = "Token"};
+
+    // Separator entry (literal string, no substitution)
+    expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_SEPARATOR);
+    expect_string(__wrap_add_to_field_table, name, "Token");
+    expect_string(__wrap_add_to_field_table, value, "");
+    will_return(__wrap_add_to_field_table, true);
+
+    // Then the actual value
+    expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_RAW);
+    expect_string(__wrap_add_to_field_table, name, "Amount");
+    expect_string(__wrap_add_to_field_table, value, "42");
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_raw(&field));
+}
+
+/**
+ * @brief Separator with {index}: placeholder replaced by 1-based element index.
+ */
+static void test_raw_uint_separator_with_index(void **state) {
+    (void) state;
+
+    uint8_t value_data[INT256_LENGTH] = {0};
+    value_data[INT256_LENGTH - 1] = 99;
+
+    CREATE_UINT_PARAM(param, value_data, INT256_LENGTH);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_ALWAYS,
+                     .constraints = NULL,
+                     .param_raw = param,
+                     .name = "Token ID",
+                     .separator = "Token {index}"};
+
+    // Separator with index substitution (single element → index 1)
+    expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_SEPARATOR);
+    expect_string(__wrap_add_to_field_table, name, "Token 1");
+    expect_string(__wrap_add_to_field_table, value, "");
+    will_return(__wrap_add_to_field_table, true);
+
+    // Then the value
+    expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_RAW);
+    expect_string(__wrap_add_to_field_table, name, "Token ID");
+    expect_string(__wrap_add_to_field_table, value, "99");
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_raw(&field));
+}
+
+// =============================================================================
 // Test runner
 // =============================================================================
 
@@ -806,6 +876,10 @@ int main(void) {
         cmocka_unit_test(test_raw_map_ref_found),
         cmocka_unit_test(test_raw_map_ref_not_found),
         cmocka_unit_test(test_raw_map_ref_nested_rejected),
+
+        // SEPARATOR tests
+        cmocka_unit_test(test_raw_uint_separator_literal),
+        cmocka_unit_test(test_raw_uint_separator_with_index),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
