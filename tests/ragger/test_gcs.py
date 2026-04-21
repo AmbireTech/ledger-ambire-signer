@@ -23,7 +23,7 @@ from client.gcs import (
     Field, ParamType, ParamRaw, Value, TypeFamily, DataPath, ParamTrustedName,
     ParamNFT, ParamDatetime, DatetimeType, ParamTokenAmount, ParamToken, ParamCalldata,
     ParamAmount, ParamEnum, ContainerPath, TxInfo, ParamNetwork, VisibleType,
-    TrustedNameValueType, MapRef
+    TrustedNameValueType, MapRef, ParamGroup, GroupIterationType
 )
 from client.enum_value import EnumValue
 from client.map_entry import MapEntry
@@ -569,6 +569,244 @@ def test_gcs_map_entry_chain_id_key(scenario_navigator: NavigateWithScenario):
         key=tx_params["chainId"].to_bytes(8, "big"),
         value=b"Ethereum",
     ).serialize())
+
+    app_client.provide_transaction_info(tx_info.serialize())
+
+    for field in fields:
+        app_client.provide_transaction_field_desc(field.serialize())
+
+    with app_client.sign(mode=SignMode.START_FLOW):
+        scenario_navigator.review_approve()
+
+
+def test_gcs_group_sequential(scenario_navigator: NavigateWithScenario):
+    """Test PARAM_GROUP with SEQUENTIAL iteration over scalar sub-fields.
+
+    No visual difference vs individual flat fields is expected here: GROUP with
+    SEQUENTIAL iteration and scalar sub-fields produces exactly the same display
+    order as listing those fields individually (Event ID, then Token ID).
+    Visual differentiation only arises with BUNDLED iteration (not yet implemented)
+    or group separator UI elements. This test validates correct TLV parsing and
+    round-trip for the GROUP param type.
+    """
+    backend = scenario_navigator.backend
+    app_client = EthAppClient(backend)
+
+    with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    # pylint: disable=line-too-long
+    data = contract.encode_abi("mintToken", [
+        175676,
+        7163978,
+        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+        1730621615,
+        bytes.fromhex("8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c")
+    ])
+    # pylint: enable=line-too-long
+    tx_params = {
+        "nonce": 235,
+        "maxFeePerGas": Web3.to_wei(100, "gwei"),
+        "maxPriorityFeePerGas": Web3.to_wei(10, "gwei"),
+        "gas": 44001,
+        # PoapBridge
+        "to": bytes.fromhex("0bb4D3e88243F4A057Db77341e6916B0e449b158"),
+        "data": data,
+        "chainId": 1
+    }
+
+    with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
+        pass
+
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/poap.abi.json", "mintToken")
+
+    # GROUP containing two sub-fields: Event ID and Token ID displayed in order.
+    group_field = Field(
+        1,
+        "POAP Details",
+        ParamGroup(
+            version=1,
+            iteration_type=GroupIterationType.SEQUENTIAL,
+            fields=[
+                Field(
+                    1,
+                    "Event ID",
+                    ParamRaw(
+                        1,
+                        Value(
+                            1,
+                            TypeFamily.UINT,
+                            type_size=32,
+                            data_path=DataPath(1, param_paths["eventId"]),
+                        )
+                    )
+                ),
+                Field(
+                    1,
+                    "Token ID",
+                    ParamRaw(
+                        1,
+                        Value(
+                            1,
+                            TypeFamily.UINT,
+                            type_size=32,
+                            data_path=DataPath(1, param_paths["tokenId"]),
+                        )
+                    )
+                ),
+            ]
+        )
+    )
+
+    receiver_field = Field(
+        1,
+        "Receiver",
+        ParamRaw(
+            1,
+            Value(
+                1,
+                TypeFamily.ADDRESS,
+                data_path=DataPath(1, param_paths["receiver"]),
+            )
+        )
+    )
+
+    fields = [group_field, receiver_field]
+
+    inst_hash = compute_inst_hash(fields)
+
+    tx_info = TxInfo(
+        1,
+        tx_params["chainId"],
+        tx_params["to"],
+        get_selector_from_data(tx_params["data"]),
+        inst_hash,
+        "mint POAP",
+        creator_name="POAP",
+        creator_legal_name="Proof of Attendance Protocol",
+        creator_url="poap.xyz",
+        contract_name="PoapBridge",
+        deploy_date=1646305200
+    )
+
+    app_client.provide_transaction_info(tx_info.serialize())
+
+    for field in fields:
+        app_client.provide_transaction_field_desc(field.serialize())
+
+    with app_client.sign(mode=SignMode.START_FLOW):
+        scenario_navigator.review_approve()
+
+
+def test_gcs_group_sequential_arrays(scenario_navigator: NavigateWithScenario):
+    """Test PARAM_GROUP with SEQUENTIAL iteration over two array sub-fields.
+
+    With SEQUENTIAL, all elements of the first sub-field (_ids) are displayed
+    first (Token ID[0], Token ID[1]), then all elements of the second sub-field
+    (_values) follow (Amount[0], Amount[1]).
+
+    The future BUNDLED iteration (not yet implemented) would instead interleave
+    by index: Token ID[0]+Amount[0], Token ID[1]+Amount[1].
+    This test exercises GROUP with dynamic memory allocation for each array element
+    in nested sub-fields.
+    """
+    backend = scenario_navigator.backend
+    app_client = EthAppClient(backend)
+
+    with open(f"{ABIS_FOLDER}/erc1155.json", encoding="utf-8") as file:
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+
+    data = contract.encode_abi("safeBatchTransferFrom", [
+        bytes.fromhex("1111111111111111111111111111111111111111"),
+        bytes.fromhex("d8da6bf26964af9d7eed9e03e53415d37aa96045"),
+        [1, 2],
+        [100, 200],
+        b"",
+    ])
+    tx_params = {
+        "nonce": 10,
+        "maxFeePerGas": Web3.to_wei(50, "gwei"),
+        "maxPriorityFeePerGas": Web3.to_wei(5, "gwei"),
+        "gas": 80000,
+        # OpenSea Shared Storefront
+        "to": bytes.fromhex("495f947276749ce646f68ac8c248420045cb7b5e"),
+        "data": data,
+        "chainId": 1,
+    }
+
+    with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
+        pass
+
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/erc1155.json", "safeBatchTransferFrom")
+
+    # GROUP(SEQUENTIAL): all Token IDs displayed first, then all Amounts.
+    # With BUNDLED (future): interleaved as Token ID[i] + Amount[i] per iteration.
+    token_data_group = Field(
+        1,
+        "Token Data",
+        ParamGroup(
+            version=1,
+            iteration_type=GroupIterationType.SEQUENTIAL,
+            fields=[
+                Field(
+                    1,
+                    "Token ID",
+                    ParamRaw(
+                        1,
+                        Value(
+                            1,
+                            TypeFamily.UINT,
+                            type_size=32,
+                            data_path=DataPath(1, param_paths["_ids"]),
+                        )
+                    )
+                ),
+                Field(
+                    1,
+                    "Amount",
+                    ParamRaw(
+                        1,
+                        Value(
+                            1,
+                            TypeFamily.UINT,
+                            type_size=32,
+                            data_path=DataPath(1, param_paths["_values"]),
+                        )
+                    ),
+                ),
+            ]
+        )
+    )
+
+    to_field = Field(
+        1,
+        "To",
+        ParamRaw(
+            1,
+            Value(
+                1,
+                TypeFamily.ADDRESS,
+                data_path=DataPath(1, param_paths["_to"]),
+            )
+        )
+    )
+
+    fields = [to_field, token_data_group]
+
+    inst_hash = compute_inst_hash(fields)
+
+    tx_info = TxInfo(
+        1,
+        tx_params["chainId"],
+        tx_params["to"],
+        get_selector_from_data(tx_params["data"]),
+        inst_hash,
+        "Batch Transfer",
+        creator_name="OpenSea",
+        creator_legal_name="OpenSea Inc.",
+        creator_url="opensea.io",
+        contract_name="ERC1155",
+        deploy_date=1646305200
+    )
 
     app_client.provide_transaction_info(tx_info.serialize())
 
