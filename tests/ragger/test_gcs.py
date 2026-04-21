@@ -45,10 +45,7 @@ def test_gcs_nft(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/erc1155.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
     with app_client.get_public_addr(bip32_path="m/44'/60'/0'/0/0", display=False):
         pass
     _, device_addr, _ = ResponseParser.pk_addr(app_client.response().data)
@@ -791,6 +788,96 @@ def test_gcs_group_sequential_arrays(scenario_navigator: NavigateWithScenario):
     )
 
     fields = [to_field, token_data_group]
+
+    inst_hash = compute_inst_hash(fields)
+
+    tx_info = TxInfo(
+        1,
+        tx_params["chainId"],
+        tx_params["to"],
+        get_selector_from_data(tx_params["data"]),
+        inst_hash,
+        "Batch Transfer",
+        creator_name="OpenSea",
+        creator_legal_name="OpenSea Inc.",
+        creator_url="opensea.io",
+        contract_name="ERC1155",
+        deploy_date=1646305200
+    )
+
+    app_client.provide_transaction_info(tx_info.serialize())
+
+    for field in fields:
+        app_client.provide_transaction_field_desc(field.serialize())
+
+    with app_client.sign(mode=SignMode.START_FLOW):
+        scenario_navigator.review_approve()
+
+
+def test_gcs_separator(scenario_navigator: NavigateWithScenario):
+    """Test FIELD-level SEPARATOR tag on an array field.
+
+    A separator `"Token {index}"` is attached to the Token ID field (uint256[]).
+    For each element in the array, the device should display the separator label
+    (e.g. "Token 1", "Token 2") immediately before the corresponding value.
+    """
+    backend = scenario_navigator.backend
+    app_client = EthAppClient(backend)
+
+    with open(f"{ABIS_FOLDER}/erc1155.json", encoding="utf-8") as file:
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+
+    data = contract.encode_abi("safeBatchTransferFrom", [
+        bytes.fromhex("1111111111111111111111111111111111111111"),
+        bytes.fromhex("d8da6bf26964af9d7eed9e03e53415d37aa96045"),
+        [1, 2],
+        [100, 200],
+        b"",
+    ])
+    tx_params = {
+        "nonce": 11,
+        "maxFeePerGas": Web3.to_wei(50, "gwei"),
+        "maxPriorityFeePerGas": Web3.to_wei(5, "gwei"),
+        "gas": 80000,
+        # OpenSea Shared Storefront
+        "to": bytes.fromhex("495f947276749ce646f68ac8c248420045cb7b5e"),
+        "data": data,
+        "chainId": 1,
+    }
+
+    with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
+        pass
+
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/erc1155.json", "safeBatchTransferFrom")
+
+    fields = [
+        Field(
+            1,
+            "To",
+            ParamRaw(
+                1,
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["_to"]),
+                )
+            )
+        ),
+        Field(
+            1,
+            "Token ID",
+            ParamRaw(
+                1,
+                Value(
+                    1,
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["_ids"]),
+                )
+            ),
+            separator="Token {index}",
+        ),
+    ]
 
     inst_hash = compute_inst_hash(fields)
 
