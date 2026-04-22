@@ -244,20 +244,20 @@ ADVANCED_DATA_SETS = [
                 "value_send": {
                     "type": "amount_join_value",
                     "name": "Send",
-                    "token": 1,
+                    "id": 1,
                 },
                 "token_send": {
                     "type": "amount_join_token",
-                    "token": 1,
+                    "id": 1,
                 },
                 "value_recv": {
                     "type": "amount_join_value",
                     "name": "Receive",
-                    "token": 0,
+                    "id": 0,
                 },
                 "token_recv": {
                     "type": "amount_join_token",
-                    "token": 0,
+                    "id": 0,
                 },
                 "with": {
                     "type": "raw",
@@ -334,6 +334,55 @@ ADVANCED_DATA_SETS = [
                     {"name": "chainId", "type": "uint256"},
                     {"name": "verifyingContract", "type": "address"},
                 ],
+                "Permit": [
+                    {"name": "owner", "type": "address"},
+                    {"name": "spender", "type": "address"},
+                    {"name": "value", "type": "uint256"},
+                    {"name": "nonce", "type": "uint256"},
+                    {"name": "deadline", "type": "uint256"},
+                ]
+            },
+            "primaryType": "Permit",
+            "domain": {
+                "name": "ENS",
+                "version": "1",
+                "verifyingContract": "0xC18360217D8F7Ab5e7c516566761Ea12Ce7F9D72",
+                "chainId": 1,
+            },
+            "message": {
+                "owner": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "spender": "0x5B38Da6a701c568545dCfcB03FcB875f56beddC4",
+                "value": 4200000000000000000,
+                "nonce": 0,
+                "deadline": 1719756000,
+            }
+        },
+        {
+            "name": "Permit filtering",
+            "tokens": [
+            ],
+            "fields": {
+                "value": {
+                    "type": "amount_join_value",
+                    "name": "Send",
+                },
+                "deadline": {
+                    "type": "datetime",
+                    "name": "Deadline",
+                },
+            }
+        },
+        "_permit_unknown_token"
+    ),
+    DataSet(
+        {
+            "types": {
+                "EIP712Domain": [
+                    {"name": "name", "type": "string"},
+                    {"name": "version", "type": "string"},
+                    {"name": "chainId", "type": "uint256"},
+                    {"name": "verifyingContract", "type": "address"},
+                ],
                 "Root": [
                     {"name": "token_big", "type": "address"},
                     {"name": "value_big", "type": "uint256"},
@@ -368,21 +417,21 @@ ADVANCED_DATA_SETS = [
             "fields": {
                 "token_big": {
                     "type": "amount_join_token",
-                    "token": 0,
+                    "id": 0,
                 },
                 "value_big": {
                     "type": "amount_join_value",
                     "name": "Big",
-                    "token": 0,
+                    "id": 0,
                 },
                 "token_biggest": {
                     "type": "amount_join_token",
-                    "token": 0,
+                    "id": 0,
                 },
                 "value_biggest": {
                     "type": "amount_join_value",
                     "name": "Biggest",
-                    "token": 0,
+                    "id": 0,
                 },
             }
         },
@@ -499,10 +548,8 @@ TOKENS = [
             "decimals": 18,
             "chain_id": 1,
         },
-        {},
     ],
     [
-        {},
         {
             "addr": "0x2222222222222222222222222222222222222222",
             "ticker": "DST",
@@ -520,8 +567,10 @@ def tokens_fixture(request) -> list[dict]:
 
 def test_eip712_advanced_missing_token(scenario_navigator: NavigateWithScenario,
                                        tokens: list[dict]):
-    test_name = f"{scenario_navigator.test_name}-{len(tokens[0]) == 0}-{len(tokens[1]) == 0}"
 
+    test_name = scenario_navigator.test_name
+    for token in tokens:
+        test_name += "-%s" % token["ticker"]
     data = {
         "types": {
             "EIP712Domain": [
@@ -558,21 +607,21 @@ def test_eip712_advanced_missing_token(scenario_navigator: NavigateWithScenario,
         "fields": {
             "token_from": {
                 "type": "amount_join_token",
-                "token": 0,
+                "id": 0,
             },
             "value_from": {
                 "type": "amount_join_value",
                 "name": "From",
-                "token": 0,
+                "id": 0,
             },
             "token_to": {
                 "type": "amount_join_token",
-                "token": 1,
+                "id": 1,
             },
             "value_to": {
                 "type": "amount_join_value",
                 "name": "To",
-                "token": 1,
+                "id": 1,
             },
         }
     }

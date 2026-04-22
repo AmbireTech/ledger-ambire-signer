@@ -850,18 +850,18 @@ The first byte is used as a magic number so that a signature of one type cannot 
 
 The signature is computed on :
 
-11 || chain ID (BE) || contract address || schema hash || field path || token index
+11 || chain ID (BE) || contract address || schema hash || field path || join identifier
 
 ##### Amount-join value
 
 This command should come before the corresponding *SEND STRUCT IMPLEMENTATION* and are only usable for message fields (and not domain ones).
 The first byte is used as a magic number so that a signature of one type cannot be valid as another type.
 
-A token index of 0xFF indicates the token address is in the _verifyingContract_ field of the EIP712Domain so the app won't receive an amount-join token filtering APDU. This enables support for Permit (ERC-2612) messages.
+A join identifier of 0xFF indicates the token address is in the _verifyingContract_ field of the EIP712Domain so the app won't receive an amount-join token filtering APDU. This enables support for Permit (ERC-2612) messages.
 
 The signature is computed on :
 
-22 || chain ID (BE) || contract address || schema hash || field path || display name || token index
+22 || chain ID (BE) || contract address || schema hash || field path || display name || join identifier
 
 ##### Date / Time
 
@@ -1145,7 +1145,7 @@ enum CalldataParamPresence
 [width="80%"]
 |==========================================
 | *Description*         | *Length (byte)*
-| Token index           | 1
+| Join identifier       | 1
 | Signature length      | 1
 | Signature             | variable
 |==========================================
@@ -1157,7 +1157,7 @@ enum CalldataParamPresence
 | *Description*         | *Length (byte)*
 | Display name length   | 1
 | Display name          | variable
-| Token index           | 1
+| Join identifier       | 1
 | Signature length      | 1
 | Signature             | variable
 |==========================================

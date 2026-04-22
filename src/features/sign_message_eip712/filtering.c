@@ -146,20 +146,6 @@ static bool sig_verif_end(cx_sha256_t *hash_ctx, const uint8_t *sig, uint8_t sig
 }
 
 /**
- * Check if the given token index is valid
- *
- * @param[in] idx token index
- * @return whether the index is valid or not
- */
-static bool check_token_index(uint8_t idx) {
-    if (idx >= MAX_ASSETS) {
-        PRINTF("Error: token index out of range (%u)\n", idx);
-        return false;
-    }
-    return true;
-}
-
-/**
  * Check if the current element's typename matches the expected one
  *
  * @param[in] expected the typename we expect
@@ -1038,7 +1024,7 @@ bool filtering_amount_join_token(const uint8_t *payload,
                                  uint8_t length,
                                  bool discarded,
                                  uint32_t *path_crc) {
-    uint8_t token_idx;
+    uint8_t join_id;
     uint8_t sig_len;
     const uint8_t *sig;
     uint8_t offset = 0;
@@ -1049,10 +1035,10 @@ bool filtering_amount_join_token(const uint8_t *payload,
     }
 
     // Parsing
-    if ((offset + sizeof(token_idx)) > length) {
+    if ((offset + sizeof(join_id)) > length) {
         return false;
     }
-    token_idx = payload[offset++];
+    join_id = payload[offset++];
     if ((offset + sizeof(sig_len)) > length) {
         return false;
     }
@@ -1068,17 +1054,17 @@ bool filtering_amount_join_token(const uint8_t *payload,
         return false;
     }
     hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
-    hash_byte(token_idx, (cx_hash_t *) &hash_ctx);
+    hash_byte(join_id, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
     }
 
     // Handling
-    if (!check_typename("address") || !check_token_index(token_idx)) {
+    if (!check_typename("address")) {
         return false;
     }
     ui_712_flag_field(false, false, true, false, false, false);
-    ui_712_token_join_prepare_addr_check(token_idx);
+    ui_712_token_join_prepare_addr_check(join_id);
     return true;
 }
 
@@ -1097,7 +1083,7 @@ bool filtering_amount_join_value(const uint8_t *payload,
                                  uint32_t *path_crc) {
     uint8_t name_len;
     const char *name;
-    uint8_t token_idx;
+    uint8_t join_id;
     uint8_t sig_len;
     const uint8_t *sig;
     uint8_t offset = 0;
@@ -1120,10 +1106,10 @@ bool filtering_amount_join_value(const uint8_t *payload,
     }
     name = (char *) &payload[offset];
     offset += name_len;
-    if ((offset + sizeof(token_idx)) > length) {
+    if ((offset + sizeof(join_id)) > length) {
         return false;
     }
-    token_idx = payload[offset++];
+    join_id = payload[offset++];
     if ((offset + sizeof(sig_len)) > length) {
         return false;
     }
@@ -1140,32 +1126,25 @@ bool filtering_amount_join_value(const uint8_t *payload,
     }
     hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
     hash_nbytes((uint8_t *) name, sizeof(char) * name_len, (cx_hash_t *) &hash_ctx);
-    hash_byte(token_idx, (cx_hash_t *) &hash_ctx);
+    hash_byte(join_id, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
     }
 
     // Handling
-    if (token_idx == TOKEN_IDX_ADDR_IN_DOMAIN) {
+    if (join_id == TOKEN_IDX_ADDR_IN_DOMAIN) {
         // Permit (ERC-2612)
-        int resolved_idx = get_asset_index_by_addr(eip712_context->contract_addr);
-
-        if (resolved_idx == -1) {
-            PRINTF("ERROR: Could not find asset info for verifyingContract address!\n");
-            return false;
-        }
-        token_idx = (uint8_t) resolved_idx;
+        ui_712_token_join_prepare_addr_check(join_id);
         // simulate as if we had received a token-join addr
-        ui_712_token_join_prepare_addr_check(token_idx);
-        if (!amount_join_set_token_received()) {
+        if (!ui_712_set_amount_join_token_addr(eip712_context->contract_addr)) {
             return false;
         }
     }
-    if (!check_typename("uint") || !check_token_index(token_idx)) {
+    if (!check_typename("uint")) {
         return false;
     }
     ui_712_flag_field(false, false, true, false, false, false);
-    return ui_712_token_join_prepare_amount(token_idx, name, name_len);
+    return ui_712_token_join_prepare_amount(join_id, name, name_len);
 }
 
 /**
