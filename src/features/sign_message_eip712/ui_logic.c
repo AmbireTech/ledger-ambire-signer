@@ -18,7 +18,7 @@
 #include "utils.h"
 #include "tx_ctx.h"  // g_parked_calldata
 #include "read.h"    // read_u64_be
-#include "manage_asset_info.h"
+#include "token_info.h"
 
 #define N_OF_M_LENGTH 10  // enough to hold "nn of mm"
 
@@ -568,19 +568,19 @@ static s_amount_join *get_amount_join(uint8_t id) {
  * @return whether it was successful or not
  */
 static bool ui_712_format_amount_join(const s_amount_join *amount_join) {
-    const extraInfo_t *asset_info;
+    const s_token_info *token_info;
 
-    asset_info = get_asset_info_by_addr(amount_join->address);
+    token_info = get_matching_token_info(&eip712_context->chain_id, amount_join->address);
     if (ismaxint(amount_join->value, sizeof(amount_join->value))) {
         strlcpy(strings.tmp.tmp, "Unlimited ", sizeof(strings.tmp.tmp));
         strlcat(strings.tmp.tmp,
-                (asset_info != NULL) ? asset_info->token.ticker : g_unknown_ticker,
+                (token_info != NULL) ? token_info->ticker : g_unknown_ticker,
                 sizeof(strings.tmp.tmp));
     } else {
         if (!amountToString(amount_join->value,
                             sizeof(amount_join->value),
-                            (asset_info != NULL) ? asset_info->token.decimals : 0,
-                            (asset_info != NULL) ? asset_info->token.ticker : g_unknown_ticker,
+                            (token_info != NULL) ? token_info->decimals : 0,
+                            (token_info != NULL) ? token_info->ticker : g_unknown_ticker,
                             strings.tmp.tmp,
                             sizeof(strings.tmp.tmp))) {
             return false;
