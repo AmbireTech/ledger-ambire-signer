@@ -26,7 +26,6 @@
 #include "tlv_apdu.h"
 #include "tlv_utils.h"
 #include "utils.h"
-#include "nbgl_use_case.h"
 #include "os_pki.h"
 #include "network.h"
 #include "ui_callbacks.h"
