@@ -9,6 +9,7 @@ static void ui_error_no_7702_whitelist_choice(bool confirm) {
 }
 
 void ui_error_no_7702_whitelist(void) {
+#ifndef FUZZ
     nbgl_useCaseChoice(&ICON_APP_WARNING,
 #ifdef SCREEN_SIZE_WALLET
                        "This authorization cannot be signed",
@@ -20,4 +21,5 @@ void ui_error_no_7702_whitelist(void) {
                        "Back to safety",
                        "",
                        ui_error_no_7702_whitelist_choice);
+#endif
 }

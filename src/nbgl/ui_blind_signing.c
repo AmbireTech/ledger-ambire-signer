@@ -11,6 +11,7 @@ static void ui_error_blind_signing_choice(bool confirm) {
 #endif
 
 void ui_error_blind_signing(void) {
+#ifndef FUZZ
 #ifdef SCREEN_SIZE_WALLET
     nbgl_useCaseChoice(&ICON_APP_WARNING,
                        "This transaction cannot be clear-signed",
@@ -23,5 +24,6 @@ void ui_error_blind_signing(void) {
                        "Blind signing must\nbe enabled in\nsettings",
                        NULL,
                        ui_idle);
+#endif
 #endif
 }

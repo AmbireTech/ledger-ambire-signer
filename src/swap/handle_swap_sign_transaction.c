@@ -152,7 +152,9 @@ void __attribute__((noreturn)) handle_swap_sign_transaction(const chain_config_t
     }
 
 #ifdef SCREEN_SIZE_WALLET
+#ifndef FUZZ
     nbgl_useCaseSpinner("Signing");
+#endif
 #endif  // SCREEN_SIZE_WALLET
 
     app_main();
