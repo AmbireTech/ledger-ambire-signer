@@ -1,7 +1,7 @@
 from enum import IntEnum
 from typing import List, Optional
 from .tlv import TlvSerializable, FieldTag
-from .keychain import sign_data, Key
+from .signing_partners import SAFE_PARTNER
 
 
 class AccountType(IntEnum):
@@ -69,6 +69,6 @@ class SafeAccount(TlvSerializable):
         # Append the data Signature
         sig = self.signature
         if sig is None:
-            sig = sign_data(Key.SAFE, payload)
+            sig = SAFE_PARTNER.sign(payload)
         payload += self.serialize_field(FieldTag.DER_SIGNATURE, sig)
         return payload

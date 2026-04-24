@@ -1,7 +1,7 @@
 from enum import IntEnum
 from typing import Optional
 from .tlv import TlvSerializable
-from .keychain import sign_data, Key
+from .signing_partners import TRUSTED_NAME_PARTNER
 
 
 class Tag(IntEnum):
@@ -60,6 +60,6 @@ class ProxyInfo(TlvSerializable):
         payload += self.serialize_field(Tag.DELEGATION_TYPE, self.delegation_type)
         sig = self.signature
         if sig is None:
-            sig = sign_data(Key.TRUSTED_NAME, payload)
+            sig = TRUSTED_NAME_PARTNER.sign(payload)
         payload += self.serialize_field(Tag.SIGNATURE, sig)
         return payload

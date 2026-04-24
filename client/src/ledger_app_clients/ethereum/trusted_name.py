@@ -3,7 +3,7 @@ from enum import IntEnum
 
 from ragger.bip import pack_derivation_path
 
-from .keychain import Key, sign_data
+from .signing_partners import TRUSTED_NAME_PARTNER, CAL_TRUSTED_NAME_PARTNER
 from .tlv import TlvSerializable
 
 
@@ -118,13 +118,13 @@ class TrustedName(TlvSerializable):
         sig = self.signature
         if self.tn_source == TrustedNameSource.CAL:
             key_id = 9
-            key = Key.CAL
+            partner = CAL_TRUSTED_NAME_PARTNER
         else:
             key_id = 7
-            key = Key.TRUSTED_NAME
+            partner = TRUSTED_NAME_PARTNER
         payload += self.serialize_field(Tag.SIG_KEY_ID, key_id)
         payload += self.serialize_field(Tag.SIG_ALGO, 1)
         if sig is None:
-            sig = sign_data(key, payload)
+            sig = partner.sign(payload)
         payload += self.serialize_field(Tag.SIGNATURE, sig)
         return payload
