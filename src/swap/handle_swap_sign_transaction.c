@@ -1,9 +1,9 @@
 #include "eth_swap_utils.h"
 #include "shared_context.h"
 #include "cmd_set_plugin.h"
-#include "nbgl_use_case.h"
 #include "app_mem_utils.h"
 #include "mem_utils.h"
+#include "common_ui.h"
 
 // Standard or crosschain swap type
 swap_mode_t G_swap_mode;
@@ -151,9 +151,7 @@ void __attribute__((noreturn)) handle_swap_sign_transaction(const chain_config_t
         set_swap_with_calldata_plugin_type();
     }
 
-#ifdef SCREEN_SIZE_WALLET
-    nbgl_useCaseSpinner("Signing");
-#endif  // SCREEN_SIZE_WALLET
+    ui_swap_show_signing();
 
     app_main();
 
