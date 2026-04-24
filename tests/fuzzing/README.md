@@ -17,18 +17,18 @@ The vulnerable input file created can be passed as an argument to the fuzzer to 
 
 ### Preparation
 
-The fuzzer can be run using the Docker image `ledger-app-dev-tools`. You can download it from the
+The fuzzer can be run using the Docker image `ledger-app-builder-lite`. You can download it from the
 `ghcr.io` docker repository:
 
 ```bash
-docker pull ghcr.io/ledgerhq/ledger-app-builder/ledger-app-dev-tools:latest
+docker pull ghcr.io/ledgerhq/ledger-app-builder/ledger-app-builder-lite:latest
 ```
 
 You can then enter this development environment by executing the following command from the
 repository root directory:
 
 ```bash
-docker run --rm -ti -v "$(realpath .):/app" ghcr.io/ledgerhq/ledger-app-builder/ledger-app-dev-tools:latest
+docker run --rm -ti -v "$(realpath .):/app" ghcr.io/ledgerhq/ledger-app-builder/ledger-app-builder-lite:latest
 ```
 
 ### Writing your Harness
@@ -69,7 +69,6 @@ Install the needed modules and set the BOLOS_SDK variable:
 ```bash
 export BOLOS_SDK=/opt/flex-secure-sdk/
 cd tests/fuzzing
-apt update && apt install -y libbsd-dev
 ```
 
 #### Compile the fuzzers
