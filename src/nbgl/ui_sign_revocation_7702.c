@@ -8,10 +8,14 @@
 static void review7702Choice(bool confirm) {
     if (confirm) {
         auth_7702_ok_cb();
+#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_OPERATION_SIGNED, ui_idle);
+#endif
     } else {
         auth_7702_cancel_cb();
+#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_OPERATION_REJECTED, ui_idle);
+#endif
     }
     ui_pairs_cleanup();
 }
@@ -28,6 +32,7 @@ void ui_sign_7702_revocation(void) {
     g_pairs[1].item = "Revoke on network";
     g_pairs[1].value = strings.common.network_name;
 
+#ifndef FUZZ
     nbgl_useCaseReview(TYPE_OPERATION,
                        g_pairsList,
                        &ICON_APP_REVIEW,
@@ -39,4 +44,5 @@ void ui_sign_7702_revocation(void) {
                        "Sign operation",
 #endif
                        review7702Choice);
+#endif
 }

@@ -30,3 +30,6 @@ void ui_sign_7702_auth(void);
 void ui_sign_7702_revocation(void);
 void ui_error_no_7702(void);
 void ui_error_no_7702_whitelist(void);
+
+// Swap
+void ui_swap_show_signing(void);
