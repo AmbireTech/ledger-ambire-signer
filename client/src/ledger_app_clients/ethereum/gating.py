@@ -1,6 +1,6 @@
 from typing import Optional
 from .tlv import TlvSerializable, FieldTag
-from .keychain import sign_data, Key
+from .signing_partners import GATING_PARTNER
 from .utils import TxType
 
 
@@ -54,6 +54,6 @@ class Gating(TlvSerializable):
         # Append the data Signature
         sig = self.signature
         if sig is None:
-            sig = sign_data(Key.GATING, payload)
+            sig = GATING_PARTNER.sign(payload)
         payload += self.serialize_field(FieldTag.DER_SIGNATURE, sig)
         return payload

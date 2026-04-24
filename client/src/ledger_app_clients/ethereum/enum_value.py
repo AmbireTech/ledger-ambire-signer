@@ -1,7 +1,7 @@
 from enum import IntEnum
 from typing import Optional
 from .tlv import TlvSerializable
-from .keychain import sign_data, Key
+from .signing_partners import CALLDATA_PARTNER
 
 
 class Tag(IntEnum):
@@ -54,6 +54,6 @@ class EnumValue(TlvSerializable):
         payload += self.serialize_field(Tag.NAME, self.name)
         sig = self.signature
         if sig is None:
-            sig = sign_data(Key.CALLDATA, payload)
+            sig = CALLDATA_PARTNER.sign(payload)
         payload += self.serialize_field(Tag.SIGNATURE, sig)
         return payload

@@ -1,7 +1,7 @@
 from typing import Optional
 
 from .tlv import TlvSerializable, FieldTag
-from .keychain import sign_data, Key
+from .signing_partners import TX_SIMU_PARTNER
 from .utils import TxType
 
 
@@ -56,5 +56,5 @@ class TxSimu(TlvSerializable):
             payload += self.serialize_field(FieldTag.MESSAGE, self.provider_message.encode('utf-8'))
 
         # Append the data Signature
-        payload += self.serialize_field(FieldTag.DER_SIGNATURE, sign_data(Key.TRANSACTION_CHECKS, payload))
+        payload += self.serialize_field(FieldTag.DER_SIGNATURE, TX_SIMU_PARTNER.sign(payload))
         return payload

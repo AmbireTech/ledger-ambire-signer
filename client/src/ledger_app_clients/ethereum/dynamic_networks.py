@@ -2,7 +2,7 @@ from typing import Optional
 from hashlib import sha256
 
 from .tlv import TlvSerializable, FieldTag
-from .keychain import sign_data, Key
+from .signing_partners import NETWORK_PARTNER
 
 
 class DynamicNetwork(TlvSerializable):
@@ -33,5 +33,5 @@ class DynamicNetwork(TlvSerializable):
             # Network Icon
             payload += self.serialize_field(FieldTag.NETWORK_ICON_HASH, sha256(self.icon).digest())
         # Append the data Signature
-        payload += self.serialize_field(FieldTag.DER_SIGNATURE, sign_data(Key.NETWORK, payload))
+        payload += self.serialize_field(FieldTag.DER_SIGNATURE, NETWORK_PARTNER.sign(payload))
         return payload

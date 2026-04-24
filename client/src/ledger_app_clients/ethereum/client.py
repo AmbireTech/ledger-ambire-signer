@@ -5,16 +5,27 @@ from web3 import Web3
 from eth_utils import keccak
 
 from ragger.backend import BackendInterface
+from ragger.pki import SigningPartner
 from ragger.utils import RAPDU
 
 from .command_builder import CommandBuilder
 from .eip712 import EIP712FieldType
-from .keychain import sign_data, Key
+from .signing_partners import (
+    CAL_COIN_META_PARTNER,
+    CAL_TRUSTED_NAME_PARTNER,
+    NFT_PARTNER,
+    SET_PLUGIN_PARTNER,
+    TRUSTED_NAME_PARTNER,
+    CALLDATA_PARTNER,
+    NETWORK_PARTNER,
+    TX_SIMU_PARTNER,
+    SAFE_PARTNER,
+    GATING_PARTNER,
+)
 from .response_parser import pk_addr
 from .tx_simu import TxSimu
 from .tx_auth_7702 import TxAuth7702
 from .status_word import StatusWord
-from .ledger_pki import PKIClient, PKIPubKeyUsage
 from .dynamic_networks import DynamicNetwork
 from .safe import SafeAccount, AccountType
 from .gating import Gating
@@ -38,13 +49,15 @@ class EthAppClient:
         self._backend = backend
         self.device = backend.device
         self._cmd_builder = CommandBuilder()
-        self.pki_client = PKIClient(self._backend)
 
     def _exchange_async(self, payload: bytes):
         return self._backend.exchange_async_raw(payload)
 
     def _exchange(self, payload: bytes) -> RAPDU:
         return self._backend.exchange_raw(payload)
+
+    def send_pki_certificate(self, partner: SigningPartner) -> RAPDU:
+        return self._exchange(partner.get_certificate_payload(self._backend.device.type))
 
     def response(self) -> Optional[RAPDU]:
         return self._backend.last_async_response
@@ -261,8 +274,11 @@ class EthAppClient:
                                                                           pubkey))
 
     def provide_trusted_name(self, trusted_name: TrustedName) -> RAPDU:
-        self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_TRUSTED_NAME,
-                                         trusted_name.tn_source == TrustedNameSource.CAL)
+        if trusted_name.tn_source == TrustedNameSource.CAL:
+            partner = CAL_TRUSTED_NAME_PARTNER
+        else:
+            partner = TRUSTED_NAME_PARTNER
+        self.send_pki_certificate(partner)
 
         chunks = self._cmd_builder.provide_trusted_name(trusted_name.serialize())
         for chunk in chunks[:-1]:
@@ -282,7 +298,7 @@ class EthAppClient:
 
         if sig is None:
             # Send ledgerPKI certificate
-            self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_PLUGIN_METADATA)
+            self.send_pki_certificate(SET_PLUGIN_PARTNER)
 
             # Temporarily get a command with an empty signature to extract the payload and
             # compute the signature on it
@@ -296,7 +312,7 @@ class EthAppClient:
                                                algo_id,
                                                bytes())
             # skip APDU header & empty sig
-            sig = sign_data(Key.SET_PLUGIN, tmp[5:-1])
+            sig = SET_PLUGIN_PARTNER.sign(tmp[5:-1])
         return self._exchange(self._cmd_builder.set_plugin(type_,
                                                            version,
                                                            plugin_name,
@@ -319,7 +335,7 @@ class EthAppClient:
 
         if sig is None:
             # Send ledgerPKI certificate
-            self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_NFT_METADATA)
+            self.send_pki_certificate(NFT_PARTNER)
 
             # Temporarily get a command with an empty signature to extract the payload and
             # compute the signature on it
@@ -332,7 +348,7 @@ class EthAppClient:
                                                             algo_id,
                                                             bytes())
             # skip APDU header & empty sig
-            sig = sign_data(Key.NFT, tmp[5:-1])
+            sig = NFT_PARTNER.sign(tmp[5:-1])
         return self._exchange(self._cmd_builder.provide_nft_information(type_,
                                                                         version,
                                                                         collection,
@@ -350,14 +366,14 @@ class EthAppClient:
 
         if sig is None:
             # Send ledgerPKI certificate
-            self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_COIN_META)
+            self.send_pki_certificate(CAL_COIN_META_PARTNER)
 
             # Temporarily get a command with an empty signature to extract the payload and
             # compute the signature on it
             tmp = self._cmd_builder.set_external_plugin(plugin_name, contract_address, method_selelector, bytes())
 
             # skip APDU header & empty sig
-            sig = sign_data(Key.CAL, tmp[5:])
+            sig = CAL_COIN_META_PARTNER.sign(tmp[5:])
         return self._exchange(self._cmd_builder.set_external_plugin(plugin_name,
                                                                     contract_address,
                                                                     method_selelector,
@@ -378,7 +394,7 @@ class EthAppClient:
 
         if sig is None:
             # Send ledgerPKI certificate
-            self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_COIN_META)
+            self.send_pki_certificate(CAL_COIN_META_PARTNER)
 
             # Temporarily get a command with an empty signature to extract the payload and
             # compute the signature on it
@@ -388,7 +404,7 @@ class EthAppClient:
                                                                     chain_id,
                                                                     bytes())
             # skip APDU header & empty sig
-            sig = sign_data(Key.CAL, tmp[6:])
+            sig = CAL_COIN_META_PARTNER.sign(tmp[6:])
         return self._exchange(self._cmd_builder.provide_erc20_token_information(ticker,
                                                                                 addr,
                                                                                 decimals,
@@ -397,7 +413,7 @@ class EthAppClient:
 
     def provide_network_information(self, network_params: DynamicNetwork) -> None:
         # Send ledgerPKI certificate
-        self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_NETWORK)
+        self.send_pki_certificate(NETWORK_PARTNER)
 
         # Add the network info
         chunks = self._cmd_builder.provide_network_information(network_params.serialize(),
@@ -410,7 +426,7 @@ class EthAppClient:
 
     def provide_enum_value(self, payload: bytes) -> RAPDU:
         # Send ledgerPKI certificate
-        self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_CALLDATA)
+        self.send_pki_certificate(CALLDATA_PARTNER)
 
         chunks = self._cmd_builder.provide_enum_value(payload)
         for chunk in chunks[:-1]:
@@ -419,7 +435,7 @@ class EthAppClient:
 
     def provide_transaction_info(self, payload: bytes) -> RAPDU:
         # Send ledgerPKI certificate
-        self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_CALLDATA)
+        self.send_pki_certificate(CALLDATA_PARTNER)
 
         chunks = self._cmd_builder.provide_transaction_info(payload)
         for chunk in chunks[:-1]:
@@ -437,7 +453,7 @@ class EthAppClient:
 
     def provide_tx_simulation(self, simu_params: TxSimu) -> RAPDU:
         # Send ledgerPKI certificate
-        self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_TX_SIMU_SIGNER)
+        self.send_pki_certificate(TX_SIMU_PARTNER)
 
         if not simu_params.from_addr:
             with self.get_public_addr(False):
@@ -454,7 +470,7 @@ class EthAppClient:
 
     def provide_proxy_info(self, payload: bytes) -> RAPDU:
         # Send ledgerPKI certificate
-        self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_TRUSTED_NAME)
+        self.send_pki_certificate(TRUSTED_NAME_PARTNER)
 
         chunks = self._cmd_builder.provide_proxy_info(payload)
         for chunk in chunks[:-1]:
@@ -470,7 +486,7 @@ class EthAppClient:
     def provide_safe_account(self, safe_params: SafeAccount):
         # Send ledgerPKI certificate - only for SAFE accounts
         if safe_params.account_type == AccountType.SAFE:
-            self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_SAFE_ACCOUNT)
+            self.send_pki_certificate(SAFE_PARTNER)
 
         chunks = self._cmd_builder.provide_safe_account(safe_params.serialize(), safe_params.account_type)
         for chunk in chunks[:-1]:
@@ -479,7 +495,7 @@ class EthAppClient:
 
     def provide_gating(self, gating_descriptor: Gating):
         # Send ledgerPKI certificate
-        self.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_GATING)
+        self.send_pki_certificate(GATING_PARTNER)
 
         chunks = self._cmd_builder.provide_gating(gating_descriptor.serialize())
         for chunk in chunks[:-1]:

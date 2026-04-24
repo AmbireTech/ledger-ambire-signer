@@ -6,9 +6,8 @@ from typing import Any, Optional, Union, Callable
 import struct
 import functools
 
-from client import keychain
 from client.client import EthAppClient, EIP712FieldType
-from client.ledger_pki import PKIPubKeyUsage
+from client.signing_partners import CAL_COIN_META_PARTNER
 from client.status_word import StatusWord
 
 
@@ -352,7 +351,7 @@ def send_filtering_message_info(display_name: str, filters_count: int):
     to_sign.append(filters_count)
     to_sign += display_name.encode()
 
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     with app_client.eip712_filtering_message_info(display_name, filters_count, sig):
         pass
     response = app_client.response()
@@ -364,7 +363,7 @@ def send_filtering_amount_join_token(path: str, join_id: int, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 11)
     to_sign += path.encode()
     to_sign.append(join_id)
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     with app_client.eip712_filtering_amount_join_token(join_id, sig, discarded):
         pass
     response = app_client.response()
@@ -377,7 +376,7 @@ def send_filtering_amount_join_value(path: str, join_id: int, display_name: str,
     to_sign += path.encode()
     to_sign += display_name.encode()
     to_sign.append(join_id)
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     with app_client.eip712_filtering_amount_join_value(join_id, display_name, sig, discarded):
         pass
     response = app_client.response()
@@ -389,7 +388,7 @@ def send_filtering_datetime(path: str, display_name: str, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 33)
     to_sign += path.encode()
     to_sign += display_name.encode()
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     with app_client.eip712_filtering_datetime(display_name, sig, discarded):
         pass
     response = app_client.response()
@@ -409,7 +408,7 @@ def send_filtering_trusted_name(path: str,
         to_sign.append(t)
     for s in name_source:
         to_sign.append(s)
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     with app_client.eip712_filtering_trusted_name(display_name, name_type, name_source, sig, discarded):
         pass
     response = app_client.response()
@@ -432,7 +431,7 @@ def send_filtering_calldata_info(index: int,
     to_sign.append(selector_filter_flag)
     to_sign.append(amount_filter_flag)
     to_sign.append(int(spender_filter_flag))
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     response = app_client.eip712_filtering_calldata_info(index,
                                                          value_filter_flag,
                                                          callee_filter_flag,
@@ -449,7 +448,7 @@ def send_filtering_calldata_value(path: str, index: int, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 66)
     to_sign += path.encode()
     to_sign.append(index)
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     response = app_client.eip712_filtering_calldata_value(index, sig, discarded)
     assert response.status == StatusWord.OK, \
         f"Error sending filtering calldata value for {path}: {response.status}"
@@ -459,7 +458,7 @@ def send_filtering_calldata_callee(path: str, index: int, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 77)
     to_sign += path.encode()
     to_sign.append(index)
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     response = app_client.eip712_filtering_calldata_callee(index, sig, discarded)
     assert response.status == StatusWord.OK, \
         f"Error sending filtering calldata callee for {path}: {response.status}"
@@ -469,7 +468,7 @@ def send_filtering_calldata_chain_id(path: str, index: int, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 88)
     to_sign += path.encode()
     to_sign.append(index)
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     response = app_client.eip712_filtering_calldata_chain_id(index, sig, discarded)
     assert response.status == StatusWord.OK, \
         f"Error sending filtering calldata callee for {path}: {response.status}"
@@ -479,7 +478,7 @@ def send_filtering_calldata_selector(path: str, index: int, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 99)
     to_sign += path.encode()
     to_sign.append(index)
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     response = app_client.eip712_filtering_calldata_selector(index, sig, discarded)
     assert response.status == StatusWord.OK, \
         f"Error sending filtering calldata callee for {path}: {response.status}"
@@ -489,7 +488,7 @@ def send_filtering_calldata_amount(path: str, index: int, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 110)
     to_sign += path.encode()
     to_sign.append(index)
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     response = app_client.eip712_filtering_calldata_amount(index, sig, discarded)
     assert response.status == StatusWord.OK, \
         f"Error sending filtering calldata callee for {path}: {response.status}"
@@ -499,7 +498,7 @@ def send_filtering_calldata_spender(path: str, index: int, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 121)
     to_sign += path.encode()
     to_sign.append(index)
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     response = app_client.eip712_filtering_calldata_spender(index, sig, discarded)
     assert response.status == StatusWord.OK, \
         f"Error sending filtering calldata callee for {path}: {response.status}"
@@ -510,7 +509,7 @@ def send_filtering_raw(path: str, display_name: str, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 72)
     to_sign += path.encode()
     to_sign += display_name.encode()
-    sig = keychain.sign_data(keychain.Key.CAL, to_sign)
+    sig = CAL_COIN_META_PARTNER.sign(to_sign)
     with app_client.eip712_filtering_raw(display_name, sig, discarded):
         pass
     response = app_client.response()
@@ -621,7 +620,7 @@ def process_data(aclient: EthAppClient,
         send_all_filtering_tokens(filtering_tokens)
 
     # Send ledgerPKI certificate
-    app_client.pki_client.send_certificate(PKIPubKeyUsage.PUBKEY_USAGE_COIN_META)
+    app_client.send_pki_certificate(CAL_COIN_META_PARTNER)
 
     # send domain implementation
     with app_client.eip712_send_struct_impl_root_struct(domain_typename):

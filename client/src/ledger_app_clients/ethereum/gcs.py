@@ -3,7 +3,7 @@ from enum import IntEnum
 import struct
 
 from .tlv import TlvSerializable
-from .keychain import sign_data, Key
+from .signing_partners import CALLDATA_PARTNER
 from .trusted_name import TrustedNameType, TrustedNameSource
 
 
@@ -82,7 +82,7 @@ class TxInfo(TlvSerializable):
             payload += self.serialize_field(TxInfoTag.DEPLOY_DATE, self.deploy_date)
         signature = self.signature
         if signature is None:
-            signature = sign_data(Key.CALLDATA, payload)
+            signature = CALLDATA_PARTNER.sign(payload)
         payload += self.serialize_field(TxInfoTag.SIGNATURE, signature)
         return payload
 
