@@ -23,6 +23,7 @@ static void buildFirstPage(const char *review_string) {
     g_pairs[1].item = "Key";
     g_pairs[1].value = strings.common.fullAmount;
 
+#ifndef FUZZ
     nbgl_useCaseReview(TYPE_OPERATION,
                        g_pairsList,
                        get_tx_icon(false),
@@ -30,6 +31,7 @@ static void buildFirstPage(const char *review_string) {
                        NULL,
                        review_string,
                        reviewChoice);
+#endif
 }
 
 void ui_display_privacy_public_key(void) {

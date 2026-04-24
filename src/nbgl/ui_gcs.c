@@ -21,10 +21,14 @@ static bool *index_allocated = NULL;
 static void review_choice(bool confirm) {
     if (confirm) {
         io_seproxyhal_touch_tx_ok();
+#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_SIGNED, ui_idle);
+#endif
     } else {
         io_seproxyhal_touch_tx_cancel();
+#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_REJECTED, ui_idle);
+#endif
     }
 }
 
@@ -541,6 +545,7 @@ bool ui_gcs(void) {
     g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf);
     index_allocated[pair] = true;
 
+#ifndef FUZZ
     nbgl_useCaseAdvancedReview(TYPE_TRANSACTION,
                                g_pairsList,
                                get_tx_icon(false),
@@ -550,5 +555,6 @@ bool ui_gcs(void) {
                                NULL,
                                &warning,
                                review_choice);
+#endif
     return true;
 }
