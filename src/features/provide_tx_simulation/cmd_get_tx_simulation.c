@@ -38,7 +38,11 @@ tx_simulation_t TX_SIMULATION = {0};
  */
 static bool parse_struct_type(const tlv_data_t *data, s_tx_simu_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_type(data, TYPE_TX_SIMULATION);
+    if (!tlv_enforce_u8_value(data, TYPE_TX_SIMULATION)) {
+        PRINTF("Invalid STRUCTURE_TYPE value\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -50,7 +54,11 @@ static bool parse_struct_type(const tlv_data_t *data, s_tx_simu_ctx *context) {
  */
 static bool parse_struct_version(const tlv_data_t *data, s_tx_simu_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_version(data, STRUCT_VERSION);
+    if (!tlv_enforce_u8_value(data, STRUCT_VERSION)) {
+        PRINTF("Invalid STRUCTURE_VERSION value\n");
+        return false;
+    }
+    return true;
 }
 
 /**

@@ -17,7 +17,11 @@ static s_map_entry *g_map_entry_list = NULL;
 
 static bool handle_version(const tlv_data_t *data, s_map_entry_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_version(data, STRUCT_VERSION);
+    if (!tlv_enforce_u8_value(data, STRUCT_VERSION)) {
+        PRINTF("Invalid STRUCTURE_VERSION value\n");
+        return false;
+    }
+    return true;
 }
 
 static bool handle_chain_id(const tlv_data_t *data, s_map_entry_ctx *context) {

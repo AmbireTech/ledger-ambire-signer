@@ -13,7 +13,11 @@
  */
 static bool handle_version(const tlv_data_t *data, s_auth_7702_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_version(data, STRUCT_VERSION);
+    if (!tlv_enforce_u8_value(data, STRUCT_VERSION)) {
+        PRINTF("Invalid STRUCTURE_VERSION value\n");
+        return false;
+    }
+    return true;
 }
 
 /**

@@ -120,7 +120,11 @@ const s_trusted_name *get_trusted_name(uint8_t type_count,
  */
 static bool handle_struct_type(const tlv_data_t *data, s_trusted_name_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_type(data, STRUCT_TYPE_TRUSTED_NAME);
+    if (!tlv_enforce_u8_value(data, STRUCT_TYPE_TRUSTED_NAME)) {
+        PRINTF("Invalid STRUCTURE_TYPE value\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -227,7 +231,10 @@ static bool handle_signer_algo(const tlv_data_t *data, s_trusted_name_ctx *conte
         PRINTF("SIGNER_ALGO: failed to extract\n");
         return false;
     }
-    CHECK_FIELD_VALUE("SIGNER_ALGO", value, SIG_ALGO_SECP256K1);
+    if (value != SIG_ALGO_SECP256K1) {
+        PRINTF("SIGNER_ALGO Value mismatch!\n");
+        return false;
+    }
     return true;
 }
 

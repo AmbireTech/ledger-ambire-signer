@@ -41,7 +41,11 @@ network_info_t *g_last_added_network = NULL;
  */
 static bool handle_struct_type(const tlv_data_t *data, s_network_info_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_type(data, TYPE_DYNAMIC_NETWORK);
+    if (!tlv_enforce_u8_value(data, TYPE_DYNAMIC_NETWORK)) {
+        PRINTF("Invalid STRUCTURE_TYPE value\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -53,7 +57,11 @@ static bool handle_struct_type(const tlv_data_t *data, s_network_info_ctx *conte
  */
 static bool handle_struct_version(const tlv_data_t *data, s_network_info_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_version(data, NETWORK_STRUCT_VERSION);
+    if (!tlv_enforce_u8_value(data, NETWORK_STRUCT_VERSION)) {
+        PRINTF("Invalid STRUCTURE_VERSION value\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -65,7 +73,7 @@ static bool handle_struct_version(const tlv_data_t *data, s_network_info_ctx *co
  */
 static bool handle_blockchain_family(const tlv_data_t *data, s_network_info_ctx *context) {
     UNUSED(context);
-    if (!tlv_check_uint8(data, BLOCKCHAIN_FAMILY_ETHEREUM)) {
+    if (!tlv_enforce_u8_value(data, BLOCKCHAIN_FAMILY_ETHEREUM)) {
         PRINTF("BLOCKCHAIN_FAMILY: error\n");
         return false;
     }
