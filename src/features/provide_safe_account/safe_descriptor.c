@@ -73,7 +73,7 @@ static bool handle_address(const tlv_data_t *data, s_safe_ctx *context) {
     if (!tlv_get_address(data, (uint8_t *) context->safe->address)) {
         return false;
     }
-    if (allzeroes(context->safe->address, ADDRESS_LENGTH) == 1) {
+    if (is_zeroes_buffer(context->safe->address, ADDRESS_LENGTH)) {
         PRINTF("ADDRESS: all zeroes\n");
         return false;
     }

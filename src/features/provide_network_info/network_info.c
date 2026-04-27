@@ -130,7 +130,7 @@ static bool handle_icon_hash(const tlv_data_t *data, s_network_info_ctx *context
     if (!tlv_get_hash(data, context->icon_hash, sizeof(context->icon_hash))) {
         return false;
     }
-    if (allzeroes(context->icon_hash, CX_SHA256_SIZE) == 1) {
+    if (is_zeroes_buffer(context->icon_hash, CX_SHA256_SIZE)) {
         PRINTF("NETWORK_ICON_HASH: all zeroes\n");
         return false;
     }
@@ -320,7 +320,7 @@ static bool append_network_info(const s_network_info_ctx *context) {
  */
 static bool prepare_network_icon(const s_network_info_ctx *context) {
     // Check if the icon hash is provided
-    if (allzeroes(context->icon_hash, CX_SHA256_SIZE) == 1) {
+    if (is_zeroes_buffer(context->icon_hash, CX_SHA256_SIZE)) {
         PRINTF("/!\\ Icon hash is not provided!\n");
         return true;
     }

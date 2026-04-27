@@ -64,7 +64,7 @@ static bool parse_tx_hash(const tlv_data_t *data, s_tx_simu_ctx *context) {
     if (!tlv_get_hash(data, (uint8_t *) context->simu->tx_hash, sizeof(context->simu->tx_hash))) {
         return false;
     }
-    if (allzeroes(context->simu->tx_hash, HASH_SIZE) == 1) {
+    if (is_zeroes_buffer(context->simu->tx_hash, HASH_SIZE)) {
         PRINTF("TX_HASH: all zeroes\n");
         return false;
     }
@@ -84,7 +84,7 @@ static bool parse_domain_hash(const tlv_data_t *data, s_tx_simu_ctx *context) {
                       sizeof(context->simu->domain_hash))) {
         return false;
     }
-    if (allzeroes(context->simu->domain_hash, HASH_SIZE) == 1) {
+    if (is_zeroes_buffer(context->simu->domain_hash, HASH_SIZE)) {
         PRINTF("DOMAIN_HASH: all zeroes\n");
         return false;
     }
@@ -102,7 +102,7 @@ static bool parse_address(const tlv_data_t *data, s_tx_simu_ctx *context) {
     if (!tlv_get_address(data, (uint8_t *) context->simu->address)) {
         return false;
     }
-    if (allzeroes(context->simu->address, ADDRESS_LENGTH) == 1) {
+    if (is_zeroes_buffer(context->simu->address, ADDRESS_LENGTH)) {
         PRINTF("ADDRESS: all zeroes\n");
         return false;
     }

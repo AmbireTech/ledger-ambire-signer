@@ -69,7 +69,7 @@ void handle_finalize_1155(ethPluginFinalize_t *msg) {
             return;
     }
     // Check if some ETH is attached to this tx
-    if (!allzeroes((void *) &msg->txContent->value, sizeof(msg->txContent->value))) {
+    if (!is_zeroes_buffer((void *) &msg->txContent->value, sizeof(msg->txContent->value))) {
         // Those functions are not payable so return an error.
         msg->result = ETH_PLUGIN_RESULT_ERROR;
         return;

@@ -127,7 +127,8 @@ static bool setTagValuePairs(bool displayNetwork, bool fromPlugin) {
         // Display the Amount
         // ------------------
         if (!tmpContent.txContent.dataPresent ||
-            !allzeroes(tmpContent.txContent.value.value, tmpContent.txContent.value.length)) {
+            !is_zeroes_buffer(tmpContent.txContent.value.value,
+                              tmpContent.txContent.value.length)) {
             g_pairs[nbPairs].item = "Amount";
             g_pairs[nbPairs].value = strings.common.fullAmount;
             nbPairs++;
@@ -239,7 +240,8 @@ static uint8_t getNbPairs(bool displayNetwork, bool fromPlugin) {
         }
         // Count the Amount
         if (!tmpContent.txContent.dataPresent ||
-            !allzeroes(tmpContent.txContent.value.value, tmpContent.txContent.value.length)) {
+            !is_zeroes_buffer(tmpContent.txContent.value.value,
+                              tmpContent.txContent.value.length)) {
             // This is not displayed if the amount is 0 and data is present
             nbPairs++;
         }

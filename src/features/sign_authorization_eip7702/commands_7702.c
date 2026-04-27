@@ -139,7 +139,7 @@ static bool handle_auth7702_tlv(const buffer_t *buf) {
                                    NULL,
                                    auth7702->chainId));
     // * Delegate
-    if (!allzeroes(auth7702->delegate, sizeof(auth7702->delegate))) {
+    if (!is_zeroes_buffer(auth7702->delegate, sizeof(auth7702->delegate))) {
         // Check if the delegate is on the whitelist for this chainId
         delegateName = get_delegate_name(&auth7702->chainId, auth7702->delegate);
         if (delegateName == NULL) {
@@ -172,7 +172,7 @@ static bool handle_auth7702_tlv(const buffer_t *buf) {
         }
     }
 
-    if (allzeroes(auth7702->delegate, sizeof(auth7702->delegate))) {
+    if (is_zeroes_buffer(auth7702->delegate, sizeof(auth7702->delegate))) {
         ui_sign_7702_revocation();
     } else {
         ui_sign_7702_auth();

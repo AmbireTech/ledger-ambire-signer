@@ -43,7 +43,7 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
             context->extra_data_len = 0;
 
             // enforce that ETH amount should be 0
-            if (!allzeroes(msg->txContent->value.value, CALLDATA_CHUNK_SIZE)) {
+            if (!is_zeroes_buffer(msg->txContent->value.value, CALLDATA_CHUNK_SIZE)) {
                 PRINTF("Err: Transaction amount is not 0\n");
                 msg->result = ETH_PLUGIN_RESULT_ERROR;
             } else {

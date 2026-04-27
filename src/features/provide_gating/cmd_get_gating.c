@@ -135,7 +135,7 @@ static bool parse_address(const tlv_data_t *data, s_gating_ctx *context) {
     if (!tlv_get_address(data, (uint8_t *) context->gating->address)) {
         return false;
     }
-    if (allzeroes(context->gating->address, ADDRESS_LENGTH) == 1) {
+    if (is_zeroes_buffer(context->gating->address, ADDRESS_LENGTH)) {
         PRINTF("ADDRESS: all zeroes\n");
         return false;
     }
@@ -344,7 +344,7 @@ static void print_gating_info(s_gating_ctx *context) {
     }
     len = (context->gating->type == TX_TYPE_TRANSACTION) ? SELECTOR_SIZE
                                                          : sizeof(context->gating->hash_selector);
-    if (allzeroes((const void *) context->gating->hash_selector, len) == 0) {
+    if (!is_zeroes_buffer((const void *) context->gating->hash_selector, len)) {
         PRINTF("[GATING] -    Hash Selector: %.*h\n", len, context->gating->hash_selector);
     }
     PRINTF("[GATING] -    Intro Msg: %s\n", context->gating->intro_msg);
@@ -458,7 +458,7 @@ static bool check_gating_address(void) {
     const uint8_t *selector = NULL;
     const uint8_t *contract = NULL;
 
-    if (allzeroes((const void *) GATING->address, ADDRESS_LENGTH)) {
+    if (is_zeroes_buffer((const void *) GATING->address, ADDRESS_LENGTH)) {
         PRINTF("[GATING] TO address missing\n");
         return false;
     }
@@ -552,7 +552,7 @@ static bool check_gating_selector(void) {
     switch (GATING->type) {
         case TX_TYPE_TRANSACTION:
             // Check if the descriptor is set
-            if (allzeroes((const void *) GATING->hash_selector, SELECTOR_SIZE)) {
+            if (is_zeroes_buffer((const void *) GATING->hash_selector, SELECTOR_SIZE)) {
                 break;
             }
             if (memcmp(GATING->hash_selector, txContext.selector_bytes, SELECTOR_SIZE) != 0) {
