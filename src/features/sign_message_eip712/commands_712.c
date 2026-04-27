@@ -167,7 +167,7 @@ uint16_t handle_eip712_struct_impl(uint8_t p1, uint8_t p2, const uint8_t *cdata,
         apdu_reply(ret);
         return apdu_response_code;
     }
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 }
 
 /**
@@ -258,7 +258,7 @@ uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, u
         apdu_reply(ret);
         return apdu_response_code;
     }
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 }
 
 /**
@@ -303,5 +303,5 @@ uint16_t handle_eip712_sign(const uint8_t *cdata, uint8_t length) {
         apdu_reply(false);
         return apdu_response_code;
     }
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 }

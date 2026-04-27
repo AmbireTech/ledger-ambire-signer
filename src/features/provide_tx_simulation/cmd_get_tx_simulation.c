@@ -475,7 +475,7 @@ uint16_t handle_tx_simulation(uint8_t p1, uint8_t p2, const uint8_t *data, uint8
         case 0x01:
             // TX Simulation Opt-In
             handle_tx_simulation_opt_in(true);
-            sw = APDU_NO_RESPONSE;
+            sw = SWO_NO_RESPONSE;
             break;
         default:
             PRINTF("Error: Unexpected P1 (%u)!\n", p1);

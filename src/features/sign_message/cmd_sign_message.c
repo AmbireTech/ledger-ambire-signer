@@ -277,7 +277,7 @@ uint16_t handle_sign_personal_message(uint8_t p1, const uint8_t *const payload, 
             return sw;
         }
         ui_191_start(signMsgCtx->display_buffer);
-        return APDU_NO_RESPONSE;
+        return SWO_NO_RESPONSE;
     }
     return SWO_SUCCESS;
 }

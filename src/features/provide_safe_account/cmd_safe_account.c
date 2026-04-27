@@ -63,7 +63,7 @@ uint16_t handle_safe_account(uint8_t p1, uint8_t p2, const uint8_t *data, uint8_
     // Display UI when all data is received
     if (SIGNER_DESC.is_valid) {
         ui_display_safe_account();
-        return APDU_NO_RESPONSE;
+        return SWO_NO_RESPONSE;
     }
     return SWO_SUCCESS;
 }
