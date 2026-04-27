@@ -14,17 +14,17 @@ static bool handle_tlv_payload(const buffer_t *buf) {
     ctx.field = &field;
     if (!handle_field_struct(buf, &ctx)) {
         PRINTF("Error: could not handle the field struct!\n");
-        cleanup_field_constraints(&field);
+        cleanup_field(&field);
         return false;
     }
     if (cx_hash_no_throw(get_fields_hash_ctx(), 0, buf->ptr, buf->size, NULL, 0) != CX_OK) {
         PRINTF("Error: could not hash the field struct!\n");
-        cleanup_field_constraints(&field);
+        cleanup_field(&field);
         return false;
     }
     if (!verify_field_struct(&ctx)) {
         PRINTF("Error: could not verify the field struct!\n");
-        cleanup_field_constraints(&field);
+        cleanup_field(&field);
         return false;
     }
     if (!format_field(&field)) {

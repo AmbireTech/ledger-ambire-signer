@@ -149,3 +149,12 @@ bool mem_utils_calloc(void **buffer, uint16_t size, bool permanent, const char *
 const uint8_t *get_current_tx_amount(void) {
     return NULL;
 }
+
+__attribute__((weak)) const void *get_matching_map_entry(uint8_t id,
+                                                         const uint8_t *key,
+                                                         uint8_t key_size) {
+    (void) id;
+    (void) key;
+    (void) key_size;
+    return NULL;
+}

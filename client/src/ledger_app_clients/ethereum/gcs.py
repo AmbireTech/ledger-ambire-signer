@@ -100,6 +100,7 @@ class ParamType(IntEnum):
     CALLDATA = 0x09
     TOKEN = 0x0a
     NETWORK = 0x0b
+    GROUP = 0x0c
 
 
 class TypeFamily(IntEnum):
@@ -223,6 +224,24 @@ class ContainerPath(IntEnum):
     CHAIN_ID = 0x03
 
 
+class MapRef(TlvSerializable):
+    version: int
+    id: int
+    key: "Value"
+
+    def __init__(self, version: int, id: int, key: "Value"):
+        self.version = version
+        self.id = id
+        self.key = key
+
+    def serialize(self) -> bytes:
+        payload = bytearray()
+        payload += self.serialize_field(0x00, self.version)
+        payload += self.serialize_field(0x01, self.id)
+        payload += self.serialize_field(0x02, self.key.serialize())
+        return payload
+
+
 class Value(TlvSerializable):
     version: int
     type_family: TypeFamily
@@ -230,6 +249,7 @@ class Value(TlvSerializable):
     data_path: Optional[DataPath]
     container_path: Optional[ContainerPath]
     constant: Optional[bytes]
+    map_ref: Optional[MapRef]
 
     def __init__(self,
                  version: int,
@@ -237,13 +257,15 @@ class Value(TlvSerializable):
                  type_size: Optional[int] = None,
                  data_path: Optional[DataPath] = None,
                  container_path: Optional[ContainerPath] = None,
-                 constant: Optional[bytes] = None):
+                 constant: Optional[bytes] = None,
+                 map_ref: Optional[MapRef] = None):
         self.version = version
         self.type_family = type_family
         self.type_size = type_size
         self.data_path = data_path
         self.container_path = container_path
         self.constant = constant
+        self.map_ref = map_ref
 
     def serialize(self) -> bytes:
         payload = bytearray()
@@ -257,6 +279,8 @@ class Value(TlvSerializable):
             payload += self.serialize_field(0x04, self.container_path)
         if self.constant is not None:
             payload += self.serialize_field(0x05, self.constant)
+        if self.map_ref is not None:
+            payload += self.serialize_field(0x06, self.map_ref.serialize())
         return payload
 
 
@@ -426,25 +450,33 @@ class ParamUnit(FieldParam):
         return payload
 
 
+class TrustedNameValueType(IntEnum):
+    STANDARD = 0x00
+    INTEROPERABLE = 0x01
+
+
 class ParamTrustedName(FieldParam):
     version: int
     value: Value
     types: list[TrustedNameType]
     sources: list[TrustedNameSource]
     sender_addrs: Optional[list[bytes]]
+    value_type: Optional[TrustedNameValueType]
 
     def __init__(self,
                  version: int,
                  value: Value,
                  types: list[TrustedNameType],
                  sources: list[TrustedNameSource],
-                 sender_addrs: Optional[list[bytes]] = None):
+                 sender_addrs: Optional[list[bytes]] = None,
+                 value_type: Optional[TrustedNameValueType] = None):
         self.type = ParamType.TRUSTED_NAME
         self.version = version
         self.value = value
         self.types = types
         self.sources = sources
         self.sender_addrs = sender_addrs
+        self.value_type = value_type
 
     def serialize(self) -> bytes:
         payload = bytearray()
@@ -461,6 +493,8 @@ class ParamTrustedName(FieldParam):
         if self.sender_addrs is not None:
             for addr in self.sender_addrs:
                 payload += self.serialize_field(0x04, addr)
+        if self.value_type is not None:
+            payload += self.serialize_field(0x05, self.value_type)
         return payload
 
 
@@ -567,6 +601,9 @@ class FieldTag(IntEnum):
     NAME = 0x01
     PARAM_TYPE = 0x02
     PARAM = 0x03
+    VISIBLE = 0x04
+    CONSTRAINT = 0x05
+    SEPARATOR = 0x06
 
 
 class VisibleType(IntEnum):
@@ -575,24 +612,32 @@ class VisibleType(IntEnum):
     IF_NOT_IN = 0x02
 
 
+class GroupIterationType(IntEnum):
+    BUNDLED = 0x00
+    SEQUENTIAL = 0x01
+
+
 class Field(TlvSerializable):
     version: int
     name: str
     param: FieldParam
     visible: Optional[VisibleType]
     constraints: Optional[list[bytes]]
+    separator: Optional[str]
 
     def __init__(self,
                  version: int,
                  name: str,
                  param: FieldParam,
                  visible: Optional[VisibleType] = None,
-                 constraints: Optional[list[bytes]] = None):
+                 constraints: Optional[list[bytes]] = None,
+                 separator: Optional[str] = None):
         self.version = version
         self.name = name
         self.param = param
         self.visible = visible
         self.constraints = constraints
+        self.separator = separator
 
     def serialize(self) -> bytes:
         payload = bytearray()
@@ -601,8 +646,34 @@ class Field(TlvSerializable):
         payload += self.serialize_field(FieldTag.PARAM_TYPE, self.param.type)
         payload += self.serialize_field(FieldTag.PARAM, self.param.serialize())
         if self.visible is not None:
-            payload += self.serialize_field(0x04, self.visible)
+            payload += self.serialize_field(FieldTag.VISIBLE, self.visible)
         if self.constraints is not None:
             for constraint in self.constraints:
-                payload += self.serialize_field(0x05, constraint)
+                payload += self.serialize_field(FieldTag.CONSTRAINT, constraint)
+        if self.separator is not None:
+            payload += self.serialize_field(FieldTag.SEPARATOR, self.separator)
+        return payload
+
+
+class ParamGroup(FieldParam):
+    """PARAM_GROUP: a collection of sub-fields with controlled iteration."""
+    version: int
+    iteration_type: GroupIterationType
+    fields: list[Field]
+
+    def __init__(self,
+                 version: int,
+                 iteration_type: GroupIterationType,
+                 fields: list[Field]):
+        self.type = ParamType.GROUP
+        self.version = version
+        self.iteration_type = iteration_type
+        self.fields = fields
+
+    def serialize(self) -> bytes:
+        payload = bytearray()
+        payload += self.serialize_field(0x00, self.version)
+        payload += self.serialize_field(0x01, self.iteration_type)
+        for field in self.fields:
+            payload += self.serialize_field(0x02, field.serialize())
         return payload

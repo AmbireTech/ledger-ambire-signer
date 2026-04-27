@@ -9,6 +9,60 @@
 #include "tx_ctx.h"
 #include "tlv_library.h"
 #include "tlv_utils.h"
+#include "map_entry.h"
+
+// =============================================================================
+// MAP_REF sub-parser (nested within VALUE at tag 0x06)
+// =============================================================================
+
+typedef struct {
+    s_map_ref *map_ref;
+} s_map_ref_parse_ctx;
+
+static bool handle_mr_version(const tlv_data_t *data, s_map_ref_parse_ctx *ctx) {
+    uint8_t v;
+    (void) ctx;
+    return tlv_get_uint8_range(data, &v, 0, UINT8_MAX);
+}
+
+static bool handle_mr_id(const tlv_data_t *data, s_map_ref_parse_ctx *ctx) {
+    return tlv_get_uint8_range(data, &ctx->map_ref->id, 0, UINT8_MAX);
+}
+
+static bool handle_mr_key(const tlv_data_t *data, s_map_ref_parse_ctx *ctx) {
+    if (data->value.size == 0 || data->value.size > sizeof(ctx->map_ref->key_tlv)) {
+        PRINTF("MAP_REF KEY TLV too large: %d\n", (int) data->value.size);
+        return false;
+    }
+    ctx->map_ref->key_tlv_size = data->value.size;
+    memcpy(ctx->map_ref->key_tlv, data->value.ptr, data->value.size);
+    return true;
+}
+
+#define MAP_REF_TAGS(X)                                            \
+    X(0x00, MR_TAG_VERSION, handle_mr_version, ENFORCE_UNIQUE_TAG) \
+    X(0x01, MR_TAG_ID, handle_mr_id, ENFORCE_UNIQUE_TAG)           \
+    X(0x02, MR_TAG_KEY, handle_mr_key, ENFORCE_UNIQUE_TAG)
+
+DEFINE_TLV_PARSER(MAP_REF_TAGS, NULL, map_ref_tlv_parser)
+
+static bool handle_map_ref(const tlv_data_t *data, s_value_context *context) {
+    s_map_ref_parse_ctx ctx = {.map_ref = &context->value->map_ref};
+    TLV_reception_t received = {0};
+
+    explicit_bzero(&context->value->map_ref, sizeof(context->value->map_ref));
+    if (!map_ref_tlv_parser(&data->value, &ctx, &received)) {
+        return false;
+    }
+    if (!TLV_CHECK_RECEIVED_TAGS(received, MR_TAG_VERSION, MR_TAG_ID, MR_TAG_KEY)) {
+        PRINTF("MAP_REF: missing mandatory tags\n");
+        return false;
+    }
+    context->value->source = SOURCE_MAP_REF;
+    return true;
+}
+
+// =============================================================================
 
 #define VALUE_TAGS(X)                                                      \
     X(0x00, TAG_VERSION, handle_version, ENFORCE_UNIQUE_TAG)               \
@@ -16,7 +70,8 @@
     X(0x02, TAG_TYPE_SIZE, handle_type_size, ENFORCE_UNIQUE_TAG)           \
     X(0x03, TAG_DATA_PATH, handle_data_path, ENFORCE_UNIQUE_TAG)           \
     X(0x04, TAG_CONTAINER_PATH, handle_container_path, ENFORCE_UNIQUE_TAG) \
-    X(0x05, TAG_CONSTANT, handle_constant, ENFORCE_UNIQUE_TAG)
+    X(0x05, TAG_CONSTANT, handle_constant, ENFORCE_UNIQUE_TAG)             \
+    X(0x06, TAG_MAP_REF, handle_map_ref, ENFORCE_UNIQUE_TAG)
 
 static bool handle_version(const tlv_data_t *data, s_value_context *context) {
     return tlv_get_uint8_range(data, &context->value->version, 0, UINT8_MAX);
@@ -129,6 +184,43 @@ bool value_get(const s_value *value, s_parsed_value_collection *collection) {
             collection->value[0].length = value->constant.size;
             collection->size = 1;
             break;
+
+        case SOURCE_MAP_REF: {
+            s_value key_value = {0};
+            s_value_context key_ctx = {.value = &key_value};
+            s_parsed_value_collection key_collection = {0};
+            const s_map_entry *entry;
+            buffer_t key_buf = {.ptr = (uint8_t *) value->map_ref.key_tlv,
+                                .size = value->map_ref.key_tlv_size,
+                                .offset = 0};
+
+            if (!handle_value_struct(&key_buf, &key_ctx)) {
+                return false;
+            }
+            if (key_value.source == SOURCE_MAP_REF) {
+                PRINTF("Error: Nested MAP_REF not supported\n");
+                return false;
+            }
+            if (!value_get(&key_value, &key_collection)) {
+                return false;
+            }
+            if (key_collection.size != 1 || key_collection.value[0].length > UINT8_MAX) {
+                value_cleanup(&key_value, &key_collection);
+                return false;
+            }
+            entry = get_matching_map_entry(value->map_ref.id,
+                                           key_collection.value[0].ptr,
+                                           (uint8_t) key_collection.value[0].length);
+            value_cleanup(&key_value, &key_collection);
+            if (entry == NULL) {
+                PRINTF("Error: No MAP_ENTRY found for id=%d\n", (int) value->map_ref.id);
+                return false;
+            }
+            collection->value[0].ptr = entry->value;
+            collection->value[0].length = entry->value_size;
+            collection->size = 1;
+            break;
+        }
 
         default:
             return false;

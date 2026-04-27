@@ -65,14 +65,15 @@
 It contains no signature since the signed TRANSACTION_INFO struct already has a hash of all the FIELD
 structs, which attests of the authenticity, order and completeness of all FIELD structs.
 
-| Name       | Tag  | Payload type | Description                         | Optional | Source / value                                              |
-|------------|------|--------------|-------------------------------------|----------|-------------------------------------------------------------|
-| VERSION    | 0x00 | uint8        | struct version                      |          | constant: `0x0`                                             |
-| NAME       | 0x01 | char[]       | field display name (ASCII)          |          | `$.display.formats.<format id>.fields.[<field id>].label`   |
-| PARAM_TYPE | 0x02 | uint8        | `ParamType`                         |          | `$.display.formats.<format id>.fields.[<field id>].params`  |
-| PARAM      | 0x03 | PARAM_*      |                                     |          | `$.display.formats.<format id>.fields.[<field id>].params`  |
-| VISIBLE    | 0x04 | uint8        | `VisibleType` visibility condition  | x        | `$.display.formats.<format id>.fields.[<field id>].visible` |
-| CONSTRAINT | 0x05 | uint8[]      | constraint value (raw bytes)        | x        | `$.display.formats.<format id>.fields.[<field id>].visible` |
+| Name       | Tag  | Payload type | Description                         | Optional | Source / value                                                |
+|------------|------|--------------|-------------------------------------|----------|---------------------------------------------------------------|
+| VERSION    | 0x00 | uint8        | struct version                      |          | constant: `0x0`                                               |
+| NAME       | 0x01 | char[]       | field display name (ASCII)          |          | `$.display.formats.<format id>.fields.[<field id>].label`     |
+| PARAM_TYPE | 0x02 | uint8        | `ParamType`                         |          | `$.display.formats.<format id>.fields.[<field id>].params`    |
+| PARAM      | 0x03 | PARAM_*      |                                     |          | `$.display.formats.<format id>.fields.[<field id>].params`    |
+| VISIBLE    | 0x04 | uint8        | `VisibleType` visibility condition  | x        | `$.display.formats.<format id>.fields.[<field id>].visible`   |
+| CONSTRAINT | 0x05 | uint8[]      | constraint value (raw bytes)        | x        | `$.display.formats.<format id>.fields.[<field id>].visible`   |
+| SEPARATOR  | 0x06 | char[]       | separator for array iteration       | x        | `$.display.formats.<format id>.fields.[<field id>].separator` |
 
 > __Notes__:
 >
@@ -80,6 +81,9 @@ structs, which attests of the authenticity, order and completeness of all FIELD 
 > - `VISIBLE` can be present only once and should be served before any `CONSTRAINT`
 > - `CONSTRAINT` is only present when `VISIBLE` is `MUST_BE` or `IF_NOT_IN`
 > - `CONSTRAINT` tag can appear multiple times for multiple allowed/excluded values (OR semantics). The limit is 5 constraints.
+> - `SEPARATOR` is optional and only meaningful for array-typed fields;
+>   `{index}` in the string is replaced with the 1-based element index at display time
+>   (e.g. `"Token {index}"` → `"Token 1"`, `"Token 2"`, ...)
 
 with `ParamType` enum defined as:
 
@@ -97,6 +101,7 @@ with `ParamType` enum defined as:
 | CALLDATA     | 0x09  |
 | TOKEN        | 0x0a  |
 | NETWORK      | 0x0b  |
+| GROUP        | 0x0c  |
 
 with `VisibleType` enum defined as:
 
@@ -132,6 +137,12 @@ with `VisibleType` enum defined as:
 | ABOVE_THRESHOLD_MSG | 0x05 | char[]       | unlimited amount label                    | x        | `$.display.formats.<format id>.fields.[<field id>].params.message`               |
 
 This struct can contain `NATIVE_CURRENCY` multiple times for multiple addresses.
+
+> __Notes__:
+>
+> - When `VALUE` and `TOKEN` reference arrays of different lengths, iteration is still allowed if
+>   `TOKEN` has exactly one element — that single token address is then broadcast (repeated) for
+>   every element of `VALUE`. Arrays whose sizes differ and neither is 1 are rejected.
 
 ### PARAM_NFT
 
@@ -183,10 +194,24 @@ This struct can contain `NATIVE_CURRENCY` multiple times for multiple addresses.
 | TYPES          | 0x02 | TrustedNameType[]   | allowed types for types for trusted name   |          | `$.display.formats.<format id>.fields.[<field id>].params.types`         |
 | SOURCES        | 0x03 | TrustedNameSource[] | allowed sources for types for trusted name |          | `$.display.formats.<format id>.fields.[<field id>].params.sources`       |
 | SENDER_ADDRESS | 0x04 | uint8[20]           | address to interpret as the sender         | x        | `$.display.formats.<format id>.fields.[<field id>].params.senderAddress` |
+| VALUE_TYPE     | 0x05 | uint8               | `TrustedNameValueType` (default: STANDARD) | x        | `$.display.formats.<format id>.fields.[<field id>].params.valueType`     |
 
 This struct can contain `SENDER_ADDRESS` multiple times for multiple addresses.
 
-with `TrustedNameType` enum defined as:
+When `VALUE_TYPE` is absent it defaults to `STANDARD`.
+When `VALUE_TYPE` is `INTEROPERABLE`, `VALUE` holds EIP-7930-encoded bytes
+(`[chain_id (1–8 bytes, big-endian)][address (20 bytes)]`).
+The device extracts the chain ID and EVM address, may display the chain as a network
+name suffix, and applies trusted name resolution to the address part.
+
+with `TrustedNameValueType` enum defined as:
+
+| Name          | Value | Description                                                      |
+|---------------|-------|------------------------------------------------------------------|
+| STANDARD      | 0x00  | VALUE is a 20-byte EVM address (default).                        |
+| INTEROPERABLE | 0x01  | VALUE is an EIP-7930 interoperable address (chain_id + address). |
+
+and `TrustedNameType` enum defined as:
 
 | Name            | Value | Description                                                                                        |
 |-----------------|-------|----------------------------------------------------------------------------------------------------|
@@ -221,6 +246,12 @@ and `TrustedNameSource` enum defined as:
 | AMOUNT          | 0x05 | VALUE        |                                         |    x     |                                                                                  |
 | SPENDER         | 0x06 | VALUE        |                                         |    x     |                                                                                  |
 
+> __Notes__:
+>
+> - `CALLEE` and all optional VALUE fields (`CHAIN_ID`, `SELECTOR`, `AMOUNT`, `SPENDER`) may
+>   reference an array with a single element; that value is then broadcast (repeated) for every
+>   calldata iteration. Arrays whose sizes differ from the calldata count and are not 1 are rejected.
+
 ### PARAM_TOKEN
 
 | Name            | Tag  | Payload type | Description                             | Optional | Source / value                                                                   |
@@ -245,6 +276,36 @@ The device looks up the network name from the chain ID using:
 
 If the network is not found, the device falls back to displaying the raw chain ID.
 
+### PARAM_GROUP
+
+| Name           | Tag  | Payload type | Description                               | Optional | Source / value                                                           |
+|----------------|------|--------------|-------------------------------------------|----------|--------------------------------------------------------------------------|
+| VERSION        | 0x00 | uint8        | struct version                            |          | constant: `0x01`                                                         |
+| ITERATION_TYPE | 0x01 | uint8        | iteration order (`GroupIterationType`)    | x        | `$.display.formats.<format id>.fields.[<field id>].params.iterationType` |
+| FIELD          | 0x02 | FIELD        | a sub-field within the group (repeatable) |          | `$.display.formats.<format id>.fields.[<field id>].params.fields`        |
+
+`FIELD` may appear multiple times (one per sub-field).
+
+with `GroupIterationType` enum defined as:
+
+| Name       | Value | Description                                                                               |
+|------------|-------|-------------------------------------------------------------------------------------------|
+| BUNDLED    | 0x00  | Sub-fields are displayed interleaved by array index (e.g. ID[0]+Value[0], ID[1]+Value[1]) |
+| SEQUENTIAL | 0x01  | All elements of each sub-field are displayed before moving to the next (default order)    |
+
+> __Notes__:
+>
+> - `ITERATION_TYPE` defaults to `BUNDLED` (0x00) if not present.
+> - Each `FIELD` payload is a fully encoded `FIELD` struct (same format as a top-level field descriptor).
+> - `BUNDLED` iteration is not yet fully implemented; the device falls back to `SEQUENTIAL` order.
+>   The root cause is architectural: `format_field` currently iterates over __all__ array elements of a
+>   sub-field in one call (via `value_get` → full element collection), so the group formatter has no way
+>   to request "element *i* only" from each sub-field.  Implementing true interleaving would require either
+>   (a) a new per-element formatter API (e.g. `format_field_at_index`) exposed to the group layer, or
+>   (b) post-processing the field table to reorder entries by array index after sequential formatting.
+>   Both options require a non-trivial API or architecture revision; the spec flags this as
+>   "ADR required (new TLV in descriptors)".
+
 ### VALUE
 
 | Name           | Tag  | Payload type    | Description                             | Optional | Source / value                                            |
@@ -255,6 +316,7 @@ If the network is not found, the device falls back to displaying the raw chain I
 | DATA_PATH      | 0x03 | DATA_PATH       | path to value in serialized transaction | x        | `$.display.formats.<format id>.fields.[<field id>].path`  |
 | CONTAINER_PATH | 0x04 | `ContainerPath` | container value enum                    | x        | `$.display.formats.<format id>.fields.[<field id>].path`  |
 | CONSTANT       | 0x05 | uint8[]         | literal value                           | x        | `$.display.formats.<format id>.fields.[<field id>].value` |
+| MAP_REF        | 0x06 | MAP_REF         | reference to a map entry                | x        | `$.metadata.maps.<map id>`                                |
 
 with `TypeFamily` enum defined as:
 
@@ -278,7 +340,7 @@ and `ContainerPath` enum defined as:
 | VALUE    | 0x02  |
 | CHAIN_ID | 0x03  |
 
-> __Note__: The TLV payload must include exactly one of `DATA_PATH`, `CONTAINER_PATH` or `CONSTANT`.
+> __Note__: The TLV payload must include exactly one of `DATA_PATH`, `CONTAINER_PATH`, `CONSTANT` or `MAP_REF`.
 
 ### DATA_PATH
 
@@ -327,6 +389,42 @@ In version 1 of the protocol:
 | START   | 0x01 | int16           | start index (inclusive)  | x        |                 |
 | END     | 0x02 | int16           | end index (exclusive)    | x        |                 |
 
+## MAP_ENTRY
+
+Provided via `PROVIDE_MAP_ENTRY` APDU (INS `0x3A`). Signed by CAL. Associates a key with a
+value for context-dependent constants. The wallet resolves the key from the transaction context
+and sends only the matching entry to the device.
+
+| Name          | Tag  | Payload type | Description                                                    | Optional | Source / value                                             |
+|---------------|------|--------------|----------------------------------------------------------------|----------|------------------------------------------------------------|
+| VERSION       | 0x00 | uint8        | struct version                                                 |          | constant: `0x0`                                            |
+| CHAIN_ID      | 0x01 | uint64       | EIP-155 chain ID                                               |          | `$.context.contract.deployments.[<deployment id>].chainId` |
+| CONTRACT_ADDR | 0x02 | uint8[20]    | EVM contract address                                           |          | `$.context.contract.deployments.[<deployment id>].address` |
+| SELECTOR      | 0x03 | uint8[4]     | function selector                                              |          |                                                            |
+| ID            | 0x04 | uint8        | map identifier (to differentiate multiple maps in a contract)  |          |                                                            |
+| KEY           | 0x05 | uint8[]      | map key (raw bytes)                                            |          | `$.metadata.maps.<map id>.<key>`                           |
+| VALUE         | 0x06 | uint8[]      | map value (raw bytes)                                          |          | `$.metadata.maps.<map id>.<key>.value`                     |
+| SIGNATURE     | 0xff | uint8[]      | signature of all the other struct fields                       |          | computed by CAL                                            |
+
+> [!NOTE]
+> The device verifies the KEY matches the value resolved from the transaction context before using the VALUE.
+> If no matching MAP_ENTRY is found in the current context, the clear signing flow is aborted.
+
+### MAP_REF
+
+Embedded as VALUE tag `0x06`. References a stored MAP_ENTRY by ID and key.
+
+| Name    | Tag  | Payload type | Description                            | Optional | Source / value  |
+|---------|------|--------------|----------------------------------------|----------|-----------------|
+| VERSION | 0x00 | uint8        | struct version                         |          | constant: `0x0` |
+| ID      | 0x01 | uint8        | map identifier (references MAP_ENTRY)  |          |                 |
+| KEY     | 0x02 | VALUE        | key to look up in the stored MAP_ENTRY |          |                 |
+
+> [!NOTE]
+> The KEY is a VALUE that specifies where to get the key from the transaction context.
+> Common key sources: `CONTAINER_PATH` with `CHAIN_ID` for chain-dependent values, or `DATA_PATH` for keys in calldata.
+> Nested MAP_REF keys (MAP_REF within MAP_REF KEY) are not supported.
+
 ## PROXY_INFO
 
 | Name            | Tag  | Payload type     | Description                     | Optional |
@@ -368,7 +466,7 @@ with `DelegationType` enum defined as :
 | CHAIN_ID          | 0x23 | uint64       | Network chain ID              |                                 |
 | NETWORK_NAME      | 0x52 | char[31]     | Network name (without '\0')   |                                 |
 | NETWORK_TICKER    | 0x24 | char[10]     | Network ticker (without '\0') |                                 |
-| NETWORK_ICON_HASH | 0x53 | uint8[32]    | _sha256_ of the network icon  |                                 |
+| NETWORK_ICON_HASH | 0x53 | uint8[32]    | *sha256* of the network icon  |                                 |
 | SIGNATURE         | 0x15 | uint8[]      | Signature of the structure    |                                 |
 
 The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
@@ -382,7 +480,7 @@ The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
 | ADDRESS                       | 0x22 | uint8[20]    | Ethereum `From` Address                  |                                 |
 | CHAIN_ID                      | 0x23 | uint64       | Transaction chain ID                     |                                 |
 | TX_HASH                       | 0x27 | uint8[32]    | Hash of the Tx that was simulated        |                                 |
-| DOMAIN_HASH                   | 0x28 | uint8[32]    | _Domain Hash_ for EIP712                 |                                 |
+| DOMAIN_HASH                   | 0x28 | uint8[32]    | *Domain Hash* for EIP712                 |                                 |
 | TX_CHECKS_NORMALIZED_RISK     | 0x80 | uint8        | Normalized risk score of the transaction |                                 |
 | TX_CHECKS_NORMALIZED_CATEGORY | 0x81 | uint8        | Main category explaining the risk score  |                                 |
 | TX_CHECKS_PROVIDER_MSG        | 0x82 | char[30]     | Provider specific message                |                                 |
@@ -392,20 +490,20 @@ The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
 
 The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
 
-The _Risk Score_ is normalized and interpreted like this:
+The *Risk Score* is normalized and interpreted like this:
 
 - `0`: Benign
 - `1`: Warning
 - `2`: Malicious
 
-The _Main Category_ is normalized and interpreted like this:
+The *Main Category* is normalized and interpreted like this:
 
 - `1`: Others
 - `2`: Address
 - `3`: dApp
 - `4`: Losing Operation
 
-The _Simulation Type_ is normalized and interpreted like this:
+The *Simulation Type* is normalized and interpreted like this:
 
 - `0`: Transaction
 - `1`: Typed Data (EIP-712)
@@ -428,7 +526,7 @@ The _Simulation Type_ is normalized and interpreted like this:
 
 The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
 
-The _Role_ is normalized and interpreted like this:
+The *Role* is normalized and interpreted like this:
 
 - `0`: Signer
 - `1`: Proposer

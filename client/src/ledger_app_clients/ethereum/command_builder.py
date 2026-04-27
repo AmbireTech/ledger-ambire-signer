@@ -36,6 +36,7 @@ class InsType(IntEnum):
     SIGN_EIP7702_AUTHORIZATION = 0x34
     PROVIDE_SAFE_ACCOUNT = 0x36
     PROVIDE_GATING = 0x38
+    PROVIDE_MAP_ENTRY = 0x3A
 
 
 class P1Type(IntEnum):
@@ -591,6 +592,9 @@ class CommandBuilder:
 
     def provide_enum_value(self, tlv_payload: bytes) -> list[bytes]:
         return self.common_tlv_serialize(InsType.PROVIDE_ENUM_VALUE, tlv_payload)
+
+    def provide_map_entry(self, tlv_payload: bytes) -> list[bytes]:
+        return self.common_tlv_serialize(InsType.PROVIDE_MAP_ENTRY, tlv_payload)
 
     def provide_transaction_info(self, tlv_payload: bytes) -> list[bytes]:
         return self.common_tlv_serialize(InsType.PROVIDE_TRANSACTION_INFO, tlv_payload)

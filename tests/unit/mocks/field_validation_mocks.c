@@ -157,3 +157,18 @@ bool format_param_network(const void *param, const char *name) {
     (void) name;
     return true;
 }
+
+bool handle_param_group_struct(const void *buf, void *context) {
+    (void) buf;
+    (void) context;
+    return true;
+}
+
+bool format_param_group(const void *field) {
+    (void) field;
+    return true;
+}
+
+void cleanup_param_group(void *group) {
+    (void) group;
+}
