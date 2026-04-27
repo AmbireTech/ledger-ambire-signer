@@ -39,6 +39,8 @@ target_include_directories(
   code_lib
   PUBLIC ${CMAKE_SOURCE_DIR}/src
          ${CMAKE_SOURCE_DIR}/mock
+         # remove once fixed in the SDK's fuzzing TLV lib
+         ${BOLOS_SDK}/lib_tlv/use_cases
          ${APP_SRC}
          ${APP_SRC}/features/generic_tx_parser
          ${APP_SRC}/features/get_public_key
