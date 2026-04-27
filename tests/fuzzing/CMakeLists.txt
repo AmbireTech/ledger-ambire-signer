@@ -52,6 +52,8 @@ target_include_directories(
          ${APP_SRC}/features/provide_tx_simulation
          ${APP_SRC}/features/sign_authorization_eip7702
          ${APP_SRC}/features/provide_safe_account
+         ${APP_SRC}/features/provide_erc20_token_information
+         ${APP_SRC}/features/provide_nft_information
          ${APP_SRC}/features/provide_gating
          ${APP_SRC}/features/provide_map_entry
          ${APP_SRC}/features/sign_message_eip712_common

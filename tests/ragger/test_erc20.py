@@ -12,7 +12,7 @@ from client.client import EthAppClient
 from client.status_word import StatusWord
 
 from constants import ABIS_FOLDER
-from test_sign import common as common_tx, BIP32_PATH
+from test_sign import common as common_tx, BIP32_PATH, sign_dummy_tx
 
 TOKEN_ADDR = bytes.fromhex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
 TOKEN_TICKER = "USDC"
@@ -20,14 +20,15 @@ TOKEN_DECIMALS = 6
 TOKEN_CHAIN_ID = 1
 
 
-def test_provide_erc20_token(backend: BackendInterface):
-    app_client = EthAppClient(backend)
+def test_provide_erc20_token(scenario_navigator: NavigateWithScenario):
+    app_client = EthAppClient(scenario_navigator.backend)
 
     response = app_client.provide_token_metadata(TOKEN_TICKER,
                                                  TOKEN_ADDR,
                                                  TOKEN_DECIMALS,
                                                  TOKEN_CHAIN_ID)
     assert response.status == StatusWord.OK
+    sign_dummy_tx(scenario_navigator)
 
 
 def test_provide_erc20_token_error(backend: BackendInterface):

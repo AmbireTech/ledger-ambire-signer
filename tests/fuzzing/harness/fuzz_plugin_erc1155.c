@@ -13,6 +13,7 @@
 #include "fuzz_utils.h"
 #include "erc1155_plugin.h"
 #include "shared_context.h"
+#include "nft_info.h"
 
 // Buffer sizes for UI queries
 #define NAME_LENGTH    32
@@ -66,14 +67,14 @@ static int fuzz_erc1155_plugin(const uint8_t *data, size_t size) {
     data++;
     size--;
 
-    // Set up NFT metadata to bypass NO_NFT_METADATA check
-    // The check is: allzeroes(&(tmpCtx.transactionContext.extraInfo[0]), sizeof(extraInfo_t))
-    // We need to make this non-zero
-    tmpCtx.transactionContext.extraInfo[0].nft.collectionName[0] = 'F';
-    tmpCtx.transactionContext.extraInfo[0].nft.collectionName[1] = 'U';
-    tmpCtx.transactionContext.extraInfo[0].nft.collectionName[2] = 'Z';
-    tmpCtx.transactionContext.extraInfo[0].nft.collectionName[3] = 'Z';
-    tmpCtx.transactionContext.extraInfo[0].nft.collectionName[4] = '\0';
+    // Set up NFT metadata
+    s_nft_info info = {
+        .collection_name = "FUZZ",
+        .chain_id = 0x42,
+    };
+    if (set_nft_info(&info) == -1) {
+        return 0;
+    }
 
     // Initialize content from fuzzed data if available
     if (size >= sizeof(txContent_t)) {

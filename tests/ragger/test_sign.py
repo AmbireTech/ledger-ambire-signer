@@ -100,6 +100,23 @@ def common_fail(backend: BackendInterface,
         assert False  # An exception should have been raised
 
 
+# simple free transaction, no snapshot comparison or signature verification
+# used to make sure the reset_app_context() function is called and memory is freed-up
+def sign_dummy_tx(scenario_navigator: NavigateWithScenario):
+    app_client = EthAppClient(scenario_navigator.backend)
+
+    with app_client.sign(BIP32_PATH,
+                         {
+                             "nonce": 0,
+                             "gasPrice": Web3.to_wei(0, "gwei"),
+                             "gas": 0,
+                             "to": b'\x00' * 20,
+                             "value": Web3.to_wei(0, "ether"),
+                             "chainId": 1,
+                         }):
+        scenario_navigator.review_approve(do_comparison=False)
+
+
 def test_legacy(scenario_navigator: NavigateWithScenario):
     tx_params: dict = {
         "nonce": NONCE,

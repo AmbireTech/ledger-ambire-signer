@@ -13,6 +13,7 @@ from ragger.navigator import Navigator, NavInsID, NavIns
 
 from dynamic_networks_cfg import get_network_config
 from constants import ABIS_FOLDER
+from test_sign import sign_dummy_tx
 
 from client.utils import CoinType
 import client.response_parser as ResponseParser
@@ -382,16 +383,4 @@ def test_trusted_name_mab(scenario_navigator: NavigateWithScenario) -> None:
                                                 challenge=ResponseParser.challenge(app_client.get_challenge().data),
                                                 owner=device_addr,
                                                 owner_deriv_path=path))
-
-    # send a TX so that the trusted name is freed and this does not trigger a false-positive when checking for memory
-    # leaks
-    with app_client.sign(path,
-                         {
-                             "nonce": NONCE,
-                             "gasPrice": Web3.to_wei(GAS_PRICE, "gwei"),
-                             "gas": GAS_LIMIT,
-                             "to": ADDR,
-                             "value": Web3.to_wei(AMOUNT, "ether"),
-                             "chainId": CHAIN_ID,
-                         }):
-        scenario_navigator.review_approve(do_comparison=False)
+    sign_dummy_tx(scenario_navigator)

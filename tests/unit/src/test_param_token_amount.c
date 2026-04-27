@@ -17,8 +17,7 @@
 #include "gtp_parsed_value.h"
 #include "gtp_value.h"
 #include "gtp_tx_info.h"
-#include "manage_asset_info.h"
-#include "asset_info.h"
+#include "token_info.h"
 #include "network.h"
 #include "shared_context.h"
 
@@ -68,9 +67,10 @@ const s_tx_info *__wrap_get_current_tx_info(void) {
     return &g_fake_tx_info;
 }
 
-extraInfo_t *__wrap_get_asset_info_by_addr(const uint8_t *addr) {
+const s_token_info *__wrap_get_matching_token_info(const uint64_t *chain_id, const uint8_t *addr) {
+    (void) chain_id;
     (void) addr;
-    return (extraInfo_t *) mock();
+    return (const s_token_info *) mock();
 }
 
 const char *__wrap_get_displayable_ticker(const uint64_t *chain_id,
@@ -115,18 +115,16 @@ static uint8_t g_usdc_addr[ADDRESS_LENGTH] = {
     0x9D, 0x4a, 0x2e, 0x9E, 0xb0, 0xcE, 0x36, 0x06, 0xeB, 0x48,
 };
 
-// Fake USDC extra_info returned by get_asset_info_by_addr
-static extraInfo_t g_usdc_info = {
-    .token =
+// Fake USDC extra_info returned by get_matching_token_info
+static s_token_info g_usdc_info = {
+    .address =
         {
-            .address =
-                {
-                    0xA0, 0xb8, 0x69, 0x91, 0xc6, 0x21, 0x8b, 0x36, 0xc1, 0xd1,
-                    0x9D, 0x4a, 0x2e, 0x9E, 0xb0, 0xcE, 0x36, 0x06, 0xeB, 0x48,
-                },
-            .ticker = "USDC",
-            .decimals = 6,
+            0xA0, 0xb8, 0x69, 0x91, 0xc6, 0x21, 0x8b, 0x36, 0xc1, 0xd1,
+            0x9D, 0x4a, 0x2e, 0x9E, 0xb0, 0xcE, 0x36, 0x06, 0xeB, 0x48,
         },
+    .ticker = "USDC",
+    .decimals = 6,
+    .chain_id = 1,
 };
 
 // ===========================================================================
@@ -165,8 +163,8 @@ static void test_token_amount_broadcast_ok(void **state) {
     g_fake_tx_info.chain_id = 1;
 
     // token resolution: USDC found (called for each of the 2 iterations)
-    will_return(__wrap_get_asset_info_by_addr, &g_usdc_info);
-    will_return(__wrap_get_asset_info_by_addr, &g_usdc_info);
+    will_return(__wrap_get_matching_token_info, &g_usdc_info);
+    will_return(__wrap_get_matching_token_info, &g_usdc_info);
 
     // Expected field table entries: "1 USDC" then "2 USDC"
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_TOKEN_AMOUNT);

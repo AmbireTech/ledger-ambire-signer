@@ -18,11 +18,6 @@ static const uint8_t *const ERC1155_SELECTORS[] = {
 void handle_init_contract_1155(ethPluginInitContract_t *msg) {
     erc1155_context_t *context = (erc1155_context_t *) msg->pluginContext;
 
-    if (NO_NFT_METADATA) {
-        PRINTF("No NFT metadata when trying to sign!\n");
-        msg->result = ETH_PLUGIN_RESULT_ERROR;
-        return;
-    }
     uint8_t i;
     for (i = 0; i < ARRAYLEN(ERC1155_SELECTORS); i++) {
         if (memcmp(PIC(ERC1155_SELECTORS[i]), msg->selector, SELECTOR_SIZE) == 0) {
@@ -57,12 +52,7 @@ void handle_init_contract_1155(ethPluginInitContract_t *msg) {
 void handle_finalize_1155(ethPluginFinalize_t *msg) {
     erc1155_context_t *context = (erc1155_context_t *) msg->pluginContext;
 
-    if (context->selectorIndex != SAFE_BATCH_TRANSFER) {
-        msg->tokenLookup1 = msg->txContent->destination;
-    } else {
-        msg->tokenLookup1 = NULL;
-    }
-
+    msg->tokenLookup1 = msg->txContent->destination;
     msg->tokenLookup2 = NULL;
     switch (context->selectorIndex) {
         case SAFE_TRANSFER:

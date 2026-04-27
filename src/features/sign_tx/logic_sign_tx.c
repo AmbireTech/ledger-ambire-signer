@@ -285,8 +285,6 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
 
     // Verify the chain
     if (g_chain_config->chain_id != ETHEREUM_MAINNET_CHAINID) {
-        chain_id = get_tx_chain_id();
-
         if (g_chain_config->chain_id != chain_id) {
             PRINTF("Invalid chainID %llu expected %llu\n", chain_id, g_chain_config->chain_id);
             report_finalize_error();
@@ -333,24 +331,28 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             error = APDU_NO_RESPONSE;
             goto end;
         }
+
+        // store the lookup addresses
+        // not needed to set them for PLUGIN_PROVIDE_INFO since it is done within this function,
+        // but required for PLUGIN_QUERY_CONTRACT_UI
+        dataContext.tokenContext.token_lookup1 = pluginFinalize.tokenLookup1;
+        dataContext.tokenContext.token_lookup2 = pluginFinalize.tokenLookup2;
+
         // Lookup tokens if requested
         ethPluginProvideInfo_t pluginProvideInfo;
         eth_plugin_prepare_provide_info(&pluginProvideInfo);
-        if ((pluginFinalize.tokenLookup1 != NULL) || (pluginFinalize.tokenLookup2 != NULL)) {
-            if (pluginFinalize.tokenLookup1 != NULL) {
-                PRINTF("Lookup1: %.*H\n", ADDRESS_LENGTH, pluginFinalize.tokenLookup1);
-                pluginProvideInfo.item1 = get_asset_info_by_addr(pluginFinalize.tokenLookup1);
-                if (pluginProvideInfo.item1 != NULL) {
-                    PRINTF("Token1 ticker: %s\n", pluginProvideInfo.item1->token.ticker);
-                }
-            }
-            if (pluginFinalize.tokenLookup2 != NULL) {
-                PRINTF("Lookup2: %.*H\n", ADDRESS_LENGTH, pluginFinalize.tokenLookup2);
-                pluginProvideInfo.item2 = get_asset_info_by_addr(pluginFinalize.tokenLookup2);
-                if (pluginProvideInfo.item2 != NULL) {
-                    PRINTF("Token2 ticker: %s\n", pluginProvideInfo.item2->token.ticker);
-                }
-            }
+        pluginProvideInfo.item1 =
+            get_matching_asset_info(&chain_id, dataContext.tokenContext.token_lookup1);
+        if (pluginProvideInfo.item1 != NULL) {
+            PRINTF("Asset1 ticker: %s\n", pluginProvideInfo.item1->token.ticker);
+        }
+        pluginProvideInfo.item2 =
+            get_matching_asset_info(&chain_id, dataContext.tokenContext.token_lookup2);
+        if (pluginProvideInfo.item2 != NULL) {
+            PRINTF("Asset2 ticker: %s\n", pluginProvideInfo.item2->token.ticker);
+        }
+        if ((dataContext.tokenContext.token_lookup1 != NULL) ||
+            (dataContext.tokenContext.token_lookup2 != NULL)) {
             if (eth_plugin_call(ETH_PLUGIN_PROVIDE_INFO, (void *) &pluginProvideInfo) <=
                 ETH_PLUGIN_RESULT_UNSUCCESSFUL) {
                 PRINTF("Plugin provide token call failed\n");
