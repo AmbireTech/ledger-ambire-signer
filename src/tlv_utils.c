@@ -1,4 +1,5 @@
 #include <string.h>
+#include "os_utils.h"
 #include "tlv_utils.h"
 #include "challenge.h"
 #include "common_utils.h"
@@ -158,7 +159,7 @@ bool tlv_get_printable_string(const tlv_data_t *data,
     }
     // Check if the name is printable
     // ('\0' is set by get_string_from_tlv_data, so we can use strlen safely)
-    if (!is_printable((const char *) out, strlen((const char *) out))) {
+    if (!is_printable_string((const char *) out, strlen((const char *) out))) {
         PRINTF("STRING is not printable!\n");
         return false;
     }

@@ -61,24 +61,6 @@ void str_cpy_explicit_trunc(const char *src, size_t src_size, char *dst, size_t 
 }
 
 /**
- * @brief Checks if a string contains only printable ASCII characters
- *
- * This function determines if all characters in the provided string are within the
- * range of displayable ASCII characters (from 0x20 to 0x7E).
- *
- * @param[in] str A pointer to the string to be checked
- * @param[in] len The length of the string to be checked
- */
-bool is_printable(const char *str, size_t len) {
-    for (size_t i = 0; i < len; i++) {
-        if (isprint((int) str[i]) == 0) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/**
  * @brief Reverses a string in place
  *
  * This function reverses the characters in the provided string.
