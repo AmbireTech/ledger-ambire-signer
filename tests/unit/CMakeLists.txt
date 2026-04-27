@@ -79,6 +79,8 @@ include_directories(
   ${APP_DIR}
   ${PLUGIN_DIR}
   ${APP_DIR}/features/generic_tx_parser
+  ${APP_DIR}/features/provide_erc20_token_information
+  ${APP_DIR}/features/provide_nft_information
   ${APP_DIR}/features/provide_trusted_name
   ${APP_DIR}/features/provide_map_entry
   ${APP_DIR}/features/provide_proxy_info
@@ -354,6 +356,7 @@ add_test(test_param_group test_param_group)
 add_executable(test_param_token_amount
   ${SRC_DIR}/test_param_token_amount.c
   ${APP_DIR}/features/generic_tx_parser/gtp_param_token_amount.c
+  ${APP_DIR}/features/provide_erc20_token_information/token_info.c
   ${APP_DIR}/tlv_apdu.c
   ${APP_DIR}/tlv_utils.c
   ${APP_DIR}/mem_utils.c
@@ -367,6 +370,7 @@ add_executable(test_param_token_amount
   ${BOLOS_SDK}/lib_standard_app/write.c
   ${BOLOS_SDK}/src/os_printf.c
   ${BOLOS_SDK}/lib_tlv/tlv_library.c
+  ${BOLOS_SDK}/lib_lists/lists.c
 )
 
 set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
@@ -393,7 +397,7 @@ target_link_libraries(test_param_token_amount PUBLIC
                       -Wl,--wrap=value_cleanup
                       -Wl,--wrap=handle_value_struct
                       -Wl,--wrap=get_current_tx_info
-                      -Wl,--wrap=get_asset_info_by_addr
+                      -Wl,--wrap=get_matching_token_info
                       -Wl,--wrap=add_to_field_table
                       -Wl,--wrap=get_displayable_ticker
 )
