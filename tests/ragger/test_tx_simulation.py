@@ -13,7 +13,6 @@ from ragger.navigator.navigation_scenario import NavigateWithScenario
 from test_sign import common as sign_tx_common
 from test_blind_sign import test_blind_sign as blind_sign
 from test_nft import common_test_nft, collecs_721, actions_721, ERC721_PLUGIN
-from test_eip191 import common as sign_eip191
 from test_eip712 import test_eip712_filtering_empty_array as sign_eip712
 from test_eip712 import test_eip712_v0 as sign_eip712_v0
 from test_gcs import test_gcs_poap as sign_gcs_poap
@@ -238,36 +237,6 @@ def test_tx_simulation_blind_sign(scenario_navigator: NavigateWithScenario, conf
                False,
                0.0,
                simu_params)
-
-
-@pytest.mark.skip_nano
-def test_tx_simulation_eip191(scenario_navigator: NavigateWithScenario, config: str) -> None:
-    """Test the TX Simulation APDU with a Message Streaming based on EIP191"""
-
-    # TODO Re-activate when partners are ready for eip191
-    pytest.skip("Skip until partners are ready for eip191")
-
-    backend = scenario_navigator.backend
-    app_client = EthAppClient(backend)
-    device = backend.device
-
-    if config in ("benign", "warning"):
-        pytest.skip("Skipping useless tests")
-
-    __common_setting_handling(device, scenario_navigator.navigator, app_client, True)
-
-    test_name = scenario_navigator.test_name
-    simu_params = __get_simu_params(config, TxType.PERSONAL_MESSAGE)
-    msg = "Example `personal_sign` message with TX Simulation"
-    if config == "issue":
-        msg += " and wrong hash"
-        simu_params.tx_hash = bytes.fromhex("deadbeaf"*8)
-        test_name += f"_{config}"
-
-    sign_eip191(scenario_navigator,
-                test_name,
-                msg,
-                simu_params)
 
 
 @pytest.mark.skip_nano
