@@ -1,17 +1,13 @@
 import pytest
 
 from ragger.backend import BackendInterface
-from ragger.backend.speculos import SpeculosBackend
 
 from client.client import EthAppClient
 from client.status_word import StatusWord
 
 
-
+@pytest.mark.skip_on_backend("speculos")
 def test_perform_privacy_operation_public(backend: BackendInterface):
-
-    if isinstance(backend, SpeculosBackend):
-        pytest.skip("Not supported on speculos")
 
     app_client = EthAppClient(backend)
 
@@ -21,10 +17,8 @@ def test_perform_privacy_operation_public(backend: BackendInterface):
     print(f"Data: {response.data.hex()}")
 
 
+@pytest.mark.skip_on_backend("speculos")
 def test_perform_privacy_operation_secret(backend: BackendInterface):
-
-    if isinstance(backend, SpeculosBackend):
-        pytest.skip("Not supported on speculos")
 
     pubkey = "5901c19a086d1be4b907ec0325bffa758c3eb78192c3df4afa2afd2736a39963".encode("utf-8")
 
