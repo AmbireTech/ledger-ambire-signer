@@ -109,10 +109,11 @@ static bool process_token_amount(const s_param_token_amount *param,
             ticker = get_displayable_ticker(&chain_id, g_chain_config, true);
             decimals = WEI_TO_ETHER;
         } else {
-            if ((token_info = get_matching_token_info(&chain_id, addr_buf)) != NULL) {
-                ticker = token_info->ticker;
-                decimals = token_info->decimals;
+            if ((token_info = get_matching_token_info_or_dummy(&chain_id, addr_buf)) == NULL) {
+                return false;
             }
+            ticker = token_info->ticker;
+            decimals = token_info->decimals;
         }
     }
 
