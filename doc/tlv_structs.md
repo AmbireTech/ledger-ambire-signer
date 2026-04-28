@@ -560,3 +560,29 @@ The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
 | SIGNATURE         | 0x15 | uint8[]      | Signature of the structure                              |                                   |
 
 The signature is computed on the full payload data, using `CX_CURVE_SECP256K1`.
+
+## DYNAMIC_TOKEN_DESCRIPTOR
+
+Parsed by the SDK `tlv_use_case_dynamic_descriptor` helper.
+
+| Name             | Tag  | Payload type | Description                                                         |
+|------------------|------|--------------|---------------------------------------------------------------------|
+| STRUCTURE_TYPE   | 0x01 | uint8        | Structure type, must be `0x90` (`TYPE_DYNAMIC_TOKEN`)               |
+| VERSION          | 0x02 | uint8        | Serialization format version, currently `0x01`                      |
+| COIN_TYPE        | 0x03 | uint32       | SLIP-44 coin type (e.g. `60` for Ethereum)                          |
+| APPLICATION_NAME | 0x04 | char[]       | Ledger application name this descriptor targets (e.g. `"Ethereum"`) |
+| TICKER           | 0x05 | char[]       | Token ticker symbol (without `'\0'`)                                |
+| MAGNITUDE        | 0x06 | uint8        | Number of decimals                                                  |
+| TUID             | 0x07 | ETH_TUID     | Token Unique ID — application-specific sub-TLV                      |
+| SIGNATURE        | 0x08 | uint8[]      | Signature of the SHA-256 hash of all fields except SIGNATURE        |
+
+The signature is verified via the Ledger PKI with key usage `CERTIFICATE_PUBLIC_KEY_USAGE_COIN_META`.
+
+### ETH_TUID
+
+The TUID field contains a nested TLV payload with the following tags:
+
+| Name     | Tag  | Payload type | Description             |
+|----------|------|--------------|-------------------------|
+| ADDRESS  | 0x22 | uint8[20]    | ERC-20 contract address |
+| CHAIN_ID | 0x23 | uint64       | EVM chain ID            |

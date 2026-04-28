@@ -269,23 +269,39 @@ This command provides a trusted description of an ERC 20 token to associate a co
 
 It shall be run immediately before performing a transaction involving a contract calling this contract address to display the proper token information to the user if necessary, as marked in GET APP CONFIGURATION flags.
 
+Two formats are supported, selected by P1:
+
+* *P1 = 00 (legacy)*: raw binary payload, signed with a dedicated secp256k1 key.
+* *P1 = 01 (TLV)*: TLV dynamic descriptor payload as defined in link:tlv_structs.md#dynamic_token_descriptor[DYNAMIC_TOKEN_DESCRIPTOR], signed via the Ledger PKI (key usage `COIN_META`). Supports multi-APDU chunking via P2.
+
+==== Legacy format (P1 = 00)
+
 The signature is computed on
 
 ticker || address || number of decimals (uint4be) || chainId (uint4be)
 
 signed by the following secp256k1 public key 045e6c1020c14dc46442fe89f97c0b68cdb15976dc24f24c316e7b30fe4e8cc76b1489150c21514ebf440ff5dea5393d83de5358cd098fce8fd0f81daa94979183
 
+==== TLV format (P1 = 01)
+
+The signature covers the SHA-256 hash of all TLV fields except the SIGNATURE tag itself, verified via the Ledger PKI with key usage `COIN_META`.
+
 #### Coding
 
 _Command_
 
+
 [width="80%"]
-|======================================================================
-| *CLA* | *INS*  | *P1*               | *P2*       | *Lc*     | *Le*
-|   E0  |   0A   |  00                | 00         | variable | 00
-|======================================================================
+|===================================================================================
+   | *CLA*    | *INS*  | *P1*                   | *P2*                    | *LC*
+.2+| E0    .2+| 0A     | 00 : legacy format     | 00                   .2+| variable
+                       | 01 : TLV format        | 01 : first chunk +
+                                                  00 : following chunk
+|===================================================================================
 
 _Input data_
+
+##### If P1 == legacy format
 
 [width="80%"]
 |=======================================================================
@@ -298,7 +314,28 @@ _Input data_
 | Token information signature                      | variable
 |=======================================================================
 
+##### If P1 == TLV format
+
+###### If P2 == first chunk
+
+[width="80%"]
+|=========================================================================================
+| *Description*                                                                 | *Length*
+| Payload length                                                                | 2
+| link:tlv_structs.md#dynamic_token_descriptor[DYNAMIC_TOKEN_DESCRIPTOR struct] | variable
+|=========================================================================================
+
+###### If P2 == following chunk
+
+[width="80%"]
+|=========================================================================================
+| *Description*                                                                 | *Length*
+| link:tlv_structs.md#dynamic_token_descriptor[DYNAMIC_TOKEN_DESCRIPTOR struct] | variable
+|=========================================================================================
+
 _Output data_
+
+Returned only when the last (or only) chunk has been processed.
 
 [width="80%"]
 |====================================================================
