@@ -31,5 +31,5 @@ uint16_t handle_sign_eip712_message_v0(uint8_t p1, const uint8_t *workBuffer, ui
         return sw;
     }
 
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 }

@@ -107,7 +107,7 @@ uint16_t handle_perform_privacy_operation(uint8_t p1,
         ui_display_privacy_shared_secret();
     }
     // Return code will be sent after UI approve/cancel
-    error = APDU_NO_RESPONSE;
+    error = SWO_NO_RESPONSE;
 end:
     explicit_bzero(privateKeyDataSwapped, sizeof(privateKeyDataSwapped));
     explicit_bzero(&privateKey, sizeof(privateKey));

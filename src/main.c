@@ -166,7 +166,7 @@ const uint8_t *parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, bip32_
  * - Preserve existing state-reset and cleanup behavior when adding new cases.
  */
 static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
-    uint16_t sw = APDU_NO_RESPONSE;
+    uint16_t sw = SWO_NO_RESPONSE;
 
     if (cmd->cla != CLA) {
         return SWO_INVALID_CLA;
@@ -307,7 +307,7 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
 
 void app_main(void) {
     uint32_t tx = 0;
-    uint16_t sw = APDU_NO_RESPONSE;
+    uint16_t sw = SWO_NO_RESPONSE;
     command_t cmd = {0};
 
     // DESIGN NOTE: the bootloader ignores the way APDU are fetched. The only
@@ -354,7 +354,7 @@ void app_main(void) {
         }
         END_TRY;
 
-        if (sw == APDU_NO_RESPONSE) {
+        if (sw == SWO_NO_RESPONSE) {
             // Nothing to report
             continue;
         }

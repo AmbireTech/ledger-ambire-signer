@@ -1,43 +1,10 @@
 #include <string.h>
+#include "os_utils.h"
 #include "tlv_utils.h"
 #include "challenge.h"
 #include "common_utils.h"
 #include "chain_config.h"
 #include "utils.h"
-
-/**
- * @brief Parse and check the STRUCTURE_TYPE value.
- *
- * @param[in] data to handle
- * @param[in] expected value
- * @return whether the handling was successful
- */
-bool tlv_check_struct_type(const tlv_data_t *data, uint8_t expected) {
-    uint8_t value = 0;
-    if (!get_uint8_t_from_tlv_data(data, &value)) {
-        PRINTF("STRUCTURE_TYPE: failed to extract\n");
-        return false;
-    }
-    CHECK_FIELD_VALUE("STRUCTURE_TYPE", value, expected);
-    return true;
-}
-
-/**
- * @brief Parse and check the STRUCTURE_VERSION value.
- *
- * @param[in] data to handle
- * @param[in] expected value
- * @return whether the handling was successful
- */
-bool tlv_check_struct_version(const tlv_data_t *data, uint8_t expected) {
-    uint8_t value = 0;
-    if (!get_uint8_t_from_tlv_data(data, &value)) {
-        PRINTF("STRUCTURE_VERSION: failed to extract\n");
-        return false;
-    }
-    CHECK_FIELD_VALUE("STRUCTURE_VERSION", value, expected);
-    return true;
-}
 
 /**
  * @brief Parse and check the CHALLENGE value.
@@ -158,7 +125,7 @@ bool tlv_get_printable_string(const tlv_data_t *data,
     }
     // Check if the name is printable
     // ('\0' is set by get_string_from_tlv_data, so we can use strlen safely)
-    if (!is_printable((const char *) out, strlen((const char *) out))) {
+    if (!is_printable_string((const char *) out, strlen((const char *) out))) {
         PRINTF("STRING is not printable!\n");
         return false;
     }
@@ -227,25 +194,5 @@ bool tlv_get_uint8_range(const tlv_data_t *data, uint8_t *out, uint8_t min_val, 
         return false;
     }
     *out = value;
-    return true;
-}
-
-/**
- * @brief Parse and check an uint8_t value.
- *
- * @param[in] data to handle
- * @param[in] expected expected value
- * @return whether the handling was successful
- */
-bool tlv_check_uint8(const tlv_data_t *data, uint8_t expected) {
-    uint8_t value = 0;
-    if (!get_uint8_t_from_tlv_data(data, &value)) {
-        PRINTF("UINT8: failed to extract\n");
-        return false;
-    }
-    if (value != expected) {
-        PRINTF("UINT8: Value mismatch (%d /%d)!\n", value, expected);
-        return false;
-    }
     return true;
 }

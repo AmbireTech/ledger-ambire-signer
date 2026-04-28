@@ -66,7 +66,7 @@ static void eip7002_plugin_finalize(ethPluginFinalize_t *param) {
     eip7002_context_t *context = (eip7002_context_t *) param->pluginContext;
 
     param->uiType = ETH_UI_TYPE_GENERIC;
-    param->numScreens = allzeroes(context->raw_amount, sizeof(context->raw_amount)) ? 1 : 2;
+    param->numScreens = is_zeroes_buffer(context->raw_amount, sizeof(context->raw_amount)) ? 1 : 2;
     param->result = (context->received == sizeof(context->withdrawal_request))
                         ? ETH_PLUGIN_RESULT_OK
                         : ETH_PLUGIN_RESULT_ERROR;
@@ -76,7 +76,7 @@ static void eip7002_plugin_query_contract_id(ethQueryContractID_t *param) {
     eip7002_context_t *context = (eip7002_context_t *) param->pluginContext;
 
     strlcpy(param->version, "do", param->versionLength);
-    if (allzeroes(context->raw_amount, sizeof(context->raw_amount))) {
+    if (is_zeroes_buffer(context->raw_amount, sizeof(context->raw_amount))) {
         strlcpy(param->name, "full exit", param->nameLength);
     } else {
         strlcpy(param->name, "partial withdrawal", param->nameLength);

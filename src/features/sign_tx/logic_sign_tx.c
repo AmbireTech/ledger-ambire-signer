@@ -288,7 +288,7 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
         if (g_chain_config->chain_id != chain_id) {
             PRINTF("Invalid chainID %llu expected %llu\n", chain_id, g_chain_config->chain_id);
             report_finalize_error();
-            return APDU_NO_RESPONSE;
+            return SWO_NO_RESPONSE;
         }
     }
     // Store the hash
@@ -328,7 +328,7 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             ETH_PLUGIN_RESULT_SUCCESSFUL) {
             PRINTF("Plugin finalize call failed\n");
             report_finalize_error();
-            error = APDU_NO_RESPONSE;
+            error = SWO_NO_RESPONSE;
             goto end;
         }
 
@@ -357,7 +357,7 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
                 ETH_PLUGIN_RESULT_UNSUCCESSFUL) {
                 PRINTF("Plugin provide token call failed\n");
                 report_finalize_error();
-                error = APDU_NO_RESPONSE;
+                error = SWO_NO_RESPONSE;
                 goto end;
             }
             pluginFinalize.result = pluginProvideInfo.result;
@@ -380,7 +380,7 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
                 default:
                     PRINTF("ui type %d not supported\n", pluginFinalize.uiType);
                     report_finalize_error();
-                    error = APDU_NO_RESPONSE;
+                    error = SWO_NO_RESPONSE;
                     goto end;
             }
         } else if (G_called_from_swap && G_swap_mode == SWAP_MODE_CROSSCHAIN_SUCCESS) {
@@ -426,7 +426,7 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             PRINTF("Data is present but not allowed\n");
             report_finalize_error();
             ui_error_blind_signing();
-            error = APDU_NO_RESPONSE;
+            error = SWO_NO_RESPONSE;
             goto end;
         }
     }

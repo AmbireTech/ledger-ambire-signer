@@ -29,7 +29,7 @@ cx_sha3_t *g_7702_hash_ctx = NULL;
  * @param [in] dataLength size of the parameter to hash
  * @param [out] rlpTmp temporary buffer to store the RLP encoded parameter
  * @param [in] rlpTmpLength size of the temporary buffer to store the RLP encoded parameter
- * @return APDU_NO_RESPONSE if the parameter could be hashed, or an error code
+ * @return SWO_NO_RESPONSE if the parameter could be hashed, or an error code
  */
 uint16_t hashRLP(const uint8_t *data, uint8_t dataLength, uint8_t *rlpTmp, uint8_t rlpTmpLength) {
     cx_err_t error = CX_INTERNAL_ERROR;
@@ -40,7 +40,7 @@ uint16_t hashRLP(const uint8_t *data, uint8_t dataLength, uint8_t *rlpTmp, uint8
         return SWO_PARAMETER_ERROR_NO_INFO;
     }
     CX_CHECK(cx_hash_no_throw((cx_hash_t *) g_7702_hash_ctx, 0, rlpTmp, hashSize, NULL, 0));
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 end:
     return error;
 }
@@ -50,7 +50,7 @@ end:
  * @param [in] data uint64_t to hash
  * @param [out] rlpTmp temporary buffer to store the RLP encoded parameter
  * @param [in] rlpTmpLength size of the temporary buffer to store the RLP encoded parameter
- * @return APDU_NO_RESPONSE if the parameter could be hashed, or an error code
+ * @return SWO_NO_RESPONSE if the parameter could be hashed, or an error code
  */
 uint16_t hash_RLP64(uint64_t data, uint8_t *rlpTmp, uint8_t rlpTmpLength) {
     uint8_t tmp[8];
@@ -110,17 +110,17 @@ static bool handle_auth7702_tlv(const buffer_t *buf) {
     CX_CHECK(cx_keccak_init_no_throw(g_7702_hash_ctx, 256));
     CX_CHECK(cx_hash_no_throw((cx_hash_t *) g_7702_hash_ctx, 0, rlpTmp, hashSize + 1, NULL, 0));
     sw = hash_RLP64(auth7702->chainId, rlpTmp, sizeof(rlpTmp));
-    if (sw != APDU_NO_RESPONSE) {
+    if (sw != SWO_NO_RESPONSE) {
         g_7702_sw = sw;
         goto end;
     }
     sw = hashRLP(auth7702->delegate, sizeof(auth7702->delegate), rlpTmp, sizeof(rlpTmp));
-    if (sw != APDU_NO_RESPONSE) {
+    if (sw != SWO_NO_RESPONSE) {
         g_7702_sw = sw;
         goto end;
     }
     sw = hash_RLP64(auth7702->nonce, rlpTmp, sizeof(rlpTmp));
-    if (sw != APDU_NO_RESPONSE) {
+    if (sw != SWO_NO_RESPONSE) {
         g_7702_sw = sw;
         goto end;
     }
@@ -139,7 +139,7 @@ static bool handle_auth7702_tlv(const buffer_t *buf) {
                                    NULL,
                                    auth7702->chainId));
     // * Delegate
-    if (!allzeroes(auth7702->delegate, sizeof(auth7702->delegate))) {
+    if (!is_zeroes_buffer(auth7702->delegate, sizeof(auth7702->delegate))) {
         // Check if the delegate is on the whitelist for this chainId
         delegateName = get_delegate_name(&auth7702->chainId, auth7702->delegate);
         if (delegateName == NULL) {
@@ -172,7 +172,7 @@ static bool handle_auth7702_tlv(const buffer_t *buf) {
         }
     }
 
-    if (allzeroes(auth7702->delegate, sizeof(auth7702->delegate))) {
+    if (is_zeroes_buffer(auth7702->delegate, sizeof(auth7702->delegate))) {
         ui_sign_7702_revocation();
     } else {
         ui_sign_7702_auth();
@@ -198,5 +198,5 @@ uint16_t handle_sign_eip7702_authorization(uint8_t p1,
     if (!tlv_from_apdu(p1 == P1_FIRST_CHUNK, dataLength, dataBuffer, &handle_auth7702_tlv)) {
         return g_7702_sw;
     }
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 }

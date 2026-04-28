@@ -38,7 +38,11 @@ tx_simulation_t TX_SIMULATION = {0};
  */
 static bool parse_struct_type(const tlv_data_t *data, s_tx_simu_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_type(data, TYPE_TX_SIMULATION);
+    if (!tlv_enforce_u8_value(data, TYPE_TX_SIMULATION)) {
+        PRINTF("Invalid STRUCTURE_TYPE value\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -50,7 +54,11 @@ static bool parse_struct_type(const tlv_data_t *data, s_tx_simu_ctx *context) {
  */
 static bool parse_struct_version(const tlv_data_t *data, s_tx_simu_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_version(data, STRUCT_VERSION);
+    if (!tlv_enforce_u8_value(data, STRUCT_VERSION)) {
+        PRINTF("Invalid STRUCTURE_VERSION value\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -64,7 +72,7 @@ static bool parse_tx_hash(const tlv_data_t *data, s_tx_simu_ctx *context) {
     if (!tlv_get_hash(data, (uint8_t *) context->simu->tx_hash, sizeof(context->simu->tx_hash))) {
         return false;
     }
-    if (allzeroes(context->simu->tx_hash, HASH_SIZE) == 1) {
+    if (is_zeroes_buffer(context->simu->tx_hash, HASH_SIZE)) {
         PRINTF("TX_HASH: all zeroes\n");
         return false;
     }
@@ -84,7 +92,7 @@ static bool parse_domain_hash(const tlv_data_t *data, s_tx_simu_ctx *context) {
                       sizeof(context->simu->domain_hash))) {
         return false;
     }
-    if (allzeroes(context->simu->domain_hash, HASH_SIZE) == 1) {
+    if (is_zeroes_buffer(context->simu->domain_hash, HASH_SIZE)) {
         PRINTF("DOMAIN_HASH: all zeroes\n");
         return false;
     }
@@ -102,7 +110,7 @@ static bool parse_address(const tlv_data_t *data, s_tx_simu_ctx *context) {
     if (!tlv_get_address(data, (uint8_t *) context->simu->address)) {
         return false;
     }
-    if (allzeroes(context->simu->address, ADDRESS_LENGTH) == 1) {
+    if (is_zeroes_buffer(context->simu->address, ADDRESS_LENGTH)) {
         PRINTF("ADDRESS: all zeroes\n");
         return false;
     }
@@ -475,7 +483,7 @@ uint16_t handle_tx_simulation(uint8_t p1, uint8_t p2, const uint8_t *data, uint8
         case 0x01:
             // TX Simulation Opt-In
             handle_tx_simulation_opt_in(true);
-            sw = APDU_NO_RESPONSE;
+            sw = SWO_NO_RESPONSE;
             break;
         default:
             PRINTF("Error: Unexpected P1 (%u)!\n", p1);

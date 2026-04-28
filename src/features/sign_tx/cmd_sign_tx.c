@@ -74,11 +74,11 @@ static uint16_t handle_first_sign_chunk(const uint8_t *payload,
         txContext.txType = LEGACY;
     }
     PRINTF("TxType: %x\n", txContext.txType);
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 }
 
 uint16_t handle_parsing_status(parserStatus_e status) {
-    uint16_t sw = APDU_NO_RESPONSE;
+    uint16_t sw = SWO_NO_RESPONSE;
 
     switch (status) {
         case USTREAM_SUSPENDED:
@@ -110,7 +110,7 @@ uint16_t handle_parsing_status(parserStatus_e status) {
 }
 
 uint16_t handle_sign(uint8_t p1, uint8_t p2, const uint8_t *payload, uint8_t length) {
-    uint16_t sw = APDU_NO_RESPONSE;
+    uint16_t sw = SWO_NO_RESPONSE;
     uint8_t offset = 0;
 
     switch (p2) {
@@ -119,7 +119,7 @@ uint16_t handle_sign(uint8_t p1, uint8_t p2, const uint8_t *payload, uint8_t len
             switch (p1) {
                 case P1_FIRST:
                     if ((sw = handle_first_sign_chunk(payload, length, &offset, p2)) !=
-                        APDU_NO_RESPONSE) {
+                        SWO_NO_RESPONSE) {
                         return sw;
                     }
                     break;
@@ -159,7 +159,7 @@ uint16_t handle_sign(uint8_t p1, uint8_t p2, const uint8_t *payload, uint8_t len
                 ui_gcs_cleanup();
                 return SWO_NOT_SUPPORTED_ERROR_NO_INFO;
             }
-            return APDU_NO_RESPONSE;
+            return SWO_NO_RESPONSE;
         default:
             return SWO_WRONG_P1_P2;
     }
@@ -173,10 +173,10 @@ uint16_t handle_sign(uint8_t p1, uint8_t p2, const uint8_t *payload, uint8_t len
     if (p2 == SIGN_MODE_BASIC) {
         if ((pstatus == USTREAM_FINISHED) && (sw == SWO_SUCCESS)) {
             // don't respond now, will be done after review
-            sw = APDU_NO_RESPONSE;
+            sw = SWO_NO_RESPONSE;
         }
     }
-    if (sw != APDU_NO_RESPONSE) {
+    if (sw != SWO_NO_RESPONSE) {
         if ((sw != SWO_SUCCESS) && (g_tx_hash_ctx != NULL)) {
             APP_MEM_FREE_AND_NULL((void **) &g_tx_hash_ctx);
         }

@@ -78,7 +78,6 @@
 #define P2_EIP712_LEGACY_IMPLEM 0x00
 #define P2_EIP712_FULL_IMPLEM   0x01
 
-#define APDU_NO_RESPONSE                0x0000
 #define APDU_RESPONSE_MODE_CHECK_FAILED 0x6001
 
 uint16_t handle_get_public_key(uint8_t p1,

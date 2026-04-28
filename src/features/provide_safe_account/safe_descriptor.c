@@ -35,7 +35,11 @@ safe_descriptor_t *SAFE_DESC = NULL;
  */
 static bool handle_struct_type(const tlv_data_t *data, s_safe_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_type(data, TYPE_LESM_ACCOUNT_INFO);
+    if (!tlv_enforce_u8_value(data, TYPE_LESM_ACCOUNT_INFO)) {
+        PRINTF("Invalid STRUCTURE_TYPE value\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -47,7 +51,11 @@ static bool handle_struct_type(const tlv_data_t *data, s_safe_ctx *context) {
  */
 static bool handle_struct_version(const tlv_data_t *data, s_safe_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_version(data, STRUCT_VERSION);
+    if (!tlv_enforce_u8_value(data, STRUCT_VERSION)) {
+        PRINTF("Invalid STRUCTURE_VERSION value\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -73,7 +81,7 @@ static bool handle_address(const tlv_data_t *data, s_safe_ctx *context) {
     if (!tlv_get_address(data, (uint8_t *) context->safe->address)) {
         return false;
     }
-    if (allzeroes(context->safe->address, ADDRESS_LENGTH) == 1) {
+    if (is_zeroes_buffer(context->safe->address, ADDRESS_LENGTH)) {
         PRINTF("ADDRESS: all zeroes\n");
         return false;
     }

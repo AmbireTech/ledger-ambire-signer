@@ -167,7 +167,7 @@ uint16_t handle_eip712_struct_impl(uint8_t p1, uint8_t p2, const uint8_t *cdata,
         apdu_reply(ret);
         return apdu_response_code;
     }
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 }
 
 /**
@@ -258,7 +258,7 @@ uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, u
         apdu_reply(ret);
         return apdu_response_code;
     }
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 }
 
 /**
@@ -274,10 +274,10 @@ uint16_t handle_eip712_sign(const uint8_t *cdata, uint8_t length) {
         apdu_response_code = SWO_COMMAND_NOT_ALLOWED;
     }
     // if the final hashes are still zero or if there are some unimplemented fields
-    else if (allzeroes(tmpCtx.messageSigningContext712.domainHash,
-                       sizeof(tmpCtx.messageSigningContext712.domainHash)) ||
-             allzeroes(tmpCtx.messageSigningContext712.messageHash,
-                       sizeof(tmpCtx.messageSigningContext712.messageHash)) ||
+    else if (is_zeroes_buffer(tmpCtx.messageSigningContext712.domainHash,
+                              sizeof(tmpCtx.messageSigningContext712.domainHash)) ||
+             is_zeroes_buffer(tmpCtx.messageSigningContext712.messageHash,
+                              sizeof(tmpCtx.messageSigningContext712.messageHash)) ||
              (path_get_field() != NULL)) {
         apdu_response_code = SWO_INCORRECT_DATA;
     } else if ((ui_712_get_filtering_mode() == EIP712_FILTERING_FULL) &&
@@ -303,5 +303,5 @@ uint16_t handle_eip712_sign(const uint8_t *cdata, uint8_t length) {
         apdu_reply(false);
         return apdu_response_code;
     }
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 }
