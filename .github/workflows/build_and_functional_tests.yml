@@ -61,6 +61,7 @@ jobs:
       additional_app_binaries_artifact_dir: ./tests/ragger/.test_dependencies/clone/build/
       test_options: "--setup lib_mode"
       regenerate_snapshots: ${{ inputs.golden_run == 'Open a PR' }}
+      stack_consumption_section_id: "clone_app_stack_consumption"
 
   build_mem_app:
     name: Build Memory application using the reusable workflow
@@ -69,6 +70,8 @@ jobs:
       upload_app_binaries_artifact: "memory_elfs"
       flags: "memory_profiling"
       run_for_devices: '["nanox"]'
+      build_comparison: false
+      enable_stack_consumption: false
 
   ragger_mem_tests:
     name: Run Memory tests using the reusable workflow
@@ -79,19 +82,20 @@ jobs:
       run_for_devices: '["nanox"]'
       upload_snapshots_on_failure: false
       capture_file: pytest-logs-combined
+      post_stack_consumption: false
 
-  ragger_mem__results:
+  ragger_mem_results:
     name: Process pytest logs
     if: always()
     needs: ragger_mem_tests
     runs-on: ubuntu-latest
     steps:
       - name: Clone
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download and process pytest logs
         if: always()
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: pytest-logs-combined
           path: logs
