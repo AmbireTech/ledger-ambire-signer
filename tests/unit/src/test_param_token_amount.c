@@ -67,7 +67,8 @@ const s_tx_info *__wrap_get_current_tx_info(void) {
     return &g_fake_tx_info;
 }
 
-const s_token_info *__wrap_get_matching_token_info(const uint64_t *chain_id, const uint8_t *addr) {
+const s_token_info *__wrap_get_matching_token_info_or_dummy(const uint64_t *chain_id,
+                                                            const uint8_t *addr) {
     (void) chain_id;
     (void) addr;
     return (const s_token_info *) mock();
@@ -115,7 +116,7 @@ static uint8_t g_usdc_addr[ADDRESS_LENGTH] = {
     0x9D, 0x4a, 0x2e, 0x9E, 0xb0, 0xcE, 0x36, 0x06, 0xeB, 0x48,
 };
 
-// Fake USDC extra_info returned by get_matching_token_info
+// Fake USDC extra_info returned by get_matching_token_info_or_dummy
 static s_token_info g_usdc_info = {
     .address =
         {
@@ -163,8 +164,8 @@ static void test_token_amount_broadcast_ok(void **state) {
     g_fake_tx_info.chain_id = 1;
 
     // token resolution: USDC found (called for each of the 2 iterations)
-    will_return(__wrap_get_matching_token_info, &g_usdc_info);
-    will_return(__wrap_get_matching_token_info, &g_usdc_info);
+    will_return(__wrap_get_matching_token_info_or_dummy, &g_usdc_info);
+    will_return(__wrap_get_matching_token_info_or_dummy, &g_usdc_info);
 
     // Expected field table entries: "1 USDC" then "2 USDC"
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_TOKEN_AMOUNT);
