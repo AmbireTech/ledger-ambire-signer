@@ -2,6 +2,7 @@
 #include "lists.h"
 #include "app_mem_utils.h"
 #include "token_info.h"
+#include "network.h"
 
 typedef struct {
     flist_node_t _list;
@@ -58,4 +59,25 @@ const s_token_info *get_matching_token_info(const uint64_t *chain_id, const uint
         }
     }
     return NULL;
+}
+
+const s_token_info *get_matching_token_info_or_dummy(const uint64_t *chain_id,
+                                                     const uint8_t *address) {
+    const s_token_info *info_ptr;
+    s_token_info info;
+
+    if ((chain_id == NULL) || (address == NULL)) {
+        return NULL;
+    }
+    if ((info_ptr = get_matching_token_info(chain_id, address)) != NULL) {
+        return info_ptr;
+    }
+    info.chain_id = *chain_id;
+    memcpy(info.address, address, ADDRESS_LENGTH);
+    strlcpy(info.ticker, g_unknown_ticker, sizeof(info.ticker));
+    info.decimals = 0;
+    if (set_token_info(&info) == -1) {
+        return NULL;
+    }
+    return get_matching_token_info(chain_id, address);
 }

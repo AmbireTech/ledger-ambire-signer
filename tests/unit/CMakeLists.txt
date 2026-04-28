@@ -397,7 +397,7 @@ target_link_libraries(test_param_token_amount PUBLIC
                       -Wl,--wrap=value_cleanup
                       -Wl,--wrap=handle_value_struct
                       -Wl,--wrap=get_current_tx_info
-                      -Wl,--wrap=get_matching_token_info
+                      -Wl,--wrap=get_matching_token_info_or_dummy
                       -Wl,--wrap=add_to_field_table
                       -Wl,--wrap=get_displayable_ticker
 )

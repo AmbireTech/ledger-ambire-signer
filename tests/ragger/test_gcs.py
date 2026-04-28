@@ -5,6 +5,7 @@ import json
 import hashlib
 from pathlib import Path
 
+import pytest
 from web3 import Web3
 
 from ragger.navigator.navigation_scenario import NavigateWithScenario
@@ -594,7 +595,12 @@ def test_gcs_proxy(scenario_navigator: NavigateWithScenario):
         scenario_navigator.review_approve()
 
 
-def test_gcs_4226(scenario_navigator: NavigateWithScenario):
+@pytest.fixture(name="known_tokens", params=[True, False])
+def known_tokens_fixture(request) -> bool:
+    return request.param
+
+
+def test_gcs_4226(scenario_navigator: NavigateWithScenario, known_tokens: bool):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
@@ -691,8 +697,11 @@ def test_gcs_4226(scenario_navigator: NavigateWithScenario):
 
     app_client.provide_transaction_info(tx_info.serialize())
 
-    app_client.provide_token_metadata("rSWELL", tx_params["to"], 18, 1)
-    app_client.provide_token_metadata("SWELL", swell_token_addr, 18, 1)
+    if known_tokens:
+        app_client.provide_token_metadata("rSWELL", tx_params["to"], 18, 1)
+        app_client.provide_token_metadata("SWELL", swell_token_addr, 18, 1)
+    else:
+        scenario_navigator.test_name += "_unknown_tokens"
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
