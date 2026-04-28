@@ -12,6 +12,15 @@ void *pic(void *addr) {
     return addr;
 }
 
+bool is_printable_string(const char *str, size_t len) {
+    for (size_t i = 0; i < len; ++i) {
+        if (str[i] < 0x20 || str[i] > 0x7E) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void assert_exit(bool confirm) {
     (void) confirm;
 }
