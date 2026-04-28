@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout SDK repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: true
           repository: LedgerHQ/ethereum-plugin-sdk
@@ -97,7 +97,7 @@ jobs:
 
     steps:
       - name: Checkout plugin repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: LedgerHQ/${{ matrix.repo }}
           submodules: recursive
@@ -110,8 +110,8 @@ jobs:
           persist-credentials: false
 
       - name: Update submodule
+        working-directory: ethereum-plugin-sdk
         run: |
-          cd ethereum-plugin-sdk/
           git checkout ${{ needs.get-sdk-ref.outputs.sdk_ref }}
 
       - name: Commit changes
