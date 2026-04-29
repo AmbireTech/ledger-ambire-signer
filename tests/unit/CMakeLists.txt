@@ -109,10 +109,13 @@ add_executable(test_param_network
   ${APP_DIR}/tlv_utils.c
   ${APP_DIR}/mem_utils.c
   ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
   ${BOLOS_SDK}/lib_tlv/tlv_library.c
 )
 
@@ -126,6 +129,7 @@ target_compile_definitions(test_param_network PRIVATE
   HAVE_SHA3
   HAVE_ECC
   HAVE_SPRINTF
+  HAVE_MATH
 )
 
 target_link_libraries(test_param_network PUBLIC
@@ -147,10 +151,13 @@ add_executable(test_param_trusted_name
   ${APP_DIR}/tlv_utils.c
   ${APP_DIR}/mem_utils.c
   ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
   ${BOLOS_SDK}/lib_tlv/tlv_library.c
 )
 
@@ -166,6 +173,7 @@ target_compile_definitions(test_param_trusted_name PRIVATE
   HAVE_SHA256
   HAVE_SHA3
   HAVE_ECC
+  HAVE_MATH
 )
 
 target_link_libraries(test_param_trusted_name PUBLIC
@@ -238,11 +246,14 @@ add_executable(test_field_validation
   ${APP_DIR}/mem_utils.c
   ${BOLOS_SDK}/lib_lists/lists.c
   ${APP_DIR}/utils.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${MOCK_DIR}/field_validation_mocks.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
   ${BOLOS_SDK}/lib_tlv/tlv_library.c
 )
 
@@ -259,6 +270,7 @@ target_compile_definitions(test_field_validation PRIVATE
   HAVE_SHA256
   HAVE_SHA3
   HAVE_ECC
+  HAVE_MATH
 )
 
 target_compile_options(test_field_validation PRIVATE
@@ -281,11 +293,14 @@ add_executable(test_provide_map_entry
   ${APP_DIR}/tlv_utils.c
   ${APP_DIR}/mem_utils.c
   ${APP_DIR}/utils.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_lists/lists.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
   ${BOLOS_SDK}/src/os_printf.c
   ${BOLOS_SDK}/lib_tlv/tlv_library.c
 )
@@ -296,6 +311,7 @@ target_compile_definitions(test_provide_map_entry PRIVATE
   HAVE_SHA256
   HAVE_SHA3
   HAVE_ECC
+  HAVE_MATH
 )
 
 target_link_libraries(test_provide_map_entry PUBLIC
@@ -321,11 +337,14 @@ add_executable(test_param_group
   ${APP_DIR}/tlv_utils.c
   ${APP_DIR}/mem_utils.c
   ${APP_DIR}/utils.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_lists/lists.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
   ${BOLOS_SDK}/lib_tlv/tlv_library.c
 )
 
@@ -337,6 +356,7 @@ target_compile_definitions(test_param_group PRIVATE
   HAVE_SHA256
   HAVE_SHA3
   HAVE_ECC
+  HAVE_MATH
 )
 
 target_link_libraries(test_param_group PUBLIC
@@ -412,10 +432,13 @@ add_executable(test_param_calldata
   ${APP_DIR}/tlv_utils.c
   ${APP_DIR}/mem_utils.c
   ${APP_DIR}/utils.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
   ${BOLOS_SDK}/lib_tlv/tlv_library.c
 )
 
@@ -429,6 +452,7 @@ target_compile_definitions(test_param_calldata PRIVATE
   HAVE_ECC
   HAVE_SPRINTF
   HAVE_SNPRINTF
+  HAVE_MATH
 )
 
 target_link_libraries(test_param_calldata PUBLIC
