@@ -2,6 +2,7 @@
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "os_io.h"
+#include "format.h"
 #include "common_utils.h"  // uint256_to_decimal
 #include "common_712.h"
 #include "context_712.h"     // eip712_context_deinit
@@ -467,61 +468,17 @@ static bool ui_712_format_int(const uint8_t *data,
                               uint8_t length,
                               bool first,
                               const s_struct_712_field *field_ptr) {
-    uint256_t value256;
-    uint128_t value128;
-    int32_t value32;
-    int16_t value16;
-    int8_t value8;
-    uint8_t tmp[sizeof(int32_t)] = {0};
-
     // no reason for an integer to be received over multiple chunks
     if (!first) {
         return false;
     }
-    if (length < 1) {
+    if (!format_signed_int_be(data,
+                              length,
+                              field_ptr->type_size,
+                              strings.tmp.tmp,
+                              sizeof(strings.tmp.tmp))) {
         apdu_response_code = SWO_INCORRECT_DATA;
         return false;
-    }
-    if (length > field_ptr->type_size) {
-        apdu_response_code = SWO_INCORRECT_DATA;
-        return false;
-    }
-
-    switch (field_ptr->type_size * 8) {
-        case 256:
-            convertUint256BE(data, length, &value256);
-            tostring256_signed(&value256, 10, strings.tmp.tmp, sizeof(strings.tmp.tmp));
-            break;
-        case 128:
-            convertUint128BE(data, length, &value128);
-            tostring128_signed(&value128, 10, strings.tmp.tmp, sizeof(strings.tmp.tmp));
-            break;
-        case 64:
-            convertUint64BEto128(data, length, &value128);
-            tostring128_signed(&value128, 10, strings.tmp.tmp, sizeof(strings.tmp.tmp));
-            break;
-        case 32:
-            buf_shrink_expand(data, length, tmp, sizeof(int32_t));
-            value32 = (int32_t) read_u32_be(tmp, 0);
-            snprintf(strings.tmp.tmp, sizeof(strings.tmp.tmp), "%d", value32);
-            break;
-        case 16:
-            buf_shrink_expand(data, length, tmp, sizeof(int16_t));
-            value16 = (int16_t) read_u16_be(tmp, 0);
-            snprintf(strings.tmp.tmp, sizeof(strings.tmp.tmp), "%d", value16);
-            break;
-        case 8:
-            if (length != sizeof(int8_t)) {
-                apdu_response_code = SWO_INCORRECT_DATA;
-                return false;
-            }
-            value8 = (int8_t) data[0];
-            snprintf(strings.tmp.tmp, sizeof(strings.tmp.tmp), "%d", value8);
-            break;
-        default:
-            PRINTF("Unhandled field typesize\n");
-            apdu_response_code = SWO_INCORRECT_DATA;
-            return false;
     }
     return true;
 }
