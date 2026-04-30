@@ -134,7 +134,9 @@ static bool path_ref(uint32_t *offset, uint32_t *ref_offset) {
         return false;
     }
     *offset = raw_offset / CALLDATA_CHUNK_SIZE;
-    *offset += *ref_offset;
+    if (__builtin_add_overflow(*offset, *ref_offset, offset)) {
+        return false;
+    }
     return true;
 }
 
