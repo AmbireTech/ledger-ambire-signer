@@ -109,15 +109,17 @@ static bool path_tuple(const s_tuple_args *tuple, uint32_t *offset, uint32_t *re
 }
 
 static bool path_ref(uint32_t *offset, uint32_t *ref_offset) {
-    uint8_t buf[sizeof(uint16_t)];
     uint16_t raw_offset;
     const uint8_t *chunk;
+    uint8_t chunk_offset = CALLDATA_CHUNK_SIZE - sizeof(raw_offset);
 
     if ((chunk = calldata_get_chunk(get_current_calldata(), *offset)) == NULL) {
         return false;
     }
-    buf_shrink_expand(chunk, CALLDATA_CHUNK_SIZE, buf, sizeof(buf));
-    raw_offset = read_u16_be(buf, 0);
+    if (!is_zeroes_buffer(chunk, chunk_offset)) {
+        return false;
+    }
+    raw_offset = read_u16_be(chunk, chunk_offset);
     if ((raw_offset % CALLDATA_CHUNK_SIZE) != 0) {
         // reject unaligned offsets
         return false;
@@ -130,9 +132,9 @@ static bool path_ref(uint32_t *offset, uint32_t *ref_offset) {
 static bool path_leaf(const s_leaf_args *leaf,
                       uint32_t *offset,
                       s_parsed_value_collection *collection) {
-    uint8_t buf[sizeof(uint16_t)];
-    const uint8_t *chunk;
     uint8_t *leaf_buf = NULL;
+    const uint8_t *chunk;
+    uint8_t chunk_offset = CALLDATA_CHUNK_SIZE - sizeof(collection->value[collection->size].size);
     uint8_t cpy_length;
 
     if (collection->size >= MAX_VALUE_COLLECTION_SIZE) {
@@ -148,8 +150,10 @@ static bool path_leaf(const s_leaf_args *leaf,
             if ((chunk = calldata_get_chunk(get_current_calldata(), *offset)) == NULL) {
                 return false;
             }
-            buf_shrink_expand(chunk, CALLDATA_CHUNK_SIZE, buf, sizeof(buf));
-            collection->value[collection->size].size = read_u16_be(buf, 0);
+            if (!is_zeroes_buffer(chunk, chunk_offset)) {
+                return false;
+            }
+            collection->value[collection->size].size = read_u16_be(chunk, chunk_offset);
             *offset += 1;
             break;
 
@@ -223,14 +227,14 @@ static bool path_array(const s_array_args *array,
                        uint32_t *offset,
                        uint32_t *ref_offset,
                        s_arrays_info *arrays_info) {
-    uint8_t buf[sizeof(uint16_t)];
     uint16_t array_size;
     uint16_t idx;
     uint16_t start;
     uint16_t end;
     uint16_t passes;
-    const uint8_t *chunk;
     uint32_t product;
+    const uint8_t *chunk;
+    uint8_t chunk_offset = CALLDATA_CHUNK_SIZE - sizeof(array_size);
 
     if (arrays_info->index >= MAX_ARRAYS) {
         return false;
@@ -238,8 +242,10 @@ static bool path_array(const s_array_args *array,
     if ((chunk = calldata_get_chunk(get_current_calldata(), *offset)) == NULL) {
         return false;
     }
-    buf_shrink_expand(chunk, CALLDATA_CHUNK_SIZE, buf, sizeof(buf));
-    array_size = read_u16_be(buf, 0);
+    if (!is_zeroes_buffer(chunk, chunk_offset)) {
+        return false;
+    }
+    array_size = read_u16_be(chunk, chunk_offset);
 
     if (array->has_start) {
         start = (array->start < 0) ? ((int16_t) array_size + array->start) : array->start;
