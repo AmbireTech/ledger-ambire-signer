@@ -3,7 +3,6 @@
 #include "gtp_param_raw.h"
 #include "gtp_field.h"
 #include "uint256.h"
-#include "read.h"
 #include "gtp_field_table.h"
 #include "utils.h"
 #include "shared_context.h"
@@ -111,47 +110,7 @@ bool format_uint(const s_field *field,
 }
 
 bool format_int(const s_value *def, const s_parsed_value *value, char *buf, size_t buf_size) {
-    uint8_t tmp[INT256_LENGTH];
-    bool ret;
-    union {
-        uint256_t value256;
-        uint128_t value128;
-        int64_t value64;
-        int32_t value32;
-        int16_t value16;
-        int8_t value8;
-    } uv;
-
-    buf_shrink_expand(value->ptr, value->length, tmp, def->type_size);
-    switch (def->type_size * 8) {
-        case 256:
-            convertUint256BE(tmp, def->type_size, &uv.value256);
-            ret = tostring256_signed(&uv.value256, 10, buf, buf_size);
-            break;
-        case 128:
-            convertUint128BE(tmp, def->type_size, &uv.value128);
-            ret = tostring128_signed(&uv.value128, 10, buf, buf_size);
-            break;
-        case 64:
-            uv.value64 = read_u64_be(tmp, 0);
-            ret = format_i64(buf, buf_size, uv.value64);
-            break;
-        case 32:
-            uv.value32 = read_u32_be(tmp, 0);
-            ret = format_i64(buf, buf_size, (int64_t) uv.value32);
-            break;
-        case 16:
-            uv.value16 = read_u16_be(tmp, 0);
-            ret = format_i64(buf, buf_size, (int64_t) uv.value16);
-            break;
-        case 8:
-            uv.value8 = value->ptr[0];
-            ret = format_i64(buf, buf_size, (int64_t) uv.value8);
-            break;
-        default:
-            ret = false;
-    }
-    return ret;
+    return format_signed_int_be(value->ptr, value->length, def->type_size, buf, buf_size);
 }
 
 /**

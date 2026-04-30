@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "lcx_math.h"
 #include "uint256.h"
 #include "read.h"
 #include "write.h"
@@ -26,26 +27,26 @@
 #include "common_utils.h"  // INT256_LENGTH
 #include "utils.h"
 
-void readu256BE(const uint8_t *const buffer, uint256_t *const target) {
+void readu256BE(const uint8_t *buffer, uint256_t *target) {
     readu128BE(buffer, &UPPER_P(target));
     readu128BE(buffer + 16, &LOWER_P(target));
 }
 
-bool zero256(const uint256_t *const number) {
+bool zero256(const uint256_t *number) {
     return (zero128(&LOWER_P(number)) && zero128(&UPPER_P(number)));
 }
 
-void copy256(uint256_t *const target, const uint256_t *const number) {
+void copy256(uint256_t *target, const uint256_t *number) {
     copy128(&UPPER_P(target), &UPPER_P(number));
     copy128(&LOWER_P(target), &LOWER_P(number));
 }
 
-void clear256(uint256_t *const target) {
+void clear256(uint256_t *target) {
     clear128(&UPPER_P(target));
     clear128(&LOWER_P(target));
 }
 
-void shiftl256(const uint256_t *const number, uint32_t value, uint256_t *const target) {
+void shiftl256(const uint256_t *number, uint32_t value, uint256_t *target) {
     if (value >= 256) {
         clear256(target);
     } else if (value == 128) {
@@ -68,7 +69,7 @@ void shiftl256(const uint256_t *const number, uint32_t value, uint256_t *const t
     }
 }
 
-void shiftr256(const uint256_t *const number, uint32_t value, uint256_t *const target) {
+void shiftr256(const uint256_t *number, uint32_t value, uint256_t *target) {
     if (value >= 256) {
         clear256(target);
     } else if (value == 128) {
@@ -91,7 +92,7 @@ void shiftr256(const uint256_t *const number, uint32_t value, uint256_t *const t
     }
 }
 
-uint32_t bits256(const uint256_t *const number) {
+uint32_t bits256(const uint256_t *number) {
     uint32_t result = 0;
     if (!zero128(&UPPER_P(number))) {
         result = 128;
@@ -112,25 +113,23 @@ uint32_t bits256(const uint256_t *const number) {
     return result;
 }
 
-bool equal256(const uint256_t *const number1, const uint256_t *const number2) {
+bool equal256(const uint256_t *number1, const uint256_t *number2) {
     return (equal128(&UPPER_P(number1), &UPPER_P(number2)) &&
             equal128(&LOWER_P(number1), &LOWER_P(number2)));
 }
 
-bool gt256(const uint256_t *const number1, const uint256_t *const number2) {
+bool gt256(const uint256_t *number1, const uint256_t *number2) {
     if (equal128(&UPPER_P(number1), &UPPER_P(number2))) {
         return gt128(&LOWER_P(number1), &LOWER_P(number2));
     }
     return gt128(&UPPER_P(number1), &UPPER_P(number2));
 }
 
-bool gte256(const uint256_t *const number1, const uint256_t *const number2) {
+bool gte256(const uint256_t *number1, const uint256_t *number2) {
     return gt256(number1, number2) || equal256(number1, number2);
 }
 
-void add256(const uint256_t *const number1,
-            const uint256_t *const number2,
-            uint256_t *const target) {
+void add256(const uint256_t *number1, const uint256_t *number2, uint256_t *target) {
     uint128_t tmp;
     add128(&UPPER_P(number1), &UPPER_P(number2), &UPPER_P(target));
     add128(&LOWER_P(number1), &LOWER_P(number2), &tmp);
@@ -143,9 +142,7 @@ void add256(const uint256_t *const number1,
     add128(&LOWER_P(number1), &LOWER_P(number2), &LOWER_P(target));
 }
 
-void sub256(const uint256_t *const number1,
-            const uint256_t *const number2,
-            uint256_t *const target) {
+void sub256(const uint256_t *number1, const uint256_t *number2, uint256_t *target) {
     uint128_t tmp;
     sub128(&UPPER_P(number1), &UPPER_P(number2), &UPPER_P(target));
     sub128(&LOWER_P(number1), &LOWER_P(number2), &tmp);
@@ -158,16 +155,12 @@ void sub256(const uint256_t *const number1,
     sub128(&LOWER_P(number1), &LOWER_P(number2), &LOWER_P(target));
 }
 
-void or256(const uint256_t *const number1,
-           const uint256_t *const number2,
-           uint256_t *const target) {
+void or256(const uint256_t *number1, const uint256_t *number2, uint256_t *target) {
     or128(&UPPER_P(number1), &UPPER_P(number2), &UPPER_P(target));
     or128(&LOWER_P(number1), &LOWER_P(number2), &LOWER_P(target));
 }
 
-bool mul256(const uint256_t *const number1,
-            const uint256_t *const number2,
-            uint256_t *const target) {
+bool mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *target) {
     uint8_t num1[INT256_LENGTH], num2[INT256_LENGTH], result[INT256_LENGTH * 2];
     memset(&result, 0, sizeof(result));
     for (uint8_t i = 0; i < 4; i++) {
@@ -184,10 +177,7 @@ bool mul256(const uint256_t *const number1,
     return true;
 }
 
-void divmod256(const uint256_t *const l,
-               const uint256_t *const r,
-               uint256_t *const retDiv,
-               uint256_t *const retMod) {
+void divmod256(const uint256_t *l, const uint256_t *r, uint256_t *retDiv, uint256_t *retMod) {
     uint256_t copyd, adder, resDiv, resMod;
     uint256_t one;
     clear256(&one);
@@ -219,10 +209,7 @@ void divmod256(const uint256_t *const l,
     }
 }
 
-bool tostring256(const uint256_t *const number,
-                 uint32_t baseParam,
-                 char *const out,
-                 uint32_t outLength) {
+bool tostring256(const uint256_t *number, uint32_t baseParam, char *out, uint32_t outLength) {
     uint256_t rDiv;
     uint256_t rMod;
     uint256_t base;
@@ -263,10 +250,7 @@ bool tostring256(const uint256_t *const number,
  * @param[in] out_length the length of the output buffer
  * @return whether the formatting was successful or not
  */
-bool tostring256_signed(const uint256_t *const number,
-                        uint32_t base,
-                        char *const out,
-                        uint32_t out_length) {
+bool tostring256_signed(const uint256_t *number, uint32_t base, char *out, uint32_t out_length) {
     uint256_t max_unsigned_val;
     uint256_t max_signed_val;
     uint256_t one_val;
@@ -293,7 +277,7 @@ bool tostring256_signed(const uint256_t *const number,
     return tostring256(number, base, out, out_length);  // positive value
 }
 
-void convertUint256BE(const uint8_t *const data, uint32_t length, uint256_t *const target) {
+void convertUint256BE(const uint8_t *data, uint32_t length, uint256_t *target) {
     uint8_t tmp[INT256_LENGTH];
 
     if (data == NULL || target == NULL || length == 0) {
