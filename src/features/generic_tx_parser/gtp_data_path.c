@@ -261,6 +261,9 @@ static bool path_array(const s_array_args *array,
     *offset += 1;
     if (arrays_info->index == arrays_info->depth) {
         // new depth
+        if (passes > UINT8_MAX) {
+            return false;
+        }
         arrays_info->passes_remaining[arrays_info->index] = passes;
         arrays_info->depth += 1;
     }
