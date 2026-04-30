@@ -36,5 +36,5 @@ bool calldata_set_selector(s_calldata *calldata, const uint8_t selector[CALLDATA
 bool calldata_append(s_calldata *calldata, const uint8_t *buffer, size_t size);
 void calldata_delete(s_calldata *node);
 const uint8_t *calldata_get_selector(const s_calldata *calldata);
-const uint8_t *calldata_get_chunk(s_calldata *calldata, int idx);
+const uint8_t *calldata_get_chunk(s_calldata *calldata, uint32_t idx);
 void calldata_dump(const s_calldata *calldata);
