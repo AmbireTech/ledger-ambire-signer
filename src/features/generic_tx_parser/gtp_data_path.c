@@ -209,13 +209,13 @@ static bool path_slice(const s_slice_args *slice, s_parsed_value_collection *col
 
     value_length = collection->value[collection->size - 1].length;
     if (slice->has_start) {
-        start = (slice->start < 0) ? ((int16_t) value_length + slice->start) : slice->start;
+        start = (slice->start < 0) ? ((int32_t) value_length + slice->start) : slice->start;
     } else {
         start = 0;
     }
 
     if (slice->has_end) {
-        end = (slice->end < 0) ? ((int16_t) value_length + slice->end) : slice->end;
+        end = (slice->end < 0) ? ((int32_t) value_length + slice->end) : slice->end;
     } else {
         end = value_length;
     }
@@ -262,13 +262,13 @@ static bool path_array(const s_array_args *array,
     array_size = read_u16_be(chunk, chunk_offset);
 
     if (array->has_start) {
-        start = (array->start < 0) ? ((int16_t) array_size + array->start) : array->start;
+        start = (array->start < 0) ? ((int32_t) array_size + array->start) : array->start;
     } else {
         start = 0;
     }
 
     if (array->has_end) {
-        end = (array->end < 0) ? ((int16_t) array_size + array->end) : array->end;
+        end = (array->end < 0) ? ((int32_t) array_size + array->end) : array->end;
     } else {
         end = array_size;
     }
