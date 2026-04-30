@@ -57,12 +57,21 @@ static bool handle_ref(const tlv_data_t *data, s_data_path_context *context) {
 }
 
 static bool handle_leaf(const tlv_data_t *data, s_data_path_context *context) {
-    if (!tlv_get_uint8_range(data,
-                             &context->data_path->elements[context->data_path->size].leaf.type,
-                             0,
-                             UINT8_MAX)) {
+    uint8_t tmp;
+
+    if (!get_uint8_t_from_tlv_data(data, &tmp)) {
         return false;
     }
+    switch (tmp) {
+        case LEAF_TYPE_ARRAY:
+        case LEAF_TYPE_TUPLE:
+        case LEAF_TYPE_STATIC:
+        case LEAF_TYPE_DYNAMIC:
+            break;
+        default:
+            return false;
+    }
+    context->data_path->elements[context->data_path->size].leaf.type = tmp;
     context->data_path->elements[context->data_path->size].type = ELEMENT_TYPE_LEAF;
     context->data_path->size += 1;
     return true;
@@ -157,6 +166,9 @@ static bool path_leaf(const s_leaf_args *leaf,
             *offset += 1;
             break;
 
+        case LEAF_TYPE_ARRAY:
+        case LEAF_TYPE_TUPLE:
+            // Not yet implemented
         default:
             return false;
     }
