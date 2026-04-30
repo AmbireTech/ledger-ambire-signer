@@ -162,14 +162,14 @@ const uint8_t *calldata_get_selector(const s_calldata *calldata) {
     return calldata->selector;
 }
 
-const uint8_t *calldata_get_chunk(s_calldata *calldata, int idx) {
+const uint8_t *calldata_get_chunk(s_calldata *calldata, uint32_t idx) {
     s_calldata_chunk *chunk;
 
     if (!has_valid_calldata(calldata) || (calldata->chunks == NULL)) {
         return NULL;
     }
     chunk = calldata->chunks;
-    for (int i = 0; i < idx; ++i) {
+    for (uint32_t i = 0; i < idx; ++i) {
         if (((flist_node_t *) chunk)->next == NULL) return NULL;
         chunk = (s_calldata_chunk *) ((flist_node_t *) chunk)->next;
     }
