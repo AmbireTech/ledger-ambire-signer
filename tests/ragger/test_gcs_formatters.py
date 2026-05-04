@@ -895,7 +895,7 @@ def test_gcs_constraints(scenario_navigator: NavigateWithScenario,
         with pytest.raises(ExceptionRAPDU) as err:
             for field in fields:
                 app_client.provide_transaction_field_desc(field.serialize())
-            assert err.value.status == StatusWord.CONDITION_NOT_SATISFIED
+            assert err.value.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
     else:
         for field in fields:
             app_client.provide_transaction_field_desc(field.serialize())

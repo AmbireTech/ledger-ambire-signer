@@ -79,12 +79,12 @@ def common_test_nft(scenario_navigator: NavigateWithScenario,
         simu_params.tx_hash = tx_hash
         simu_params.chain_id = tx_params["chainId"]
         response = app_client.provide_tx_simulation(simu_params)
-        assert response.status == StatusWord.OK
+        assert response.status == StatusWord.SWO_SUCCESS
 
     if gating_params is not None:
         gating_params.selector = get_selector_from_data(tx_params["data"])
         response = app_client.provide_gating(gating_params)
-        assert response.status == StatusWord.OK
+        assert response.status == StatusWord.SWO_SUCCESS
 
     # Send Network information (name, ticker, icon)
     name, ticker, icon = get_network_config(backend.device.type, collec.chain_id)
@@ -129,7 +129,7 @@ def common_test_nft_reject(test_fn: Callable,
                 collec,
                 action,
                 True)
-    assert e.value.status == StatusWord.CONDITION_NOT_SATISFIED
+    assert e.value.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
 
 # ERC-721
 

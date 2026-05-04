@@ -89,7 +89,7 @@ def common_blind_sign(scenario_navigator: NavigateWithScenario,
 
     except ExceptionRAPDU as e:
         assert reject
-        assert e.status == StatusWord.CONDITION_NOT_SATISFIED
+        assert e.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
     else:
         assert not reject
         # verify signature
@@ -130,10 +130,10 @@ def test_blind_sign(navigator: Navigator,
                 gating_params.address,
             )
             response = app_client.provide_proxy_info(proxy_info.serialize())
-            assert response.status == StatusWord.OK
+            assert response.status == StatusWord.SWO_SUCCESS
 
         response = app_client.provide_gating(gating_params)
-        assert response.status == StatusWord.OK
+        assert response.status == StatusWord.SWO_SUCCESS
         nb_warnings += 1
 
     if not reject and simu_params is not None:
@@ -142,7 +142,7 @@ def test_blind_sign(navigator: Navigator,
         simu_params.chain_id = tx_params["chainId"]
         simu_params.from_addr = DEVICE_ADDR
         response = app_client.provide_tx_simulation(simu_params)
-        assert response.status == StatusWord.OK
+        assert response.status == StatusWord.SWO_SUCCESS
 
     common_blind_sign(scenario_navigator,
                       test_name,
@@ -186,7 +186,7 @@ def test_blind_sign_reject_in_risk_review(backend: BackendInterface, navigator: 
         with app_client.sign(BIP32_PATH, common_tx_params(0.0)):
             navigator.navigate(moves)
     except ExceptionRAPDU as e:
-        assert e.status == StatusWord.CONDITION_NOT_SATISFIED
+        assert e.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
     else:
         assert False  # Should have thrown
 
@@ -250,6 +250,6 @@ def test_blind_sign_not_enabled_error(backend: BackendInterface,
                                            test_name,
                                            moves)
     except ExceptionRAPDU as e:
-        assert e.status == StatusWord.INVALID_DATA
+        assert e.status == StatusWord.SWO_INCORRECT_DATA
     else:
         assert False  # Should have thrown

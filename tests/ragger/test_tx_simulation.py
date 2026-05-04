@@ -41,7 +41,7 @@ def __common_setting_handling(device: Device,
     """Common setting handling for the tests"""
 
     response = app_client.get_app_configuration()
-    assert response.status == StatusWord.OK
+    assert response.status == StatusWord.SWO_SUCCESS
     flags = response.data[0]
     if bool(flags & TxCheckFlags.TX_CHECKS_ENABLE) != expected:
         # Toggle the TRANSACTION_CHECKS setting
@@ -75,7 +75,7 @@ def __handle_simulation(app_client: EthAppClient, simu_params: TxSimu) -> None:
     if not simu_params.tx_hash:
         simu_params.tx_hash = bytes.fromhex("deadbeaf"*8)
     response = app_client.provide_tx_simulation(simu_params)
-    assert response.status == StatusWord.OK
+    assert response.status == StatusWord.SWO_SUCCESS
 
 
 @pytest.mark.skip_nano
@@ -88,7 +88,7 @@ def test_tx_simulation_opt_in(backend: BackendInterface,
     app_client = EthAppClient(backend)
 
     response = app_client.get_app_configuration()
-    assert response.status == StatusWord.OK
+    assert response.status == StatusWord.SWO_SUCCESS
     assert response.data[0] & TxCheckFlags.TX_CHECKS_OPT_IN == 0
 
     with app_client.opt_in_tx_simulation():
@@ -97,7 +97,7 @@ def test_tx_simulation_opt_in(backend: BackendInterface,
                                        [NavInsID.USE_CASE_CHOICE_CONFIRM])
 
     response = app_client.get_app_configuration()
-    assert response.status == StatusWord.OK
+    assert response.status == StatusWord.SWO_SUCCESS
     mask = TxCheckFlags.TX_CHECKS_OPT_IN | TxCheckFlags.TX_CHECKS_ENABLE
     assert response.data[0] & mask == mask
 
@@ -118,7 +118,7 @@ def test_tx_simulation_disabled(backend: BackendInterface, navigator: Navigator)
     try:
         __handle_simulation(app_client, simu_params)
     except ExceptionRAPDU as err:
-        assert err.status == StatusWord.NOT_IMPLEMENTED
+        assert err.status == StatusWord.SWO_COMMAND_CODE_NOT_SUPPORTED
     else:
         assert False  # An exception should have been raised
 

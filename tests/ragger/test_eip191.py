@@ -20,7 +20,7 @@ def handle_simulation(app_client: EthAppClient, msg: str, simu_params: TxSimu) -
     if not simu_params.tx_hash:
         simu_params.tx_hash = keccak.new(digest_bits=256, data=msg_to_sign).digest()
     response = app_client.provide_tx_simulation(simu_params)
-    assert response.status == StatusWord.OK
+    assert response.status == StatusWord.SWO_SUCCESS
 
 
 def common(scenario_navigator: NavigateWithScenario,
@@ -63,7 +63,7 @@ def common(scenario_navigator: NavigateWithScenario,
 
     except ExceptionRAPDU as err:
         if simu_params and "tx_hash" in simu_params:
-            assert err.status == StatusWord.CONDITION_NOT_SATISFIED
+            assert err.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
         else:
             assert False, f"Unexpected exception: {err}"
 
@@ -107,6 +107,6 @@ def test_personal_sign_reject(scenario_navigator: NavigateWithScenario):
             scenario_navigator.review_reject()
 
     except ExceptionRAPDU as e:
-        assert e.status == StatusWord.CONDITION_NOT_SATISFIED
+        assert e.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
     else:
         assert False  # An exception should have been raised

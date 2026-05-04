@@ -237,7 +237,7 @@ def test_gcs_poap(scenario_navigator: NavigateWithScenario,
         simu_params.tx_hash = tx_hash
         simu_params.chain_id = tx_params["chainId"]
         response = app_client.provide_tx_simulation(simu_params)
-        assert response.status == StatusWord.OK
+        assert response.status == StatusWord.SWO_SUCCESS
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass

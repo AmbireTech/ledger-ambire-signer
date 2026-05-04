@@ -421,9 +421,9 @@ class EthAppClient:
                                                                network_params.icon)
         for chunk in chunks[:-1]:
             response = self._exchange(chunk)
-            assert response.status == StatusWord.OK
+            assert response.status == StatusWord.SWO_SUCCESS
         response = self._exchange(chunks[-1])
-        assert response.status == StatusWord.OK
+        assert response.status == StatusWord.SWO_SUCCESS
 
     def provide_enum_value(self, payload: bytes) -> RAPDU:
         # Send ledgerPKI certificate
