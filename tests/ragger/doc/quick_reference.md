@@ -16,6 +16,7 @@
 | `test_eip7002.py`            | Withdrawal requests    | Partial withdrawals, full exit, validator operations   |
 | `test_eip7251.py`            | Validator operations   | Consolidation, compounding, validator management       |
 | `test_gcs.py`                | Generic Clear Signing  | Advanced parsing, custom fields, complex contracts     |
+| `test_gcs_formatters.py`     | GCS formatters         | MAP_ENTRY, PARAM_GROUP iteration, separators, EIP-7930 |
 | `test_tx_simulation.py`      | Threat detection       | Risk levels, security checks, opt-in, integration      |
 | `test_trusted_name.py`       | Name services          | ENS, address-to-name, verbose mode, integration        |
 | `test_gating.py`             | Security descriptors   | Third-party security messages, integration             |
@@ -31,13 +32,13 @@
 | **Address Display**       | `test_get_address.py`                                                                                             |
 | **Settings Management**   | `test_configuration_cmd.py`                                                                                       |
 | **Simple Transfers**      | `test_sign.py`                                                                                                    |
-| **Contract Interactions** | `test_sign.py`, `test_blind_sign.py`, `test_gcs.py`                                                               |
+| **Contract Interactions** | `test_sign.py`, `test_blind_sign.py`, `test_gcs.py`, `test_gcs_formatters.py`                                     |
 | **Token Transfers**       | `test_erc20.py`                                                                                                   |
 | **NFT Operations**        | `test_nft.py`                                                                                                     |
 | **Message Signing**       | `test_eip191.py`, `test_eip712.py`                                                                                |
 | **Staking**               | `test_eth2.py`, `test_eip7002.py`, `test_eip7251.py`                                                              |
 | **Transaction Simulation**| `test_tx_simulation.py`, `test_eip191.py`, `test_eip712.py`, `test_blind_sign.py`, `test_erc20.py`, `test_nft.py` |
-| **Trusted Names**         | `test_trusted_name.py`, `test_eip712.py`, `test_gcs.py`                                                           |
+| **Trusted Names**         | `test_trusted_name.py`, `test_eip712.py`, `test_gcs.py`, `test_gcs_formatters.py`                                 |
 | **Security Gating**       | `test_gating.py`, `test_blind_sign.py`, `test_eip712.py`, `test_erc20.py`, `test_nft.py`                          |
 | **Multi-sig**             | `test_safe.py`                                                                                                    |
 | **Account Abstraction**   | `test_eip7702.py`                                                                                                 |
@@ -51,11 +52,11 @@
 - **Token Standards**: 2 files, ~25 tests
 - **Message Signing**: 2 files, ~60+ tests
 - **Ethereum 2.0**: 3 files, ~5 tests
-- **Advanced Features**: 6 files, ~100+ tests
+- **Advanced Features**: 7 files, ~100+ tests
 - **External Chains**: 1 file, ~1 test
 - **Privacy**: 1 file, ~2 tests
 
-**Total**: 19 files, 200+ test cases
+**Total**: 20 files, 200+ test cases
 
 ## Common Test Patterns
 
