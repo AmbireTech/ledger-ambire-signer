@@ -6,14 +6,17 @@
 #include "mem_utils.h"
 #include "lists.h"
 
-s_calldata *calldata_init(size_t size, const uint8_t selector[CALLDATA_SELECTOR_SIZE]) {
+s_calldata *calldata_init(size_t size, const uint8_t *selector) {
     s_calldata *calldata;
 
     if (APP_MEM_CALLOC((void **) &calldata, sizeof(*calldata)) == false) {
         return NULL;
     }
     calldata->expected_size = size;
-    calldata_set_selector(calldata, selector);
+    if (selector != NULL) {
+        // ignore return value since it cannot fail with valid arguments
+        calldata_set_selector(calldata, selector);
+    }
     return calldata;
 }
 
