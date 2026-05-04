@@ -56,12 +56,12 @@ def test_safe_descriptor(scenario_navigator: NavigateWithScenario,
         # Safe descriptor doesn't start any navigation
         pass
     response = app_client.response()
-    assert response.status == StatusWord.OK, f"Unexpected status: {response.status}"
+    assert response.status == StatusWord.SWO_SUCCESS, f"Unexpected status: {response.status}"
 
     with app_client.provide_safe_account(signer):
         scenario_navigator.address_review_approve(test_name=test_name)
     response = app_client.response()
-    assert response.status == StatusWord.OK, f"Unexpected status: {response.status}"
+    assert response.status == StatusWord.SWO_SUCCESS, f"Unexpected status: {response.status}"
 
 
 def test_signer_descriptor_error(scenario_navigator: NavigateWithScenario) -> None:
@@ -83,6 +83,6 @@ def test_signer_descriptor_error(scenario_navigator: NavigateWithScenario) -> No
             # Safe descriptor doesn't start any navigation
             pass
     except ExceptionRAPDU as e:
-        assert e.status == StatusWord.COMMAND_NOT_ALLOWED
+        assert e.status == StatusWord.SWO_COMMAND_NOT_ALLOWED
     else:
         assert False, "Expected COMMAND_NOT_ALLOWED not raised"

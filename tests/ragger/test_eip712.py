@@ -99,7 +99,7 @@ def test_eip712_v0(scenario_navigator: NavigateWithScenario, simu_params: Option
         simu_params.tx_hash = smsg.body
         simu_params.domain_hash = smsg.header
         response = app_client.provide_tx_simulation(simu_params)
-        assert response.status == StatusWord.OK
+        assert response.status == StatusWord.SWO_SUCCESS
 
     with app_client.eip712_sign_legacy(BIP32_PATH, smsg.header, smsg.body):
         scenario_navigator.review_approve_with_warning(do_comparison=False)
@@ -171,7 +171,7 @@ def test_eip712_new(scenario_navigator: NavigateWithScenario,
         InputData.init_signature_context(sig_ctx, data["types"], data["domain"], filters or {})
         gating_params.selector = sig_ctx["schema_hash"]
         response = app_client.provide_gating(gating_params)
-        assert response and response.status == StatusWord.OK
+        assert response and response.status == StatusWord.SWO_SUCCESS
         nb_warnings += 1
         snapshots_dirname = "test_gating_eip712"
 
@@ -534,7 +534,7 @@ def test_eip712_filtering_empty_array(scenario_navigator: NavigateWithScenario,
         simu_params.tx_hash = smsg.body
         simu_params.domain_hash = smsg.header
         response = app_client.provide_tx_simulation(simu_params)
-        assert response.status == StatusWord.OK
+        assert response.status == StatusWord.SWO_SUCCESS
         nb_warnings = 1
 
     eip712_new_common(scenario_navigator, data, filters, scenario_navigator.test_name, nb_warnings=nb_warnings)
@@ -570,7 +570,7 @@ def test_eip712_advanced_missing_token(scenario_navigator: NavigateWithScenario,
 
     test_name = scenario_navigator.test_name
     for token in tokens:
-        test_name += "-%s" % token["ticker"]
+        test_name += f"-{token['ticker']}"
     data = {
         "types": {
             "EIP712Domain": [
@@ -721,7 +721,7 @@ def test_eip712_advanced_trusted_name(scenario_navigator: NavigateWithScenario,
 def test_eip712_bs_not_activated_error(scenario_navigator: NavigateWithScenario):
     with pytest.raises(ExceptionRAPDU) as e:
         eip712_new_common(scenario_navigator, ADVANCED_DATA_SETS[0].data)
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_eip712_proxy(scenario_navigator: NavigateWithScenario):

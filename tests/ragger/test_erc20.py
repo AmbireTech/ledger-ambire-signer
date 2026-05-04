@@ -8,12 +8,11 @@ from ragger.error import ExceptionRAPDU
 from ragger.backend import BackendInterface
 from ragger.navigator.navigation_scenario import NavigateWithScenario
 
-from client.client import EthAppClient
-from client.status_word import StatusWord
-
 from constants import ABIS_FOLDER
 from test_sign import common as common_tx, BIP32_PATH, sign_dummy_tx
 
+from client.client import EthAppClient
+from client.status_word import StatusWord
 from client.token_info import TokenInfo, EthTUID
 
 APPNAME = "Ethereum"
@@ -30,7 +29,7 @@ def test_provide_erc20_token(scenario_navigator: NavigateWithScenario):
                                                  TOKEN_ADDR,
                                                  TOKEN_DECIMALS,
                                                  TOKEN_CHAIN_ID)
-    assert response.status == StatusWord.OK
+    assert response.status == StatusWord.SWO_SUCCESS
     sign_dummy_tx(scenario_navigator)
 
 
@@ -44,7 +43,7 @@ def test_provide_erc20_token_error(backend: BackendInterface):
                                           TOKEN_CHAIN_ID,
                                           bytes.fromhex("010203"))
 
-    assert err.value.status == StatusWord.INVALID_DATA
+    assert err.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def common_transfer(scenario_navigator: NavigateWithScenario,
@@ -53,7 +52,7 @@ def common_transfer(scenario_navigator: NavigateWithScenario,
                     func: Callable = common_tx):
     app_client = EthAppClient(scenario_navigator.backend)
 
-    with open(f"{ABIS_FOLDER}/erc20.json") as file:
+    with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(
             abi=json.load(file),
             address=None
@@ -86,7 +85,7 @@ def common_approve(scenario_navigator: NavigateWithScenario,
                    func: Callable = common_tx):
     app_client = EthAppClient(scenario_navigator.backend)
 
-    with open(f"{ABIS_FOLDER}/erc20.json") as file:
+    with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(
             abi=json.load(file),
             address=None
@@ -139,20 +138,24 @@ def test_transfer_erc20_extra_data_nonascii(scenario_navigator: NavigateWithScen
 
 
 def test_transfer_erc20_extra_data_toolong(scenario_navigator: NavigateWithScenario):
-    def check_error(scenario_navigator: NavigateWithScenario, tx_params: dict, test_name: str):
+    def check_error(scenario_navigator: NavigateWithScenario, tx_params: dict, _test_name: str):
         app_client = EthAppClient(scenario_navigator.backend)
 
         with pytest.raises(ExceptionRAPDU) as err:
             with app_client.sign(BIP32_PATH, tx_params):
                 pass
-        assert err.value.status == StatusWord.INVALID_DATA
+        assert err.value.status == StatusWord.SWO_INCORRECT_DATA
 
+    # pylint: disable=line-too-long
     common_transfer(scenario_navigator, 10, "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.".encode(), func=check_error)
+    # pylint: enable=line-too-long
 
 
 def test_transfer_erc20_extra_data_nonascii_truncated(scenario_navigator: NavigateWithScenario):
+    # pylint: disable=line-too-long
     common_transfer(scenario_navigator, 10,
                     bytes.fromhex("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"))
+    # pylint: enable=line-too-long
 
 
 def test_approve_erc20_extra_data(scenario_navigator: NavigateWithScenario):
@@ -168,7 +171,7 @@ def test_token_info_v2(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(scenario_navigator.backend)
     amount = 5
 
-    with open(f"{ABIS_FOLDER}/erc20.json") as file:
+    with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(
             abi=json.load(file),
             address=None
@@ -210,7 +213,7 @@ def test_token_info_v2_wrong_coin_type(scenario_navigator: NavigateWithScenario)
             tuid=EthTUID(TOKEN_CHAIN_ID, TOKEN_ADDR),
             coin_type=501,
         ))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 def test_token_info_v2_unknown_chain_id(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(scenario_navigator.backend)
@@ -223,4 +226,4 @@ def test_token_info_v2_unknown_chain_id(scenario_navigator: NavigateWithScenario
             TOKEN_DECIMALS,
             tuid=EthTUID(2, TOKEN_ADDR),
         ))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA

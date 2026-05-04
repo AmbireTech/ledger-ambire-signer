@@ -35,7 +35,7 @@ def test_get_pk_rejected(scenario_navigator: NavigateWithScenario):
         with app_client.get_public_addr():
             scenario_navigator.address_review_reject()
 
-    assert e.value.status == StatusWord.CONDITION_NOT_SATISFIED
+    assert e.value.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
 
 
 def test_get_pk(scenario_navigator: NavigateWithScenario,

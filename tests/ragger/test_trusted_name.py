@@ -1,5 +1,4 @@
 from pathlib import Path
-import json
 
 import pytest
 from web3 import Web3
@@ -12,12 +11,11 @@ from ragger.navigator.navigation_scenario import NavigateWithScenario
 from ragger.navigator import Navigator, NavInsID, NavIns
 
 from dynamic_networks_cfg import get_network_config
-from constants import ABIS_FOLDER
 from test_sign import sign_dummy_tx
 
 from client.utils import CoinType
 import client.response_parser as ResponseParser
-from client.client import EthAppClient, SignMode
+from client.client import EthAppClient
 from client.status_word import StatusWord
 from client.dynamic_networks import DynamicNetwork
 from client.trusted_name import TrustedName, TrustedNameType, TrustedNameSource
@@ -110,7 +108,7 @@ def test_trusted_name_v1_wrong_challenge(backend: BackendInterface):
 
     with pytest.raises(ExceptionRAPDU) as e:
         app_client.provide_trusted_name(TrustedName(1, ADDR, NAME, challenge=(~challenge & 0xffffffff), coin_type=CoinType.ETH))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_trusted_name_v1_wrong_addr(scenario_navigator: NavigateWithScenario, test_name: str):
@@ -197,7 +195,7 @@ def test_trusted_name_v1_name_too_long(backend: BackendInterface):
                                                     "ledger" + "0"*25 + ".eth",
                                                     challenge=challenge,
                                                     coin_type=CoinType.ETH))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_trusted_name_v1_name_invalid_character(backend: BackendInterface):
@@ -206,7 +204,7 @@ def test_trusted_name_v1_name_invalid_character(backend: BackendInterface):
 
     with pytest.raises(ExceptionRAPDU) as e:
         app_client.provide_trusted_name(TrustedName(1, ADDR, "l\xe8dger.eth", challenge=challenge, coin_type=CoinType.ETH))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_trusted_name_v1_uppercase(backend: BackendInterface):
@@ -215,7 +213,7 @@ def test_trusted_name_v1_uppercase(backend: BackendInterface):
 
     with pytest.raises(ExceptionRAPDU) as e:
         app_client.provide_trusted_name(TrustedName(1, ADDR, NAME.upper(), challenge=challenge, coin_type=CoinType.ETH))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_trusted_name_v1_name_non_ens(backend: BackendInterface):
@@ -224,7 +222,7 @@ def test_trusted_name_v1_name_non_ens(backend: BackendInterface):
 
     with pytest.raises(ExceptionRAPDU) as e:
         app_client.provide_trusted_name(TrustedName(1, ADDR, "ledger.hte", challenge=challenge, coin_type=CoinType.ETH))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_trusted_name_v2(scenario_navigator: NavigateWithScenario, test_name: str):
@@ -289,7 +287,7 @@ def test_trusted_name_v2_missing_challenge(backend: BackendInterface):
                                                     tn_type=TrustedNameType.ACCOUNT,
                                                     tn_source=TrustedNameSource.ENS,
                                                     chain_id=CHAIN_ID))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_trusted_name_v2_expired(backend: BackendInterface, app_version: tuple[int, int, int]):
@@ -317,7 +315,7 @@ def test_trusted_name_v2_expired(backend: BackendInterface, app_version: tuple[i
                                                     chain_id=CHAIN_ID,
                                                     challenge=challenge,
                                                     not_valid_after=app_version))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_trusted_name_mab_wrong_owner(backend: BackendInterface) -> None:
@@ -334,7 +332,7 @@ def test_trusted_name_mab_wrong_owner(backend: BackendInterface) -> None:
                                                     challenge=ResponseParser.challenge(app_client.get_challenge().data),
                                                     owner=b"\x00" * 20,
                                                     owner_deriv_path=path))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_trusted_name_mab_missing_owner(backend: BackendInterface) -> None:
@@ -348,7 +346,7 @@ def test_trusted_name_mab_missing_owner(backend: BackendInterface) -> None:
                                                     tn_source=TrustedNameSource.MULTISIG_ADDRESS_BOOK,
                                                     chain_id=1,
                                                     challenge=ResponseParser.challenge(app_client.get_challenge().data)))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_trusted_name_mab_missing_owner_deriv_path(backend: BackendInterface) -> None:
@@ -363,7 +361,7 @@ def test_trusted_name_mab_missing_owner_deriv_path(backend: BackendInterface) ->
                                                     chain_id=1,
                                                     challenge=ResponseParser.challenge(app_client.get_challenge().data),
                                                     owner=b"\x00" * 20))
-    assert e.value.status == StatusWord.INVALID_DATA
+    assert e.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
 def test_trusted_name_mab(scenario_navigator: NavigateWithScenario) -> None:

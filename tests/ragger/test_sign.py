@@ -79,7 +79,7 @@ def common_reject(scenario_navigator: NavigateWithScenario,
             scenario_navigator.review_reject()
 
     except ExceptionRAPDU as e:
-        assert e.status == StatusWord.CONDITION_NOT_SATISFIED
+        assert e.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
     else:
         assert False  # An exception should have been raised
 

@@ -79,7 +79,7 @@ def common_error(scenario_navigator: NavigateWithScenario,
                                                               moves)
 
     except ExceptionRAPDU as e:
-        assert e.status == StatusWord.COMMAND_NOT_ALLOWED
+        assert e.status == StatusWord.SWO_COMMAND_NOT_ALLOWED
     else:
         assert False  # An exception should have been raised
 

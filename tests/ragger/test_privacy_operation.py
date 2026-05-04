@@ -12,7 +12,7 @@ def test_perform_privacy_operation_public(backend: BackendInterface):
     app_client = EthAppClient(backend)
 
     response = app_client.perform_privacy_operation()
-    assert response.status == StatusWord.OK
+    assert response.status == StatusWord.SWO_SUCCESS
     assert len(response.data) == 32
     print(f"Data: {response.data.hex()}")
 
@@ -25,6 +25,6 @@ def test_perform_privacy_operation_secret(backend: BackendInterface):
     app_client = EthAppClient(backend)
 
     response = app_client.perform_privacy_operation(pubkey=pubkey)
-    assert response.status == StatusWord.OK
+    assert response.status == StatusWord.SWO_SUCCESS
     assert len(response.data) == 32
     print(f"Data: {response.data.hex()}")
