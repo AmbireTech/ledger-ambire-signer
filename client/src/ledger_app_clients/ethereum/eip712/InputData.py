@@ -6,9 +6,9 @@ from typing import Any, Optional, Union, Callable
 import struct
 import functools
 
-from client.client import EthAppClient, EIP712FieldType
-from client.signing_partners import CAL_COIN_META_PARTNER
-from client.status_word import StatusWord
+from ..client import EthAppClient, EIP712FieldType
+from ..signing_partners import CAL_COIN_META_PARTNER
+from ..status_word import StatusWord
 
 
 # global variables
