@@ -79,24 +79,6 @@ Displays event ID, claim ID, recipient, expiration timestamp, and signature.
 **Etherscan**:
 [POAP Bridge](https://etherscan.io/address/0x0bb4D3e88243F4A057Db77341e6916B0e449b158)
 
-### test_gcs_formatter
-
-**Purpose**: Test various GCS formatters
-
-Parametrized test covering different display formats:
-
-- Datetime formatting (unix timestamps)
-- Token amounts with decimals
-- Enum values
-- Nested arrays and tuples
-
-### test_gcs_constraints
-
-**Purpose**: Test field validation constraints
-
-Verifies that GCS can enforce constraints on field values (e.g., must equal specific
-value, must be in range).
-
 ### test_gcs_1inch
 
 **Purpose**: DEX swap on 1inch with GCS
@@ -161,6 +143,58 @@ required signatures.
 
 Displays nested function call with new threshold value.
 
+### test_gcs_nested_no_param
+
+**Purpose**: Nested calldata with no parameter
+
+Tests a nested calldata field where the inner function (`totalSupply()` on WETH)
+takes no parameter. Verifies GCS handles empty parameter lists in nested calls.
+
+### test_gcs_no_param
+
+**Purpose**: Top-level call with no parameter
+
+Tests a top-level GCS descriptor for a function with no parameter (`totalSupply()`
+on WETH). Verifies the device renders only the `TxInfo` (operation name, contract)
+when there is no field to display.
+
+### test_gcs_trusted_name_token
+
+**Purpose**: Trusted-name resolution applied to a token
+
+Tests `ParamTrustedName` with a token (rather than the more usual account/contract).
+Uses a 1inch swap to display tokens by their trusted name even when they are not
+part of the local CAL.
+
+### test_gcs_batch
+
+**Purpose**: Multicall batch transactions with GCS
+
+Tests a `batchExecute` call wrapping multiple ERC-20 transfers (USDT, WETH).
+Verifies GCS correctly iterates over each sub-call and displays its parameters.
+
+### test_gcs_batch_2
+
+**Purpose**: Multicall batch combined with Safe `execTransaction`
+
+Variant of `test_gcs_batch` mixing `batchExecute` with a Safe `execTransaction`
+call, exercising deeper nesting and combined patterns.
+
+### test_gcs_batch_empty_tx
+
+**Purpose**: Multicall batch containing an empty transaction
+
+Tests a `batchExecute` whose entries include a zero-value, zero-data transfer.
+Verifies GCS handles entries with no calldata/value gracefully.
+
+### test_gcs_batch_complex
+
+**Purpose**: Complex batch with mixed sub-calls
+
+Tests a `batchExecute` mixing several ERC-20 transfers with different tokens
+(USDT, WETH) and recipients, exercising the broadcast/iteration semantics on a
+realistic batch.
+
 ## Test Functions
 
 Most GCS tests follow this pattern:
@@ -194,6 +228,7 @@ Most GCS tests follow this pattern:
 
 - [Test Overview](../test_overview.md) - GCS overview
 - [Glossary](../glossary.md) - Smart contract concepts
+- [test_gcs_formatters.md](test_gcs_formatters.md) - Formatter-focused GCS tests
 - [test_nft.md](test_nft.md) - NFT tests
 - [test_safe.md](test_safe.md) - Safe descriptor tests
 - [README](../README.md) - Test infrastructure

@@ -356,6 +356,40 @@ Over 50 test scenarios covering:
 
 ---
 
+### test_gcs_formatters.py
+
+**Purpose:** Formatter-focused GCS tests covering parameter types, iteration
+behaviour, separators and constraints.
+
+These tests were extracted from `test_gcs.py` to keep the formatter coverage in a
+dedicated file. They exercise transversal GCS features rather than full
+smart-contract use-cases.
+
+**Key Features Tested:**
+
+- **MAP_REF / MAP_ENTRY**: Map a calldata field or `chain_id` to a human-readable
+  label
+- **PARAM_GROUP iteration**: Sequential iteration over scalar and array sub-fields
+- **Iteration broadcast (§3.1.8)**: Single secondary value broadcast across N
+  iterations
+- **Field-level SEPARATOR**: Visible separator between repeated entries
+- **Formatters**: Datetime, token amount, enum, …
+- **Constraints**: Equality, range, visibility conditions
+- **EIP-7930 Interoperable addresses**: Chain-aware address rendering
+
+**Test Cases:**
+
+- `test_gcs_map_entry`, `test_gcs_map_entry_chain_id_key`
+- `test_gcs_group_sequential`, `test_gcs_group_sequential_arrays`
+- `test_gcs_iteration_broadcast`
+- `test_gcs_separator`
+- `test_gcs_formatter`, `test_gcs_constraints`
+- `test_gcs_interoperable_address`
+
+📖 **[Detailed documentation](details/test_gcs_formatters.md)**
+
+---
+
 ### test_tx_simulation.py
 
 **Purpose:** Test transaction check and threat detection integration.
@@ -568,7 +602,7 @@ The test suite covers:
 
 ### Test Statistics
 
-- **Total Test Files**: 19
+- **Total Test Files**: 20
 - **Test Scenarios**: 100+ individual test functions
 - **Input Files**: 50+ EIP-712 test cases
 - **Device Types**: 5 (Nano S Plus, Nano X, Stax, Flex, Apex)
