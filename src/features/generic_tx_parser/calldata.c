@@ -89,9 +89,11 @@ static bool decompress_chunk(const s_calldata_chunk *chunk, uint8_t *out) {
 
 bool calldata_append(s_calldata *calldata, const uint8_t *buffer, size_t size) {
     uint8_t cpy_length;
+    size_t received_size_after;
 
     if (calldata == NULL) return false;
-    if ((calldata->received_size + size) > calldata->expected_size) {
+    if (__builtin_add_overflow(calldata->received_size, size, &received_size_after) ||
+        (received_size_after > calldata->expected_size)) {
         return false;
     }
 
