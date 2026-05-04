@@ -1,4 +1,4 @@
-from client.signing_partners import CAL_COIN_META_PARTNER
+from .signing_partners import CAL_COIN_META_PARTNER
 
 from .tlv import TlvSerializable
 

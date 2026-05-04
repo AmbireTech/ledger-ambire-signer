@@ -6,13 +6,13 @@ from typing import Any, Optional, Union, Callable
 import struct
 import functools
 
-from client.client import EthAppClient, EIP712FieldType
-from client.signing_partners import CAL_COIN_META_PARTNER
-from client.status_word import StatusWord
+from ..client import EthAppClient, EIP712FieldType
+from ..signing_partners import CAL_COIN_META_PARTNER
+from ..status_word import StatusWord
 
 
 # global variables
-app_client: EthAppClient = None
+app_client: EthAppClient = None  # type: ignore[assignment]
 filtering_paths: dict = {}
 filtering_tokens: list[dict] = []
 filtering_calldatas: list[dict] = []
@@ -113,6 +113,7 @@ def send_struct_def_field(typename, keyname):
         pass
 
     response = app_client.response()
+    assert response is not None
     assert response.status == StatusWord.SWO_SUCCESS, \
         f"Error sending field def {keyname} of type {typename}: {response.status}"
 
@@ -284,6 +285,7 @@ def send_struct_impl_field(value, field):
         callback()
 
     response = app_client.response()
+    assert response is not None
     assert response.status == StatusWord.SWO_SUCCESS, \
         f"Error sending field {field['name']} of type {field['type']}: {response.status}"
 
@@ -297,6 +299,7 @@ def evaluate_field(structs, data, field, lvls_left, new_level=True):
         with app_client.eip712_send_struct_impl_array(len(data)):
             pass
         response = app_client.response()
+        assert response is not None
         assert response.status == StatusWord.SWO_SUCCESS, \
             f"Error sending array {field['name']} of type {field['type']}: {response.status}"
         if len(data) == 0:
@@ -304,6 +307,7 @@ def evaluate_field(structs, data, field, lvls_left, new_level=True):
                 dpath = ".".join(current_path) + ".[]"
                 if path.startswith(dpath):
                     response = app_client.eip712_filtering_discarded_path(path)
+                    assert response is not None
                     assert response.status == StatusWord.SWO_SUCCESS, \
                         f"Error sending discarded path {path}: {response.status}"
                     send_filter(path, True)
@@ -355,6 +359,7 @@ def send_filtering_message_info(display_name: str, filters_count: int):
     with app_client.eip712_filtering_message_info(display_name, filters_count, sig):
         pass
     response = app_client.response()
+    assert response is not None
     assert response.status == StatusWord.SWO_SUCCESS, \
         f"Error sending filtering message info for {display_name}: {response.status}"
 
@@ -367,6 +372,7 @@ def send_filtering_amount_join_token(path: str, join_id: int, discarded: bool):
     with app_client.eip712_filtering_amount_join_token(join_id, sig, discarded):
         pass
     response = app_client.response()
+    assert response is not None
     assert response.status == StatusWord.SWO_SUCCESS, \
         f"Error sending filtering amount join token for {path} with token index {join_id}: {response.status}"
 
@@ -380,6 +386,7 @@ def send_filtering_amount_join_value(path: str, join_id: int, display_name: str,
     with app_client.eip712_filtering_amount_join_value(join_id, display_name, sig, discarded):
         pass
     response = app_client.response()
+    assert response is not None
     assert response.status == StatusWord.SWO_SUCCESS, \
         f"Error sending filtering amount join value for {path} with token index {join_id}: {response.status}"
 
@@ -392,6 +399,7 @@ def send_filtering_datetime(path: str, display_name: str, discarded: bool):
     with app_client.eip712_filtering_datetime(display_name, sig, discarded):
         pass
     response = app_client.response()
+    assert response is not None
     assert response.status == StatusWord.SWO_SUCCESS, \
         f"Error sending filtering datetime for {path}: {response.status}"
 
@@ -412,6 +420,7 @@ def send_filtering_trusted_name(path: str,
     with app_client.eip712_filtering_trusted_name(display_name, name_type, name_source, sig, discarded):
         pass
     response = app_client.response()
+    assert response is not None
     assert response.status == StatusWord.SWO_SUCCESS, \
         f"Error sending filtering trusted name for {path}: {response.status}"
 
@@ -513,6 +522,7 @@ def send_filtering_raw(path: str, display_name: str, discarded: bool):
     with app_client.eip712_filtering_raw(display_name, sig, discarded):
         pass
     response = app_client.response()
+    assert response is not None
     assert response.status == StatusWord.SWO_SUCCESS, \
         f"Error sending filtering raw for {path}: {response.status}"
 
@@ -604,6 +614,7 @@ def process_data(aclient: EthAppClient,
         with app_client.eip712_send_struct_def_struct_name(key):
             pass
         response = app_client.response()
+        assert response is not None
         assert response.status == StatusWord.SWO_SUCCESS, \
             f"Error sending struct def {key}: {response.status}"
         for f in types[key]:
@@ -614,6 +625,7 @@ def process_data(aclient: EthAppClient,
         with app_client.eip712_filtering_activate():
             pass
         response = app_client.response()
+        assert response is not None
         assert response.status == StatusWord.SWO_SUCCESS, \
             f"Error activating filtering: {response.status}"
         prepare_filtering(data_json, filters)
@@ -626,6 +638,7 @@ def process_data(aclient: EthAppClient,
     with app_client.eip712_send_struct_impl_root_struct(domain_typename):
         pass
     response = app_client.response()
+    assert response is not None
     assert response.status == StatusWord.SWO_SUCCESS, \
         f"Error sending domain root struct {domain_typename}: {response.status}"
     send_struct_impl(types, domain, domain_typename)
@@ -640,6 +653,7 @@ def process_data(aclient: EthAppClient,
     with app_client.eip712_send_struct_impl_root_struct(message_typename):
         pass
     response = app_client.response()
+    assert response is not None
     assert response.status == StatusWord.SWO_SUCCESS, \
         f"Error sending message root struct {message_typename}: {response.status}"
     send_struct_impl(types, message, message_typename)
