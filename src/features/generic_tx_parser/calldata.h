@@ -31,7 +31,7 @@ typedef struct {
     size_t chunk_size;
 } s_calldata;
 
-s_calldata *calldata_init(size_t size, const uint8_t selector[CALLDATA_SELECTOR_SIZE]);
+s_calldata *calldata_init(size_t size, const uint8_t *selector);
 bool calldata_set_selector(s_calldata *calldata, const uint8_t selector[CALLDATA_SELECTOR_SIZE]);
 bool calldata_append(s_calldata *calldata, const uint8_t *buffer, size_t size);
 void calldata_delete(s_calldata *node);
