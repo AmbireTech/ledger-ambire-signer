@@ -780,7 +780,9 @@ static bool update_calldata_selector(const uint8_t *data,
     buf_shrink_expand(data, length, calldata_info->selector, sizeof(calldata_info->selector));
     calldata_info->selector_state = CALLDATA_INFO_PARAM_SET;
     if (calldata_info->value_state == CALLDATA_INFO_PARAM_SET) {
-        calldata_set_selector(g_parked_calldata, calldata_info->selector);
+        if (!calldata_set_selector(g_parked_calldata, calldata_info->selector)) {
+            return false;
+        }
     }
     return true;
 }

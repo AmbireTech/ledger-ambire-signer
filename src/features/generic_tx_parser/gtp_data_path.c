@@ -57,12 +57,21 @@ static bool handle_ref(const tlv_data_t *data, s_data_path_context *context) {
 }
 
 static bool handle_leaf(const tlv_data_t *data, s_data_path_context *context) {
-    if (!tlv_get_uint8_range(data,
-                             &context->data_path->elements[context->data_path->size].leaf.type,
-                             0,
-                             UINT8_MAX)) {
+    uint8_t tmp;
+
+    if (!get_uint8_t_from_tlv_data(data, &tmp)) {
         return false;
     }
+    switch (tmp) {
+        case LEAF_TYPE_ARRAY:
+        case LEAF_TYPE_TUPLE:
+        case LEAF_TYPE_STATIC:
+        case LEAF_TYPE_DYNAMIC:
+            break;
+        default:
+            return false;
+    }
+    context->data_path->elements[context->data_path->size].leaf.type = tmp;
     context->data_path->elements[context->data_path->size].type = ELEMENT_TYPE_LEAF;
     context->data_path->size += 1;
     return true;
@@ -109,30 +118,34 @@ static bool path_tuple(const s_tuple_args *tuple, uint32_t *offset, uint32_t *re
 }
 
 static bool path_ref(uint32_t *offset, uint32_t *ref_offset) {
-    uint8_t buf[sizeof(uint16_t)];
     uint16_t raw_offset;
     const uint8_t *chunk;
+    uint8_t chunk_offset = CALLDATA_CHUNK_SIZE - sizeof(raw_offset);
 
     if ((chunk = calldata_get_chunk(get_current_calldata(), *offset)) == NULL) {
         return false;
     }
-    buf_shrink_expand(chunk, CALLDATA_CHUNK_SIZE, buf, sizeof(buf));
-    raw_offset = read_u16_be(buf, 0);
+    if (!is_zeroes_buffer(chunk, chunk_offset)) {
+        return false;
+    }
+    raw_offset = read_u16_be(chunk, chunk_offset);
     if ((raw_offset % CALLDATA_CHUNK_SIZE) != 0) {
         // reject unaligned offsets
         return false;
     }
     *offset = raw_offset / CALLDATA_CHUNK_SIZE;
-    *offset += *ref_offset;
+    if (__builtin_add_overflow(*offset, *ref_offset, offset)) {
+        return false;
+    }
     return true;
 }
 
 static bool path_leaf(const s_leaf_args *leaf,
                       uint32_t *offset,
                       s_parsed_value_collection *collection) {
-    uint8_t buf[sizeof(uint16_t)];
-    const uint8_t *chunk;
     uint8_t *leaf_buf = NULL;
+    const uint8_t *chunk;
+    uint8_t chunk_offset = CALLDATA_CHUNK_SIZE - sizeof(collection->value[collection->size].size);
     uint8_t cpy_length;
 
     if (collection->size >= MAX_VALUE_COLLECTION_SIZE) {
@@ -148,11 +161,16 @@ static bool path_leaf(const s_leaf_args *leaf,
             if ((chunk = calldata_get_chunk(get_current_calldata(), *offset)) == NULL) {
                 return false;
             }
-            buf_shrink_expand(chunk, CALLDATA_CHUNK_SIZE, buf, sizeof(buf));
-            collection->value[collection->size].size = read_u16_be(buf, 0);
+            if (!is_zeroes_buffer(chunk, chunk_offset)) {
+                return false;
+            }
+            collection->value[collection->size].size = read_u16_be(chunk, chunk_offset);
             *offset += 1;
             break;
 
+        case LEAF_TYPE_ARRAY:
+        case LEAF_TYPE_TUPLE:
+            // Not yet implemented
         default:
             return false;
     }
@@ -191,13 +209,13 @@ static bool path_slice(const s_slice_args *slice, s_parsed_value_collection *col
 
     value_length = collection->value[collection->size - 1].length;
     if (slice->has_start) {
-        start = (slice->start < 0) ? ((int16_t) value_length + slice->start) : slice->start;
+        start = (slice->start < 0) ? ((int32_t) value_length + slice->start) : slice->start;
     } else {
         start = 0;
     }
 
     if (slice->has_end) {
-        end = (slice->end < 0) ? ((int16_t) value_length + slice->end) : slice->end;
+        end = (slice->end < 0) ? ((int32_t) value_length + slice->end) : slice->end;
     } else {
         end = value_length;
     }
@@ -223,14 +241,14 @@ static bool path_array(const s_array_args *array,
                        uint32_t *offset,
                        uint32_t *ref_offset,
                        s_arrays_info *arrays_info) {
-    uint8_t buf[sizeof(uint16_t)];
     uint16_t array_size;
     uint16_t idx;
     uint16_t start;
     uint16_t end;
     uint16_t passes;
-    const uint8_t *chunk;
     uint32_t product;
+    const uint8_t *chunk;
+    uint8_t chunk_offset = CALLDATA_CHUNK_SIZE - sizeof(array_size);
 
     if (arrays_info->index >= MAX_ARRAYS) {
         return false;
@@ -238,17 +256,19 @@ static bool path_array(const s_array_args *array,
     if ((chunk = calldata_get_chunk(get_current_calldata(), *offset)) == NULL) {
         return false;
     }
-    buf_shrink_expand(chunk, CALLDATA_CHUNK_SIZE, buf, sizeof(buf));
-    array_size = read_u16_be(buf, 0);
+    if (!is_zeroes_buffer(chunk, chunk_offset)) {
+        return false;
+    }
+    array_size = read_u16_be(chunk, chunk_offset);
 
     if (array->has_start) {
-        start = (array->start < 0) ? ((int16_t) array_size + array->start) : array->start;
+        start = (array->start < 0) ? ((int32_t) array_size + array->start) : array->start;
     } else {
         start = 0;
     }
 
     if (array->has_end) {
-        end = (array->end < 0) ? ((int16_t) array_size + array->end) : array->end;
+        end = (array->end < 0) ? ((int32_t) array_size + array->end) : array->end;
     } else {
         end = array_size;
     }
@@ -261,6 +281,9 @@ static bool path_array(const s_array_args *array,
     *offset += 1;
     if (arrays_info->index == arrays_info->depth) {
         // new depth
+        if (passes > UINT8_MAX) {
+            return false;
+        }
         arrays_info->passes_remaining[arrays_info->index] = passes;
         arrays_info->depth += 1;
     }
