@@ -69,55 +69,79 @@ typedef struct struct_dep {
 } s_struct_dep;
 
 /**
- * Find all the dependencies from a given structure
+ * Add a struct to the dependency list if not already present
  *
- * @param[out] deps_count count of how many struct dependency pointers
- * @param[in] first_dep pointer to the first dependency pointer
- * @param[in] struct_ptr pointer to the struct we are getting the dependencies of
- * @return pointer to the first found dependency, \ref NULL otherwise
+ * @param[in,out] first_dep pointer to the head of the dependency list
+ * @param[in] struct_ptr pointer to the struct to add
+ * @return \ref true on success, \ref false on memory allocation failure
  */
-static bool get_struct_dependencies(s_struct_dep **first_dep, const s_struct_712 *struct_ptr) {
-    const s_struct_712_field *field_ptr;
-    const char *arg_structname;
-    const s_struct_712 *arg_struct_ptr;
+static bool add_dep_if_new(s_struct_dep **first_dep, const s_struct_712 *struct_ptr) {
     s_struct_dep *tmp;
     s_struct_dep *new_dep;
+
+    for (tmp = *first_dep; tmp != NULL; tmp = (s_struct_dep *) ((flist_node_t *) tmp)->next) {
+        if (tmp->s == struct_ptr) return true;
+    }
+    if ((new_dep = APP_MEM_ALLOC(sizeof(*new_dep))) == NULL) {
+        apdu_response_code = SWO_INSUFFICIENT_MEMORY;
+        return false;
+    }
+    new_dep->s = struct_ptr;
+    flist_push_back((flist_node_t **) first_dep, (flist_node_t *) new_dep);
+    return true;
+}
+
+/**
+ * Scan all fields of a struct and add any unknown TYPE_CUSTOM dependencies
+ *
+ * @param[in,out] first_dep pointer to the head of the dependency list
+ * @param[in] struct_ptr pointer to the struct whose fields are scanned
+ * @return \ref true on success, \ref false on error
+ */
+static bool collect_direct_deps(s_struct_dep **first_dep, const s_struct_712 *struct_ptr) {
+    const s_struct_712_field *field_ptr;
+    const s_struct_712 *dep;
+    const char *dep_name;
 
     for (field_ptr = struct_ptr->fields; field_ptr != NULL;
          field_ptr = (s_struct_712_field *) ((flist_node_t *) field_ptr)->next) {
         if (field_ptr->type == TYPE_CUSTOM) {
-            // get struct name
-            arg_structname = get_struct_field_typename(field_ptr);
-            // from its name, get the pointer to its definition
-            if ((arg_struct_ptr = get_structn(arg_structname, strlen(arg_structname))) == NULL) {
-                PRINTF("Error: could not find EIP-712 dependency struct \"");
-                for (int i = 0; i < (int) strlen(arg_structname); ++i)
-                    PRINTF("%c", arg_structname[i]);
-                PRINTF("\" during type_hash\n");
+            dep_name = get_struct_field_typename(field_ptr);
+            if ((dep = get_structn(dep_name, strlen(dep_name))) == NULL) {
+                PRINTF("Error: could not find EIP-712 dependency struct \"%s\" during type_hash\n",
+                       dep_name);
                 return false;
             }
+            if (!add_dep_if_new(first_dep, dep)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
 
-            // check if it is not already present in the dependencies array
-            for (tmp = *first_dep; tmp != NULL;
-                 tmp = (s_struct_dep *) ((flist_node_t *) tmp)->next) {
-                // it's a match!
-                if (tmp->s == arg_struct_ptr) {
-                    break;
-                }
-            }
-            // if it's not present in the array, add it and recurse into it
-            if (tmp == NULL) {
-                if (APP_MEM_CALLOC((void **) &new_dep, sizeof(s_struct_dep)) == false) {
-                    apdu_response_code = SWO_INSUFFICIENT_MEMORY;
-                    return false;
-                }
-                new_dep->s = arg_struct_ptr;
-                flist_push_back((flist_node_t **) first_dep, (flist_node_t *) new_dep);
-                // TODO: Move away from recursive calls
-                if (!get_struct_dependencies(first_dep, arg_struct_ptr)) {
-                    return false;
-                }
-            }
+/**
+ * Find all the transitive dependencies of a given structure
+ *
+ * Uses the dependency list itself as a worklist: new entries are appended at
+ * the back while the cursor advances forward, so newly discovered dependencies
+ * are processed without recursion and without extra allocations.
+ *
+ * @param[out] first_dep pointer to the head of the dependency list
+ * @param[in] struct_ptr pointer to the struct we are getting the dependencies of
+ * @return \ref true on success, \ref false on error
+ */
+static bool get_struct_dependencies(s_struct_dep **first_dep, const s_struct_712 *struct_ptr) {
+    s_struct_dep *cursor;
+
+    if (!collect_direct_deps(first_dep, struct_ptr)) {
+        return false;
+    }
+
+    for (cursor = *first_dep; cursor != NULL;
+         cursor = (s_struct_dep *) ((flist_node_t *) cursor)->next) {
+        if (!collect_direct_deps(first_dep, cursor->s)) {
+            return false;
         }
     }
     return true;
