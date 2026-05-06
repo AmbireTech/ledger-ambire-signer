@@ -70,21 +70,6 @@ def input_files() -> list[str]:
     return sorted(files)
 
 
-@pytest.fixture(name="input_file", params=input_files())
-def input_file_fixture(request) -> Path:
-    return Path(request.param)
-
-
-@pytest.fixture(name="verbose_raw", params=[True, False])
-def verbose_raw_fixture(request) -> bool:
-    return request.param
-
-
-@pytest.fixture(name="filtering", params=[False, True])
-def filtering_fixture(request) -> bool:
-    return request.param
-
-
 def test_eip712_v0(scenario_navigator: NavigateWithScenario, simu_params: Optional[TxSimu] = None):
     app_client = EthAppClient(scenario_navigator.backend)
 
@@ -136,6 +121,27 @@ def get_filter_file_from_data_file(data_file: Path) -> Path:
     return Path(f"{test_path}-filter.json")
 
 
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    """Conditionally parametrize eip712_new test.
+
+    (input_file, filtering) are correlated: filtering=True only when a matching
+    filter file exists. They are parametrized together to avoid invalid combos.
+    verbose_raw is orthogonal and parametrized independently; pytest computes
+    the cartesian product of the two parametrize calls automatically.
+    """
+    if "input_file" in metafunc.fixturenames:
+        params = []
+        for f in input_files():
+            data_file = Path(f)
+            base = "-".join(data_file.stem.split("-")[:-1])
+            params.append(pytest.param(data_file, False, id=f"{base}-no_filter"))
+            if get_filter_file_from_data_file(data_file).is_file():
+                params.append(pytest.param(data_file, True, id=f"{base}-filter"))
+        metafunc.parametrize("input_file,filtering", params)
+    if "verbose_raw" in metafunc.fixturenames:
+        metafunc.parametrize("verbose_raw", [True, False])
+
+
 def test_eip712_new(scenario_navigator: NavigateWithScenario,
                     input_file: Path,
                     verbose_raw: bool,
@@ -145,12 +151,9 @@ def test_eip712_new(scenario_navigator: NavigateWithScenario,
 
     filters = None
     if filtering:
-        try:
-            filterfile = get_filter_file_from_data_file(input_file)
-            with open(filterfile, encoding="utf-8") as f:
-                filters = json.load(f)
-        except (IOError, json.decoder.JSONDecodeError) as e:
-            pytest.skip(f"{filterfile.name}: {e.strerror}")
+        filterfile = get_filter_file_from_data_file(input_file)
+        with open(filterfile, encoding="utf-8") as f:
+            filters = json.load(f)
     else:
         settings_to_toggle.append(SettingID.BLIND_SIGNING)
 
