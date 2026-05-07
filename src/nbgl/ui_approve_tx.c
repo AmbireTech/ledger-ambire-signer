@@ -46,6 +46,7 @@ static void _cleanup(void) {
 
 // Review callback function to handle user confirmation or cancellation
 static void reviewChoice(bool confirm) {
+    _cleanup();
     if (confirm) {
         io_seproxyhal_touch_tx_ok();
 #ifndef FUZZ
@@ -57,7 +58,6 @@ static void reviewChoice(bool confirm) {
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_REJECTED, ui_idle);
 #endif
     }
-    _cleanup();
 }
 
 // Force operation to be lowercase
@@ -379,7 +379,7 @@ static uint16_t ux_init_strings(bool fromPlugin) {
     if (fromPlugin) {
         // Prepare the suffix
         if ((suffix_str = APP_MEM_ALLOC(title_len)) == NULL) {
-            // Memory allocation failed, cleanup and return
+            _cleanup();
             return SWO_INSUFFICIENT_MEMORY;
         }
         snprintf(suffix_str,
