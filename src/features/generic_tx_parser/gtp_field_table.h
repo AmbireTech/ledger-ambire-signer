@@ -23,4 +23,4 @@ bool add_to_field_table(e_param_type type,
                         const void *extra_data);
 bool set_intent_field(const char *value);
 size_t field_table_size(void);
-const s_field_table_entry *get_from_field_table(int index);
+const s_field_table_entry *get_from_field_table(size_t index);

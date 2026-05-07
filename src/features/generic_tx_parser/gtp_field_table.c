@@ -109,10 +109,10 @@ size_t field_table_size(void) {
     return flist_size((flist_node_t **) &g_table);
 }
 
-const s_field_table_entry *get_from_field_table(int index) {
+const s_field_table_entry *get_from_field_table(size_t index) {
     const s_field_table_node *node = g_table;
 
-    for (int i = 0; i < index; ++i) {
+    for (size_t i = 0; i < index; ++i) {
         if (node == NULL) return NULL;
         node = (s_field_table_node *) ((flist_node_t *) node)->next;
     }
