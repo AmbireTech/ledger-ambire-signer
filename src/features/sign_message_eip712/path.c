@@ -404,7 +404,14 @@ static bool path_update(bool skip_if_array, bool stop_at_array, bool do_typehash
         //       an empty array of structs in which case we don't want to show it but the
         //       size is only known later
         // ui_712_queue_struct_to_review();
-        path_depth_list_push();
+        // Without this check, a recursive or cyclic custom-type graph (A { A a }
+        // or A -> B -> A) would keep this loop pushing hash depths past
+        // MAX_PATH_DEPTH while ignoring the failure, allocating one new keccak
+        // context per iteration until heap exhaustion (CWE-400).
+        if (!path_depth_list_push()) {
+            apdu_response_code = SWO_INCORRECT_DATA;
+            return false;
+        }
     }
     return true;
 }
