@@ -854,6 +854,32 @@ def test_gcs_constraints(scenario_navigator: NavigateWithScenario,
                 constraints
             ),
             Field(
+                # Same receiver re-rendered as a signed integer so the INT
+                # constraint path (MUST_BE / IF_NOT_IN on TF_INT) is actually
+                # exercised end-to-end. The data_path returns the full 32-byte
+                # calldata chunk, so type_size must be 32 (format_signed_int_be
+                # rejects length > type_size). The high byte is the zero
+                # padding of the address slot, so the value is a positive
+                # int256 and the address-shaped constraints match by canonical
+                # decimal-string equality.
+                1,
+                "Receiver int",
+                ParamRaw(
+                    1,
+                    Value(
+                        1,
+                        TypeFamily.INT,
+                        type_size=32,
+                        data_path=DataPath(
+                            1,
+                            param_paths["receiver"]
+                        ),
+                    ),
+                ),
+                visible,
+                constraints
+            ),
+            Field(
                 1,
                 "Expiration time",
                 ParamDatetime(
