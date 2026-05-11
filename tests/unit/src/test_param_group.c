@@ -3,7 +3,7 @@
  * @brief Unit tests for PARAM_GROUP formatting (iteration order, failure propagation)
  *
  * format_field is mocked so these tests exercise only GROUP-level logic:
- * sequential iteration, BUNDLED fallback, empty groups, and sub-field failure.
+ * sequential iteration, BUNDLED rejection, empty groups, and sub-field failure.
  */
 
 #include <stdarg.h>
@@ -119,10 +119,10 @@ static void test_group_sequential_two_subfields(void **state) {
 }
 
 /**
- * BUNDLED iteration is not yet implemented; the group falls back to SEQUENTIAL.
- * Verify the output order is identical to SEQUENTIAL.
+ * BUNDLED iteration is unsupported and must be rejected explicitly
+ * (no silent fallback to sequential rendering).
  */
-static void test_group_bundled_falls_back_to_sequential(void **state) {
+static void test_group_bundled_rejected(void **state) {
     (void) state;
     MAKE_FIELD(sub2, "Value", PARAM_TYPE_RAW);
     MAKE_NODE(node2, &sub2, NULL);
@@ -130,12 +130,8 @@ static void test_group_bundled_falls_back_to_sequential(void **state) {
     MAKE_NODE(node1, &sub1, &node2);
     s_field outer = make_group_field(GROUP_ITER_BUNDLED, &node1);
 
-    expect_string(__wrap_format_field, field->name, "Token ID");
-    will_return(__wrap_format_field, true);
-    expect_string(__wrap_format_field, field->name, "Value");
-    will_return(__wrap_format_field, true);
-
-    assert_true(format_param_group(&outer));
+    // format_field must never be called when iteration type is BUNDLED.
+    assert_false(format_param_group(&outer));
 }
 
 static void test_group_subfield_failure_propagates(void **state) {
@@ -162,7 +158,7 @@ int main(void) {
         cmocka_unit_test(test_group_empty),
         cmocka_unit_test(test_group_sequential_one_subfield),
         cmocka_unit_test(test_group_sequential_two_subfields),
-        cmocka_unit_test(test_group_bundled_falls_back_to_sequential),
+        cmocka_unit_test(test_group_bundled_rejected),
         cmocka_unit_test(test_group_subfield_failure_propagates),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
