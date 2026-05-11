@@ -296,6 +296,12 @@ bool handle_safe_tlv_payload(const buffer_t *payload) {
     }
     if (!ret) {
         clear_safe_descriptor();
+        // The flow is aborted here, the matching signer descriptor will
+        // never come. Invalidate the challenge so the captured pair cannot
+        // be replayed later (CWE-294). The happy path keeps the challenge
+        // alive on purpose: the signer descriptor that follows is signed
+        // against the same challenge, and it will roll it itself.
+        roll_challenge();
     }
     return ret;
 }
