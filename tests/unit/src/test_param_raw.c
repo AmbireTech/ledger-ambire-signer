@@ -40,6 +40,17 @@ const chain_config_t *g_chain_config = &chainConfig_storage;
                                         .constant = {.size = value_size}}}; \
     memcpy(param_name.value.constant.buf, value_bytes, value_size);
 
+// Helper macro to create an INT parameter (signed integer of `type_size` bytes,
+// e.g. type_size=4 for int32). value_bytes is stored as-is and interpreted
+// by format_signed_int_be using type_size for sign extension.
+#define CREATE_INT_PARAM(param_name, value_bytes, value_size, ts)           \
+    s_param_raw param_name = {.version = 1,                                 \
+                              .value = {.type_family = TF_INT,              \
+                                        .type_size = (ts),                  \
+                                        .source = SOURCE_CONSTANT,          \
+                                        .constant = {.size = value_size}}}; \
+    memcpy(param_name.value.constant.buf, value_bytes, value_size);
+
 // Helper macro to create an ADDRESS parameter
 #define CREATE_ADDRESS_PARAM(param_name, ...)                                   \
     uint8_t param_name##_addr[ADDRESS_LENGTH] = {__VA_ARGS__};                  \
@@ -279,6 +290,182 @@ static void test_raw_uint_if_not_in_no_match(void **state) {
 }
 
 // =============================================================================
+// Test cases - TF_INT
+// =============================================================================
+
+/**
+ * @brief Test INT with PARAM_VISIBILITY_ALWAYS - positive value
+ */
+static void test_raw_int_always_positive(void **state) {
+    (void) state;
+
+    // int32 = 42 (0x0000002A big-endian)
+    uint8_t value_data[4] = {0x00, 0x00, 0x00, 0x2A};
+    CREATE_INT_PARAM(param, value_data, 4, 4);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_ALWAYS,
+                     .constraints = NULL,
+                     .param_raw = param,
+                     .name = "Delta"};
+
+    expect_value(__wrap_add_to_field_table, param_type, field.param_type);
+    expect_string(__wrap_add_to_field_table, name, field.name);
+    expect_string(__wrap_add_to_field_table, value, "42");
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_raw(&field));
+}
+
+/**
+ * @brief Test INT with PARAM_VISIBILITY_ALWAYS - negative value
+ *
+ * Regression test for CWE-451 (incorrect 8/16-bit signed rendering): the
+ * canonical two's-complement string must be produced for any type_size.
+ */
+static void test_raw_int_always_negative(void **state) {
+    (void) state;
+
+    // int32 = -42 (0xFFFFFFD6 big-endian)
+    uint8_t value_data[4] = {0xFF, 0xFF, 0xFF, 0xD6};
+    CREATE_INT_PARAM(param, value_data, 4, 4);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_ALWAYS,
+                     .constraints = NULL,
+                     .param_raw = param,
+                     .name = "Delta"};
+
+    expect_value(__wrap_add_to_field_table, param_type, field.param_type);
+    expect_string(__wrap_add_to_field_table, name, field.name);
+    expect_string(__wrap_add_to_field_table, value, "-42");
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_raw(&field));
+}
+
+/**
+ * @brief Test INT with MUST_BE constraint - matching negative value
+ */
+static void test_raw_int_must_be_valid(void **state) {
+    (void) state;
+
+    // int32 = -10 (0xFFFFFFF6 big-endian)
+    uint8_t value_data[4] = {0xFF, 0xFF, 0xFF, 0xF6};
+    CREATE_INT_PARAM(param, value_data, 4, 4);
+
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = 4;
+    constraint->value = calloc(1, 4);
+    constraint->value[0] = 0xFF;
+    constraint->value[1] = 0xFF;
+    constraint->value[2] = 0xFF;
+    constraint->value[3] = 0xF6;
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_MUST_BE,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "Delta"};
+
+    // Match => to_be_displayed=false, no add_to_field_table call
+    assert_true(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
+/**
+ * @brief Test INT with MUST_BE constraint - non-matching value rejects the TX
+ */
+static void test_raw_int_must_be_invalid(void **state) {
+    (void) state;
+
+    // int32 = +5
+    uint8_t value_data[4] = {0x00, 0x00, 0x00, 0x05};
+    CREATE_INT_PARAM(param, value_data, 4, 4);
+
+    // Constraint expects -10
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = 4;
+    constraint->value = calloc(1, 4);
+    constraint->value[0] = 0xFF;
+    constraint->value[1] = 0xFF;
+    constraint->value[2] = 0xFF;
+    constraint->value[3] = 0xF6;
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_MUST_BE,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "Delta"};
+
+    assert_false(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
+/**
+ * @brief Test INT with IF_NOT_IN constraint - value matches exclusion list
+ */
+static void test_raw_int_if_not_in_match(void **state) {
+    (void) state;
+
+    // int32 = 0
+    uint8_t value_data[4] = {0x00, 0x00, 0x00, 0x00};
+    CREATE_INT_PARAM(param, value_data, 4, 4);
+
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = 4;
+    constraint->value = calloc(1, 4);  // 0
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_IF_NOT_IN,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "OptionalDelta"};
+
+    // Match => hidden, no add_to_field_table call
+    assert_true(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
+/**
+ * @brief Test INT with IF_NOT_IN constraint - value not in exclusion list
+ */
+static void test_raw_int_if_not_in_no_match(void **state) {
+    (void) state;
+
+    // int32 = +42
+    uint8_t value_data[4] = {0x00, 0x00, 0x00, 0x2A};
+    CREATE_INT_PARAM(param, value_data, 4, 4);
+
+    // Constraint: don't display if value is 0
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = 4;
+    constraint->value = calloc(1, 4);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_IF_NOT_IN,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "OptionalDelta"};
+
+    expect_value(__wrap_add_to_field_table, param_type, field.param_type);
+    expect_string(__wrap_add_to_field_table, name, field.name);
+    expect_string(__wrap_add_to_field_table, value, "42");
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
+// =============================================================================
 // Test cases - TF_ADDRESS
 // =============================================================================
 
@@ -499,6 +686,117 @@ static void test_raw_bool_false(void **state) {
     assert_true(format_param_raw(&field));
 }
 
+/**
+ * @brief Test BOOL with MUST_BE constraint - matching
+ */
+static void test_raw_bool_must_be_valid(void **state) {
+    (void) state;
+
+    CREATE_BOOL_PARAM(param, true);
+
+    // Constraint: must be true (encoded as single non-zero byte)
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = 1;
+    constraint->value = calloc(1, 1);
+    constraint->value[0] = 1;
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_MUST_BE,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "Approved"};
+
+    // Match => hidden
+    assert_true(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
+/**
+ * @brief Test BOOL with MUST_BE constraint - non-matching rejects the TX
+ */
+static void test_raw_bool_must_be_invalid(void **state) {
+    (void) state;
+
+    CREATE_BOOL_PARAM(param, true);
+
+    // Constraint expects false
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = 1;
+    constraint->value = calloc(1, 1);
+    constraint->value[0] = 0;
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_MUST_BE,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "Approved"};
+
+    assert_false(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
+/**
+ * @brief Test BOOL with IF_NOT_IN constraint - value matches exclusion list
+ */
+static void test_raw_bool_if_not_in_match(void **state) {
+    (void) state;
+
+    CREATE_BOOL_PARAM(param, false);
+
+    // Constraint: hide if false
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = 1;
+    constraint->value = calloc(1, 1);
+    constraint->value[0] = 0;
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_IF_NOT_IN,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "OptionalFlag"};
+
+    // Match => hidden
+    assert_true(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
+/**
+ * @brief Test BOOL with IF_NOT_IN constraint - value not in exclusion list
+ */
+static void test_raw_bool_if_not_in_no_match(void **state) {
+    (void) state;
+
+    CREATE_BOOL_PARAM(param, true);
+
+    // Constraint: hide if false (but we have true)
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = 1;
+    constraint->value = calloc(1, 1);
+    constraint->value[0] = 0;
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_IF_NOT_IN,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "OptionalFlag"};
+
+    expect_value(__wrap_add_to_field_table, param_type, field.param_type);
+    expect_string(__wrap_add_to_field_table, name, field.name);
+    expect_string(__wrap_add_to_field_table, value, "true");
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
 // =============================================================================
 // Test cases - TF_BYTES
 // =============================================================================
@@ -670,6 +968,121 @@ static void test_raw_string(void **state) {
     will_return(__wrap_add_to_field_table, true);
 
     assert_true(format_param_raw(&field));
+}
+
+/**
+ * @brief Test STRING with MUST_BE constraint - matching
+ */
+static void test_raw_string_must_be_valid(void **state) {
+    (void) state;
+
+    const char *test_str = "OK";
+    CREATE_STRING_PARAM(param, test_str);
+
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = strlen(test_str);
+    constraint->value = calloc(1, constraint->size);
+    memcpy(constraint->value, test_str, constraint->size);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_MUST_BE,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "Status"};
+
+    // Match => hidden
+    assert_true(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
+/**
+ * @brief Test STRING with MUST_BE constraint - non-matching rejects the TX
+ */
+static void test_raw_string_must_be_invalid(void **state) {
+    (void) state;
+
+    const char *test_str = "NOPE";
+    CREATE_STRING_PARAM(param, test_str);
+
+    // Constraint expects "OK"
+    const char *expected = "OK";
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = strlen(expected);
+    constraint->value = calloc(1, constraint->size);
+    memcpy(constraint->value, expected, constraint->size);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_MUST_BE,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "Status"};
+
+    assert_false(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
+/**
+ * @brief Test STRING with IF_NOT_IN constraint - value matches exclusion list
+ */
+static void test_raw_string_if_not_in_match(void **state) {
+    (void) state;
+
+    const char *test_str = "ignored";
+    CREATE_STRING_PARAM(param, test_str);
+
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = strlen(test_str);
+    constraint->value = calloc(1, constraint->size);
+    memcpy(constraint->value, test_str, constraint->size);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_IF_NOT_IN,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "OptionalNote"};
+
+    // Match => hidden
+    assert_true(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
+}
+
+/**
+ * @brief Test STRING with IF_NOT_IN constraint - value not in exclusion list
+ */
+static void test_raw_string_if_not_in_no_match(void **state) {
+    (void) state;
+
+    const char *test_str = "Hello";
+    CREATE_STRING_PARAM(param, test_str);
+
+    // Constraint: hide if "ignored"
+    const char *excluded = "ignored";
+    s_field_constraint *constraint = calloc(1, sizeof(s_field_constraint));
+    constraint->size = strlen(excluded);
+    constraint->value = calloc(1, constraint->size);
+    memcpy(constraint->value, excluded, constraint->size);
+
+    s_field field = {.param_type = PARAM_TYPE_RAW,
+                     .visibility = PARAM_VISIBILITY_IF_NOT_IN,
+                     .constraints = constraint,
+                     .param_raw = param,
+                     .name = "OptionalNote"};
+
+    expect_value(__wrap_add_to_field_table, param_type, field.param_type);
+    expect_string(__wrap_add_to_field_table, name, field.name);
+    expect_string(__wrap_add_to_field_table, value, test_str);
+    will_return(__wrap_add_to_field_table, true);
+
+    assert_true(format_param_raw(&field));
+
+    free(constraint->value);
+    free(constraint);
 }
 
 // =============================================================================
@@ -851,6 +1264,14 @@ int main(void) {
         cmocka_unit_test(test_raw_uint_if_not_in_match),
         cmocka_unit_test(test_raw_uint_if_not_in_no_match),
 
+        // INT tests
+        cmocka_unit_test(test_raw_int_always_positive),
+        cmocka_unit_test(test_raw_int_always_negative),
+        cmocka_unit_test(test_raw_int_must_be_valid),
+        cmocka_unit_test(test_raw_int_must_be_invalid),
+        cmocka_unit_test(test_raw_int_if_not_in_match),
+        cmocka_unit_test(test_raw_int_if_not_in_no_match),
+
         // ADDRESS tests
         cmocka_unit_test(test_raw_address_always),
         cmocka_unit_test(test_raw_address_must_be_valid),
@@ -861,6 +1282,10 @@ int main(void) {
         // BOOL tests
         cmocka_unit_test(test_raw_bool_true),
         cmocka_unit_test(test_raw_bool_false),
+        cmocka_unit_test(test_raw_bool_must_be_valid),
+        cmocka_unit_test(test_raw_bool_must_be_invalid),
+        cmocka_unit_test(test_raw_bool_if_not_in_match),
+        cmocka_unit_test(test_raw_bool_if_not_in_no_match),
 
         // BYTES tests
         cmocka_unit_test(test_raw_bytes_always),
@@ -871,6 +1296,10 @@ int main(void) {
 
         // STRING tests
         cmocka_unit_test(test_raw_string),
+        cmocka_unit_test(test_raw_string_must_be_valid),
+        cmocka_unit_test(test_raw_string_must_be_invalid),
+        cmocka_unit_test(test_raw_string_if_not_in_match),
+        cmocka_unit_test(test_raw_string_if_not_in_no_match),
 
         // MAP_REF tests
         cmocka_unit_test(test_raw_map_ref_found),
