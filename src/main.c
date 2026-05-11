@@ -18,6 +18,7 @@
 #include "shared_context.h"
 #include "apdu_constants.h"
 #include "common_ui.h"
+#include "feature_sign_tx.h"  // g_tx_hash_ctx
 
 #include "os_io_seproxyhal.h"
 #include "io.h"
@@ -98,6 +99,10 @@ void reset_app_context(void) {
     trusted_name_cleanup();
     enum_value_cleanup();
     map_entry_cleanup();
+    // Release the tx-signing keccak context.
+    if (g_tx_hash_ctx != NULL) {
+        APP_MEM_FREE_AND_NULL((void **) &g_tx_hash_ctx);
+    }
     memset((uint8_t *) &txContext, 0, sizeof(txContext));
     memset((uint8_t *) &tmpContent, 0, sizeof(tmpContent));
     clear_safe_account();
