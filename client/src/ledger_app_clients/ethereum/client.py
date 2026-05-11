@@ -70,7 +70,7 @@ class EthAppClient:
         header.append(p1)
         header.append(p2)
         header.append(len(payload))
-        return self._exchange(header + payload)
+        return self._exchange(bytes(header + payload))
 
     def send_raw_async(self, cla: int, ins: int, p1: int, p2: int, payload: bytes):
         header = bytearray()
@@ -79,7 +79,7 @@ class EthAppClient:
         header.append(p1)
         header.append(p2)
         header.append(len(payload))
-        return self._exchange_async(header + payload)
+        return self._exchange_async(bytes(header + payload))
 
     def get_app_configuration(self):
         return self._exchange(self._cmd_builder.get_app_configuration())

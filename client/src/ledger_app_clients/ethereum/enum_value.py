@@ -54,6 +54,6 @@ class EnumValue(TlvSerializable):
         payload += self.serialize_field(Tag.NAME, self.name)
         sig = self.signature
         if sig is None:
-            sig = CALLDATA_PARTNER.sign(payload)
+            sig = CALLDATA_PARTNER.sign(bytes(payload))
         payload += self.serialize_field(Tag.SIGNATURE, sig)
-        return payload
+        return bytes(payload)

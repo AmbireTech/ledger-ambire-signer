@@ -15,7 +15,7 @@ class EthTUID(TlvSerializable):
         payload = bytearray()
         payload += self.serialize_field(0x23, self.chain_id)
         payload += self.serialize_field(0x22, self.address)
-        return payload
+        return bytes(payload)
 
 
 class TokenInfo(TlvSerializable):
@@ -54,6 +54,6 @@ class TokenInfo(TlvSerializable):
         payload += self.serialize_field(0x07, self.tuid.serialize())
         sig = self.signature
         if sig is None:
-            sig = CAL_COIN_META_PARTNER.sign(payload)
+            sig = CAL_COIN_META_PARTNER.sign(bytes(payload))
         payload += self.serialize_field(0x08, sig)
-        return payload
+        return bytes(payload)

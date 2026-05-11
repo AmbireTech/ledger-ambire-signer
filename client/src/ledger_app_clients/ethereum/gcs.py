@@ -82,9 +82,9 @@ class TxInfo(TlvSerializable):
             payload += self.serialize_field(TxInfoTag.DEPLOY_DATE, self.deploy_date)
         signature = self.signature
         if signature is None:
-            signature = CALLDATA_PARTNER.sign(payload)
+            signature = CALLDATA_PARTNER.sign(bytes(payload))
         payload += self.serialize_field(TxInfoTag.SIGNATURE, signature)
-        return payload
+        return bytes(payload)
 
 
 class ParamType(IntEnum):
@@ -144,7 +144,7 @@ class PathArray(TlvSerializable):
             payload += self.serialize_field(0x02, struct.pack(">h", self.start))
         if self.end is not None:
             payload += self.serialize_field(0x03, struct.pack(">h", self.end))
-        return payload
+        return bytes(payload)
 
 
 class PathRef(TlvSerializable):
@@ -186,7 +186,7 @@ class PathSlice(TlvSerializable):
             payload += self.serialize_field(0x01, struct.pack(">h", self.start))
         if self.end is not None:
             payload += self.serialize_field(0x02, struct.pack(">h", self.end))
-        return payload
+        return bytes(payload)
 
 
 class DataPath(TlvSerializable):
@@ -214,7 +214,7 @@ class DataPath(TlvSerializable):
             else:
                 assert False, f"Unknown path node type : {type(node)}"
             payload += self.serialize_field(tag, node.serialize())
-        return payload
+        return bytes(payload)
 
 
 class ContainerPath(IntEnum):
@@ -239,7 +239,7 @@ class MapRef(TlvSerializable):
         payload += self.serialize_field(0x00, self.version)
         payload += self.serialize_field(0x01, self.id)
         payload += self.serialize_field(0x02, self.key.serialize())
-        return payload
+        return bytes(payload)
 
 
 class Value(TlvSerializable):
@@ -281,7 +281,7 @@ class Value(TlvSerializable):
             payload += self.serialize_field(0x05, self.constant)
         if self.map_ref is not None:
             payload += self.serialize_field(0x06, self.map_ref.serialize())
-        return payload
+        return bytes(payload)
 
 
 class FieldParam(TlvSerializable):
@@ -301,7 +301,7 @@ class ParamRaw(FieldParam):
         payload = bytearray()
         payload += self.serialize_field(0x00, self.version)
         payload += self.serialize_field(0x01, self.value.serialize())
-        return payload
+        return bytes(payload)
 
 
 class ParamAmount(FieldParam):
@@ -317,7 +317,7 @@ class ParamAmount(FieldParam):
         payload = bytearray()
         payload += self.serialize_field(0x00, self.version)
         payload += self.serialize_field(0x01, self.value.serialize())
-        return payload
+        return bytes(payload)
 
 
 class ParamTokenAmount(FieldParam):
@@ -356,7 +356,7 @@ class ParamTokenAmount(FieldParam):
             payload += self.serialize_field(0x04, self.threshold)
         if self.above_threshold_msg is not None:
             payload += self.serialize_field(0x05, self.above_threshold_msg)
-        return payload
+        return bytes(payload)
 
 
 class ParamNFT(FieldParam):
@@ -375,7 +375,7 @@ class ParamNFT(FieldParam):
         payload += self.serialize_field(0x00, self.version)
         payload += self.serialize_field(0x01, self.id.serialize())
         payload += self.serialize_field(0x02, self.collection.serialize())
-        return payload
+        return bytes(payload)
 
 
 class DatetimeType(IntEnum):
@@ -399,7 +399,7 @@ class ParamDatetime(FieldParam):
         payload += self.serialize_field(0x00, self.version)
         payload += self.serialize_field(0x01, self.value.serialize())
         payload += self.serialize_field(0x02, self.dt_type)
-        return payload
+        return bytes(payload)
 
 
 class ParamDuration(FieldParam):
@@ -415,7 +415,7 @@ class ParamDuration(FieldParam):
         payload = bytearray()
         payload += self.serialize_field(0x00, self.version)
         payload += self.serialize_field(0x01, self.value.serialize())
-        return payload
+        return bytes(payload)
 
 
 class ParamUnit(FieldParam):
@@ -447,7 +447,7 @@ class ParamUnit(FieldParam):
             payload += self.serialize_field(0x03, self.decimals)
         if self.prefix is not None:
             payload += self.serialize_field(0x04, self.prefix)
-        return payload
+        return bytes(payload)
 
 
 class TrustedNameValueType(IntEnum):
@@ -495,7 +495,7 @@ class ParamTrustedName(FieldParam):
                 payload += self.serialize_field(0x04, addr)
         if self.value_type is not None:
             payload += self.serialize_field(0x05, self.value_type)
-        return payload
+        return bytes(payload)
 
 
 class ParamEnum(FieldParam):
@@ -514,7 +514,7 @@ class ParamEnum(FieldParam):
         payload += self.serialize_field(0x00, self.version)
         payload += self.serialize_field(0x01, self.id)
         payload += self.serialize_field(0x02, self.value.serialize())
-        return payload
+        return bytes(payload)
 
 
 class ParamCalldata(FieldParam):
@@ -556,7 +556,7 @@ class ParamCalldata(FieldParam):
             payload += self.serialize_field(0x05, self.amount.serialize())
         if self.spender is not None:
             payload += self.serialize_field(0x06, self.spender.serialize())
-        return payload
+        return bytes(payload)
 
 
 class ParamToken(FieldParam):
@@ -577,7 +577,7 @@ class ParamToken(FieldParam):
         if self.native_currency is not None:
             for nat_cur in self.native_currency:
                 payload += self.serialize_field(0x02, nat_cur)
-        return payload
+        return bytes(payload)
 
 
 class ParamNetwork(FieldParam):
@@ -593,7 +593,7 @@ class ParamNetwork(FieldParam):
         payload = bytearray()
         payload += self.serialize_field(0x00, self.version)
         payload += self.serialize_field(0x01, self.value.serialize())
-        return payload
+        return bytes(payload)
 
 
 class FieldTag(IntEnum):
@@ -652,7 +652,7 @@ class Field(TlvSerializable):
                 payload += self.serialize_field(FieldTag.CONSTRAINT, constraint)
         if self.separator is not None:
             payload += self.serialize_field(FieldTag.SEPARATOR, self.separator)
-        return payload
+        return bytes(payload)
 
 
 class ParamGroup(FieldParam):
@@ -676,4 +676,4 @@ class ParamGroup(FieldParam):
         payload += self.serialize_field(0x01, self.iteration_type)
         for field in self.fields:
             payload += self.serialize_field(0x02, field.serialize())
-        return payload
+        return bytes(payload)
