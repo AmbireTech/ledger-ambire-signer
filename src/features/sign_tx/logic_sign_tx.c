@@ -366,14 +366,22 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             PRINTF("pluginFinalize.result %d successful\n", pluginFinalize.result);
             // Handle the right interface
             switch (pluginFinalize.uiType) {
-                case ETH_UI_TYPE_GENERIC:
+                case ETH_UI_TYPE_GENERIC: {
+                    size_t total_items = (size_t) pluginFinalize.numScreens +
+                                         (size_t) pluginProvideInfo.additionalScreens;
+                    if (total_items > MAX_PLUGIN_UI_ITEMS) {
+                        PRINTF("Too many plugin screens requested\n");
+                        report_finalize_error();
+                        error = SWO_NO_RESPONSE;
+                        goto end;
+                    }
                     // Use the dedicated ETH plugin UI
                     tmpContent.txContent.dataPresent = false;
                     // Add the number of screens + the number of additional screens to get the total
                     // number of screens needed.
-                    dataContext.tokenContext.pluginUiMaxItems =
-                        pluginFinalize.numScreens + pluginProvideInfo.additionalScreens;
+                    dataContext.tokenContext.pluginUiMaxItems = (uint8_t) total_items;
                     break;
+                }
 
                 // TODO: needs to be removed from the plugin SDK altogether
                 case ETH_UI_TYPE_AMOUNT_ADDRESS:

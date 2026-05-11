@@ -94,6 +94,9 @@ static bool setTagValuePairs(bool displayNetwork, bool fromPlugin) {
         for (pairIndex = 0; pairIndex < dataContext.tokenContext.pluginUiMaxItems; pairIndex++) {
             // for the next dataContext.tokenContext.pluginUiMaxItems items, get tag/value from
             // plugin_ui_get_item_internal()
+            if (nbPairs >= g_pairsList->nbPairs) {
+                return false;
+            }
             dataContext.tokenContext.pluginUiCurrentItem = pairIndex;
             if (!plugin_ui_get_item_internal((uint8_t *) plugin_buffers[counter].title,
                                              TAG_MAX_LEN,
@@ -216,8 +219,8 @@ static bool setTagValuePairs(bool displayNetwork, bool fromPlugin) {
  * transaction
  * @return The number of g_pairs to display
  */
-static uint8_t getNbPairs(bool displayNetwork, bool fromPlugin) {
-    uint8_t nbPairs = 0;
+static size_t getNbPairs(bool displayNetwork, bool fromPlugin) {
+    size_t nbPairs = 0;
 
     // Setup data to display
     if (fromPlugin) {
@@ -277,7 +280,7 @@ static uint8_t getNbPairs(bool displayNetwork, bool fromPlugin) {
 static bool ux_init(bool fromPlugin, uint8_t title_len, uint8_t finish_len) {
     uint64_t chain_id = 0;
     uint16_t buf_size = 0;
-    uint8_t nbPairs = 0;
+    size_t nbPairs = 0;
     bool displayNetwork = false;
 
     chain_id = get_tx_chain_id();
@@ -287,9 +290,13 @@ static bool ux_init(bool fromPlugin, uint8_t title_len, uint8_t finish_len) {
     }
     // Compute the number of g_pairs to display
     nbPairs = getNbPairs(displayNetwork, fromPlugin);
+    if (nbPairs > UINT8_MAX) {
+        PRINTF("Error: Too many review pairs: %u\n", (unsigned) nbPairs);
+        goto error;
+    }
 
     // Initialize the buffers
-    if (!ui_pairs_init(nbPairs)) {
+    if (!ui_pairs_init((uint8_t) nbPairs)) {
         // Initialization failed, cleanup and return
         goto error;
     }
