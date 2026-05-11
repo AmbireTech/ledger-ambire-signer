@@ -298,6 +298,15 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             return APDU_NO_RESPONSE;
         }
     }
+    // Reject pre-EIP-155 LEGACY transactions (no chain_id encoded in V). Their
+    // signature carries the legacy v base of 27/28 and is not domain-separated
+    // by chain, so any other EVM-compatible chain that still accepts
+    // unprotected legacy txs can replay it (CWE-325).
+    if ((context->txType == LEGACY) && (tmpContent.txContent.vLength == 0)) {
+        PRINTF("Rejecting pre-EIP-155 legacy transaction (no chain_id)\n");
+        report_finalize_error();
+        return SWO_NO_RESPONSE;
+    }
     // Store the hash
     if (g_tx_hash_ctx == NULL) {
         error = SWO_INSUFFICIENT_MEMORY;
