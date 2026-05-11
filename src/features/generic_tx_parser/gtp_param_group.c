@@ -80,12 +80,10 @@ bool format_param_group(const s_field *field) {
     const s_param_group *group = &field->param_group;
 
     if (group->iteration_type == GROUP_ITER_BUNDLED) {
-        // BUNDLED interleaving requires per-element formatters not yet exposed.
-        // Fall back to sequential order until the iteration infrastructure is extended.
-        PRINTF("GROUP: BUNDLED iteration not yet fully implemented; using SEQUENTIAL order\n");
+        PRINTF("GROUP: BUNDLED iteration unsupported\n");
+        return false;
     }
 
-    // SEQUENTIAL (and BUNDLED fallback): format each sub-field in declaration order.
     for (s_group_field_node *n = group->fields; n != NULL;
          n = (s_group_field_node *) n->node.next) {
         if (!format_field(n->field)) {
