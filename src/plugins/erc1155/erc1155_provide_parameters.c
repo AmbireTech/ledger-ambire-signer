@@ -114,6 +114,15 @@ static void handle_batch_transfer(ethPluginProvideParameter_t *msg, erc1155_cont
             }
             convertUint256BE(context->tokenId, sizeof(context->tokenId), &new_value);
             add256(&context->value, &new_value, &context->value);
+            // Reject crafted batches whose per-id totals wrap uint256. With
+            // the partial sum already stored in context->value, an overflow
+            // would silently misreport the aggregate "total quantity" shown
+            // to the user.
+            if (gt256(&new_value, &context->value)) {
+                PRINTF("Batch transfer aggregate quantity overflow\n");
+                msg->result = ETH_PLUGIN_RESULT_ERROR;
+                break;
+            }
             if (--context->values_array_len == 0) {
                 context->next_param = NONE;
             }
