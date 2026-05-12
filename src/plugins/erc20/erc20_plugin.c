@@ -230,8 +230,9 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
                                                   msg->msgLength,
                                                   g_chain_config->chain_id)) {
                         msg->result = ETH_PLUGIN_RESULT_ERROR;
+                    } else {
+                        msg->result = ETH_PLUGIN_RESULT_OK;
                     }
-                    msg->result = ETH_PLUGIN_RESULT_OK;
                     break;
                 case 2: {
                     PRINTF("Extra Data Length %d\n", context->extra_data_len);
