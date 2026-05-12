@@ -237,7 +237,13 @@ static void get_appname_and_tagline(const char **appname, const char **tagline) 
                 return;
             }
             size_t line_len = 1 + strlen(FORMAT_PLUGIN) + name_len;
-            // Allocate the buffer - will never be deallocated...
+            // Free any tagline left over from a previous home transition
+            // before allocating a new one; without this, repeated returns
+            // to the home screen in the same session accumulate orphaned
+            // buffers in the app-memory pool.
+            if (g_tag_line != NULL) {
+                APP_MEM_FREE_AND_NULL((void **) &g_tag_line);
+            }
             if (APP_MEM_CALLOC((void **) &g_tag_line, line_len) == true) {
                 snprintf(g_tag_line, line_len, FORMAT_PLUGIN, *appname);
                 *tagline = g_tag_line;
