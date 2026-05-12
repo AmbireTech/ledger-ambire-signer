@@ -358,7 +358,7 @@ static const nbgl_contentValueExt_t *handle_extra_data_enum(const s_field_table_
     const char *values[] = {formatted_value};
 
     if (snprintf(formatted_value, sizeof(formatted_value), "%u", enum_value->value) <= 0) {
-        return false;
+        return NULL;
     }
     return get_infolist_extension(enum_value->name, ARRAYLEN(keys), keys, values);
 }
