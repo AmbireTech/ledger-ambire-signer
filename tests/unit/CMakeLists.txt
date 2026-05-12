@@ -201,12 +201,6 @@ add_executable(test_param_raw
   ${BOLOS_SDK}/lib_tlv/tlv_library.c
 )
 
-# Disable -Wformat warnings for gtp_param_raw.c (uses BOLOS_SDK specific %.*h format)
-set_source_files_properties(
-  ${APP_DIR}/features/generic_tx_parser/gtp_param_raw.c
-  PROPERTIES COMPILE_FLAGS "-Wno-format -Wno-format-extra-args"
-)
-
 target_compile_definitions(test_param_raw PRIVATE
   HAVE_ECDSA
   HAVE_HASH
@@ -249,11 +243,6 @@ add_executable(test_field_validation
 
 # Disable pedantic warnings for SDK's tlv_library.c
 set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
-# Disable -Wformat warnings for gtp_param_raw.c (uses BOLOS_SDK specific %.*h format)
-set_source_files_properties(
-  ${APP_DIR}/features/generic_tx_parser/gtp_param_raw.c
-  PROPERTIES COMPILE_FLAGS "-Wno-format -Wno-format-extra-args"
-)
 target_compile_definitions(test_field_validation PRIVATE
   HAVE_ECDSA
   HAVE_HASH
