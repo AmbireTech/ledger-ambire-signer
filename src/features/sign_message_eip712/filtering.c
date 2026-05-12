@@ -814,6 +814,9 @@ bool filtering_calldata_info(const uint8_t *payload, uint8_t length) {
             get_public_key(calldata_info->spender, sizeof(calldata_info->spender));
             calldata_info->spender_state = CALLDATA_INFO_PARAM_SET;
             break;
+        case CALLDATA_FLAG_ADDR_FILTER:
+            calldata_info->spender_state = CALLDATA_INFO_PARAM_UNSET;
+            break;
         default:
             break;
     }
