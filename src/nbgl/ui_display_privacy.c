@@ -39,5 +39,9 @@ void ui_display_privacy_public_key(void) {
 }
 
 void ui_display_privacy_shared_secret(void) {
-    buildFirstPage("Provide public\nsecret key");
+    // The value released here is the X25519 shared secret derived from the
+    // device-held private key and the host-supplied peer public key — it is
+    // NOT a public value. Wording must make that clear so the user does not
+    // approve secret disclosure thinking it is a public-key export.
+    buildFirstPage("Provide derived\nshared secret");
 }
