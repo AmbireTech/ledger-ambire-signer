@@ -77,8 +77,9 @@ bool rlp_decode_length(uint8_t *buffer, uint32_t *fieldLength, uint32_t *offset,
                 *fieldLength = (*(buffer + 1) << 16) + (*(buffer + 2) << 8) + *(buffer + 3);
                 break;
             case RLP_STR_LEN_OF_BYTES_4:
-                *fieldLength = (*(buffer + 1) << 24) + (*(buffer + 2) << 16) +
-                               (*(buffer + 3) << 8) + *(buffer + 4);
+                *fieldLength = ((uint32_t) * (buffer + 1) << 24) |
+                               ((uint32_t) * (buffer + 2) << 16) |
+                               ((uint32_t) * (buffer + 3) << 8) | *(buffer + 4);
                 break;
             default:
                 return false;  // arbitrary 32 bits length limitation
@@ -101,8 +102,9 @@ bool rlp_decode_length(uint8_t *buffer, uint32_t *fieldLength, uint32_t *offset,
                 *fieldLength = (*(buffer + 1) << 16) + (*(buffer + 2) << 8) + *(buffer + 3);
                 break;
             case RLP_LIST_LEN_OF_BYTES_4:
-                *fieldLength = (*(buffer + 1) << 24) + (*(buffer + 2) << 16) +
-                               (*(buffer + 3) << 8) + *(buffer + 4);
+                *fieldLength = ((uint32_t) * (buffer + 1) << 24) |
+                               ((uint32_t) * (buffer + 2) << 16) |
+                               ((uint32_t) * (buffer + 3) << 8) | *(buffer + 4);
                 break;
             default:
                 return false;  // arbitrary 32 bits length limitation
