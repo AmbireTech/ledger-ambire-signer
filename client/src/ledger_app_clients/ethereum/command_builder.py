@@ -4,7 +4,7 @@
 import struct
 import math
 from enum import IntEnum
-from typing import Optional
+from typing import Optional, Union
 from ragger.bip import pack_derivation_path
 
 from .eip712.struct import EIP712FieldType, EIP712TypeDescOffset
@@ -89,7 +89,7 @@ class CommandBuilder:
                    ins: InsType,
                    p1: int,
                    p2: int,
-                   cdata: bytes = bytes()) -> bytes:
+                   cdata: Union[bytes, bytearray] = bytes()) -> bytes:
 
         header = bytearray()
         header.append(self._CLA)
@@ -97,7 +97,7 @@ class CommandBuilder:
         header.append(p1)
         header.append(p2)
         header.append(len(cdata))
-        return header + cdata
+        return bytes(header + cdata)
 
     def eip712_send_struct_def_struct_name(self, name: str) -> bytes:
         return self._serialize(InsType.EIP712_SEND_STRUCT_DEF,
@@ -200,7 +200,7 @@ class CommandBuilder:
         data += name.encode()
         data.append(len(sig))
         data += sig
-        return data
+        return bytes(data)
 
     def eip712_filtering_discarded_path(self, path: str) -> bytes:
         data = bytearray()
@@ -401,7 +401,7 @@ class CommandBuilder:
         apdus: list[bytes] = []
         payload = bytearray()
         if bip32_path is not None:
-            payload = pack_derivation_path(bip32_path)
+            payload = bytearray(pack_derivation_path(bip32_path))
         if rlp_data is not None:
             payload += rlp_data
         p1 = P1Type.SIGN_FIRST_CHUNK

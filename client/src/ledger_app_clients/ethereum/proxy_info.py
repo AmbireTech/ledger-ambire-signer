@@ -60,6 +60,6 @@ class ProxyInfo(TlvSerializable):
         payload += self.serialize_field(Tag.DELEGATION_TYPE, self.delegation_type)
         sig = self.signature
         if sig is None:
-            sig = TRUSTED_NAME_PARTNER.sign(payload)
+            sig = TRUSTED_NAME_PARTNER.sign(bytes(payload))
         payload += self.serialize_field(Tag.SIGNATURE, sig)
-        return payload
+        return bytes(payload)

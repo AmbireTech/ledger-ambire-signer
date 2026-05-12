@@ -125,6 +125,6 @@ class TrustedName(TlvSerializable):
         payload += self.serialize_field(Tag.SIG_KEY_ID, key_id)
         payload += self.serialize_field(Tag.SIG_ALGO, 1)
         if sig is None:
-            sig = partner.sign(payload)
+            sig = partner.sign(bytes(payload))
         payload += self.serialize_field(Tag.SIGNATURE, sig)
-        return payload
+        return bytes(payload)

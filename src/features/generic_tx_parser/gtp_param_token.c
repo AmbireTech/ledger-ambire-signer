@@ -61,14 +61,19 @@ bool format_param_token(const s_param_token *param, const char *name) {
     bool ret;
     s_parsed_value_collection collec = {0};
     uint8_t addr[ADDRESS_LENGTH];
-    const s_token_info *token_info = NULL;
     uint64_t chain_id;
-    const char *ticker = NULL;
 
     if (get_current_tx_info() == NULL) return false;
     chain_id = get_current_tx_info()->chain_id;
     if ((ret = value_get(&param->address, &collec))) {
         for (int i = 0; i < collec.size; ++i) {
+            // Reset per-iteration so a previous match cannot leak into the
+            // current row when the new address resolves through a different
+            // branch (CWE-451). The native path explicitly carries no
+            // s_token_info; the ERC-20 path must repopulate it from scratch.
+            const s_token_info *token_info = NULL;
+            const char *ticker = NULL;
+
             buf_shrink_expand(collec.value[i].ptr, collec.value[i].length, addr, sizeof(addr));
             if (match_native(addr, param)) {
                 ticker = get_displayable_ticker(&chain_id, g_chain_config, true);

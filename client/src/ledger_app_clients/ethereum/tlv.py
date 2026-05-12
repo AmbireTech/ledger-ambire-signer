@@ -54,7 +54,7 @@ class TlvSerializable:
         tlv += TlvSerializable.der_encode(tag)
         tlv += TlvSerializable.der_encode(len(value))
         tlv += value
-        return tlv
+        return bytes(tlv)
 
 
 def format_tlv(tag: int, value: Union[int, str, bytes, bytearray]) -> bytes:
