@@ -665,11 +665,19 @@ bool set_gating_warning(void) {
         return false;
     }
 
-    // Check the counter
+    // Bump the persistent counter. The uint8_t wraps every 256 signing
+    // operations; 256 is not a multiple of GATED_SIGNING_MAX_COUNT, so a
+    // naive `counter + 1` would shift the "display every Nth" cadence after
+    // each wrap and eventually skip a screen entirely. Detect the wrap and
+    // re-anchor to 1 so the next signing operation displays and the cycle
+    // resumes aligned.
     counter = N_storage.gating_counter + 1;
+    if (counter == 0) {
+        counter = 1;
+    }
     PRINTF("[GATING] Counter: %d/%d\n", counter, GATED_SIGNING_MAX_COUNT);
     nvm_write((void *) &N_storage.gating_counter, (void *) &counter, sizeof(counter));
-    if (((counter - 1) % GATED_SIGNING_MAX_COUNT) != 0) {
+    if ((counter % GATED_SIGNING_MAX_COUNT) != 1) {
         PRINTF("[GATING] Skip gating screen\n");
         return true;
     }
