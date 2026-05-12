@@ -26,6 +26,11 @@ MAX_BYTES_LEN: int = 70  # Max bytes to be logged fully
 
 # Local selector cache at module level
 LOCAL_SELECTORS = {}
+# Whether to fall back to 4byte.directory for selectors absent from the local
+# cache. Opt-in only — set from --online-selectors in main() so that running
+# the decoder over a captured APDU trace does not silently disclose its
+# function selectors to a third-party host (CWE-201).
+ALLOW_ONLINE_SELECTOR_LOOKUP = False
 CACHE_FILE = Path(__file__).parent / "function_selectors.json"
 
 logger = logging.getLogger(__name__)
@@ -49,6 +54,15 @@ def init_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Decode APDU replay file to extract transaction details.")
     parser.add_argument("--input", "-i", required=True, help="Input apdu replay file.")
     parser.add_argument("--verbose", "-v", action='store_true', help="Verbose mode")
+    parser.add_argument(
+        "--online-selectors",
+        action="store_true",
+        help=(
+            "Allow unknown function selectors to be looked up online against "
+            "4byte.directory. By default the decoder works offline and leaks "
+            "no replay data over the network (CWE-201)."
+        ),
+    )
     return parser
 
 
@@ -123,7 +137,12 @@ def decode_function_selector(selector: str) -> str:
         logger.debug(f"Found selector {selector} in local cache")
         return LOCAL_SELECTORS[selector]
 
-    # 2. Try online API as fallback
+    # 2. Try online API as fallback — only when the user explicitly asked for
+    # it. Without the opt-in we never leak the selector to 4byte.directory.
+    if not ALLOW_ONLINE_SELECTOR_LOOKUP:
+        logger.debug(f"Selector {selector} not in cache; online lookup disabled")
+        return f"Unknown (0x{selector})"
+
     logger.debug(f"Selector {selector} not in cache, querying API...")
     try:
         url = f"https://www.4byte.directory/api/v1/signatures/?hex_signature=0x{selector}"
@@ -1024,10 +1043,20 @@ def parse_apdu_line(line: str) -> Optional[bytes]:
 #          Main entry
 # ===============================================================================
 def main() -> None:
+    global ALLOW_ONLINE_SELECTOR_LOOKUP
+
     parser = init_parser()
     args = parser.parse_args()
 
     set_logging(args.verbose)
+
+    if args.online_selectors:
+        ALLOW_ONLINE_SELECTOR_LOOKUP = True
+        logger.warning(
+            "Online selector lookup enabled: unknown function selectors from "
+            "the replay will be sent to https://www.4byte.directory/. Do not "
+            "use this flag on sensitive traces."
+        )
 
     # Load selector cache at startup
     load_selector_cache()
