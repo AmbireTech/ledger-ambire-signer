@@ -17,7 +17,7 @@ typedef enum {
                           "Unknown")
 
 typedef struct {
-    const char address[ADDRESS_LENGTH];
+    char address[ADDRESS_LENGTH];
     uint16_t threshold;
     uint16_t signers_count;
     safe_role_t role;
