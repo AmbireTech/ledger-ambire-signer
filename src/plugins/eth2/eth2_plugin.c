@@ -105,23 +105,12 @@ void eth2_plugin_call(eth_plugin_msg_t message, void *parameters) {
                 }
                 case 4 + (PARAMETER_LENGTH * 6):  // deposit pubkey 2
                 {
-                    // Copy the last 16 bytes.
+                    // Copy the last 16 bytes. Storage stays raw (48-byte BLS
+                    // G1 compressed pubkey); the screen renders the full
+                    // value as hex in the QUERY_CONTRACT_UI handler.
                     memcpy(context->deposit_address + PARAMETER_LENGTH,
                            msg->parameter,
                            sizeof(context->deposit_address) - PARAMETER_LENGTH);
-
-                    // Use a temporary buffer to store the string representation.
-                    char tmp[BLS12381_G1_COMPRESSED_PUBKEY_LENGTH];
-                    if (!getEthDisplayableAddress((uint8_t *) context->deposit_address,
-                                                  tmp,
-                                                  sizeof(tmp),
-                                                  g_chain_config->chain_id)) {
-                        msg->result = ETH_PLUGIN_RESULT_ERROR;
-                        return;
-                    }
-
-                    // Copy back the string to the global variable.
-                    strlcpy(context->deposit_address, tmp, BLS12381_G1_COMPRESSED_PUBKEY_LENGTH);
                     msg->result = ETH_PLUGIN_RESULT_OK;
                     break;
                 }
@@ -212,7 +201,19 @@ void eth2_plugin_call(eth_plugin_msg_t message, void *parameters) {
                 } break;
                 case 1: {  // Deposit pubkey screen
                     strlcpy(msg->title, "Validator", msg->titleLength);
-                    strlcpy(msg->msg, context->deposit_address, msg->msgLength);
+                    if (msg->msgLength < 3) {
+                        msg->result = ETH_PLUGIN_RESULT_ERROR;
+                        break;
+                    }
+                    msg->msg[0] = '0';
+                    msg->msg[1] = 'x';
+                    if (bytes_to_lowercase_hex(&msg->msg[2],
+                                               msg->msgLength - 2,
+                                               context->deposit_address,
+                                               sizeof(context->deposit_address)) != 0) {
+                        msg->result = ETH_PLUGIN_RESULT_ERROR;
+                        break;
+                    }
                     msg->result = ETH_PLUGIN_RESULT_OK;
                 } break;
                 default:
