@@ -595,8 +595,23 @@ def process_data(aclient: EthAppClient,
                  filters: Optional[dict] = None) -> None:
     global app_client
     global current_path
+    global filtering_paths
+    global filtering_tokens
+    global filtering_calldatas
+    global sig_ctx
 
+    # Reset every piece of module-level state at the start of each call so
+    # that a previous filtered run cannot contaminate the next one. The
+    # previous behavior reset current_path but left filtering_paths,
+    # filtering_tokens, filtering_calldatas and sig_ctx populated whenever
+    # `filters` was omitted, leading to silent cross-test state leakage
+    # (CWE-664).
     current_path = []
+    filtering_paths = {}
+    filtering_tokens = []
+    filtering_calldatas = []
+    sig_ctx = {}
+
     # deepcopy because this function modifies the dict
     data_json = copy.deepcopy(data_json)
     app_client = aclient
