@@ -44,12 +44,12 @@ void ui_all_cleanup(void) {
 bool ui_pairs_init(uint8_t nbPairs) {
     ui_pairs_cleanup();
     // Allocate the pairsList memory
-    if (!APP_MEM_CALLOC((void **) &g_pairsList, sizeof(nbgl_contentTagValueList_t))) {
+    if (!APP_MEM_CALLOC((void **) &g_pairsList, sizeof(*g_pairsList))) {
         goto error;
     }
 
     // Allocate the pairs memory
-    if (!APP_MEM_CALLOC((void **) &g_pairs, nbPairs * sizeof(nbgl_contentTagValueList_t))) {
+    if (!APP_MEM_CALLOC((void **) &g_pairs, nbPairs * sizeof(*g_pairs))) {
         goto error;
     }
     g_pairsList->nbPairs = nbPairs;
