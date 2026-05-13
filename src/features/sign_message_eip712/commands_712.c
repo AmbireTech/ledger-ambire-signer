@@ -206,8 +206,17 @@ uint16_t handle_eip712_filtering(uint8_t p1,
     switch (p2) {
         case P2_FILT_ACTIVATE:
             if (!N_storage.verbose_eip712) {
-                ui_712_set_filtering_mode(EIP712_FILTERING_FULL);
                 ret = compute_schema_hash();
+                if (ret) {
+                    // Switch to filtering mode and lock the type system in
+                    // one atomic step: a host cannot append struct
+                    // definitions after the hash is fixed and so cannot sign
+                    // a message whose schema differs from the one the hash
+                    // covered. On hash-compute failure, both state changes
+                    // are skipped so the activate can be retried.
+                    ui_712_set_filtering_mode(EIP712_FILTERING_FULL);
+                    struct_state = DEFINED;
+                }
             }
             forget_known_assets();
             break;
