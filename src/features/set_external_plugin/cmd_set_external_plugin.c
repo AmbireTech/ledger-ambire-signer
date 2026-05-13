@@ -18,6 +18,14 @@ uint16_t handle_set_external_plugin(const uint8_t *workBuffer, uint8_t dataLengt
     uint32_t params[2];
 
     PRINTF("plugin Name Length: %d\n", pluginNameLength);
+    // Reject empty plugin names locally. The payload is also signed by Ledger
+    // PKI and a backend should never sign an empty name, but enforcing the
+    // bound here keeps the device side self-consistent and avoids depending
+    // on a backend invariant we can't observe.
+    if (pluginNameLength == 0) {
+        PRINTF("empty plugin name\n");
+        return SWO_INCORRECT_DATA;
+    }
     const size_t payload_size = 1 + pluginNameLength + ADDRESS_LENGTH + SELECTOR_SIZE;
 
     if (dataLength <= payload_size) {
