@@ -31,5 +31,5 @@ typedef struct {
 } s_param_group_context;
 
 bool handle_param_group_struct(const buffer_t *buf, s_param_group_context *context);
-bool format_param_group(const struct s_field *field);
+bool format_param_group(const struct s_field *field, uint8_t depth);
 void cleanup_param_group(s_param_group *group);

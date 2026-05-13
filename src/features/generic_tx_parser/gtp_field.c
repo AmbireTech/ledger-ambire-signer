@@ -250,7 +250,7 @@ bool verify_field_struct(const s_field_ctx *context) {
     return true;
 }
 
-bool format_field(s_field *field) {
+bool format_field(s_field *field, uint8_t depth) {
     bool ret;
 
     switch (field->param_type) {
@@ -291,7 +291,7 @@ bool format_field(s_field *field) {
             ret = format_param_network(&field->param_network, field->name);
             break;
         case PARAM_TYPE_GROUP:
-            ret = format_param_group(field);
+            ret = format_param_group(field, depth);
             cleanup_param_group(&field->param_group);
             break;
         default:
