@@ -376,7 +376,9 @@ bool filtering_calldata_spender(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_CALLDATA_SPENDER)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_byte(index, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
@@ -435,7 +437,9 @@ bool filtering_calldata_amount(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_CALLDATA_AMOUNT)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_byte(index, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
@@ -494,7 +498,9 @@ bool filtering_calldata_selector(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_CALLDATA_SELECTOR)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_byte(index, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
@@ -553,7 +559,9 @@ bool filtering_calldata_chain_id(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_CALLDATA_CHAIN_ID)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_byte(index, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
@@ -612,7 +620,9 @@ bool filtering_calldata_callee(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_CALLDATA_CALLEE)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_byte(index, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
@@ -671,7 +681,9 @@ bool filtering_calldata_value(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_CALLDATA_VALUE)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_byte(index, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
@@ -944,7 +956,9 @@ bool filtering_trusted_name(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_TRUSTED_NAME)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_nbytes((uint8_t *) name, sizeof(char) * name_len, (cx_hash_t *) &hash_ctx);
     hash_nbytes((uint8_t *) types, type_count, (cx_hash_t *) &hash_ctx);
     hash_nbytes((uint8_t *) sources, source_count, (cx_hash_t *) &hash_ctx);
@@ -1011,7 +1025,9 @@ bool filtering_date_time(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_DATETIME)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_nbytes((uint8_t *) name, sizeof(char) * name_len, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
@@ -1070,7 +1086,9 @@ bool filtering_amount_join_token(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_AMOUNT_JOIN_TOKEN)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_byte(token_idx, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
@@ -1141,7 +1159,9 @@ bool filtering_amount_join_value(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_AMOUNT_JOIN_VALUE)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_nbytes((uint8_t *) name, sizeof(char) * name_len, (cx_hash_t *) &hash_ctx);
     hash_byte(token_idx, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
@@ -1219,7 +1239,9 @@ bool filtering_raw_field(const uint8_t *payload,
     if (!sig_verif_start(&hash_ctx, FILT_MAGIC_RAW_FIELD)) {
         return false;
     }
-    hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc);
+    if (!hash_filtering_path((cx_hash_t *) &hash_ctx, discarded, path_crc)) {
+        return false;
+    }
     hash_nbytes((uint8_t *) name, sizeof(char) * name_len, (cx_hash_t *) &hash_ctx);
     if (!sig_verif_end(&hash_ctx, sig, sig_len)) {
         return false;
