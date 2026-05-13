@@ -342,10 +342,7 @@ eth_plugin_result_t eth_plugin_call(int method, void *parameter) {
         }
         case PLUGIN_TYPE_OLD_INTERNAL: {
             // Perform the call
-            for (i = 0;; i++) {
-                if (INTERNAL_ETH_PLUGINS[i].alias[0] == 0) {
-                    break;
-                }
+            for (i = 0; i < ARRAYLEN(INTERNAL_ETH_PLUGINS); i++) {
                 if (strcmp(alias, INTERNAL_ETH_PLUGINS[i].alias) == 0) {
                     ((PluginCall) PIC(INTERNAL_ETH_PLUGINS[i].impl))(method, parameter);
                     break;
