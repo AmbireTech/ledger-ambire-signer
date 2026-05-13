@@ -41,7 +41,7 @@ static bool handle_tlv_payload(const buffer_t *buf) {
         cleanup_field_constraints(&field);
         return false;
     }
-    if (!format_field(&field)) {
+    if (!format_field(&field, 0)) {
         memcpy(get_fields_hash_ctx(), hash_ctx_backup, sizeof(*hash_ctx_backup));
         APP_MEM_FREE(hash_ctx_backup);
         return false;

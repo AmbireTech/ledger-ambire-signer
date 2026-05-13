@@ -234,9 +234,10 @@ bool verify_field_struct(const s_field_ctx *context) {
     return true;
 }
 
-bool format_field(s_field *field) {
+bool format_field(s_field *field, uint8_t depth) {
     bool ret;
 
+    (void) depth;
     switch (field->param_type) {
         case PARAM_TYPE_RAW:
             ret = format_param_raw(field);
