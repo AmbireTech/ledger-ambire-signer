@@ -3,6 +3,11 @@
 #include "apdu_constants.h"
 #include "challenge.h"
 
+#ifdef HAVE_CHALLENGE_NO_CHECK
+#warning \
+    "HAVE_CHALLENGE_NO_CHECK is enabled: challenge generation is deterministic and challenge verification is bypassed. This must never reach a release build."
+#endif
+
 static uint32_t challenge;
 
 /**
