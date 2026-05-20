@@ -111,6 +111,11 @@ VARIANT_VALUES = $(SUPPORTED_CHAINS)
 # Enabling DEBUG flag will enable PRINTF and disable optimizations
 #DEBUG = 1
 
+# Enabling DEBUG_OVER_USB flag will enable PRINTF over USB
+# This will force DISABLE_OS_IO_STACK_USE and add USB CDC profile
+# The log can be displayed using a COM port terminal
+# DEBUG_OVER_USB = 1
+
 ########################################
 #     Application custom permissions   #
 ########################################
