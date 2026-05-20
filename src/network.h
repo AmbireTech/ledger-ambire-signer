@@ -5,6 +5,7 @@
 #include "chain_config.h"
 #include "nbgl_types.h"
 #include "lists.h"
+#include "caller_app.h"
 
 #define MAX_NETWORK_LEN 32  // 31 characters + '\0'
 
@@ -43,3 +44,4 @@ uint64_t get_tx_chain_id(void);
 const char *get_displayable_ticker(const uint64_t *chain_id,
                                    const chain_config_t *chain_cfg,
                                    bool dynamic);
+const char *get_clone_network_name(const caller_app_t *caller_app);

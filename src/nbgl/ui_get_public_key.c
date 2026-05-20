@@ -28,19 +28,17 @@ void ui_display_public_key(const uint64_t *chain_id) {
     const char *network_name = NULL;
     uint8_t title_len = 1;  // Initialize lengths to 1 for '\0' character
 
-    // - if a chain_id is given and it's - known, we specify its network name
-    //                                   - unknown, we don't specify anything
-    // - if no chain_id is given we specify the APPNAME (legacy behaviour)
-
     // Compute the title message length
     title_len += strlen(title_prefix);
-    if (chain_id != NULL) {
-        if (chain_is_ethereum_compatible(chain_id)) {
-            network_name = get_network_name_from_chain_id(chain_id);
-        }
+
+    if (g_chain_config->chain_id == ETHEREUM_MAINNET_CHAINID) {
+        network_name = get_network_name_from_chain_id(chain_id);
+        icon = get_network_icon_from_chain_id(chain_id);
     } else {
-        network_name = APPNAME;
+        network_name = get_clone_network_name(g_caller_app);
+        icon = get_clone_network_icon(g_caller_app);
     }
+
     if (network_name != NULL) {
         title_len += strlen(network_name);
         title_len += 1;  // for '\n'
@@ -60,11 +58,6 @@ void ui_display_public_key(const uint64_t *chain_id) {
     }
     strlcat(g_titleMsg, title_sufix, title_len);
 
-    if (chain_id != NULL) {
-        icon = get_network_icon_from_chain_id(chain_id);
-    } else {
-        icon = get_app_icon(false);
-    }
 #ifndef FUZZ
     nbgl_useCaseAddressReview(strings.common.toAddress,
                               NULL,

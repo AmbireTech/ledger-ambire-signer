@@ -254,3 +254,10 @@ bool app_compatible_with_chain_id(const uint64_t *chain_id) {
             (chain_is_ethereum_compatible(&g_chain_config->chain_id) &&
              chain_is_ethereum_compatible(chain_id)));
 }
+
+const char *get_clone_network_name(const caller_app_t *caller_app) {
+    if ((caller_app == NULL) || (caller_app->type != CALLER_TYPE_CLONE)) {
+        return NULL;
+    }
+    return caller_app->name;
+}
