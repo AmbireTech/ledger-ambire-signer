@@ -76,7 +76,7 @@ uint32_t eth2WithdrawalIndex;
 
 const internalStorage_t N_storage_real;
 
-caller_app_t *g_caller_app = NULL;
+const caller_app_t *g_caller_app = NULL;
 const chain_config_t *g_chain_config;
 
 void reset_app_context(void) {
@@ -411,12 +411,13 @@ void coin_main(eth_libargs_t *args) {
         if (args->chain_config != NULL) {
             g_chain_config = args->chain_config;
         }
-        if ((g_caller_app = args->caller_app) != NULL) {
+        if (args->caller_app != NULL) {
             if (g_chain_config != NULL) {
-                g_caller_app->type = CALLER_TYPE_CLONE;
+                args->caller_app->type = CALLER_TYPE_CLONE;
             } else {
-                g_caller_app->type = CALLER_TYPE_PLUGIN;
+                args->caller_app->type = CALLER_TYPE_PLUGIN;
             }
+            g_caller_app = args->caller_app;
         }
     }
     if (g_chain_config == NULL) {
