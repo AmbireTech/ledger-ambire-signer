@@ -1,6 +1,6 @@
 #include "fuzz_utils.h"
 
-#include "caller_api.h"
+#include "caller_app.h"
 #include "net_icons.gen.h"
 #include "app_mem_utils.h"
 

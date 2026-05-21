@@ -21,7 +21,7 @@
 #include <stdint.h>
 #include "swap_lib_calls.h"
 #include "chain_config.h"
-#include "caller_api.h"
+#include "caller_app.h"
 
 extern bool G_swap_checked;
 

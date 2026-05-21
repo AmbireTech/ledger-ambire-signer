@@ -1,5 +1,5 @@
 #include "ui_nbgl.h"
-#include "caller_api.h"
+#include "caller_app.h"
 #include "plugins.h"
 #include "network_icons.h"
 #include "network.h"
