@@ -173,7 +173,7 @@ typedef union {
     strDataTmp_t tmp;
 } strings_t;
 
-extern caller_app_t *caller_app;
+extern caller_app_t *g_caller_app;
 extern const chain_config_t *g_chain_config;
 
 extern tmpCtx_t tmpCtx;

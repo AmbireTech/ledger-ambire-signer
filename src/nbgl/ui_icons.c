@@ -12,11 +12,11 @@
  */
 const nbgl_icon_details_t *get_app_icon(bool caller_icon) {
     // Plugin or clone case: prefer the caller app's own icon
-    if (caller_icon && caller_app) {
-        if (caller_app->icon) {
-            return caller_app->icon;
+    if (caller_icon && g_caller_app) {
+        if (g_caller_app->icon) {
+            return g_caller_app->icon;
         }
-        PRINTF("%s: caller_app has no icon\n", __func__);
+        PRINTF("%s: g_caller_app has no icon\n", __func__);
     }
     // Default: Ethereum app icon
     return &ICONGLYPH;
@@ -29,11 +29,11 @@ const nbgl_icon_details_t *get_app_icon(bool caller_icon) {
  */
 const nbgl_icon_details_t *get_home_icon(void) {
     // Plugin or clone case: prefer the caller app's own icon
-    if (caller_app) {
-        if (caller_app->icon) {
-            return caller_app->icon;
+    if (g_caller_app) {
+        if (g_caller_app->icon) {
+            return g_caller_app->icon;
         }
-        PRINTF("%s: caller_app has no icon\n", __func__);
+        PRINTF("%s: g_caller_app has no icon\n", __func__);
     }
     // Default: Ethereum home icon
     return &ICONHOME;
@@ -48,8 +48,8 @@ const nbgl_icon_details_t *get_home_icon(void) {
  */
 const nbgl_icon_details_t *get_tx_icon(bool fromPlugin) {
     if (fromPlugin && (pluginType == PLUGIN_TYPE_EXTERNAL)) {
-        if ((caller_app != NULL) && (caller_app->name != NULL)) {
-            if (strcmp(strings.common.toAddress, caller_app->name) == 0) {
+        if ((g_caller_app != NULL) && (g_caller_app->name != NULL)) {
+            if (strcmp(strings.common.toAddress, g_caller_app->name) == 0) {
                 return get_app_icon(true);
             }
         }
@@ -57,7 +57,7 @@ const nbgl_icon_details_t *get_tx_icon(bool fromPlugin) {
         // Check with Alex if this is expected or a bug
         return NULL;
     }
-    if ((caller_app != NULL) && !fromPlugin) {
+    if ((g_caller_app != NULL) && !fromPlugin) {
         // Clone case
         return get_app_icon(true);
     }

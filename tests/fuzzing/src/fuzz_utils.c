@@ -13,7 +13,7 @@ txContent_t txContent = {0};
 dataContext_t dataContext = {0};
 tmpCtx_t tmpCtx = {0};
 strings_t strings = {0};
-caller_app_t *caller_app = NULL;
+caller_app_t *g_caller_app = NULL;
 const chain_config_t *g_chain_config = NULL;
 
 const network_icon_t g_network_icons[10] = {0};
