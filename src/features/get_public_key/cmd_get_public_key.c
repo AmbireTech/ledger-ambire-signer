@@ -12,7 +12,7 @@ uint16_t handle_get_public_key(uint8_t p1,
                                uint8_t dataLength,
                                unsigned int *tx) {
     bip32_path_t bip32;
-    cx_err_t error = CX_INTERNAL_ERROR;
+    uint64_t chain_id;
 
     if (!G_called_from_swap) {
         reset_app_context();
@@ -33,18 +33,26 @@ uint16_t handle_get_public_key(uint8_t p1,
     }
 
     tmpCtx.publicKeyContext.getChaincode = (p2 == P2_CHAINCODE);
-    CX_CHECK(get_public_key_string(
-        &bip32,
-        tmpCtx.publicKeyContext.publicKey.W,
-        tmpCtx.publicKeyContext.address,
-        (tmpCtx.publicKeyContext.getChaincode ? tmpCtx.publicKeyContext.chainCode : NULL),
-        g_chain_config->chain_id));
+    if (get_public_key_string(
+            &bip32,
+            tmpCtx.publicKeyContext.publicKey.W,
+            tmpCtx.publicKeyContext.address,
+            (tmpCtx.publicKeyContext.getChaincode ? tmpCtx.publicKeyContext.chainCode : NULL),
+            g_chain_config->chain_id)) {
+        return SWO_INCORRECT_DATA;
+    }
 
-    uint64_t chain_id = g_chain_config->chain_id;
     if (dataLength >= sizeof(chain_id)) {
         chain_id = u64_from_BE(dataBuffer, sizeof(chain_id));
         dataLength -= sizeof(chain_id);
         dataBuffer += sizeof(chain_id);
+        if ((g_chain_config->chain_id != ETHEREUM_MAINNET_CHAINID) &&
+            (chain_id != g_chain_config->chain_id)) {
+            // clones only accept their own chain ID
+            return SWO_INCORRECT_DATA;
+        }
+    } else {
+        chain_id = g_chain_config->chain_id;
     }
 
     (void) dataBuffer;  // to prevent dead increment warning
@@ -62,10 +70,7 @@ uint16_t handle_get_public_key(uint8_t p1,
              "0x%.*s",
              40,
              tmpCtx.publicKeyContext.address);
-    // don't unnecessarily pass the current app's chain ID
-    ui_display_public_key(g_chain_config->chain_id == chain_id ? NULL : &chain_id);
+    ui_display_public_key(&chain_id);
     // Return code will be sent after UI approve/cancel
-    error = 0;
-end:
-    return error;
+    return SWO_NO_RESPONSE;
 }

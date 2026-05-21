@@ -28,6 +28,18 @@ const nbgl_icon_details_t *get_network_icon_from_chain_id(const uint64_t *chain_
             return PIC(g_network_icons[i].icon);
         }
     }
+#else
+    // Nano devices don't have the array of icons, fallback on the app's icon
+    if (*chain_id == ETHEREUM_MAINNET_CHAINID) {
+        return &ICONGLYPH;
+    }
 #endif
     return NULL;
+}
+
+const nbgl_icon_details_t *get_clone_network_icon(const caller_app_t *caller_app) {
+    if ((caller_app == NULL) || (caller_app->type != CALLER_TYPE_CLONE)) {
+        return NULL;
+    }
+    return caller_app->icon;
 }

@@ -7,7 +7,7 @@
 #include "ui_nbgl.h"
 #include "plugins.h"
 #include "trusted_name.h"
-#include "caller_api.h"
+#include "caller_app.h"
 #include "network.h"
 #include "cmd_get_tx_simulation.h"
 #include "cmd_get_gating.h"

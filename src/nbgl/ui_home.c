@@ -1,7 +1,7 @@
 #include "nbgl_use_case.h"
 #include "app_mem_utils.h"
 #include "ui_nbgl.h"
-#include "caller_api.h"
+#include "caller_app.h"
 #include "network.h"
 #include "cmd_get_tx_simulation.h"
 #include "mem_utils.h"
@@ -226,13 +226,13 @@ static void prepare_and_display_home(const char *appname, const char *tagline, u
 static void get_appname_and_tagline(const char **appname, const char **tagline) {
     uint64_t mainnet_chain_id;
 
-    if (caller_app) {
-        *appname = caller_app->name;
+    if (g_caller_app) {
+        *appname = g_caller_app->name;
 
-        if (caller_app->type == CALLER_TYPE_PLUGIN) {
-            size_t name_len = strnlen(caller_app->name, MAX_PLUGIN_NAME_LEN + 1);
+        if (g_caller_app->type == CALLER_TYPE_PLUGIN) {
+            size_t name_len = strnlen(g_caller_app->name, MAX_PLUGIN_NAME_LEN + 1);
             if (name_len > MAX_PLUGIN_NAME_LEN) {
-                PRINTF("Plugin caller_app->name exceeds %u bytes; tagline omitted\n",
+                PRINTF("Plugin g_caller_app->name exceeds %u bytes; tagline omitted\n",
                        (unsigned) MAX_PLUGIN_NAME_LEN);
                 return;
             }

@@ -6,6 +6,7 @@
 #include "swap_utils.h"
 #include "main_std_app.h"
 #include "eth_plugin_interface.h"
+#include "caller_app.h"
 
 #define PLUGIN_ID_LENGTH 30
 
@@ -172,6 +173,7 @@ typedef union {
     strDataTmp_t tmp;
 } strings_t;
 
+extern const caller_app_t *g_caller_app;
 extern const chain_config_t *g_chain_config;
 
 extern tmpCtx_t tmpCtx;
