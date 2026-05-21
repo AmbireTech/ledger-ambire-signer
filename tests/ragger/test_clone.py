@@ -16,14 +16,14 @@ VALUE = 0.31415
 
 
 # Transfer on Clone app
-@pytest.mark.needs_setup('lib_mode')
-def test_clone_thundercore(scenario_navigator: NavigateWithScenario, test_name: str):
+@pytest.mark.needs_setup("lib_mode")
+def test_clone_thundercore_tx(scenario_navigator: NavigateWithScenario, test_name: str) -> None:
     tx_params: dict = {
         "nonce": NONCE,
-        "gasPrice": Web3.to_wei(GAS_PRICE, 'gwei'),
+        "gasPrice": Web3.to_wei(GAS_PRICE, "gwei"),
         "gas": GAS_LIMIT,
         "to": ADDR,
         "value": Web3.to_wei(VALUE, "ether"),
-        "chainId": 108
+        "chainId": 108,
     }
     common(scenario_navigator, tx_params, test_name, BIP32_PATH)
