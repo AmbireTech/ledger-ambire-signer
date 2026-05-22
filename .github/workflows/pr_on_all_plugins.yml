@@ -126,18 +126,21 @@ jobs:
           echo "Branch Name: $branch_name"
           echo "Title: $title"
           git status
+          git checkout -b "$branch_name"
           git commit -am "$title"
           # Set output
           echo "title=$title" >> $GITHUB_OUTPUT
           echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
 
       - name: Push commit
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.CI_BOT_TOKEN }}
-          branch: ${{ steps.commit-changes.outputs.branch_name }}
-          repository: LedgerHQ/${{ matrix.repo }}
-          force: true
+        env:
+          GH_TOKEN: ${{ secrets.CI_BOT_TOKEN }}
+        run: |
+          # Push the branch via the CI bot token.
+          branch_name="${{ steps.commit-changes.outputs.branch_name }}"
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/LedgerHQ/${{ matrix.repo }}.git"
+          git push -u origin "$branch_name" --force
 
       - name: Create 'auto' label if missing
         run: |

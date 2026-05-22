@@ -27,7 +27,7 @@ static bool handle_tlv_payload(const buffer_t *buf) {
         cleanup_field(&field);
         return false;
     }
-    if (!format_field(&field)) {
+    if (!format_field(&field, 0)) {
         return false;
     }
     while (((appState == APP_STATE_SIGNING_EIP712) || !tx_ctx_is_root()) &&

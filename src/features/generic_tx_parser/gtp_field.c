@@ -120,13 +120,20 @@ static bool handle_param_constraint(const tlv_data_t *data, s_field_ctx *context
         PRINTF("Error: Empty constraint value!\n");
         return false;
     }
+    // node->size is uint8_t; reject larger constraints rather than truncating
+    // (truncated size would later make the constraint-matching comparison
+    // silently always fail).
+    if (data->value.size > UINT8_MAX) {
+        PRINTF("Error: Constraint value too large (%d > %d)!\n", (int) data->value.size, UINT8_MAX);
+        return false;
+    }
     // Allocate new constraint node
     s_field_constraint *node = NULL;
     if (APP_MEM_CALLOC((void **) &node, sizeof(s_field_constraint)) == false) {
         PRINTF("Error: Failed to allocate memory for constraint node!\n");
         return false;
     }
-    node->size = data->value.size;
+    node->size = (uint8_t) data->value.size;
     // Allocate value buffer
     if (APP_MEM_CALLOC((void **) &node->value, data->value.size) == false) {
         PRINTF("Error: Failed to allocate memory for constraint value!\n");
@@ -243,7 +250,7 @@ bool verify_field_struct(const s_field_ctx *context) {
     return true;
 }
 
-bool format_field(s_field *field) {
+bool format_field(s_field *field, uint8_t depth) {
     bool ret;
 
     switch (field->param_type) {
@@ -284,7 +291,7 @@ bool format_field(s_field *field) {
             ret = format_param_network(&field->param_network, field->name);
             break;
         case PARAM_TYPE_GROUP:
-            ret = format_param_group(field);
+            ret = format_param_group(field, depth);
             cleanup_param_group(&field->param_group);
             break;
         default:

@@ -55,13 +55,20 @@
  * @brief Decode an RLP encoded field - see
  * https://github.com/ethereum/wiki/wiki/RLP
  * @param [in] buffer buffer containing the RLP encoded field to decode
+ * @param [in] bufferLength number of bytes readable starting from buffer; the
+ * function reads at most 5 bytes (1 prefix + 4 length bytes for the longest
+ * RLP encoding)
  * @param [out] fieldLength length of the RLP encoded field
  * @param [out] offset offset to the beginning of the RLP encoded field from the
  * buffer
  * @param [out] list true if the field encodes a list, false if it encodes a
  * string
- * @return true if the RLP header is consistent
+ * @return true if the RLP header is consistent and fits within bufferLength
  */
-bool rlp_decode_length(uint8_t *buffer, uint32_t *fieldLength, uint32_t *offset, bool *list);
+bool rlp_decode_length(uint8_t *buffer,
+                       uint32_t bufferLength,
+                       uint32_t *fieldLength,
+                       uint32_t *offset,
+                       bool *list);
 
 bool rlp_can_decode(uint8_t *buffer, uint32_t bufferLength, bool *valid);

@@ -85,6 +85,6 @@ typedef struct {
 
 bool handle_field_struct(const buffer_t *buf, s_field_ctx *context);
 bool verify_field_struct(const s_field_ctx *context);
-bool format_field(s_field *field);
+bool format_field(s_field *field, uint8_t depth);
 void cleanup_field_constraints(s_field *field);
 void cleanup_field(s_field *field);

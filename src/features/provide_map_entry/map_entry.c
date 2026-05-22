@@ -13,6 +13,11 @@
 
 #define STRUCT_VERSION 0x01
 
+// Cap on accepted map entries to bound the shared app-memory pool. Map entries
+// are scoped to one transaction (cleared by reset_app_context), so this only
+// needs to cover the largest legitimate per-tx use, not aggregate session use.
+#define MAX_MAP_ENTRIES 32
+
 static s_map_entry *g_map_entry_list = NULL;
 
 static bool handle_version(const tlv_data_t *data, s_map_entry_ctx *context) {
@@ -135,6 +140,10 @@ bool verify_map_entry_struct(const s_map_entry_ctx *context) {
     }
     if (!verify_signature(context)) {
         PRINTF("Error: Signature verification failed for MAP_ENTRY descriptor!\n");
+        return false;
+    }
+    if (flist_size((flist_node_t **) &g_map_entry_list) >= MAX_MAP_ENTRIES) {
+        PRINTF("Error: MAP_ENTRY list cap reached (%d)\n", MAX_MAP_ENTRIES);
         return false;
     }
     if ((entry = APP_MEM_ALLOC(sizeof(*entry))) == NULL) {

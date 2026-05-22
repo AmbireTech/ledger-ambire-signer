@@ -60,10 +60,10 @@ typedef enum {
 
 typedef struct gating_s {
     uint64_t chain_id;
-    const uint8_t hash_selector[CX_SHA224_SIZE];  // function selector for SignTx or schemaHash for EIP712
-    const char intro_msg[GATING_MSG_SIZE + 1];    // +1 for the null terminator
-    const char tiny_url[GATING_URL_SIZE + 1];     // +1 for the null terminator
-    const uint8_t address[ADDRESS_LENGTH];        // Contract address to check in the gating
+    uint8_t hash_selector[CX_SHA224_SIZE];  // function selector for SignTx or schemaHash for EIP712
+    char intro_msg[GATING_MSG_SIZE + 1];    // +1 for the null terminator
+    char tiny_url[GATING_URL_SIZE + 1];     // +1 for the null terminator
+    uint8_t address[ADDRESS_LENGTH];        // Contract address to check in the gating
     tx_type_t type;
 } gating_t;
 
@@ -129,7 +129,7 @@ static bool parse_hash_selector(const tlv_data_t *data, s_gating_ctx *context) {
         PRINTF("HASH/SELECTOR: invalid size\n");
         return false;
     }
-    return tlv_get_hash(data, (uint8_t *) context->gating->hash_selector, data->value.size);
+    return tlv_get_hash(data, context->gating->hash_selector, data->value.size);
 }
 
 /**
@@ -140,7 +140,7 @@ static bool parse_hash_selector(const tlv_data_t *data, s_gating_ctx *context) {
  * @return whether it was successful
  */
 static bool parse_address(const tlv_data_t *data, s_gating_ctx *context) {
-    if (!tlv_get_address(data, (uint8_t *) context->gating->address)) {
+    if (!tlv_get_address(data, context->gating->address)) {
         return false;
     }
     if (is_zeroes_buffer(context->gating->address, ADDRESS_LENGTH)) {
@@ -170,7 +170,7 @@ static bool parse_chain_id(const tlv_data_t *data, s_gating_ctx *context) {
  */
 static bool parse_intro_msg(const tlv_data_t *data, s_gating_ctx *context) {
     if (!tlv_get_printable_string(data,
-                                  (char *) context->gating->intro_msg,
+                                  context->gating->intro_msg,
                                   0,
                                   sizeof(context->gating->intro_msg))) {
         PRINTF("INTRO_MSG: error\n");
@@ -188,7 +188,7 @@ static bool parse_intro_msg(const tlv_data_t *data, s_gating_ctx *context) {
  */
 static bool parse_tiny_url(const tlv_data_t *data, s_gating_ctx *context) {
     if (!tlv_get_printable_string(data,
-                                  (char *) context->gating->tiny_url,
+                                  context->gating->tiny_url,
                                   0,
                                   sizeof(context->gating->tiny_url))) {
         PRINTF("TINY_URL: error\n");
@@ -665,11 +665,19 @@ bool set_gating_warning(void) {
         return false;
     }
 
-    // Check the counter
+    // Bump the persistent counter. The uint8_t wraps every 256 signing
+    // operations; 256 is not a multiple of GATED_SIGNING_MAX_COUNT, so a
+    // naive `counter + 1` would shift the "display every Nth" cadence after
+    // each wrap and eventually skip a screen entirely. Detect the wrap and
+    // re-anchor to 1 so the next signing operation displays and the cycle
+    // resumes aligned.
     counter = N_storage.gating_counter + 1;
+    if (counter == 0) {
+        counter = 1;
+    }
     PRINTF("[GATING] Counter: %d/%d\n", counter, GATED_SIGNING_MAX_COUNT);
     nvm_write((void *) &N_storage.gating_counter, (void *) &counter, sizeof(counter));
-    if (((counter - 1) % GATED_SIGNING_MAX_COUNT) != 0) {
+    if ((counter % GATED_SIGNING_MAX_COUNT) != 1) {
         PRINTF("[GATING] Skip gating screen\n");
         return true;
     }

@@ -639,6 +639,20 @@ static bool ui_712_format_datetime(const uint8_t *data,
         snprintf(strings.tmp.tmp, sizeof(strings.tmp.tmp), "Unlimited");
         return true;
     }
+    // u64_from_BE() reads from the front of the buffer; for a wide EIP-712
+    // type (e.g. uint256), the trailing 8 bytes carry the value and the
+    // leading bytes are zero-padding. Strip the padding before decoding so
+    // the displayed timestamp matches what is being hashed, and refuse the
+    // value entirely if it doesn't fit in a uint64.
+    if (length > sizeof(uint64_t)) {
+        uint8_t leading = length - sizeof(uint64_t);
+        if (!is_zeroes_buffer(data, leading)) {
+            PRINTF("Datetime value too large for time_t\n");
+            return false;
+        }
+        data += leading;
+        length = sizeof(uint64_t);
+    }
     timestamp = u64_from_BE(data, length);
     return time_format_to_utc(&timestamp, strings.tmp.tmp, sizeof(strings.tmp.tmp));
 }

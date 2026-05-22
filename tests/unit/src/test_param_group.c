@@ -21,8 +21,9 @@
 // Mock functions
 // =============================================================================
 
-bool __wrap_format_field(s_field *field) {
+bool __wrap_format_field(s_field *field, uint8_t depth) {
     check_expected(field->name);
+    check_expected(depth);
     return (bool) mock();
 }
 
@@ -86,7 +87,7 @@ static void test_group_empty(void **state) {
     (void) state;
     s_field outer = make_group_field(GROUP_ITER_SEQUENTIAL, NULL);
     // No sub-fields: format_field must never be called.
-    assert_true(format_param_group(&outer));
+    assert_true(format_param_group(&outer, 0));
 }
 
 static void test_group_sequential_one_subfield(void **state) {
@@ -96,9 +97,10 @@ static void test_group_sequential_one_subfield(void **state) {
     s_field outer = make_group_field(GROUP_ITER_SEQUENTIAL, &node);
 
     expect_string(__wrap_format_field, field->name, "Amount");
+    expect_value(__wrap_format_field, depth, 1);
     will_return(__wrap_format_field, true);
 
-    assert_true(format_param_group(&outer));
+    assert_true(format_param_group(&outer, 0));
 }
 
 static void test_group_sequential_two_subfields(void **state) {
@@ -109,13 +111,15 @@ static void test_group_sequential_two_subfields(void **state) {
     MAKE_NODE(node1, &sub1, &node2);
     s_field outer = make_group_field(GROUP_ITER_SEQUENTIAL, &node1);
 
-    // Both sub-fields called in declaration order.
+    // Both sub-fields called in declaration order with the depth bumped by 1.
     expect_string(__wrap_format_field, field->name, "Token ID");
+    expect_value(__wrap_format_field, depth, 1);
     will_return(__wrap_format_field, true);
     expect_string(__wrap_format_field, field->name, "Value");
+    expect_value(__wrap_format_field, depth, 1);
     will_return(__wrap_format_field, true);
 
-    assert_true(format_param_group(&outer));
+    assert_true(format_param_group(&outer, 0));
 }
 
 /**
@@ -131,7 +135,7 @@ static void test_group_bundled_rejected(void **state) {
     s_field outer = make_group_field(GROUP_ITER_BUNDLED, &node1);
 
     // format_field must never be called when iteration type is BUNDLED.
-    assert_false(format_param_group(&outer));
+    assert_false(format_param_group(&outer, 0));
 }
 
 static void test_group_subfield_failure_propagates(void **state) {
@@ -144,9 +148,25 @@ static void test_group_subfield_failure_propagates(void **state) {
 
     // First sub-field fails; second must never be called.
     expect_string(__wrap_format_field, field->name, "Token ID");
+    expect_value(__wrap_format_field, depth, 1);
     will_return(__wrap_format_field, false);
 
-    assert_false(format_param_group(&outer));
+    assert_false(format_param_group(&outer, 0));
+}
+
+/**
+ * Passing a depth at or above the cap must short-circuit before any sub-field
+ * is visited. format_field() must never be invoked.
+ */
+static void test_group_depth_cap_rejects(void **state) {
+    (void) state;
+    MAKE_FIELD(sub, "Amount", PARAM_TYPE_RAW);
+    MAKE_NODE(node, &sub, NULL);
+    s_field outer = make_group_field(GROUP_ITER_SEQUENTIAL, &node);
+
+    // 8 = MAX_PARAM_GROUP_DEPTH. No expect/will_return: format_field is
+    // unreachable when the cap fires.
+    assert_false(format_param_group(&outer, 8));
 }
 
 // =============================================================================
@@ -160,6 +180,7 @@ int main(void) {
         cmocka_unit_test(test_group_sequential_two_subfields),
         cmocka_unit_test(test_group_bundled_rejected),
         cmocka_unit_test(test_group_subfield_failure_propagates),
+        cmocka_unit_test(test_group_depth_cap_rejects),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -76,7 +76,27 @@ bool handle_param_group_struct(const buffer_t *buf, s_param_group_context *conte
 // Formatting
 // =============================================================================
 
-bool format_param_group(const s_field *field) {
+// Cap on nested PARAM_TYPE_GROUP levels to bound the recursion between
+// format_field() and format_param_group() on hostile descriptors.
+#define MAX_PARAM_GROUP_DEPTH 8
+
+/**
+ * @brief Render every sub-field of a PARAM_TYPE_GROUP field.
+ *
+ * Walks the linked list of sub-fields and dispatches each one back through
+ * format_field(), which may recurse into this function for nested groups.
+ *
+ * @param[in] field outer field whose param_group is being rendered
+ * @param[in] depth current nesting level; pass 0 from the top-level
+ *                  format_field() call site (cmd_field.c). format_field()
+ *                  forwards this value unchanged, so the increment happens
+ *                  here when descending into sub-fields. Calls with
+ *                  `depth >= MAX_PARAM_GROUP_DEPTH` are refused to bound
+ *                  the worst-case stack usage on hostile descriptors.
+ * @return true if every sub-field rendered, false on depth-cap, unsupported
+ *         iteration type, or any sub-field failure (short-circuit)
+ */
+bool format_param_group(const s_field *field, uint8_t depth) {
     const s_param_group *group = &field->param_group;
 
     if (group->iteration_type == GROUP_ITER_BUNDLED) {
@@ -84,9 +104,13 @@ bool format_param_group(const s_field *field) {
         return false;
     }
 
+    if (depth >= MAX_PARAM_GROUP_DEPTH) {
+        PRINTF("GROUP: nesting too deep (>= %u)\n", MAX_PARAM_GROUP_DEPTH);
+        return false;
+    }
     for (s_group_field_node *n = group->fields; n != NULL;
          n = (s_group_field_node *) n->node.next) {
-        if (!format_field(n->field)) {
+        if (!format_field(n->field, depth + 1)) {
             return false;
         }
     }
