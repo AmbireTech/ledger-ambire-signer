@@ -49,10 +49,7 @@ typedef struct {
     s_struct_712_field *fields;
 } s_struct_712;
 
-const void *get_array_in_mem(const void *ptr, uint8_t *array_size);
-const char *get_string_in_mem(const uint8_t *ptr, uint8_t *string_length);
 const char *get_struct_field_typename(const s_struct_712_field *ptr);
-e_array_type struct_field_array_depth(const uint8_t *ptr, uint8_t *array_size);
 const s_struct_712 *get_struct_list(void);
 const s_struct_712 *get_structn(const char *name_ptr, uint8_t name_length);
 bool set_struct_name(uint8_t length, const uint8_t *name);
