@@ -116,8 +116,13 @@ uint16_t io_seproxyhal_send_status(uint16_t sw, uint32_t tx, bool reset, bool id
     if (reset) {
         reset_app_context();
     }
+    if (tx > (sizeof(G_io_tx_buffer) - sizeof(sw))) {
+        // writing this SW at this offset would go out of bounds
+        tx = 0;
+        sw = SWO_INSUFFICIENT_MEMORY;
+    }
     U2BE_ENCODE(G_io_tx_buffer, tx, sw);
-    tx += 2;
+    tx += sizeof(sw);
     err = io_exchange(CHANNEL_APDU | IO_RETURN_AFTER_TX, tx);
     if (idle) {
         // Display back the original UX
@@ -309,6 +314,8 @@ void app_main(void) {
         BEGIN_TRY {
             TRY {
                 rx = io_exchange(CHANNEL_APDU | flags, tx);
+                tx = 0;
+                flags = 0;
 
                 if (apdu_parser(&cmd, G_io_tx_buffer, rx) == false) {
                     PRINTF("=> BAD LENGTH: %d\n", rx);
@@ -323,9 +330,6 @@ void app_main(void) {
                            cmd.lc,
                            cmd.lc,
                            cmd.data);
-
-                    tx = 0;
-                    flags = 0;
                     sw = handleApdu(&cmd, &flags, &tx);
                 }
             }
@@ -358,8 +362,13 @@ void app_main(void) {
         }
 
         // Report Status Word
+        if (tx > (sizeof(G_io_tx_buffer) - sizeof(sw))) {
+            // writing this SW at this offset would go out of bounds
+            tx = 0;
+            sw = SWO_INSUFFICIENT_MEMORY;
+        }
         U2BE_ENCODE(G_io_tx_buffer, tx, sw);
-        tx += 2;
+        tx += sizeof(sw);
 
         // If we are in swap mode and have validated a TX, we send it and immediately quit
         if (quit_now) {

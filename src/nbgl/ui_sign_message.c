@@ -8,10 +8,14 @@
 static void ui_191_finish_cb(bool confirm) {
     if (confirm) {
         io_seproxyhal_touch_signMessage_ok();
+#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_MESSAGE_SIGNED, ui_idle);
+#endif
     } else {
         io_seproxyhal_touch_signMessage_cancel();
+#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_MESSAGE_REJECTED, ui_idle);
+#endif
     }
     ui_all_cleanup();
 }
@@ -43,6 +47,7 @@ void ui_191_start(const char *message) {
     g_pairs->item = "Message";
     g_pairs->value = message;
 
+#ifndef FUZZ
     nbgl_useCaseAdvancedReview(TYPE_MESSAGE,
                                g_pairsList,
                                &ICON_APP_REVIEW,
@@ -52,4 +57,5 @@ void ui_191_start(const char *message) {
                                NULL,
                                &warning,
                                ui_191_finish_cb);
+#endif
 }

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.22.1](../../compare/1.22.0...1.22.1) - 2026-05-27
+
+### Fixed
+
+- Instability in APDU communication handling
+
 ## [1.22.0](../../compare/1.21.3...1.22.0) - 2026-04-10
 
 ### Added
