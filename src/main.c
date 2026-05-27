@@ -325,6 +325,7 @@ void app_main(void) {
         BEGIN_TRY {
             TRY {
                 int rx = io_recv_command();
+                tx = 0;
 
                 if (apdu_parser(&cmd, G_io_apdu_buffer, (size_t) rx) == false) {
                     PRINTF("=> BAD LENGTH: %d\n", rx);
@@ -339,8 +340,6 @@ void app_main(void) {
                            cmd.lc,
                            cmd.lc,
                            cmd.data);
-
-                    tx = 0;
                     sw = handleApdu(&cmd, &tx);
                 }
             }
