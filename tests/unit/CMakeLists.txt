@@ -1001,3 +1001,34 @@ target_link_libraries(test_path_slice PUBLIC
 )
 
 add_test(test_path_slice test_path_slice)
+
+# gtp_field_table backend test
+add_executable(test_field_table
+  ${SRC_DIR}/test_field_table.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_field_table.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+)
+
+target_include_directories(test_field_table PRIVATE
+  ${APP_DIR}/features/sign_message_eip712
+  ${APP_DIR}/features/provide_trusted_name
+)
+
+target_compile_definitions(test_field_table PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_field_table PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_field_table test_field_table)
