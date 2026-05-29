@@ -458,3 +458,21 @@ target_link_libraries(test_param_calldata PUBLIC
 )
 
 add_test(test_param_calldata test_param_calldata)
+
+# RLP utils test (sign_tx)
+add_executable(test_rlp_utils
+  ${SRC_DIR}/test_rlp_utils.c
+  ${APP_DIR}/features/sign_tx/rlp_utils.c
+)
+
+target_include_directories(test_rlp_utils PRIVATE
+  ${APP_DIR}/features/sign_tx
+)
+
+target_link_libraries(test_rlp_utils PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_rlp_utils test_rlp_utils)
