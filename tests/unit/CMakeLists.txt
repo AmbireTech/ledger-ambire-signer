@@ -1260,3 +1260,43 @@ target_link_libraries(test_cmd_field_tx_info PUBLIC
 )
 
 add_test(test_cmd_field_tx_info test_cmd_field_tx_info)
+
+# eth_swap_utils (parse_swap_config + getters)
+add_executable(test_eth_swap_utils
+  ${SRC_DIR}/test_eth_swap_utils.c
+  ${APP_DIR}/swap/eth_swap_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_eth_swap_utils PRIVATE
+  ${APP_DIR}/swap
+  ${APP_DIR}/features/sign_tx
+  ${BOLOS_SDK}/io_legacy/include
+)
+
+target_compile_definitions(test_eth_swap_utils PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_SWAP                       # exposes SWAP_EC_* in swap_error_code_helpers.h
+  OS_IO_SEPH_BUFFER_SIZE=272      # matches the Stax/Flex target define
+)
+
+target_link_libraries(test_eth_swap_utils PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_displayable_ticker
+)
+
+add_test(test_eth_swap_utils test_eth_swap_utils)
