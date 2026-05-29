@@ -567,3 +567,36 @@ target_link_libraries(test_utils PUBLIC
 )
 
 add_test(test_utils test_utils)
+
+# network resolution test
+add_executable(test_network
+  ${SRC_DIR}/test_network.c
+  ${APP_DIR}/network.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_network PRIVATE
+  ${APP_DIR}/features/provide_network_info
+  ${APP_DIR}/features/sign_tx
+)
+
+target_compile_definitions(test_network PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_network PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_network test_network)
