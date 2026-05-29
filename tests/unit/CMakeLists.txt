@@ -1124,3 +1124,53 @@ target_link_libraries(test_data_path PUBLIC
 )
 
 add_test(test_data_path test_data_path)
+
+# gtp_value test
+add_executable(test_value
+  ${SRC_DIR}/test_value.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+target_include_directories(test_value PRIVATE
+  ${APP_DIR}/features/provide_map_entry
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_value PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_value PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=data_path_get
+                      -Wl,--wrap=data_path_cleanup
+                      -Wl,--wrap=handle_data_path_struct
+                      -Wl,--wrap=get_current_tx_from
+                      -Wl,--wrap=get_current_tx_to
+                      -Wl,--wrap=get_current_tx_amount
+                      -Wl,--wrap=get_current_tx_info
+                      -Wl,--wrap=get_matching_map_entry
+)
+
+add_test(test_value test_value)
