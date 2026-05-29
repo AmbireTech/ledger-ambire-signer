@@ -70,7 +70,10 @@ uint32_t cx_math_mult_no_throw(uint8_t *r, const uint8_t *a, const uint8_t *b, s
     return 0;  // CX_OK
 }
 
-bool handle_data_path_struct(const void *data, void *context) {
+// The next three stubs are marked weak so test targets that link the real
+// gtp_data_path.c (e.g. test_data_path) can override them without a
+// multiple-definition link error.
+__attribute__((weak)) bool handle_data_path_struct(const void *data, void *context) {
     (void) data;
     (void) context;
     return true;
@@ -84,11 +87,11 @@ bool tlv_parse(const uint8_t *payload, uint16_t size, void *handler, void *conte
     return true;
 }
 
-void data_path_cleanup(const void *collection) {
+__attribute__((weak)) void data_path_cleanup(const void *collection) {
     (void) collection;
 }
 
-bool data_path_get(const void *data_path, void *collection) {
+__attribute__((weak)) bool data_path_get(const void *data_path, void *collection) {
     (void) data_path;
     (void) collection;
     return true;
