@@ -1300,3 +1300,20 @@ target_link_libraries(test_eth_swap_utils PUBLIC
 )
 
 add_test(test_eth_swap_utils test_eth_swap_utils)
+
+# ERC-20 token info registry
+add_executable(test_token_info
+  ${SRC_DIR}/test_token_info.c
+  ${APP_DIR}/features/provide_erc20_token_information/token_info.c
+  ${APP_DIR}/mem_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+target_link_libraries(test_token_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_token_info test_token_info)
