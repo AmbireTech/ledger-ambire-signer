@@ -256,6 +256,20 @@ static void test_get_tx_chain_id_unknown_type_returns_zero(void **state) {
     assert_int_equal(get_tx_chain_id(), 0);
 }
 
+static void test_get_network_as_string_uses_current_tx_chain_id(void **state) {
+    (void) state;
+    // get_network_as_string() is a thin wrapper that reads the current
+    // tx_chain_id and forwards to get_network_as_string_from_chain_id.
+    txContext.txType = EIP1559;
+    memset(tmpContent.txContent.chainID.value, 0, INT256_LENGTH);
+    tmpContent.txContent.chainID.value[0] = 0x00;
+    tmpContent.txContent.chainID.value[1] = 0x89;  // 137
+    tmpContent.txContent.chainID.length = 2;
+    char out[16] = {0};
+    assert_true(get_network_as_string(out, sizeof(out)));
+    assert_string_equal(out, "Polygon");
+}
+
 // =============================================================================
 // get_displayable_ticker
 // =============================================================================
@@ -349,6 +363,7 @@ int main(void) {
         cmocka_unit_test_setup(test_get_tx_chain_id_eip2930_reads_tmpcontent, reset_globals),
         cmocka_unit_test_setup(test_get_tx_chain_id_eip7702_reads_tmpcontent, reset_globals),
         cmocka_unit_test_setup(test_get_tx_chain_id_unknown_type_returns_zero, reset_globals),
+        cmocka_unit_test_setup(test_get_network_as_string_uses_current_tx_chain_id, reset_globals),
         cmocka_unit_test_setup(test_displayable_ticker_known_returns_table, reset_globals),
         cmocka_unit_test_setup(test_displayable_ticker_falls_back_to_chain_cfg, reset_globals),
         cmocka_unit_test_setup(test_displayable_ticker_unknown_returns_placeholder, reset_globals),

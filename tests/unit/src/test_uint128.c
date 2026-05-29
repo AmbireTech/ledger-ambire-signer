@@ -470,6 +470,28 @@ static void test_convertUint64BEto128_small_positive(void **state) {
     assert_int_equal(LOWER(r), 0x1234ULL);
 }
 
+static void test_tostring128_exact_fit_no_room_for_nul(void **state) {
+    (void) state;
+    // 99 in base 10 produces exactly 2 digits — the loop fills out[0] and
+    // out[1] without tripping the in-loop guard, exiting with
+    // offset==outLength. The post-loop guard then rejects the call
+    // because there is no room left for the NUL terminator.
+    char out[2];
+    uint128_t n = {{0, 99}};
+    assert_false(tostring128(&n, 10, out, sizeof(out)));
+}
+
+static void test_convertUint64BEto128_oversize_length_is_noop(void **state) {
+    (void) state;
+    // length > sizeof(tmp) (16) → early return without touching target.
+    uint8_t buf[17] = {0};
+    uint128_t r = {{0xDEADBEEFDEADBEEFULL, 0xCAFEBABECAFEBABEULL}};
+    convertUint64BEto128(buf, 17, &r);
+    // Untouched.
+    assert_int_equal(UPPER(r), 0xDEADBEEFDEADBEEFULL);
+    assert_int_equal(LOWER(r), 0xCAFEBABECAFEBABEULL);
+}
+
 static void test_convertUint64BEto128_negative_sign_extends(void **state) {
     (void) state;
     // MSB set → treated as negative → upper bytes are sign-extended (0xFF).
@@ -513,7 +535,9 @@ int main(void) {
         cmocka_unit_test(test_convertUint128BE_zero_length_is_noop),
         cmocka_unit_test(test_convertUint128BE_oversize_length_is_noop),
         cmocka_unit_test(test_convertUint128BE_null_inputs_are_noop),
+        cmocka_unit_test(test_tostring128_exact_fit_no_room_for_nul),
         cmocka_unit_test(test_convertUint64BEto128_small_positive),
+        cmocka_unit_test(test_convertUint64BEto128_oversize_length_is_noop),
         cmocka_unit_test(test_convertUint64BEto128_negative_sign_extends),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

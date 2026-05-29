@@ -1454,3 +1454,37 @@ target_link_libraries(test_tlv_apdu PUBLIC
 )
 
 add_test(test_tlv_apdu test_tlv_apdu)
+
+# tlv_utils — thin TLV decoder wrappers
+add_executable(test_tlv_utils
+  ${SRC_DIR}/test_tlv_utils.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_tlv_utils PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_tlv_utils PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_tlv_utils test_tlv_utils)
