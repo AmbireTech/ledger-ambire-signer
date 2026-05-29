@@ -1408,3 +1408,32 @@ target_link_libraries(test_eth_plugin_handler PUBLIC
 )
 
 add_test(test_eth_plugin_handler test_eth_plugin_handler)
+
+# cmd_map_entry APDU entry-point (P1/P2 guards from 092cba0c)
+add_executable(test_cmd_map_entry
+  ${SRC_DIR}/test_cmd_map_entry.c
+  ${APP_DIR}/features/provide_map_entry/cmd_map_entry.c
+  ${MOCK_DIR}/mock.c
+)
+
+target_include_directories(test_cmd_map_entry PRIVATE
+  ${APP_DIR}/features/provide_map_entry
+)
+
+target_compile_definitions(test_cmd_map_entry PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_cmd_map_entry PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=tlv_from_apdu
+)
+
+add_test(test_cmd_map_entry test_cmd_map_entry)
