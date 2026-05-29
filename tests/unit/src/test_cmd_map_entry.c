@@ -31,6 +31,8 @@
 // =============================================================================
 
 static e_tlv_apdu_ret g_tlv_ret = TLV_APDU_SUCCESS;
+static bool g_invoke_handler = false;
+static bool g_handler_returned = false;
 e_tlv_apdu_ret __wrap_tlv_from_apdu(bool first_chunk,
                                     uint8_t lc,
                                     const uint8_t *payload,
@@ -38,21 +40,26 @@ e_tlv_apdu_ret __wrap_tlv_from_apdu(bool first_chunk,
     (void) first_chunk;
     (void) lc;
     (void) payload;
-    (void) handler;
+    if (g_invoke_handler && handler != NULL) {
+        buffer_t buf = {.ptr = NULL, .size = 0, .offset = 0};
+        g_handler_returned = handler(&buf);
+    }
     return g_tlv_ret;
 }
 
-// The static handle_tlv_payload helpers reference these symbols; never
-// reached in our tests because we stub tlv_from_apdu to not invoke the
-// handler.
+// The static handle_tlv_payload helpers reference these symbols; the
+// invoke-handler tests below drive their return values to exercise
+// each branch in cmd_map_entry's static handle_tlv_payload.
+static bool g_handle_payload_ret = true;
+static bool g_verify_ret = true;
 bool handle_map_entry_tlv_payload(const void *buf, void *ctx) {
     (void) buf;
     (void) ctx;
-    return true;
+    return g_handle_payload_ret;
 }
 bool verify_map_entry_struct(const void *ctx) {
     (void) ctx;
-    return true;
+    return g_verify_ret;
 }
 // cx_sha256_init_no_throw is the underlying call cx_sha256_init wraps.
 // Linker needs the symbol even though the static handle_tlv_payload
@@ -69,6 +76,10 @@ cx_err_t cx_sha256_init_no_throw(cx_sha256_t *hash) {
 static int reset(void **state) {
     (void) state;
     g_tlv_ret = TLV_APDU_SUCCESS;
+    g_invoke_handler = false;
+    g_handler_returned = false;
+    g_handle_payload_ret = true;
+    g_verify_ret = true;
     return 0;
 }
 
@@ -126,6 +137,33 @@ static void test_tlv_success_returns_success(void **state) {
 }
 
 // =============================================================================
+// Internal handle_tlv_payload — exercised through the wrap
+// =============================================================================
+
+static void test_handler_happy_path(void **state) {
+    (void) state;
+    g_invoke_handler = true;
+    handle_map_entry(P1_FIRST_CHUNK, 0, 0, NULL);
+    assert_true(g_handler_returned);
+}
+
+static void test_handler_payload_failure(void **state) {
+    (void) state;
+    g_invoke_handler = true;
+    g_handle_payload_ret = false;
+    handle_map_entry(P1_FIRST_CHUNK, 0, 0, NULL);
+    assert_false(g_handler_returned);
+}
+
+static void test_handler_verify_failure(void **state) {
+    (void) state;
+    g_invoke_handler = true;
+    g_verify_ret = false;
+    handle_map_entry(P1_FIRST_CHUNK, 0, 0, NULL);
+    assert_false(g_handler_returned);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -138,6 +176,9 @@ int main(void) {
         cmocka_unit_test_setup(test_p2_nonzero_rejected_even_with_valid_p1, reset),
         cmocka_unit_test_setup(test_tlv_failure_returns_incorrect_data, reset),
         cmocka_unit_test_setup(test_tlv_success_returns_success, reset),
+        cmocka_unit_test_setup(test_handler_happy_path, reset),
+        cmocka_unit_test_setup(test_handler_payload_failure, reset),
+        cmocka_unit_test_setup(test_handler_verify_failure, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
