@@ -159,11 +159,11 @@ bool mem_utils_calloc(void **buffer, uint16_t size, bool permanent, const char *
     (void) permanent;
     (void) file;
     (void) line;
-    if (*buffer != NULL) {
-        free(*buffer);
-    }
+    // The real lib_alloc implementation does NOT pre-free *buffer; it just
+    // writes a fresh pointer. Many call sites (e.g. gtp_field_table.c) pass
+    // an uninitialized stack pointer, so a pre-free here would invoke
+    // free() on junk.
     if (size == 0) {
-        *buffer = NULL;
         return true;
     }
     if ((*buffer = malloc(size)) == NULL) {
