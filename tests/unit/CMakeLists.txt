@@ -506,3 +506,34 @@ target_link_libraries(test_uint128 PUBLIC
 )
 
 add_test(test_uint128 test_uint128)
+
+# uint256 arithmetic test
+add_executable(test_uint256
+  ${SRC_DIR}/test_uint256.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/utils.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_compile_definitions(test_uint256 PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_uint256 PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=cx_math_mult_no_throw
+)
+
+add_test(test_uint256 test_uint256)
