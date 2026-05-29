@@ -1317,3 +1317,51 @@ target_link_libraries(test_token_info PUBLIC
 )
 
 add_test(test_token_info test_token_info)
+
+# ERC-20 plugin
+add_executable(test_erc20_plugin
+  ${SRC_DIR}/test_erc20_plugin.c
+  ${APP_DIR}/plugins/erc20/erc20_plugin.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_erc20_plugin PRIVATE
+  ${APP_DIR}/plugins
+  ${APP_DIR}/plugins/erc20
+  ${APP_DIR}/swap
+  ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/provide_erc20_token_information
+)
+
+target_compile_definitions(test_erc20_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+# Force-include os_pic.h so PIC() is defined as a macro. Without this
+# erc20_plugin.c's transitive include chain doesn't reach os_pic.h in
+# the unit-test build, and PIC ends up as an unresolved symbol at link.
+target_compile_options(test_erc20_plugin PRIVATE -include os_pic.h)
+
+target_link_libraries(test_erc20_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_tx_chain_id
+                      -Wl,--wrap=get_matching_token_info
+                      -Wl,--wrap=swap_check_destination
+                      -Wl,--wrap=swap_check_amount
+)
+
+add_test(test_erc20_plugin test_erc20_plugin)
