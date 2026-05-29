@@ -27,16 +27,26 @@ bool __wrap_format_field(s_field *field, uint8_t depth) {
     return (bool) mock();
 }
 
-// Stubs for gtp_field.c symbols referenced by gtp_param_group.c
-// but not exercised in these tests (TLV parsing path, cleanup path).
+// Stubs for gtp_field.c symbols. The TLV-driven tests below use
+// will_return() to flip each stub's outcome; the format-only tests
+// at the top of the file never reach them.
+static bool g_use_mock_handle_field = false;
+static bool g_use_mock_verify_field = false;
+
 bool __wrap_handle_field_struct(const buffer_t *buf, s_field_ctx *ctx) {
     (void) buf;
     (void) ctx;
+    if (g_use_mock_handle_field) {
+        return (bool) mock();
+    }
     return true;
 }
 
 bool __wrap_verify_field_struct(const s_field_ctx *ctx) {
     (void) ctx;
+    if (g_use_mock_verify_field) {
+        return (bool) mock();
+    }
     return true;
 }
 
@@ -170,6 +180,126 @@ static void test_group_depth_cap_rejects(void **state) {
 }
 
 // =============================================================================
+// TLV tag-handler tests — drive handle_param_group_struct with
+// hand-crafted TLV buffers. handle_field_struct and verify_field_struct
+// are wrapped so the FIELD sub-parser is observable.
+// =============================================================================
+
+static void test_handle_pg_struct_version_and_iteration_ok(void **state) {
+    (void) state;
+    uint8_t buf_bytes[] = {
+        0x00,
+        0x01,
+        0x02,  // VERSION = 2
+        0x01,
+        0x01,
+        GROUP_ITER_SEQUENTIAL,  // ITERATION_TYPE
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_group param;
+    memset(&param, 0, sizeof(param));
+    s_param_group_context ctx = {.param = &param};
+    assert_true(handle_param_group_struct(&buf, &ctx));
+    assert_int_equal(param.version, 2);
+    assert_int_equal(param.iteration_type, GROUP_ITER_SEQUENTIAL);
+}
+
+static void test_handle_pg_struct_iteration_out_of_range_rejected(void **state) {
+    (void) state;
+    uint8_t buf_bytes[] = {
+        0x00,
+        0x01,
+        0x01,
+        0x01,
+        0x01,
+        GROUP_ITER_MAX,  // outside [0, GROUP_ITER_MAX-1]
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_group param;
+    memset(&param, 0, sizeof(param));
+    s_param_group_context ctx = {.param = &param};
+    assert_false(handle_param_group_struct(&buf, &ctx));
+}
+
+static void test_handle_pg_struct_field_appends_to_list(void **state) {
+    (void) state;
+    g_use_mock_handle_field = true;
+    g_use_mock_verify_field = true;
+    will_return(__wrap_handle_field_struct, true);
+    will_return(__wrap_verify_field_struct, true);
+
+    uint8_t buf_bytes[] = {
+        0x00,
+        0x01,
+        0x01,
+        0x01,
+        0x01,
+        GROUP_ITER_SEQUENTIAL,
+        0x02,
+        0x00,  // FIELD (empty payload)
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_group param;
+    memset(&param, 0, sizeof(param));
+    s_param_group_context ctx = {.param = &param};
+    assert_true(handle_param_group_struct(&buf, &ctx));
+    assert_non_null(param.fields);
+    cleanup_param_group(&param);
+    g_use_mock_handle_field = false;
+    g_use_mock_verify_field = false;
+}
+
+static void test_handle_pg_struct_field_subparse_failure_rejected(void **state) {
+    (void) state;
+    g_use_mock_handle_field = true;
+    will_return(__wrap_handle_field_struct, false);
+
+    uint8_t buf_bytes[] = {
+        0x00,
+        0x01,
+        0x01,
+        0x02,
+        0x00,
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_group param;
+    memset(&param, 0, sizeof(param));
+    s_param_group_context ctx = {.param = &param};
+    assert_false(handle_param_group_struct(&buf, &ctx));
+    assert_null(param.fields);  // failure must NOT append.
+    g_use_mock_handle_field = false;
+}
+
+static void test_handle_pg_struct_field_verification_failure_rejected(void **state) {
+    (void) state;
+    g_use_mock_handle_field = true;
+    g_use_mock_verify_field = true;
+    will_return(__wrap_handle_field_struct, true);
+    will_return(__wrap_verify_field_struct, false);
+
+    uint8_t buf_bytes[] = {
+        0x00,
+        0x01,
+        0x01,
+        0x02,
+        0x00,
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_group param;
+    memset(&param, 0, sizeof(param));
+    s_param_group_context ctx = {.param = &param};
+    assert_false(handle_param_group_struct(&buf, &ctx));
+    assert_null(param.fields);
+    g_use_mock_handle_field = false;
+    g_use_mock_verify_field = false;
+}
+
+// =============================================================================
 // Test runner
 // =============================================================================
 
@@ -181,6 +311,11 @@ int main(void) {
         cmocka_unit_test(test_group_bundled_rejected),
         cmocka_unit_test(test_group_subfield_failure_propagates),
         cmocka_unit_test(test_group_depth_cap_rejects),
+        cmocka_unit_test(test_handle_pg_struct_version_and_iteration_ok),
+        cmocka_unit_test(test_handle_pg_struct_iteration_out_of_range_rejected),
+        cmocka_unit_test(test_handle_pg_struct_field_appends_to_list),
+        cmocka_unit_test(test_handle_pg_struct_field_subparse_failure_rejected),
+        cmocka_unit_test(test_handle_pg_struct_field_verification_failure_rejected),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

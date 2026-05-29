@@ -177,10 +177,75 @@ static void test_calldata_size_mismatch_rejected(void **state) {
 // Test runner
 // ===========================================================================
 
+// ===========================================================================
+// TLV tag-handler tests — drive handle_param_calldata_struct with
+// hand-crafted TLV buffers. The wrapped handle_value_struct ignores its
+// inner buffer, so VALUE / CALLEE / CHAIN_ID / SELECTOR / AMOUNT /
+// SPENDER tags all reduce to a "did the dispatch route here?" check via
+// the has_X side-effects.
+//
+// All tags are < 0x80 so short-form encoding is used.
+// ===========================================================================
+
+static void test_handle_calldata_struct_all_tags_ok(void **state) {
+    (void) state;
+    uint8_t buf_bytes[] = {
+        0x00,
+        0x01,
+        0x01,  // VERSION = 1
+        0x01,
+        0x00,  // VALUE
+        0x02,
+        0x00,  // CALLEE
+        0x03,
+        0x00,  // CHAIN_ID
+        0x04,
+        0x00,  // SELECTOR
+        0x05,
+        0x00,  // AMOUNT
+        0x06,
+        0x00,  // SPENDER
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_calldata param;
+    memset(&param, 0, sizeof(param));
+    s_param_calldata_context ctx = {.param = &param};
+    assert_true(handle_param_calldata_struct(&buf, &ctx));
+    assert_int_equal(param.version, 1);
+    assert_true(param.has_chain_id);
+    assert_true(param.has_selector);
+    assert_true(param.has_amount);
+    assert_true(param.has_spender);
+}
+
+static void test_handle_calldata_struct_version_only_ok(void **state) {
+    (void) state;
+    // Optional tags are all... optional. has_X flags must remain false.
+    uint8_t buf_bytes[] = {
+        0x00,
+        0x01,
+        0x03,  // VERSION = 3
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_calldata param;
+    memset(&param, 0, sizeof(param));
+    s_param_calldata_context ctx = {.param = &param};
+    assert_true(handle_param_calldata_struct(&buf, &ctx));
+    assert_int_equal(param.version, 3);
+    assert_false(param.has_chain_id);
+    assert_false(param.has_selector);
+    assert_false(param.has_amount);
+    assert_false(param.has_spender);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_calldata_broadcast_ok),
         cmocka_unit_test(test_calldata_size_mismatch_rejected),
+        cmocka_unit_test(test_handle_calldata_struct_all_tags_ok),
+        cmocka_unit_test(test_handle_calldata_struct_version_only_ok),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
