@@ -212,6 +212,117 @@ static void test_token_amount_size_mismatch_rejected(void **state) {
 }
 
 // ===========================================================================
+// TLV tag-handler tests — drive handle_param_token_amount_struct with
+// hand-crafted TLV buffers covering every tag dispatch.
+// ===========================================================================
+
+// All tags here are < 0x80 so short-form encoding is used (no DER long form).
+// Layout per tag: { tag, length, value... }
+
+static void test_handle_struct_all_tags_ok(void **state) {
+    (void) state;
+    // VERSION(0x00) len=1 value=1
+    // VALUE(0x01)   len=0 (empty inner — wrap returns true)
+    // TOKEN(0x02)   len=0
+    // NATIVE_CURRENCY(0x03) len=4 4-byte address fragment
+    // THRESHOLD(0x04) len=2 = 0x0064
+    // ABOVE_THRESHOLD_MSG(0x05) len=3 "Hi!"
+    uint8_t buf_bytes[] = {
+        0x00, 0x01, 0x01, 0x01, 0x00, 0x02, 0x00, 0x03, 0x04, 0xDE, 0xAD,
+        0xBE, 0xEF, 0x04, 0x02, 0x00, 0x64, 0x05, 0x03, 'H',  'i',  '!',
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_token_amount param;
+    memset(&param, 0, sizeof(param));
+    s_param_token_amount_context ctx = {.param = &param};
+    assert_true(handle_param_token_amount_struct(&buf, &ctx));
+    assert_int_equal(param.version, 1);
+    assert_true(param.has_token);
+    assert_int_equal(param.native_addr_count, 1);
+    // 4-byte payload is right-aligned in the 20-byte address slot
+    static const uint8_t expected_native[ADDRESS_LENGTH] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xDE, 0xAD, 0xBE, 0xEF,
+    };
+    assert_memory_equal(param.native_addrs[0], expected_native, ADDRESS_LENGTH);
+    assert_string_equal(param.above_threshold_msg, "Hi!");
+}
+
+static void test_handle_struct_native_currency_oversize_rejected(void **state) {
+    (void) state;
+    // VERSION + a NATIVE_CURRENCY with size > ADDRESS_LENGTH (20).
+    uint8_t buf_bytes[3 + 2 + 21];
+    buf_bytes[0] = 0x00;
+    buf_bytes[1] = 0x01;
+    buf_bytes[2] = 0x01;
+    buf_bytes[3] = 0x03;
+    buf_bytes[4] = 21;
+    memset(buf_bytes + 5, 0xAA, 21);
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_token_amount param;
+    memset(&param, 0, sizeof(param));
+    s_param_token_amount_context ctx = {.param = &param};
+    assert_false(handle_param_token_amount_struct(&buf, &ctx));
+}
+
+static void test_handle_struct_native_currency_overflow_capacity_rejected(void **state) {
+    (void) state;
+    // VERSION + MAX_NATIVE_ADDRS (=4) accepted + a 5th one that overflows.
+    uint8_t buf_bytes[3 + 5 * 3];
+    buf_bytes[0] = 0x00;
+    buf_bytes[1] = 0x01;
+    buf_bytes[2] = 0x01;
+    for (int i = 0; i < 5; i++) {
+        buf_bytes[3 + i * 3 + 0] = 0x03;      // NATIVE_CURRENCY
+        buf_bytes[3 + i * 3 + 1] = 0x01;      // length
+        buf_bytes[3 + i * 3 + 2] = 0x10 + i;  // value
+    }
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_token_amount param;
+    memset(&param, 0, sizeof(param));
+    s_param_token_amount_context ctx = {.param = &param};
+    assert_false(handle_param_token_amount_struct(&buf, &ctx));
+}
+
+static void test_handle_struct_threshold_oversize_rejected(void **state) {
+    (void) state;
+    // THRESHOLD with size > sizeof(uint256_t)=32.
+    uint8_t buf_bytes[3 + 2 + 33];
+    buf_bytes[0] = 0x00;
+    buf_bytes[1] = 0x01;
+    buf_bytes[2] = 0x01;
+    buf_bytes[3] = 0x04;
+    buf_bytes[4] = 33;
+    memset(buf_bytes + 5, 0xAB, 33);
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_token_amount param;
+    memset(&param, 0, sizeof(param));
+    s_param_token_amount_context ctx = {.param = &param};
+    assert_false(handle_param_token_amount_struct(&buf, &ctx));
+}
+
+static void test_handle_struct_above_threshold_msg_oversize_rejected(void **state) {
+    (void) state;
+    // ABOVE_THRESHOLD_MSG with size >= ABOVE_THRESHOLD_MSG_SIZE (21).
+    uint8_t buf_bytes[3 + 2 + 21];
+    buf_bytes[0] = 0x00;
+    buf_bytes[1] = 0x01;
+    buf_bytes[2] = 0x01;
+    buf_bytes[3] = 0x05;
+    buf_bytes[4] = 21;
+    memset(buf_bytes + 5, 'A', 21);
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_token_amount param;
+    memset(&param, 0, sizeof(param));
+    s_param_token_amount_context ctx = {.param = &param};
+    assert_false(handle_param_token_amount_struct(&buf, &ctx));
+}
+
+// ===========================================================================
 // Test runner
 // ===========================================================================
 
@@ -219,6 +330,11 @@ int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_token_amount_broadcast_ok),
         cmocka_unit_test(test_token_amount_size_mismatch_rejected),
+        cmocka_unit_test(test_handle_struct_all_tags_ok),
+        cmocka_unit_test(test_handle_struct_native_currency_oversize_rejected),
+        cmocka_unit_test(test_handle_struct_native_currency_overflow_capacity_rejected),
+        cmocka_unit_test(test_handle_struct_threshold_oversize_rejected),
+        cmocka_unit_test(test_handle_struct_above_threshold_msg_oversize_rejected),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
