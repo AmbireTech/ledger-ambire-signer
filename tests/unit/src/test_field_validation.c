@@ -219,6 +219,124 @@ static void test_multiple_constraints_accepted(void **state) {
 }
 
 // =============================================================================
+// Per-tag dispatch tests — pin the type / visibility / param-ordering
+// rules that gtp_field.c enforces on attacker-controlled GCS field
+// descriptors.
+// =============================================================================
+
+// Drive handle_field_struct with a single tag at a time so failures
+// are easy to attribute.
+static bool run_field_tlv(const uint8_t *bytes, size_t size, s_field_ctx *ctx) {
+    buffer_t buf = {.ptr = (uint8_t *) bytes, .size = size, .offset = 0};
+    return handle_field_struct(&buf, ctx);
+}
+
+// Build the minimum required TLV envelope: VERSION + NAME + PARAM_TYPE
+// + PARAM. The PARAM payload is empty — the corresponding stub returns
+// true, so the dispatch lands on a no-op.
+static const uint8_t g_minimal_required_tlv[] = {
+    0x00,
+    0x01,
+    0x01,  // VERSION = 1
+    0x01,
+    0x04,
+    'A',
+    'm',
+    'o',
+    'u',  // NAME = "Amou"
+    0x02,
+    0x01,
+    0x00,  // PARAM_TYPE = PARAM_TYPE_RAW
+    0x03,
+    0x00,  // PARAM (empty payload)
+};
+
+static void test_verify_field_happy_path_with_defaulted_visibility(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    assert_true(run_field_tlv(g_minimal_required_tlv, sizeof(g_minimal_required_tlv), &ctx));
+    assert_true(verify_field_struct(&ctx));
+    // VISIBLE not set → must default to ALWAYS.
+    assert_int_equal(field.visibility, 0);  // PARAM_VISIBILITY_ALWAYS
+    cleanup_field_constraints(&field);
+}
+
+static void test_verify_field_missing_version_rejected(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    // Empty TLV: no VERSION received → verify rejects.
+    assert_true(run_field_tlv(NULL, 0, &ctx));
+    assert_false(verify_field_struct(&ctx));
+}
+
+static void test_verify_field_unsupported_version_rejected(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    const uint8_t bytes[] = {0x00, 0x01, 0x07};  // VERSION = 7 (unsupported)
+    assert_true(run_field_tlv(bytes, sizeof(bytes), &ctx));
+    assert_false(verify_field_struct(&ctx));
+}
+
+static void test_verify_field_missing_name_rejected(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    // VERSION + PARAM_TYPE + PARAM but no NAME.
+    const uint8_t bytes[] = {0x00, 0x01, 0x01, 0x02, 0x01, 0x00, 0x03, 0x00};
+    assert_true(run_field_tlv(bytes, sizeof(bytes), &ctx));
+    assert_false(verify_field_struct(&ctx));
+}
+
+static void test_handle_param_type_unsupported_rejected(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    // PARAM_TYPE = 0xFF — outside every case branch.
+    const uint8_t bytes[] = {0x02, 0x01, 0xFF};
+    assert_false(run_field_tlv(bytes, sizeof(bytes), &ctx));
+}
+
+static void test_handle_param_visible_out_of_range_rejected(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    // VISIBLE >= PARAM_VISIBILITY_MAX must be rejected — otherwise a
+    // host-controlled value could land in a downstream switch default
+    // and silently change display behavior.
+    const uint8_t bytes[] = {0x04, 0x01, 0xFF};
+    assert_false(run_field_tlv(bytes, sizeof(bytes), &ctx));
+}
+
+static void test_handle_param_without_param_type_rejected(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    // PARAM tag arrives before PARAM_TYPE → must be rejected so the
+    // dispatch can't land on whichever default-zero param_type is sitting
+    // in the struct.
+    const uint8_t bytes[] = {0x03, 0x00};
+    assert_false(run_field_tlv(bytes, sizeof(bytes), &ctx));
+}
+
+static void test_constraint_empty_value_rejected(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    const uint8_t bytes[] = {
+        0x04,
+        0x01,
+        0x01,  // VISIBLE = MUST_BE
+        0x05,
+        0x00,  // CONSTRAINT with empty value
+    };
+    assert_false(run_field_tlv(bytes, sizeof(bytes), &ctx));
+    assert_null(field.constraints);
+}
+
+// =============================================================================
 // Main Test Runner
 // =============================================================================
 
@@ -229,6 +347,14 @@ int main(void) {
         cmocka_unit_test(test_constraint_with_must_be_visibility_accepted),
         cmocka_unit_test(test_constraint_with_if_not_in_visibility_accepted),
         cmocka_unit_test(test_multiple_constraints_accepted),
+        cmocka_unit_test(test_verify_field_happy_path_with_defaulted_visibility),
+        cmocka_unit_test(test_verify_field_missing_version_rejected),
+        cmocka_unit_test(test_verify_field_unsupported_version_rejected),
+        cmocka_unit_test(test_verify_field_missing_name_rejected),
+        cmocka_unit_test(test_handle_param_type_unsupported_rejected),
+        cmocka_unit_test(test_handle_param_visible_out_of_range_rejected),
+        cmocka_unit_test(test_handle_param_without_param_type_rejected),
+        cmocka_unit_test(test_constraint_empty_value_rejected),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

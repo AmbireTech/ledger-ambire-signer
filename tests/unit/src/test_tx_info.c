@@ -373,6 +373,79 @@ static void test_tlv_deploy_date_oversized_rejected(void **state) {
     assert_false(run_tlv(bytes, sizeof(bytes), &ctx));
 }
 
+static void test_tlv_selector_oversize_rejected(void **state) {
+    (void) state;
+    s_tx_info info = {0};
+    s_tx_info_ctx ctx = {.tx_info = &info};
+    g_tx_ctx_count = 1;
+
+    // SELECTOR > CALLDATA_SELECTOR_SIZE (4) bytes — tlv_get_hash's max_size
+    // guard inside handle_selector must reject before we ever look at the
+    // parked-calldata cross-check.
+    uint8_t bytes[2 + 5];
+    bytes[0] = 0x03;
+    bytes[1] = 5;
+    memset(&bytes[2], 0xAA, 5);
+    assert_false(run_tlv(bytes, sizeof(bytes), &ctx));
+}
+
+static void test_tlv_signature_oversize_rejected(void **state) {
+    (void) state;
+    s_tx_info info = {0};
+    s_tx_info_ctx ctx = {.tx_info = &info};
+    g_tx_ctx_count = 1;
+
+    // SIGNATURE > sizeof(tx_info->signature) (CX_ECDSA_SHA256_SIG_MAX_ASN1_LENGTH=72)
+    // must be rejected — otherwise the memcpy on line 133 would overflow
+    // the on-stack-or-heap signature buffer. This is the critical
+    // size-cap on attacker-controlled signed-descriptor input.
+    // Tag 0xFF needs DER long-form encoding (0x81 0xFF).
+    uint8_t bytes[3 + 73];
+    bytes[0] = 0x81;
+    bytes[1] = 0xFF;
+    bytes[2] = 73;  // length, < 128 so single byte
+    memset(&bytes[3], 0x42, 73);
+    assert_false(run_tlv(bytes, sizeof(bytes), &ctx));
+    assert_int_equal(info.signature_len, 0);  // nothing copied through.
+}
+
+// Exercise the under-tested optional metadata tags (creator_legal_name,
+// creator_url, contract_name, creator_name, deploy_date) so the
+// per-tag string-truncation helpers are pinned. These tags drive
+// what's displayed in the operation summary, so even though they're
+// non-cryptographic, an unexercised truncation path is a UX-trust
+// surface.
+static void test_tlv_optional_metadata_tags_populated(void **state) {
+    (void) state;
+    s_tx_info info = {0};
+    s_tx_info_ctx ctx = {.tx_info = &info};
+    g_tx_ctx_count = 1;
+
+    const uint8_t bytes[] = {
+        0x06, 0x07, 'A',  'a',  ' ',  'I',  'n', 'c', '.',                 // CREATOR_NAME
+        0x07, 0x0A, 'A',  'a',  ' ',  'I',  'n', 'c', '.', ' ', 'L', 'P',  // CREATOR_LEGAL_NAME
+        0x08, 0x10, 'h',  't',  't',  'p',  's', ':', '/', '/', 'a', 'a',
+        '.',  'i',  'o',  '/',  '?',  'q',        // CREATOR_URL
+        0x09, 0x05, 'P',  'o',  'o',  'l',  'A',  // CONTRACT_NAME
+        0x0A, 0x04, 0x65, 0x92, 0x00, 0x80,       // DEPLOY_DATE (2024-01-01)
+    };
+    assert_true(run_tlv(bytes, sizeof(bytes), &ctx));
+    assert_string_equal(info.creator_name, "Aa Inc.");
+    assert_string_equal(info.creator_legal_name, "Aa Inc. LP");
+    assert_string_equal(info.creator_url, "https://aa.io/?q");
+    assert_string_equal(info.contract_name, "PoolA");
+    assert_string_equal(info.deploy_date, "2024-01-01");
+}
+
+// delete_tx_info is the dual of APP_MEM_CALLOC in cmd_tx_info — must
+// not crash on a heap-allocated node (mocks use real malloc/free).
+static void test_delete_tx_info_frees_node(void **state) {
+    (void) state;
+    s_tx_info *node = calloc(1, sizeof(*node));
+    assert_non_null(node);
+    delete_tx_info(node);  // no crash, no leak.
+}
+
 // =============================================================================
 // verify_tx_info_struct
 // =============================================================================
@@ -450,6 +523,10 @@ int main(void) {
         cmocka_unit_test_setup(test_tlv_selector_no_parked_calldata_rejected, reset),
         cmocka_unit_test_setup(test_tlv_fields_hash_oversized_rejected, reset),
         cmocka_unit_test_setup(test_tlv_deploy_date_oversized_rejected, reset),
+        cmocka_unit_test_setup(test_tlv_selector_oversize_rejected, reset),
+        cmocka_unit_test_setup(test_tlv_signature_oversize_rejected, reset),
+        cmocka_unit_test_setup(test_tlv_optional_metadata_tags_populated, reset),
+        cmocka_unit_test_setup(test_delete_tx_info_frees_node, reset),
         cmocka_unit_test_setup(test_verify_missing_version_rejected, reset),
         cmocka_unit_test_setup(test_verify_unsupported_version_rejected, reset),
         cmocka_unit_test_setup(test_verify_happy_path, reset),
