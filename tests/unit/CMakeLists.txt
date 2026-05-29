@@ -727,3 +727,46 @@ target_link_libraries(test_param_datetime PUBLIC
 )
 
 add_test(test_param_datetime test_param_datetime)
+
+# DURATION parameter test
+add_executable(test_param_duration
+  ${SRC_DIR}/test_param_duration.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_duration.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_duration PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_param_duration PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=value_get
+                      -Wl,--wrap=value_cleanup
+                      -Wl,--wrap=handle_value_struct
+                      -Wl,--wrap=add_to_field_table
+)
+
+add_test(test_param_duration test_param_duration)
