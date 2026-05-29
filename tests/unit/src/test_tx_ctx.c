@@ -463,6 +463,94 @@ static void test_gcs_cleanup_frees_parked_calldata(void **state) {
 }
 
 // =============================================================================
+// process_empty_txs_before / process_empty_txs_after
+// =============================================================================
+//
+// An "empty" tx is a tx_ctx with no calldata attached — the parser
+// inserts these as placeholders when the host first announces a batch
+// of related transactions, then the active "with calldata" tx_ctx is
+// pushed afterwards. process_empty_txs_{before,after} walks the
+// neighbours of the current pointer, calls process_empty_tx on each
+// empty one (which set_intent_field / amount / trusted_name / address
+// formatting via the stubs above), and removes them from the list.
+
+static void test_process_empty_txs_before_removes_empty_predecessors(void **state) {
+    (void) state;
+    uint64_t chain = 1;
+    // 1) Two empty (calldata == NULL) predecessors
+    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
+    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
+    // 2) The "with calldata" current tx
+    s_calldata *cd = make_complete_calldata(g_match_selector);
+    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    assert_int_equal(get_tx_ctx_count(), 3);
+
+    assert_true(process_empty_txs_before());
+    // Both empty predecessors must be gone — only the current one
+    // remains.
+    assert_int_equal(get_tx_ctx_count(), 1);
+}
+
+static void test_process_empty_txs_after_removes_empty_successors(void **state) {
+    (void) state;
+    uint64_t chain = 1;
+    // 1) Current with calldata
+    s_calldata *cd = make_complete_calldata(g_match_selector);
+    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    // 2) Two empty successors
+    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
+    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
+    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    assert_int_equal(get_tx_ctx_count(), 3);
+
+    assert_true(process_empty_txs_after());
+    assert_int_equal(get_tx_ctx_count(), 1);
+}
+
+static void test_process_empty_txs_before_stops_at_non_empty(void **state) {
+    (void) state;
+    uint64_t chain = 1;
+    // Layout: [empty A] [withCalldata B] [current C, withCalldata]
+    // process_empty_txs_before walks current -> prev. The first prev
+    // (B) has calldata so the loop exits immediately. A is NOT
+    // processed (still has calldata != NULL — wait, A is empty).
+    // The loop reads tmp->calldata == NULL as the gate; B has
+    // calldata so loop stops at B without touching A.
+    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));  // A empty
+    s_calldata *cd_b = make_complete_calldata(g_match_selector);
+    assert_true(tx_ctx_init(cd_b, g_addr_a, g_addr_a, NULL, &chain));  // B with calldata
+    static const uint8_t selector_c[CALLDATA_SELECTOR_SIZE] = {0xCA, 0xFE, 0xBA, 0xBE};
+    s_calldata *cd_c = make_complete_calldata(selector_c);
+    assert_true(tx_ctx_init(cd_c, g_addr_a, g_addr_b, NULL, &chain));  // C current
+    assert_true(find_matching_tx_ctx(g_addr_b, selector_c, &chain));
+    assert_int_equal(get_tx_ctx_count(), 3);
+
+    assert_true(process_empty_txs_before());
+    // B blocks the walk → A stays untouched.
+    assert_int_equal(get_tx_ctx_count(), 3);
+}
+
+static void test_process_empty_txs_with_amount_no_tx_info_fails(void **state) {
+    (void) state;
+    uint64_t chain = 1;
+    // Empty predecessor with has_amount=true (amount provided) drives
+    // process_empty_tx down the "Send" branch. Since no tx_info has
+    // been attached to either the node or the root, the helper bails
+    // at get_root_tx_info()==NULL and returns false — exercising the
+    // error path inside the amount branch.
+    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, g_amount_1eth, &chain));
+    s_calldata *cd = make_complete_calldata(g_match_selector);
+    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+
+    assert_false(process_empty_txs_before());
+    // The empty node was NOT removed — process_empty_tx returned false
+    // before reaching list_remove.
+    assert_int_equal(get_tx_ctx_count(), 2);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -482,6 +570,10 @@ int main(void) {
         cmocka_unit_test_setup(test_validate_instruction_hash_no_current_returns_false, reset),
         cmocka_unit_test_setup(test_gcs_cleanup_empties_list, reset),
         cmocka_unit_test_setup(test_gcs_cleanup_frees_parked_calldata, reset),
+        cmocka_unit_test_setup(test_process_empty_txs_before_removes_empty_predecessors, reset),
+        cmocka_unit_test_setup(test_process_empty_txs_after_removes_empty_successors, reset),
+        cmocka_unit_test_setup(test_process_empty_txs_before_stops_at_non_empty, reset),
+        cmocka_unit_test_setup(test_process_empty_txs_with_amount_no_tx_info_fails, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
