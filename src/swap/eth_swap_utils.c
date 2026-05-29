@@ -20,6 +20,7 @@
 #include "eth_swap_utils.h"
 #include "asset_info.h"
 #include "apdu_constants.h"
+#include "main_std_app.h"  // app_exit
 #include "utils.h"
 #include "swap_error_code_helpers.h"
 #include "feature_sign_tx.h"
@@ -235,9 +236,8 @@ bool swap_check_destination(const char *destination) {
                                     "%s != %s",
                                     strings.common.toAddress,
                                     destination);
-        // unreachable
-        os_sched_exit(0);
-        return false;
+        // unreachable — app_exit is __attribute__((noreturn))
+        app_exit();
     }
     return true;
 }
@@ -261,9 +261,8 @@ bool swap_check_amount(const char *amount) {
                                     "%s != %s",
                                     strings.common.fullAmount,
                                     amount);
-        // unreachable
-        os_sched_exit(0);
-        return false;
+        // unreachable — app_exit is __attribute__((noreturn))
+        app_exit();
     }
     return true;
 }
@@ -287,9 +286,8 @@ bool swap_check_fee(const char *fee) {
                                     "%s != %s",
                                     strings.common.maxFee,
                                     fee);
-        // unreachable
-        os_sched_exit(0);
-        return false;
+        // unreachable — app_exit is __attribute__((noreturn))
+        app_exit();
     }
     return true;
 }

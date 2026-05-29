@@ -474,7 +474,7 @@ __attribute__((noreturn)) void clone_main(eth_libargs_t *args) {
     // Clone called by Exchange, forward the request to Ethereum
     if (args != NULL) {
         if (args->id != 0x100) {
-            os_sched_exit(0);
+            app_exit();
         }
         libcall_params[2] = args->command;
         libcall_params[4] = (uint32_t) args->get_printable_amount;
@@ -502,7 +502,7 @@ __attribute__((noreturn)) void clone_main(eth_libargs_t *args) {
     }
 
     // os_lib_call will raise if Ethereum application is not installed. Do not try to recover.
-    os_sched_exit(-1);
+    app_exit();
 }
 
 int ethereum_main(eth_libargs_t *args) {

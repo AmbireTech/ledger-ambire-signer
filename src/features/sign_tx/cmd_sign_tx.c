@@ -97,8 +97,8 @@ uint16_t handle_parsing_status(parserStatus_e status) {
                 send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                        SWAP_EC_ERROR_GENERIC,
                                        APP_CODE_CALLDATA_ISSUE);
-                // unreachable
-                os_sched_exit(0);
+                // unreachable — app_exit is __attribute__((noreturn))
+                app_exit();
             }
             sw = SWO_INCORRECT_DATA;
             break;

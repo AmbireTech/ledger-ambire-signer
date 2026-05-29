@@ -125,14 +125,14 @@ static void eth_plugin_perform_init_default(uint8_t *contract_address,
         PRINTF("Expected contract: %.*H\n",
                ADDRESS_LENGTH,
                dataContext.tokenContext.contractAddress);
-        os_sched_exit(0);
+        app_exit();
     }
     if (memcmp(init->selector,
                dataContext.tokenContext.methodSelector,
                sizeof(dataContext.tokenContext.methodSelector)) != 0) {
         PRINTF("Got selector: %.*H\n", SELECTOR_SIZE, init->selector);
         PRINTF("Expected selector: %.*H\n", SELECTOR_SIZE, dataContext.tokenContext.methodSelector);
-        os_sched_exit(0);
+        app_exit();
     }
     PRINTF("Plugin will be used\n");
     dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_OK;
@@ -211,8 +211,8 @@ eth_plugin_result_t eth_plugin_perform_init(uint8_t *contract_address,
             break;
         default:
             PRINTF("Unsupported pluginType %d\n", pluginType);
-            os_sched_exit(0);
-            break;
+            app_exit();
+            // app_exit is noreturn — no break needed
     }
 
     eth_plugin_result_t status = ETH_PLUGIN_RESULT_UNAVAILABLE;
