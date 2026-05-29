@@ -1174,3 +1174,20 @@ target_link_libraries(test_value PUBLIC
 )
 
 add_test(test_value test_value)
+
+# calldata storage test
+add_executable(test_calldata
+  ${SRC_DIR}/test_calldata.c
+  ${APP_DIR}/features/generic_tx_parser/calldata.c
+  ${APP_DIR}/mem_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+target_link_libraries(test_calldata PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_calldata test_calldata)
