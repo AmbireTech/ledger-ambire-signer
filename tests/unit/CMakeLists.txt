@@ -1365,3 +1365,46 @@ target_link_libraries(test_erc20_plugin PUBLIC
 )
 
 add_test(test_erc20_plugin test_erc20_plugin)
+
+# eth_plugin_handler orchestrator
+add_executable(test_eth_plugin_handler
+  ${SRC_DIR}/test_eth_plugin_handler.c
+  ${APP_DIR}/plugins/eth_plugin_handler.c
+  ${MOCK_DIR}/mock.c
+)
+
+target_include_directories(test_eth_plugin_handler PRIVATE
+  ${APP_DIR}/plugins
+  ${APP_DIR}/plugins/erc20
+  ${APP_DIR}/plugins/eth2
+  ${APP_DIR}/plugins/erc721
+  ${APP_DIR}/plugins/erc1155
+  ${APP_DIR}/plugins/eip7002
+  ${APP_DIR}/plugins/eip7251
+  ${APP_DIR}/plugins/swap_with_calldata
+  ${APP_DIR}/swap
+  ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/set_plugin
+)
+
+target_compile_definitions(test_eth_plugin_handler PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_eth_plugin_handler PRIVATE -include os_pic.h)
+
+target_link_libraries(test_eth_plugin_handler PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_tx_chain_id
+                      -Wl,--wrap=get_displayable_ticker
+                      -Wl,--wrap=get_matching_asset_info
+)
+
+add_test(test_eth_plugin_handler test_eth_plugin_handler)
