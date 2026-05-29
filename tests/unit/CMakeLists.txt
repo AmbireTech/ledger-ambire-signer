@@ -961,3 +961,43 @@ target_link_libraries(test_param_nft PUBLIC
 )
 
 add_test(test_param_nft test_param_nft)
+
+# path_array TLV parser test
+add_executable(test_path_array
+  ${SRC_DIR}/test_path_array.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_path_array.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_link_libraries(test_path_array PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_path_array test_path_array)
+
+# path_slice TLV parser test
+add_executable(test_path_slice
+  ${SRC_DIR}/test_path_slice.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_path_slice.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_link_libraries(test_path_slice PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_path_slice test_path_slice)
