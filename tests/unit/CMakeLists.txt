@@ -1191,3 +1191,44 @@ target_link_libraries(test_calldata PUBLIC
 )
 
 add_test(test_calldata test_calldata)
+
+# tx_ctx (GCS transaction context) test
+add_executable(test_tx_ctx
+  ${SRC_DIR}/test_tx_ctx.c
+  ${APP_DIR}/features/generic_tx_parser/tx_ctx.c
+  ${APP_DIR}/features/generic_tx_parser/calldata.c
+  ${APP_DIR}/mem_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+target_include_directories(test_tx_ctx PRIVATE
+  ${APP_DIR}/features/provide_proxy_info
+  ${APP_DIR}/features/provide_trusted_name
+  ${APP_DIR}/features/sign_message_eip712
+  ${APP_DIR}/features/get_public_key
+)
+
+target_compile_definitions(test_tx_ctx PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_tx_ctx PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_public_key
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=ui_gcs_cleanup
+                      -Wl,--wrap=delete_tx_info
+                      -Wl,--wrap=field_table_init
+                      -Wl,--wrap=field_table_cleanup
+                      -Wl,--wrap=get_implem_contract
+)
+
+add_test(test_tx_ctx test_tx_ctx)
