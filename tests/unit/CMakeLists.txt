@@ -600,3 +600,41 @@ target_link_libraries(test_network PUBLIC
 )
 
 add_test(test_network test_network)
+
+# eth_ustream low-level helpers (init_tx, copy_tx_data)
+add_executable(test_eth_ustream_helpers
+  ${SRC_DIR}/test_eth_ustream_helpers.c
+  ${APP_DIR}/features/sign_tx/eth_ustream.c
+  ${APP_DIR}/features/sign_tx/rlp_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_eth_ustream_helpers PRIVATE
+  ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/generic_tx_parser
+  ${APP_DIR}/features/provide_network_info
+)
+
+target_compile_definitions(test_eth_ustream_helpers PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_eth_ustream_helpers PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_eth_ustream_helpers test_eth_ustream_helpers)
