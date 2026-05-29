@@ -1232,3 +1232,31 @@ target_link_libraries(test_tx_ctx PUBLIC
 )
 
 add_test(test_tx_ctx test_tx_ctx)
+
+# cmd_field + cmd_tx_info APDU entry-point tests
+add_executable(test_cmd_field_tx_info
+  ${SRC_DIR}/test_cmd_field_tx_info.c
+  ${APP_DIR}/features/generic_tx_parser/cmd_field.c
+  ${APP_DIR}/features/generic_tx_parser/cmd_tx_info.c
+  ${MOCK_DIR}/mock.c
+)
+
+target_compile_definitions(test_cmd_field_tx_info PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_cmd_field_tx_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=tlv_from_apdu
+                      -Wl,--wrap=get_current_tx_info
+                      -Wl,--wrap=gcs_cleanup
+)
+
+add_test(test_cmd_field_tx_info test_cmd_field_tx_info)
