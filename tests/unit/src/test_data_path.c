@@ -322,6 +322,205 @@ static void test_data_path_cleanup_frees_allocated_ptr(void **state) {
 }
 
 // =============================================================================
+// path_array runtime — multi-iteration walk
+// =============================================================================
+//
+// path_array reads a u16 array_size from chunk[offset], then bumps the
+// outer do-while loop to walk the path once per element. arrays_update
+// counts down each iteration; when the counter reaches zero, depth--
+// and the loop exits.
+//
+// Chunk layout for an array_size of N: 30 zero bytes followed by the
+// 2-byte big-endian N value (the high bytes are validated by
+// is_zeroes_buffer).
+
+static void put_array_size_chunk(uint32_t idx, uint16_t array_size) {
+    assert_true(idx < MAX_FIXTURE_CHUNKS);
+    memset(g_chunks[idx], 0, CALLDATA_CHUNK_SIZE);
+    g_chunks[idx][CALLDATA_CHUNK_SIZE - 2] = (uint8_t) (array_size >> 8);
+    g_chunks[idx][CALLDATA_CHUNK_SIZE - 1] = (uint8_t) (array_size & 0xFF);
+    g_chunk_present[idx] = true;
+}
+
+static void test_path_array_size_one_iterates_once(void **state) {
+    (void) state;
+    // chunk[0] holds array_size=1; chunk[1] is the element body (STATIC
+    // LEAF reads chunk_size bytes).
+    put_array_size_chunk(0, 1);
+    static const uint8_t body[] = {0xAB, 0xCD};
+    set_chunk(1, body, sizeof(body));
+
+    s_data_path path = {0};
+    path.size = 2;
+    path.elements[0].type = ELEMENT_TYPE_ARRAY;
+    path.elements[0].array.weight = 1;  // single-chunk elements
+    path.elements[1].type = ELEMENT_TYPE_LEAF;
+    path.elements[1].leaf.type = LEAF_TYPE_STATIC;
+
+    s_parsed_value_collection collec = {0};
+    assert_true(data_path_get(&path, &collec));
+    // One iteration produced one collection entry.
+    assert_int_equal(collec.size, 1);
+    data_path_cleanup(&collec);
+}
+
+static void test_path_array_size_two_iterates_twice(void **state) {
+    (void) state;
+    put_array_size_chunk(0, 2);
+    static const uint8_t e0[] = {0x11};
+    static const uint8_t e1[] = {0x22};
+    set_chunk(1, e0, sizeof(e0));
+    set_chunk(2, e1, sizeof(e1));
+
+    s_data_path path = {0};
+    path.size = 2;
+    path.elements[0].type = ELEMENT_TYPE_ARRAY;
+    path.elements[0].array.weight = 1;
+    path.elements[1].type = ELEMENT_TYPE_LEAF;
+    path.elements[1].leaf.type = LEAF_TYPE_STATIC;
+
+    s_parsed_value_collection collec = {0};
+    assert_true(data_path_get(&path, &collec));
+    assert_int_equal(collec.size, 2);
+    data_path_cleanup(&collec);
+}
+
+static void test_path_array_slice_start_end(void **state) {
+    (void) state;
+    // array_size=5, slice [1, 3) → 2 iterations on chunks 2 and 3.
+    put_array_size_chunk(0, 5);
+    // weight=1, idx=start..end-1; chunk fetched at offset = 1 + idx * weight
+    static const uint8_t e1[] = {0x11};
+    static const uint8_t e2[] = {0x22};
+    set_chunk(1 + 1, e1, sizeof(e1));  // idx=1
+    set_chunk(1 + 2, e2, sizeof(e2));  // idx=2
+
+    s_data_path path = {0};
+    path.size = 2;
+    path.elements[0].type = ELEMENT_TYPE_ARRAY;
+    path.elements[0].array.weight = 1;
+    path.elements[0].array.has_start = true;
+    path.elements[0].array.start = 1;
+    path.elements[0].array.has_end = true;
+    path.elements[0].array.end = 3;
+    path.elements[1].type = ELEMENT_TYPE_LEAF;
+    path.elements[1].leaf.type = LEAF_TYPE_STATIC;
+
+    s_parsed_value_collection collec = {0};
+    assert_true(data_path_get(&path, &collec));
+    assert_int_equal(collec.size, 2);
+    data_path_cleanup(&collec);
+}
+
+static void test_path_array_end_le_start_rejected(void **state) {
+    (void) state;
+    put_array_size_chunk(0, 5);
+
+    s_data_path path = {0};
+    path.size = 1;
+    path.elements[0].type = ELEMENT_TYPE_ARRAY;
+    path.elements[0].array.weight = 1;
+    path.elements[0].array.has_start = true;
+    path.elements[0].array.start = 3;
+    path.elements[0].array.has_end = true;
+    path.elements[0].array.end = 3;  // end == start → reject
+
+    s_parsed_value_collection collec = {0};
+    assert_false(data_path_get(&path, &collec));
+}
+
+static void test_path_array_size_chunk_missing_rejected(void **state) {
+    (void) state;
+    // chunk[0] not set → path_array's calldata_get_chunk returns NULL.
+    s_data_path path = {0};
+    path.size = 1;
+    path.elements[0].type = ELEMENT_TYPE_ARRAY;
+    path.elements[0].array.weight = 1;
+
+    s_parsed_value_collection collec = {0};
+    assert_false(data_path_get(&path, &collec));
+}
+
+static void test_path_array_non_zero_high_bytes_rejected(void **state) {
+    (void) state;
+    // First byte non-zero — is_zeroes_buffer fails before reading size.
+    memset(g_chunks[0], 0xFF, CALLDATA_CHUNK_SIZE);
+    g_chunk_present[0] = true;
+
+    s_data_path path = {0};
+    path.size = 1;
+    path.elements[0].type = ELEMENT_TYPE_ARRAY;
+    path.elements[0].array.weight = 1;
+
+    s_parsed_value_collection collec = {0};
+    assert_false(data_path_get(&path, &collec));
+}
+
+// =============================================================================
+// path_ref runtime
+// =============================================================================
+
+static void test_path_ref_dereferences_offset(void **state) {
+    (void) state;
+    // chunk[0] holds raw_offset = 1 * CALLDATA_CHUNK_SIZE = 32. After
+    // path_ref, *offset is 1; the subsequent LEAF reads chunk[1].
+    memset(g_chunks[0], 0, CALLDATA_CHUNK_SIZE);
+    g_chunks[0][CALLDATA_CHUNK_SIZE - 1] = CALLDATA_CHUNK_SIZE;  // 0x20
+    g_chunk_present[0] = true;
+    static const uint8_t target[] = {0xAB};
+    set_chunk(1, target, sizeof(target));
+
+    s_data_path path = {0};
+    path.size = 2;
+    path.elements[0].type = ELEMENT_TYPE_REF;
+    path.elements[1].type = ELEMENT_TYPE_LEAF;
+    path.elements[1].leaf.type = LEAF_TYPE_STATIC;
+
+    s_parsed_value_collection collec = {0};
+    assert_true(data_path_get(&path, &collec));
+    assert_int_equal(collec.size, 1);
+    data_path_cleanup(&collec);
+}
+
+static void test_path_ref_unaligned_offset_rejected(void **state) {
+    (void) state;
+    // raw_offset = 33 is not a multiple of CALLDATA_CHUNK_SIZE.
+    memset(g_chunks[0], 0, CALLDATA_CHUNK_SIZE);
+    g_chunks[0][CALLDATA_CHUNK_SIZE - 1] = 33;
+    g_chunk_present[0] = true;
+
+    s_data_path path = {0};
+    path.size = 1;
+    path.elements[0].type = ELEMENT_TYPE_REF;
+
+    s_parsed_value_collection collec = {0};
+    assert_false(data_path_get(&path, &collec));
+}
+
+// =============================================================================
+// path_tuple runtime
+// =============================================================================
+
+static void test_path_tuple_advances_offset(void **state) {
+    (void) state;
+    // TUPLE(value=2) jumps 2 chunks then LEAF(STATIC) reads chunk[2].
+    static const uint8_t body[] = {0xFE, 0xED};
+    set_chunk(2, body, sizeof(body));
+
+    s_data_path path = {0};
+    path.size = 2;
+    path.elements[0].type = ELEMENT_TYPE_TUPLE;
+    path.elements[0].tuple.value = 2;
+    path.elements[1].type = ELEMENT_TYPE_LEAF;
+    path.elements[1].leaf.type = LEAF_TYPE_STATIC;
+
+    s_parsed_value_collection collec = {0};
+    assert_true(data_path_get(&path, &collec));
+    assert_int_equal(collec.size, 1);
+    data_path_cleanup(&collec);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -339,6 +538,15 @@ int main(void) {
         cmocka_unit_test_setup(test_data_path_get_leaf_missing_chunk_returns_false, reset),
         cmocka_unit_test_setup(test_data_path_get_leaf_invalid_type_rejected_at_runtime, reset),
         cmocka_unit_test_setup(test_data_path_cleanup_frees_allocated_ptr, reset),
+        cmocka_unit_test_setup(test_path_array_size_one_iterates_once, reset),
+        cmocka_unit_test_setup(test_path_array_size_two_iterates_twice, reset),
+        cmocka_unit_test_setup(test_path_array_slice_start_end, reset),
+        cmocka_unit_test_setup(test_path_array_end_le_start_rejected, reset),
+        cmocka_unit_test_setup(test_path_array_size_chunk_missing_rejected, reset),
+        cmocka_unit_test_setup(test_path_array_non_zero_high_bytes_rejected, reset),
+        cmocka_unit_test_setup(test_path_ref_dereferences_offset, reset),
+        cmocka_unit_test_setup(test_path_ref_unaligned_offset_rejected, reset),
+        cmocka_unit_test_setup(test_path_tuple_advances_offset, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
