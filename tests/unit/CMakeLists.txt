@@ -1032,3 +1032,53 @@ target_link_libraries(test_field_table PUBLIC
 )
 
 add_test(test_field_table test_field_table)
+
+# gtp_tx_info test
+add_executable(test_tx_info
+  ${SRC_DIR}/test_tx_info.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_tx_info.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/time_format.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+target_include_directories(test_tx_info PRIVATE
+  ${APP_DIR}/features/provide_proxy_info
+  ${APP_DIR}/features/provide_trusted_name
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_tx_info PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_tx_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=get_tx_ctx_count
+                      -Wl,--wrap=calldata_get_selector
+)
+
+add_test(test_tx_info test_tx_info)
