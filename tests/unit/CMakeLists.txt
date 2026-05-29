@@ -1437,3 +1437,20 @@ target_link_libraries(test_cmd_map_entry PUBLIC
 )
 
 add_test(test_cmd_map_entry test_cmd_map_entry)
+
+# tlv_apdu streamer
+add_executable(test_tlv_apdu
+  ${SRC_DIR}/test_tlv_apdu.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/mem_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+)
+
+target_link_libraries(test_tlv_apdu PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_tlv_apdu test_tlv_apdu)
