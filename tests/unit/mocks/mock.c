@@ -97,15 +97,18 @@ __attribute__((weak)) bool data_path_get(const void *data_path, void *collection
     return true;
 }
 
-const uint8_t *get_current_tx_to(void) {
+// These stubs are weak so test targets that link the real tx_ctx.c
+// (test_tx_ctx) can override them without a multiple-definition link
+// error.
+__attribute__((weak)) const uint8_t *get_current_tx_to(void) {
     return NULL;
 }
 
-const uint8_t *get_current_tx_from(void) {
+__attribute__((weak)) const uint8_t *get_current_tx_from(void) {
     return NULL;
 }
 
-const uint8_t *get_current_tx_info(void) {
+__attribute__((weak)) const uint8_t *get_current_tx_info(void) {
     return NULL;
 }
 
@@ -176,7 +179,7 @@ bool mem_utils_calloc(void **buffer, uint16_t size, bool permanent, const char *
     return true;
 }
 
-const uint8_t *get_current_tx_amount(void) {
+__attribute__((weak)) const uint8_t *get_current_tx_amount(void) {
     return NULL;
 }
 
