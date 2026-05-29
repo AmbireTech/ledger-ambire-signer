@@ -476,3 +476,33 @@ target_link_libraries(test_rlp_utils PUBLIC
 )
 
 add_test(test_rlp_utils test_rlp_utils)
+
+# uint128 arithmetic test
+add_executable(test_uint128
+  ${SRC_DIR}/test_uint128.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/utils.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_compile_definitions(test_uint128 PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_uint128 PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_uint128 test_uint128)
