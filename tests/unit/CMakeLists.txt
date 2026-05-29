@@ -1082,3 +1082,45 @@ target_link_libraries(test_tx_info PUBLIC
 )
 
 add_test(test_tx_info test_tx_info)
+
+# gtp_data_path test
+add_executable(test_data_path
+  ${SRC_DIR}/test_data_path.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_data_path.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_path_array.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_path_slice.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_data_path PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_data_path PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_current_calldata
+                      -Wl,--wrap=calldata_get_chunk
+)
+
+add_test(test_data_path test_data_path)
