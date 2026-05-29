@@ -143,9 +143,18 @@ void eip7251_plugin_call(eth_plugin_msg_t message, void *parameters) {
     (void) parameters;
 }
 
-// app_exit is noreturn; we never reach it in our tests but the linker
-// needs a symbol. If reached unexpectedly, abort the test process.
+// app_exit is noreturn. Most tests must NEVER reach it (silent
+// fall-through to app_exit would be a security bug). The defensive-
+// guard tests below set g_expect_app_exit + a jmp_buf so the noreturn
+// contract can be unwound back to the test body.
+static bool g_expect_app_exit = false;
+static bool g_app_exit_reached = false;
+static jmp_buf g_app_exit_jmp;
 __attribute__((noreturn)) void app_exit(void) {
+    if (g_expect_app_exit) {
+        g_app_exit_reached = true;
+        longjmp(g_app_exit_jmp, 1);
+    }
     fail_msg("app_exit() reached unexpectedly");
     while (1) {
     }
@@ -202,6 +211,8 @@ static int reset(void **state) {
     // on the "cached but unavailable" early-return at the top of the
     // function.
     dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_OK;
+    g_expect_app_exit = false;
+    g_app_exit_reached = false;
     return 0;
 }
 
@@ -359,6 +370,75 @@ static void test_perform_init_default_unresolved_tx_chain_defers_check(void **st
     // (The contract/selector match succeeded so the OK status is set
     // before dispatching to the external plugin.)
     assert_int_equal(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_OK);
+}
+
+// =============================================================================
+// Defensive panics — these guards (app_exit) are the *last line of
+// defense* against state-corruption between the plugin INIT phase
+// and the eth_plugin_perform_init() entry. A silent fall-through
+// would let a registered plugin be invoked on the wrong contract /
+// selector, so we must confirm they actually trip.
+// =============================================================================
+
+static void test_perform_init_default_contract_mismatch_panics(void **state) {
+    (void) state;
+    // Plugin was registered for contract A; the transaction now claims
+    // contract B. app_exit must fire — anything else lets the wrong
+    // plugin take over the rendering.
+    dataContext.tokenContext.pluginChainId = PLUGIN_CHAIN_ID_ANY;
+    pluginType = PLUGIN_TYPE_EXTERNAL;
+    const uint8_t registered_contract[ADDRESS_LENGTH] = {[0] = 0xAA};
+    const uint8_t selector[CALLDATA_SELECTOR_SIZE] = {0xDE, 0xAD, 0xBE, 0xEF};
+    memcpy(dataContext.tokenContext.contractAddress, registered_contract, ADDRESS_LENGTH);
+    memcpy(dataContext.tokenContext.methodSelector, selector, CALLDATA_SELECTOR_SIZE);
+
+    uint8_t observed_contract[ADDRESS_LENGTH] = {[0] = 0xBB};  // different
+    ethPluginInitContract_t init = {.selector = selector};
+
+    g_expect_app_exit = true;
+    if (setjmp(g_app_exit_jmp) == 0) {
+        eth_plugin_perform_init(observed_contract, &init);
+        fail_msg("app_exit not reached on contract mismatch");
+    }
+    assert_true(g_app_exit_reached);
+}
+
+static void test_perform_init_default_selector_mismatch_panics(void **state) {
+    (void) state;
+    // Plugin registered for selector X; tx now uses selector Y.
+    dataContext.tokenContext.pluginChainId = PLUGIN_CHAIN_ID_ANY;
+    pluginType = PLUGIN_TYPE_EXTERNAL;
+    uint8_t contract[ADDRESS_LENGTH] = {[0] = 0xAA};
+    const uint8_t registered_selector[CALLDATA_SELECTOR_SIZE] = {0xDE, 0xAD, 0xBE, 0xEF};
+    memcpy(dataContext.tokenContext.contractAddress, contract, ADDRESS_LENGTH);
+    memcpy(dataContext.tokenContext.methodSelector, registered_selector, CALLDATA_SELECTOR_SIZE);
+
+    const uint8_t observed_selector[CALLDATA_SELECTOR_SIZE] = {0xCA, 0xFE, 0xBA, 0xBE};
+    ethPluginInitContract_t init = {.selector = observed_selector};
+
+    g_expect_app_exit = true;
+    if (setjmp(g_app_exit_jmp) == 0) {
+        eth_plugin_perform_init(contract, &init);
+        fail_msg("app_exit not reached on selector mismatch");
+    }
+    assert_true(g_app_exit_reached);
+}
+
+static void test_perform_init_unsupported_plugin_type_panics(void **state) {
+    (void) state;
+    // pluginType outside every case → default branch must app_exit.
+    pluginType = (pluginType_t) 0x7F;  // arbitrary unknown value
+
+    uint8_t contract[ADDRESS_LENGTH] = {0};
+    const uint8_t selector[CALLDATA_SELECTOR_SIZE] = {0};
+    ethPluginInitContract_t init = {.selector = selector};
+
+    g_expect_app_exit = true;
+    if (setjmp(g_app_exit_jmp) == 0) {
+        eth_plugin_perform_init(contract, &init);
+        fail_msg("app_exit not reached on unsupported pluginType");
+    }
+    assert_true(g_app_exit_reached);
 }
 
 // =============================================================================
@@ -525,6 +605,9 @@ int main(void) {
         cmocka_unit_test_setup(test_perform_init_default_chain_mismatch_marks_unavailable, reset),
         cmocka_unit_test_setup(test_perform_init_default_chain_any_bypasses_check, reset),
         cmocka_unit_test_setup(test_perform_init_default_unresolved_tx_chain_defers_check, reset),
+        cmocka_unit_test_setup(test_perform_init_default_contract_mismatch_panics, reset),
+        cmocka_unit_test_setup(test_perform_init_default_selector_mismatch_panics, reset),
+        cmocka_unit_test_setup(test_perform_init_unsupported_plugin_type_panics, reset),
         // Dispatcher tests
         cmocka_unit_test_setup(test_call_cached_unavailable_short_circuits, reset),
         cmocka_unit_test_setup(test_call_unknown_method_returns_unavailable, reset),
