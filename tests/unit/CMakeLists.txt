@@ -1532,3 +1532,47 @@ target_link_libraries(test_commands_7702 PUBLIC
 )
 
 add_test(test_commands_7702 test_commands_7702)
+
+# proxy_info — backend-signed proxy -> implementation descriptor
+add_executable(test_proxy_info
+  ${SRC_DIR}/test_proxy_info.c
+  ${APP_DIR}/features/provide_proxy_info/proxy_info.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_include_directories(test_proxy_info PRIVATE
+  ${APP_DIR}/features/provide_proxy_info
+)
+
+target_compile_definitions(test_proxy_info PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_proxy_info PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_proxy_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+)
+
+add_test(test_proxy_info test_proxy_info)
