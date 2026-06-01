@@ -616,10 +616,12 @@ static void test_query_ui_screen2_extra_data_hex(void **state) {
     char title[16] = {0};
     char msgbuf[64] = {0};
     g_ctx.selectorIndex = 0;
-    g_ctx.extra_data[0] = 0x01;  // non-printable byte
-    g_ctx.extra_data[1] = 0xFE;
-    g_ctx.extra_data[2] = 0xAB;
-    g_ctx.extra_data_len = 3;
+    // extra_data is char[] (signed on this target); the byte values above
+    // 0x7F have to be assigned through their unsigned bit-pattern via
+    // memcpy to avoid -Woverflow on the implicit int->char conversion.
+    static const uint8_t non_printable_bytes[] = {0x01, 0xFE, 0xAB};
+    memcpy(g_ctx.extra_data, non_printable_bytes, sizeof(non_printable_bytes));
+    g_ctx.extra_data_len = sizeof(non_printable_bytes);
 
     ethQueryContractUI_t msg = {0};
     msg.screenIndex = 2;
