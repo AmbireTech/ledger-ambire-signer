@@ -521,6 +521,41 @@ static void test_path_tuple_advances_offset(void **state) {
 }
 
 // =============================================================================
+// Tail coverage — security gates that the base suite skipped.
+// =============================================================================
+
+// path_array enforces passes <= UINT8_MAX (line 286 in gtp_data_path.c).
+// An array_size larger than 255 with no slice bounds must be rejected
+// before allocating a passes_remaining slot.
+static void test_path_array_size_above_uint8_max_rejected(void **state) {
+    (void) state;
+    put_array_size_chunk(0, 256);  // > UINT8_MAX
+    s_data_path path = {0};
+    path.size = 2;
+    path.elements[0].type = ELEMENT_TYPE_ARRAY;
+    path.elements[0].array.weight = 1;
+    path.elements[1].type = ELEMENT_TYPE_LEAF;
+    path.elements[1].leaf.type = LEAF_TYPE_STATIC;
+
+    s_parsed_value_collection collec = {0};
+    assert_false(data_path_get(&path, &collec));
+    data_path_cleanup(&collec);
+}
+
+// data_path_get default switch — element with an unknown type must
+// reject (line 342-343 in gtp_data_path.c). Construct a path whose
+// only element has a type outside the enum.
+static void test_data_path_get_unknown_element_type_rejected(void **state) {
+    (void) state;
+    s_data_path path = {0};
+    path.size = 1;
+    path.elements[0].type = (e_path_element_type) 0xFF;
+
+    s_parsed_value_collection collec = {0};
+    assert_false(data_path_get(&path, &collec));
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -547,6 +582,8 @@ int main(void) {
         cmocka_unit_test_setup(test_path_ref_dereferences_offset, reset),
         cmocka_unit_test_setup(test_path_ref_unaligned_offset_rejected, reset),
         cmocka_unit_test_setup(test_path_tuple_advances_offset, reset),
+        cmocka_unit_test_setup(test_path_array_size_above_uint8_max_rejected, reset),
+        cmocka_unit_test_setup(test_data_path_get_unknown_element_type_rejected, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
