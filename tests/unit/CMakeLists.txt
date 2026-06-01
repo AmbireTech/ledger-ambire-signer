@@ -2492,3 +2492,46 @@ target_link_libraries(test_erc1155_plugin PUBLIC
 )
 
 add_test(test_erc1155_plugin test_erc1155_plugin)
+
+# eth2_plugin — Beacon Chain deposit (32 ETH staking)
+add_executable(test_eth2_plugin
+  ${SRC_DIR}/test_eth2_plugin.c
+  ${APP_DIR}/plugins/eth2/eth2_plugin.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_eth2_plugin PRIVATE
+  ${APP_DIR}/plugins
+  ${APP_DIR}/plugins/eth2
+  ${APP_DIR}/features/get_eth2_public_key
+)
+
+target_compile_definitions(test_eth2_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_ETH2
+)
+
+target_compile_options(test_eth2_plugin PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_eth2_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_eth2_public_key
+                      -Wl,--wrap=cx_hash_sha256
+                      -Wl,--wrap=amountToString
+)
+
+add_test(test_eth2_plugin test_eth2_plugin)
