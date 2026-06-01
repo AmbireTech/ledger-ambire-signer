@@ -1724,3 +1724,43 @@ target_link_libraries(test_enum_value PUBLIC
 )
 
 add_test(test_enum_value test_enum_value)
+
+# cmd_set_plugin — backend-signed plugin registration APDU
+add_executable(test_cmd_set_plugin
+  ${SRC_DIR}/test_cmd_set_plugin.c
+  ${APP_DIR}/features/set_plugin/cmd_set_plugin.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_cmd_set_plugin PRIVATE
+  ${APP_DIR}/features/set_plugin
+  ${APP_DIR}/plugins
+)
+
+target_compile_definitions(test_cmd_set_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_cmd_set_plugin PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_set_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=app_compatible_with_chain_id
+)
+
+add_test(test_cmd_set_plugin test_cmd_set_plugin)
