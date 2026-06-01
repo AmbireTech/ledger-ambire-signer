@@ -33,7 +33,7 @@ bool rlp_can_decode(uint8_t *buffer, uint32_t bufferLength, bool *valid) {
     if (*buffer <= RLP_SINGLE_BYTE_MAX) {
     } else if (*buffer <= RLP_SHORT_STRING_MAX) {
     } else if (*buffer <= RLP_LONG_STRING_MAX) {
-        if (bufferLength < (1 + (*buffer - RLP_LONG_STRING_BASE))) {
+        if (bufferLength < (uint32_t) (1 + (*buffer - RLP_LONG_STRING_BASE))) {
             return false;
         }
         if (*buffer > RLP_STR_LEN_OF_BYTES_4) {
@@ -42,7 +42,7 @@ bool rlp_can_decode(uint8_t *buffer, uint32_t bufferLength, bool *valid) {
         }
     } else if (*buffer <= RLP_SHORT_LIST_MAX) {
     } else {
-        if (bufferLength < (1 + (*buffer - RLP_LONG_LIST_BASE))) {
+        if (bufferLength < (uint32_t) (1 + (*buffer - RLP_LONG_LIST_BASE))) {
             return false;
         }
         if (*buffer > RLP_LIST_LEN_OF_BYTES_4) {

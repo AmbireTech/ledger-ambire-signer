@@ -14,6 +14,7 @@
 #include "auth_7702.h"
 #include "get_public_key.h"
 #include "mem_utils.h"
+#include "os_utils.h"
 #include "hash_bytes.h"
 
 // Avoid saving the full structure when parsing

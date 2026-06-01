@@ -1,4 +1,5 @@
 #include <string.h>
+#include "os_utils.h"
 #include "eth_plugin_internal.h"
 #include "eth_plugin_handler.h"
 #include "shared_context.h"

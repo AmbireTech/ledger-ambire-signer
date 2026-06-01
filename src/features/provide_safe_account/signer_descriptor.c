@@ -8,6 +8,7 @@
 #include "lcx_ecdsa.h"
 #include "tlv_library.h"
 #include "tlv_utils.h"
+#include "os_utils.h"
 #include "utils.h"
 
 #define TYPE_VERIFIABLE_ADDRESS 0x0A
