@@ -86,6 +86,8 @@ include_directories(
   ${APP_DIR}/features/provide_proxy_info
   ${APP_DIR}/features/get_public_key
   ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/sign_authorization_eip7702
+  ${APP_DIR}/features/sign_message_eip712
   ${APP_DIR}/features/get_challenge
   ${APP_DIR}/nbgl
   ${MOCK_DIR}
@@ -1488,3 +1490,45 @@ target_link_libraries(test_tlv_utils PUBLIC
 )
 
 add_test(test_tlv_utils test_tlv_utils)
+
+# EIP-7702 authorization command entry point
+add_executable(test_commands_7702
+  ${SRC_DIR}/test_commands_7702.c
+  ${APP_DIR}/features/sign_authorization_eip7702/commands_7702.c
+  ${APP_DIR}/features/sign_authorization_eip7702/auth_7702.c
+  ${APP_DIR}/features/sign_authorization_eip7702/rlp_encode.c
+  ${APP_DIR}/features/sign_authorization_eip7702/whitelist_7702.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_commands_7702 PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_commands_7702 PRIVATE "SHELL:-include os_pic.h" "SHELL:-include os_seed.h")
+
+target_link_libraries(test_commands_7702 PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=tlv_from_apdu
+                      -Wl,--wrap=finalize_hash
+)
+
+add_test(test_commands_7702 test_commands_7702)
