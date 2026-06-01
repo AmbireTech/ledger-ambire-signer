@@ -506,6 +506,7 @@ target_link_libraries(test_uint128 PUBLIC
                       cmocka
                       gcov
                       ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=cx_math_mult_no_throw
 )
 
 add_test(test_uint128 test_uint128)
@@ -2037,3 +2038,52 @@ target_link_libraries(test_eth_ustream_typed PUBLIC
 )
 
 add_test(test_eth_ustream_typed test_eth_ustream_typed)
+
+# logic_sign_tx — fee display gate (max_transaction_fee_to_string)
+add_executable(test_logic_sign_tx_fee
+  ${SRC_DIR}/test_logic_sign_tx_fee.c
+  ${APP_DIR}/features/sign_tx/logic_sign_tx.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_logic_sign_tx_fee PRIVATE
+  ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/get_public_key
+  ${APP_DIR}/features/generic_tx_parser
+  ${APP_DIR}/features/provide_network_info
+  ${APP_DIR}/features/provide_proxy_info
+  ${APP_DIR}/plugins
+  ${APP_DIR}/swap
+  ${BOLOS_SDK}/io_legacy/include
+)
+
+target_compile_definitions(test_logic_sign_tx_fee PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_SWAP
+  OS_IO_SEPH_BUFFER_SIZE=272
+)
+
+target_compile_options(test_logic_sign_tx_fee PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_logic_sign_tx_fee PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_tx_chain_id
+                      -Wl,--wrap=get_displayable_ticker
+                      -Wl,--wrap=cx_math_mult_no_throw
+)
+
+add_test(test_logic_sign_tx_fee test_logic_sign_tx_fee)
