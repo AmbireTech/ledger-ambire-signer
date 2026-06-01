@@ -180,15 +180,27 @@ void os_lib_call(unsigned int *params) {
     (void) params;
 }
 
-// Plugin selectors referenced by INTERNAL_ETH_PLUGINS. Pulled in here so the
-// linker resolves them — production headers declare them extern.
-const uint8_t *const ERC20_SELECTORS[NUM_ERC20_SELECTORS] = {NULL, NULL};
+// Plugin selectors / addresses referenced by INTERNAL_ETH_PLUGINS.
+// Production code links these against the actual plugin .c files; here
+// we provide concrete byte arrays so the matching_selector /
+// matching_address loops inside eth_plugin_perform_init_old_internal
+// don't memcmp against NULL pointers (UB).
+static const uint8_t g_erc20_transfer_selector[4] = {0xA9, 0x05, 0x9C, 0xBB};
+static const uint8_t g_erc20_approve_selector[4] = {0x09, 0x5E, 0xA7, 0xB3};
+const uint8_t *const ERC20_SELECTORS[NUM_ERC20_SELECTORS] = {
+    g_erc20_transfer_selector,
+    g_erc20_approve_selector,
+};
 #ifdef HAVE_ETH2
-const uint8_t *const ETH2_SELECTORS[NUM_ETH2_SELECTORS] = {NULL};
-const uint8_t *const ETH2_ADDRESSES[NUM_ETH2_ADDRESSES] = {NULL};
+static const uint8_t g_eth2_selector[4] = {0x22, 0x89, 0x51, 0x18};
+static const uint8_t g_eth2_address[ADDRESS_LENGTH] = {0xE2};
+const uint8_t *const ETH2_SELECTORS[NUM_ETH2_SELECTORS] = {g_eth2_selector};
+const uint8_t *const ETH2_ADDRESSES[NUM_ETH2_ADDRESSES] = {g_eth2_address};
 #endif
-const uint8_t *const EIP7002_ADDRESSES[NUM_EIP7002_ADDRESSES] = {NULL};
-const uint8_t *const EIP7251_ADDRESSES[NUM_EIP7251_ADDRESSES] = {NULL};
+static const uint8_t g_eip7002_address[ADDRESS_LENGTH] = {0x70};
+static const uint8_t g_eip7251_address[ADDRESS_LENGTH] = {0x72};
+const uint8_t *const EIP7002_ADDRESSES[NUM_EIP7002_ADDRESSES] = {g_eip7002_address};
+const uint8_t *const EIP7251_ADDRESSES[NUM_EIP7251_ADDRESSES] = {g_eip7251_address};
 
 // =============================================================================
 // Fixture
@@ -591,6 +603,90 @@ static void test_perform_init_swap_with_calldata_sets_ok(void **state) {
 }
 
 // =============================================================================
+// eth_plugin_perform_init_old_internal — INTERNAL_ETH_PLUGINS lookup.
+//
+// The PLUGIN_TYPE_NONE path walks INTERNAL_ETH_PLUGINS trying every
+// registered plugin's (address-list, selector-list) tuple. A regression
+// that returned true unconditionally would let any contract / selector
+// claim the ERC-20 alias — these tests pin the actual match contract.
+// =============================================================================
+
+static void test_perform_init_none_matches_erc20_transfer(void **state) {
+    (void) state;
+    // ERC-20 plugin entry has addresses=NULL (any contract) and
+    // selectors={transfer, approve}. Match the first selector.
+    pluginType = PLUGIN_TYPE_NONE;
+    uint8_t contract[ADDRESS_LENGTH] = {0};
+    contract[0] = 0xAB;
+    ethPluginInitContract_t init = {.selector = g_erc20_transfer_selector};
+
+    eth_plugin_perform_init(contract, &init);
+
+    // The function copies the plugin alias into tokenContext.pluginName
+    // and switches pluginType to OLD_INTERNAL.
+    assert_int_equal(pluginType, PLUGIN_TYPE_OLD_INTERNAL);
+    assert_string_equal(dataContext.tokenContext.pluginName, "-erc20");
+    assert_int_equal(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_OK);
+}
+
+static void test_perform_init_none_matches_eip7002_by_address(void **state) {
+    (void) state;
+    // EIP-7002 entry has addresses={g_eip7002_address} (constraint),
+    // selectors=NULL (any selector → matching_selector returns true).
+    pluginType = PLUGIN_TYPE_NONE;
+    uint8_t contract[ADDRESS_LENGTH];
+    memcpy(contract, g_eip7002_address, ADDRESS_LENGTH);
+    const uint8_t unrelated_selector[CALLDATA_SELECTOR_SIZE] = {0xCA, 0xFE, 0xBA, 0xBE};
+    ethPluginInitContract_t init = {.selector = unrelated_selector};
+
+    eth_plugin_perform_init(contract, &init);
+
+    assert_int_equal(pluginType, PLUGIN_TYPE_OLD_INTERNAL);
+    assert_string_equal(dataContext.tokenContext.pluginName, "-eip7002");
+}
+
+static void test_perform_init_none_no_match_unavailable(void **state) {
+    (void) state;
+    // Contract not in any address-bound plugin, selector not in any
+    // selector-bound plugin → old_internal returns false. Then
+    // contract_address != NULL and G_called_from_swap=false → returns
+    // ETH_PLUGIN_RESULT_UNAVAILABLE without disturbing pluginType.
+    pluginType = PLUGIN_TYPE_NONE;
+    G_called_from_swap = false;
+    uint8_t contract[ADDRESS_LENGTH];
+    memset(contract, 0xCD, ADDRESS_LENGTH);  // matches no plugin address
+    const uint8_t selector[CALLDATA_SELECTOR_SIZE] = {0xCA, 0xFE, 0xBA, 0xBE};
+    ethPluginInitContract_t init = {.selector = selector};
+
+    eth_plugin_perform_init(contract, &init);
+
+    // Stayed NONE (no match overwrote it), default status UNAVAILABLE.
+    assert_int_equal(pluginType, PLUGIN_TYPE_NONE);
+    assert_int_equal(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_UNAVAILABLE);
+}
+
+static void test_perform_init_none_no_match_swap_mode_returns_error(void **state) {
+    (void) state;
+    // Same as above but under swap mode. The post-switch block must
+    // reject explicitly (RESULT_ERROR) instead of returning UNAVAILABLE:
+    // swap flows can't fall back to a generic "I don't know this
+    // contract" rendering — the user is then signing a contract
+    // call blind during an exchange and that path is unsafe.
+    pluginType = PLUGIN_TYPE_NONE;
+    G_called_from_swap = true;
+    uint8_t contract[ADDRESS_LENGTH];
+    memset(contract, 0xCD, ADDRESS_LENGTH);
+    const uint8_t selector[CALLDATA_SELECTOR_SIZE] = {0xCA, 0xFE, 0xBA, 0xBE};
+    ethPluginInitContract_t init = {.selector = selector};
+
+    eth_plugin_result_t r = eth_plugin_perform_init(contract, &init);
+    assert_int_equal(r, ETH_PLUGIN_RESULT_ERROR);
+
+    // Restore for next test.
+    G_called_from_swap = false;
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -624,6 +720,10 @@ int main(void) {
         cmocka_unit_test_setup(test_call_query_contract_id_error_propagates, reset),
         cmocka_unit_test_setup(test_call_query_contract_ui_ok, reset),
         cmocka_unit_test_setup(test_perform_init_swap_with_calldata_sets_ok, reset),
+        cmocka_unit_test_setup(test_perform_init_none_matches_erc20_transfer, reset),
+        cmocka_unit_test_setup(test_perform_init_none_matches_eip7002_by_address, reset),
+        cmocka_unit_test_setup(test_perform_init_none_no_match_unavailable, reset),
+        cmocka_unit_test_setup(test_perform_init_none_no_match_swap_mode_returns_error, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
