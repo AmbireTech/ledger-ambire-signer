@@ -2535,3 +2535,44 @@ target_link_libraries(test_eth2_plugin PUBLIC
 )
 
 add_test(test_eth2_plugin test_eth2_plugin)
+
+# eip7002_plugin — validator withdrawal request (Pectra)
+add_executable(test_eip7002_plugin
+  ${SRC_DIR}/test_eip7002_plugin.c
+  ${APP_DIR}/plugins/eip7002/eip7002_plugin.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_eip7002_plugin PRIVATE
+  ${APP_DIR}/plugins
+  ${APP_DIR}/plugins/eip7002
+)
+
+target_compile_definitions(test_eip7002_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_eip7002_plugin PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_eip7002_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_tx_chain_id
+                      -Wl,--wrap=get_displayable_ticker
+                      -Wl,--wrap=amountToString
+)
+
+add_test(test_eip7002_plugin test_eip7002_plugin)
