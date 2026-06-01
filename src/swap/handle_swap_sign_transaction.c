@@ -1,9 +1,12 @@
+#include "os_lib.h"  // os_lib_end
+
 #include "eth_swap_utils.h"
 #include "shared_context.h"
 #include "cmd_set_plugin.h"
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "common_ui.h"
+#include "os.h"
 
 // Standard or crosschain swap type
 swap_mode_t G_swap_mode;

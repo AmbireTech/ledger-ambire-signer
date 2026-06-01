@@ -4,6 +4,7 @@
 #include "eth_plugin_internal.h"
 #include "plugin_utils.h"
 #include "os_pki.h"
+#include "os_lib.h"
 
 uint16_t handle_set_external_plugin(const uint8_t *workBuffer, uint8_t dataLength) {
     PRINTF("Handling set Plugin\n");
@@ -27,7 +28,7 @@ uint16_t handle_set_external_plugin(const uint8_t *workBuffer, uint8_t dataLengt
         return SWO_INCORRECT_DATA;
     }
 
-    if (pluginNameLength + 1 > sizeof(dataContext.tokenContext.pluginName)) {
+    if ((size_t) pluginNameLength + 1 > sizeof(dataContext.tokenContext.pluginName)) {
         PRINTF("name length too big: expected max %d, got %d\n",
                sizeof(dataContext.tokenContext.pluginName),
                pluginNameLength + 1);
@@ -55,8 +56,11 @@ uint16_t handle_set_external_plugin(const uint8_t *workBuffer, uint8_t dataLengt
 
     PRINTF("Check external plugin %s\n", dataContext.tokenContext.pluginName);
 
-    // Check if the plugin is present on the device
-    params[0] = (uint32_t) dataContext.tokenContext.pluginName;
+    // Check if the plugin is present on the device. Bridge through
+    // uintptr_t so the cast is well-defined on test builds where
+    // void* is wider than uint32_t (production target is 32-bit
+    // ARM where the two widths match).
+    params[0] = (uint32_t) (uintptr_t) dataContext.tokenContext.pluginName;
     params[1] = ETH_PLUGIN_CHECK_PRESENCE;
     BEGIN_TRY {
         TRY {
