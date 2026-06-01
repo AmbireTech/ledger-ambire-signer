@@ -586,6 +586,65 @@ static void test_call_query_contract_ui_ok(void **state) {
     assert_int_equal(r, ETH_PLUGIN_RESULT_OK);
 }
 
+// Result-check error branches for every message type. The dispatcher
+// must propagate the plugin's RESULT_ERROR as-is, and turn any other
+// non-OK / non-FALLBACK value (default branch) into UNAVAILABLE.
+//
+// Without these tests, a regression that flipped ERROR → UNAVAILABLE
+// (or vice versa) for any one message type would change the caller's
+// behavior silently — INIT_CONTRACT propagates ERROR up to refuse the
+// signature flow, while FINALIZE / PROVIDE_PARAMETER report fault
+// back to the parser which decides whether to abort.
+
+static void test_call_provide_parameter_error_propagates(void **state) {
+    (void) state;
+    pluginType = PLUGIN_TYPE_ERC721;
+    g_plugin_result = ETH_PLUGIN_RESULT_ERROR;
+    ethPluginProvideParameter_t msg = {0};
+    assert_int_equal(eth_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg), ETH_PLUGIN_RESULT_ERROR);
+}
+
+static void test_call_provide_parameter_unknown_returns_unavailable(void **state) {
+    (void) state;
+    pluginType = PLUGIN_TYPE_ERC721;
+    g_plugin_result = ETH_PLUGIN_RESULT_UNAVAILABLE;  // outside {OK, FALLBACK, ERROR}
+    ethPluginProvideParameter_t msg = {0};
+    assert_int_equal(eth_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg),
+                     ETH_PLUGIN_RESULT_UNAVAILABLE);
+}
+
+static void test_call_finalize_error_propagates(void **state) {
+    (void) state;
+    pluginType = PLUGIN_TYPE_ERC721;
+    g_plugin_result = ETH_PLUGIN_RESULT_ERROR;
+    ethPluginFinalize_t msg = {0};
+    assert_int_equal(eth_plugin_call(ETH_PLUGIN_FINALIZE, &msg), ETH_PLUGIN_RESULT_ERROR);
+}
+
+static void test_call_finalize_unknown_returns_unavailable(void **state) {
+    (void) state;
+    pluginType = PLUGIN_TYPE_ERC721;
+    g_plugin_result = ETH_PLUGIN_RESULT_UNAVAILABLE;
+    ethPluginFinalize_t msg = {0};
+    assert_int_equal(eth_plugin_call(ETH_PLUGIN_FINALIZE, &msg), ETH_PLUGIN_RESULT_UNAVAILABLE);
+}
+
+static void test_call_provide_info_unknown_returns_unavailable(void **state) {
+    (void) state;
+    pluginType = PLUGIN_TYPE_ERC721;
+    g_plugin_result = ETH_PLUGIN_RESULT_UNAVAILABLE;
+    ethPluginProvideInfo_t msg = {0};
+    assert_int_equal(eth_plugin_call(ETH_PLUGIN_PROVIDE_INFO, &msg), ETH_PLUGIN_RESULT_UNAVAILABLE);
+}
+
+static void test_call_query_contract_ui_error_propagates(void **state) {
+    (void) state;
+    pluginType = PLUGIN_TYPE_ERC721;
+    g_plugin_result = ETH_PLUGIN_RESULT_ERROR;
+    ethQueryContractUI_t msg = {0};
+    assert_int_equal(eth_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg), ETH_PLUGIN_RESULT_ERROR);
+}
+
 // =============================================================================
 // eth_plugin_perform_init — PLUGIN_TYPE_NONE path (old_internal lookup)
 // =============================================================================
@@ -719,6 +778,12 @@ int main(void) {
         cmocka_unit_test_setup(test_call_provide_info_error_propagates, reset),
         cmocka_unit_test_setup(test_call_query_contract_id_error_propagates, reset),
         cmocka_unit_test_setup(test_call_query_contract_ui_ok, reset),
+        cmocka_unit_test_setup(test_call_provide_parameter_error_propagates, reset),
+        cmocka_unit_test_setup(test_call_provide_parameter_unknown_returns_unavailable, reset),
+        cmocka_unit_test_setup(test_call_finalize_error_propagates, reset),
+        cmocka_unit_test_setup(test_call_finalize_unknown_returns_unavailable, reset),
+        cmocka_unit_test_setup(test_call_provide_info_unknown_returns_unavailable, reset),
+        cmocka_unit_test_setup(test_call_query_contract_ui_error_propagates, reset),
         cmocka_unit_test_setup(test_perform_init_swap_with_calldata_sets_ok, reset),
         cmocka_unit_test_setup(test_perform_init_none_matches_erc20_transfer, reset),
         cmocka_unit_test_setup(test_perform_init_none_matches_eip7002_by_address, reset),
