@@ -1498,6 +1498,7 @@ add_executable(test_commands_7702
   ${APP_DIR}/features/sign_authorization_eip7702/auth_7702.c
   ${APP_DIR}/features/sign_authorization_eip7702/rlp_encode.c
   ${APP_DIR}/features/sign_authorization_eip7702/whitelist_7702.c
+  ${APP_DIR}/tlv_apdu.c
   ${APP_DIR}/tlv_utils.c
   ${APP_DIR}/utils.c
   ${APP_DIR}/uint128.c
@@ -1527,7 +1528,6 @@ target_link_libraries(test_commands_7702 PUBLIC
                       cmocka
                       gcov
                       ${LIBBSD_LIBRARIES}
-                      -Wl,--wrap=tlv_from_apdu
                       -Wl,--wrap=finalize_hash
 )
 

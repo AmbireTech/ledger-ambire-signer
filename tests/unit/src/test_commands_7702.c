@@ -10,15 +10,14 @@
  *     after parsing the BIP32 path, on follow-up chunks it refuses
  *     anything outside that state. Both paths funnel the payload to
  *     tlv_from_apdu() with handle_auth7702_tlv as the handler.
- *   - handle_auth7702_tlv() — runs the TLV-parsed auth struct
- *     against the whitelist, recomputes the RLP-hashed authorization
- *     digest, and triggers the review UI.
+ *   - handle_auth7702_tlv() (static) — TLV-parses the auth struct,
+ *     runs the delegate through the chain-bound whitelist, recomputes
+ *     the RLP-hashed authorization digest, and triggers the review UI.
  *
- * This slice covers the entry-point dispatcher (the appState lock,
- * the parseBip32 guard, the tlv_from_apdu success/failure paths).
- * The internal handle_auth7702_tlv is reachable only indirectly
- * through tlv_from_apdu and requires the full RLP/crypto/UI stack —
- * out of scope for this first commit.
+ * Coverage drives both halves end-to-end through real tlv_apdu.c +
+ * real auth_7702.c + real rlp_encode.c + real whitelist_7702.c. The
+ * SDK crypto primitives, get_public_key_string, and the UI hooks are
+ * stubbed.
  *
  * The appState lock is the load-bearing defense: without it a hostile
  * host could overwrite tmpCtx.authSigningContext7702.bip32 during a
@@ -38,6 +37,7 @@
 #include "apdu_constants.h"
 #include "commands_7702.h"
 #include "tlv_apdu.h"
+#include "shared_7702.h"
 
 // =============================================================================
 // Globals the module reads — provide storage here.
@@ -52,58 +52,39 @@ tmpContent_t tmpContent;
 tmpCtx_t tmpCtx;
 dataContext_t dataContext;
 uint8_t appState = APP_STATE_IDLE;
-const internalStorage_t N_storage_real = {.eip7702_enable = true};
+// N_storage_real is declared `const` in shared_context.h and lives in
+// NVM in production. Tests need to flip eip7702_enable, so we provide
+// the storage non-const and tell GCC the type mismatch with the
+// extern declaration is intentional. Use cast through (uintptr_t) so
+// the assignments below don't have to litter cast-away-const at every
+// call site.
+internalStorage_t g_n_storage_writable;
+extern const internalStorage_t N_storage_real __attribute__((alias("g_n_storage_writable")));
 
 // =============================================================================
 // Controllable stubs
 // =============================================================================
 
-// parseBip32 is a real function in main.c (not linked). Provide a
-// controllable stub: when g_parsebip32_ok is true, returns dataBuffer
-// (i.e. consumes nothing); when false, returns NULL.
 static bool g_parsebip32_ok = true;
 const uint8_t *parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, bip32_path_t *bip32) {
     (void) bip32;
     if (!g_parsebip32_ok) return NULL;
-    // Real parseBip32 consumes 1 + 4*len bytes; for the tests we let
-    // the entire buffer through unchanged so tlv_from_apdu sees the
-    // same bytes the test passed.
     (void) dataLength;
     return dataBuffer;
 }
 
-// reset_app_context is implemented in main.c. Provide a minimal stub
-// that just rewinds appState — that's the only field the tests
-// observe.
 void reset_app_context(void) {
     appState = APP_STATE_IDLE;
 }
 
-// tlv_from_apdu is the seam — we control its return through a flag.
-// The handler argument is never invoked from these tests (handle_auth7702_tlv
-// is exercised in a follow-up commit with the full RLP/UI stack).
-static e_tlv_apdu_ret g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
-e_tlv_apdu_ret __wrap_tlv_from_apdu(bool first_chunk,
-                                    uint8_t lc,
-                                    const uint8_t *payload,
-                                    f_tlv_payload_handler handler) {
-    (void) first_chunk;
-    (void) lc;
-    (void) payload;
-    (void) handler;
-    return g_tlv_from_apdu_ret;
-}
-
 // =============================================================================
-// SDK / app-side stubs — none of these are invoked on the entry-point
-// path (tlv_from_apdu is stubbed and the handler is never called) but
-// the linker resolves them through this TU.
+// SDK / app-side stubs invoked inside handle_auth7702_tlv.
 // =============================================================================
 
 uint32_t cx_keccak_init_no_throw(cx_sha3_t *hash, size_t size) {
     (void) hash;
     (void) size;
-    return 0;  // CX_OK
+    return 0;
 }
 uint32_t cx_hash_no_throw(cx_hash_t *hash,
                           uint32_t mode,
@@ -133,9 +114,9 @@ uint32_t get_public_key_string(bip32_path_t *bip32,
                                uint64_t chainId) {
     (void) bip32;
     (void) publicKey;
-    (void) address;
     (void) chainCode;
     (void) chainId;
+    if (address != NULL) address[0] = '\0';
     return 0;
 }
 
@@ -158,15 +139,32 @@ void hash_nbytes(const uint8_t *bytes, size_t n, cx_hash_t *hash_ctx) {
     (void) hash_ctx;
 }
 
-// UI hooks — never reached on the entry-point path.
+// UI hooks — counted so tests can pin which review screen fired.
+static int g_ui_auth_calls = 0;
+static int g_ui_revocation_calls = 0;
+static int g_ui_error_no_7702_calls = 0;
+static int g_ui_error_whitelist_calls = 0;
 void ui_error_no_7702(void) {
+    g_ui_error_no_7702_calls++;
 }
 void ui_error_no_7702_whitelist(void) {
+    g_ui_error_whitelist_calls++;
 }
 void ui_sign_7702_auth(void) {
+    g_ui_auth_calls++;
 }
 void ui_sign_7702_revocation(void) {
+    g_ui_revocation_calls++;
 }
+
+// =============================================================================
+// Whitelist data — must match src/features/sign_authorization_eip7702/whitelist_7702.c.
+// =============================================================================
+
+static const uint8_t g_simple7702_account[ADDRESS_LENGTH] = {
+    0x4C, 0xd2, 0x41, 0xE8, 0xd1, 0x51, 0x0e, 0x30, 0xb2, 0x07,
+    0x63, 0x97, 0xaf, 0xc7, 0x50, 0x8A, 0xe5, 0x9C, 0x66, 0xc9,
+};
 
 // =============================================================================
 // Fixture
@@ -176,9 +174,51 @@ static int reset(void **state) {
     (void) state;
     appState = APP_STATE_IDLE;
     g_parsebip32_ok = true;
-    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
+    g_ui_auth_calls = 0;
+    g_ui_revocation_calls = 0;
+    g_ui_error_no_7702_calls = 0;
+    g_ui_error_whitelist_calls = 0;
     memset(&tmpCtx, 0, sizeof(tmpCtx));
+    memset(&strings, 0, sizeof(strings));
+    g_n_storage_writable.eip7702_enable = true;
+    // tlv_apdu carries internal state across calls — clear it.
+    tlv_from_apdu(false, 0, NULL, NULL);
     return 0;
+}
+
+// =============================================================================
+// TLV payload builder
+// =============================================================================
+
+// 4-tag minimum payload: VERSION + DELEGATE_ADDR + CHAIN_ID + NONCE.
+// The first 2 bytes are the BE16 length prefix that tlv_apdu strips.
+static size_t build_tlv_payload(uint8_t *out,
+                                size_t out_size,
+                                uint8_t version,
+                                const uint8_t *delegate,
+                                uint64_t chain_id,
+                                uint8_t nonce) {
+    uint8_t tlv[64];
+    size_t off = 0;
+    tlv[off++] = 0x00;  // TAG_STRUCT_VERSION
+    tlv[off++] = 0x01;
+    tlv[off++] = version;
+    tlv[off++] = 0x01;  // TAG_DELEGATE_ADDR
+    tlv[off++] = ADDRESS_LENGTH;
+    memcpy(tlv + off, delegate, ADDRESS_LENGTH);
+    off += ADDRESS_LENGTH;
+    tlv[off++] = 0x02;  // TAG_CHAIN_ID
+    tlv[off++] = 0x01;
+    tlv[off++] = (uint8_t) (chain_id & 0xFF);  // single byte chain_id (sufficient for tests)
+    tlv[off++] = 0x03;                         // TAG_NONCE
+    tlv[off++] = 0x01;
+    tlv[off++] = nonce;
+
+    assert_true(out_size >= off + 2);
+    out[0] = (uint8_t) (off >> 8);
+    out[1] = (uint8_t) (off & 0xFF);
+    memcpy(out + 2, tlv, off);
+    return off + 2;
 }
 
 // =============================================================================
@@ -187,13 +227,10 @@ static int reset(void **state) {
 
 static void test_first_chunk_when_not_idle_rejected(void **state) {
     (void) state;
-    // The appState lock — a non-IDLE state at first-chunk arrival
-    // means another flow is already running, so refuse.
     appState = APP_STATE_SIGNING_TX;
     uint8_t payload[16] = {0};
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, sizeof(payload));
     assert_int_equal(sw, SWO_COMMAND_NOT_ALLOWED);
-    // appState must not have been clobbered by the rejected attempt.
     assert_int_equal(appState, APP_STATE_SIGNING_TX);
 }
 
@@ -203,54 +240,103 @@ static void test_first_chunk_parseBip32_failure_resets_app_context(void **state)
     uint8_t payload[16] = {0};
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, sizeof(payload));
     assert_int_equal(sw, SWO_INCORRECT_DATA);
-    // reset_app_context() walked back to IDLE.
-    assert_int_equal(appState, APP_STATE_IDLE);
-}
-
-static void test_first_chunk_happy_path_locks_app_state(void **state) {
-    (void) state;
-    g_parsebip32_ok = true;
-    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
-    uint8_t payload[16] = {0};
-    uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, sizeof(payload));
-    assert_int_equal(sw, SWO_NO_RESPONSE);
-    // The appState lock is now engaged — a concurrent first-chunk
-    // would now be rejected by the previous test's path.
-    assert_int_equal(appState, APP_STATE_SIGNING_EIP7702);
-}
-
-static void test_first_chunk_tlv_from_apdu_failure_returns_default_sw(void **state) {
-    (void) state;
-    g_parsebip32_ok = true;
-    g_tlv_from_apdu_ret = TLV_APDU_ERROR;
-    uint8_t payload[16] = {0};
-    uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, sizeof(payload));
-    // Since the wrapped tlv_from_apdu never invokes handle_auth7702_tlv,
-    // g_7702_sw stays at its initial value (SWO_PARAMETER_ERROR_NO_INFO).
-    assert_int_equal(sw, SWO_PARAMETER_ERROR_NO_INFO);
-    // reset_app_context() unwound the appState lock.
     assert_int_equal(appState, APP_STATE_IDLE);
 }
 
 static void test_continuation_chunk_outside_session_rejected(void **state) {
     (void) state;
-    // A non-first chunk while appState is not SIGNING_EIP7702 means
-    // the host is talking to us with stale state. Refuse.
     appState = APP_STATE_IDLE;
     uint8_t payload[16] = {0};
     uint16_t sw = handle_sign_eip7702_authorization(0x00, payload, sizeof(payload));
     assert_int_equal(sw, SWO_COMMAND_NOT_ALLOWED);
 }
 
-static void test_continuation_chunk_in_session_dispatches(void **state) {
+// =============================================================================
+// handle_auth7702_tlv branches (driven through real tlv_apdu)
+// =============================================================================
+
+static void test_happy_path_drives_auth_review(void **state) {
     (void) state;
-    appState = APP_STATE_SIGNING_EIP7702;
-    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
-    uint8_t payload[16] = {0};
-    uint16_t sw = handle_sign_eip7702_authorization(0x00, payload, sizeof(payload));
+    uint8_t payload[80];
+    size_t len = build_tlv_payload(payload,
+                                   sizeof(payload),
+                                   /*version=*/0x01,
+                                   /*delegate=*/g_simple7702_account,
+                                   /*chain_id=*/1,
+                                   /*nonce=*/0x07);
+    uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
     assert_int_equal(sw, SWO_NO_RESPONSE);
-    // Session remains active.
-    assert_int_equal(appState, APP_STATE_SIGNING_EIP7702);
+    assert_int_equal(g_ui_auth_calls, 1);
+    assert_int_equal(g_ui_revocation_calls, 0);
+    // Delegate name (Simple7702Account) was copied to the review buffer.
+    assert_string_equal(strings.common.toAddress, "Simple7702Account");
+}
+
+static void test_revocation_path_drives_revocation_review(void **state) {
+    (void) state;
+    // Delegate = 20 zero bytes triggers the revocation branch (no
+    // whitelist lookup — the user is revoking the active delegation).
+    static const uint8_t zero_delegate[ADDRESS_LENGTH] = {0};
+    uint8_t payload[80];
+    size_t len = build_tlv_payload(payload, sizeof(payload), 0x01, zero_delegate, 1, 0x00);
+    uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
+    assert_int_equal(sw, SWO_NO_RESPONSE);
+    assert_int_equal(g_ui_revocation_calls, 1);
+    assert_int_equal(g_ui_auth_calls, 0);
+}
+
+static void test_eip7702_disabled_rejected(void **state) {
+    (void) state;
+    g_n_storage_writable.eip7702_enable = false;
+    uint8_t payload[80];
+    size_t len = build_tlv_payload(payload, sizeof(payload), 0x01, g_simple7702_account, 1, 0x00);
+    uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
+    assert_int_equal(sw, SWO_COMMAND_NOT_ALLOWED);
+    assert_int_equal(g_ui_error_no_7702_calls, 1);
+    assert_int_equal(g_ui_auth_calls, 0);
+}
+
+static void test_delegate_not_in_whitelist_rejected(void **state) {
+    (void) state;
+    // An address that's not Simple7702Account and not all zeros must
+    // be rejected via ui_error_no_7702_whitelist.
+    static const uint8_t random_delegate[ADDRESS_LENGTH] = {
+        0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD,
+        0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF,
+    };
+    uint8_t payload[80];
+    size_t len = build_tlv_payload(payload, sizeof(payload), 0x01, random_delegate, 1, 0x00);
+    uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
+    assert_int_equal(sw, SWO_COMMAND_NOT_ALLOWED);
+    assert_int_equal(g_ui_error_whitelist_calls, 1);
+    assert_int_equal(g_ui_auth_calls, 0);
+}
+
+static void test_invalid_version_rejected(void **state) {
+    (void) state;
+    // The auth_7702 parser enforces STRUCT_VERSION == 0x01.
+    uint8_t payload[80];
+    size_t len = build_tlv_payload(payload,
+                                   sizeof(payload),
+                                   /*version=*/0x07,
+                                   g_simple7702_account,
+                                   1,
+                                   0x00);
+    uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
+    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    assert_int_equal(g_ui_auth_calls, 0);
+}
+
+static void test_chain_id_all_uses_wildcard_display(void **state) {
+    (void) state;
+    // CHAIN_ID_ALL (= 0) lands on the "All" wildcard label rather
+    // than calling get_network_name_from_chain_id / format_u64.
+    uint8_t payload[80];
+    size_t len =
+        build_tlv_payload(payload, sizeof(payload), 0x01, g_simple7702_account, CHAIN_ID_ALL, 0x00);
+    uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
+    assert_int_equal(sw, SWO_NO_RESPONSE);
+    assert_string_equal(strings.common.network_name, "All");
 }
 
 // =============================================================================
@@ -261,10 +347,13 @@ int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup(test_first_chunk_when_not_idle_rejected, reset),
         cmocka_unit_test_setup(test_first_chunk_parseBip32_failure_resets_app_context, reset),
-        cmocka_unit_test_setup(test_first_chunk_happy_path_locks_app_state, reset),
-        cmocka_unit_test_setup(test_first_chunk_tlv_from_apdu_failure_returns_default_sw, reset),
         cmocka_unit_test_setup(test_continuation_chunk_outside_session_rejected, reset),
-        cmocka_unit_test_setup(test_continuation_chunk_in_session_dispatches, reset),
+        cmocka_unit_test_setup(test_happy_path_drives_auth_review, reset),
+        cmocka_unit_test_setup(test_revocation_path_drives_revocation_review, reset),
+        cmocka_unit_test_setup(test_eip7702_disabled_rejected, reset),
+        cmocka_unit_test_setup(test_delegate_not_in_whitelist_rejected, reset),
+        cmocka_unit_test_setup(test_invalid_version_rejected, reset),
+        cmocka_unit_test_setup(test_chain_id_all_uses_wildcard_display, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
