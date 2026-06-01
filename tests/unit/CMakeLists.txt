@@ -1576,3 +1576,60 @@ target_link_libraries(test_proxy_info PUBLIC
 )
 
 add_test(test_proxy_info test_proxy_info)
+
+# trusted_name — backend-signed (chain_id, addr) -> human-readable label
+add_executable(test_trusted_name
+  ${SRC_DIR}/test_trusted_name.c
+  ${APP_DIR}/features/provide_trusted_name/trusted_name.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_standard_app/bip32.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_include_directories(test_trusted_name PRIVATE
+  ${APP_DIR}/features/provide_trusted_name
+  ${APP_DIR}/features/provide_proxy_info
+)
+
+target_compile_definitions(test_trusted_name PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_SECP_CURVES
+  HAVE_ECC_WEIERSTRASS
+  HAVE_SECP256K1_CURVE
+  MAJOR_VERSION=99
+  MINOR_VERSION=99
+  PATCH_VERSION=99
+)
+
+target_compile_options(test_trusted_name PRIVATE "SHELL:-include os_pic.h" "SHELL:-include os_seed.h")
+
+target_link_libraries(test_trusted_name PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=chain_is_ethereum_compatible
+                      -Wl,--wrap=get_implem_contract
+                      -Wl,--wrap=bip32_derive_with_seed_get_pubkey_256
+                      -Wl,--wrap=cx_keccak_256_hash
+)
+
+add_test(test_trusted_name test_trusted_name)
