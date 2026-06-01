@@ -26,16 +26,18 @@ static bool handle_value(const tlv_data_t *data, s_param_datetime_context *conte
 }
 
 static bool handle_type(const tlv_data_t *data, s_param_datetime_context *context) {
-    if (!tlv_get_uint8_range(data, &context->param->type, 0, UINT8_MAX)) {
+    uint8_t type;
+    if (!tlv_get_uint8_range(data, &type, 0, UINT8_MAX)) {
         return false;
     }
-    switch (context->param->type) {
+    switch (type) {
         case DT_UNIX:
         case DT_BLOCKHEIGHT:
             break;
         default:
             return false;
     }
+    context->param->type = (e_datetime_type) type;
     return true;
 }
 

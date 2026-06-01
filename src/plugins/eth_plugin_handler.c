@@ -1,4 +1,5 @@
 #include <string.h>
+#include "os_lib.h"  // os_lib_call
 #include "eth_plugin_handler.h"
 #include "eth_plugin_internal.h"
 #include "plugin_utils.h"
@@ -124,14 +125,14 @@ static void eth_plugin_perform_init_default(uint8_t *contract_address,
         PRINTF("Expected contract: %.*H\n",
                ADDRESS_LENGTH,
                dataContext.tokenContext.contractAddress);
-        os_sched_exit(0);
+        app_exit();
     }
     if (memcmp(init->selector,
                dataContext.tokenContext.methodSelector,
                sizeof(dataContext.tokenContext.methodSelector)) != 0) {
         PRINTF("Got selector: %.*H\n", SELECTOR_SIZE, init->selector);
         PRINTF("Expected selector: %.*H\n", SELECTOR_SIZE, dataContext.tokenContext.methodSelector);
-        os_sched_exit(0);
+        app_exit();
     }
     PRINTF("Plugin will be used\n");
     dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_OK;
@@ -210,8 +211,8 @@ eth_plugin_result_t eth_plugin_perform_init(uint8_t *contract_address,
             break;
         default:
             PRINTF("Unsupported pluginType %d\n", pluginType);
-            os_sched_exit(0);
-            break;
+            app_exit();
+            // app_exit is noreturn — no break needed
     }
 
     eth_plugin_result_t status = ETH_PLUGIN_RESULT_UNAVAILABLE;
@@ -305,9 +306,14 @@ eth_plugin_result_t eth_plugin_call(int method, void *parameter) {
     switch (pluginType) {
         case PLUGIN_TYPE_EXTERNAL: {
             uint32_t params[3];
-            params[0] = (uint32_t) alias;
+            // os_lib_call takes a 3-slot unsigned-int array; on device the
+            // pointer size matches uint32_t. Bridge through uintptr_t so
+            // the cast is well-formed on 64-bit host builds too (the
+            // truncation only matters in unit tests where os_lib_call is
+            // stubbed).
+            params[0] = (uint32_t) (uintptr_t) alias;
             params[1] = method;
-            params[2] = (uint32_t) parameter;
+            params[2] = (uint32_t) (uintptr_t) parameter;
             BEGIN_TRY {
                 TRY {
                     os_lib_call(params);
@@ -338,7 +344,15 @@ eth_plugin_result_t eth_plugin_call(int method, void *parameter) {
             // Perform the call
             for (i = 0; i < ARRAYLEN(INTERNAL_ETH_PLUGINS); i++) {
                 if (strcmp(alias, INTERNAL_ETH_PLUGINS[i].alias) == 0) {
-                    ((PluginCall) PIC(INTERNAL_ETH_PLUGINS[i].impl))(method, parameter);
+                    // Two casts through uintptr_t guard against
+                    // -Wpedantic on both ends: the inner one feeds PIC()
+                    // an integer (so its internal (void *) cast is well-
+                    // formed, not function-ptr → object-ptr), the outer
+                    // one turns PIC's void * back into a function pointer
+                    // through uintptr_t (object-ptr → function-ptr is
+                    // equally forbidden by ISO C without the bridge).
+                    ((PluginCall) (uintptr_t) PIC(
+                        (uintptr_t) INTERNAL_ETH_PLUGINS[i].impl))(method, parameter);
                     break;
                 }
             }

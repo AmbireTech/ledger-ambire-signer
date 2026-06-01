@@ -579,6 +579,144 @@ static void test_trusted_name_interoperable_unknown_network(void **state) {
 }
 
 // =============================================================================
+// TLV tag-handler tests for handle_param_trusted_name_struct.
+//
+// Each handle_X tag dispatch is exercised by feeding a hand-crafted TLV
+// buffer through the public entry point. VALUE (0x01) passes an empty
+// inner TLV — the value sub-parser is real but accepts empty input as a
+// no-op.
+//
+// Tags here are all < 0x80 so short-form encoding is used (no DER long
+// form).
+// =============================================================================
+
+#include "gtp_param_trusted_name.h"
+
+static void test_handle_tn_struct_all_tags_ok(void **state) {
+    (void) state;
+    uint8_t buf_bytes[] = {
+        0x00, 0x01, 0x01,             // VERSION = 1
+        0x01, 0x00,                   // VALUE = empty (inner parser sees 0 tags)
+        0x02, 0x01, TN_TYPE_ACCOUNT,  // TYPES = [ACCOUNT]
+        0x03, 0x01, TN_SOURCE_CAL,    // SOURCES = [CAL]
+        0x04, 0x04, 0xDE,
+        0xAD, 0xBE, 0xEF,                // SENDER_ADDR (1st, short)
+        0x05, 0x01, TNVT_INTEROPERABLE,  // VALUE_TYPE
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_trusted_name param;
+    memset(&param, 0, sizeof(param));
+    s_param_trusted_name_context ctx = {.param = &param};
+    assert_true(handle_param_trusted_name_struct(&buf, &ctx));
+    assert_int_equal(param.version, 1);
+    assert_int_equal(param.type_count, 1);
+    assert_int_equal(param.types[0], TN_TYPE_ACCOUNT);
+    assert_int_equal(param.source_count, 1);
+    assert_int_equal(param.sources[0], TN_SOURCE_CAL);
+    assert_int_equal(param.sender_addr_count, 1);
+    assert_int_equal(param.value_type, TNVT_INTEROPERABLE);
+}
+
+static void test_handle_tn_struct_types_oversize_rejected(void **state) {
+    (void) state;
+    // sizeof(types[]) — e_name_type is int (4 bytes on this target) so
+    // the field is TN_TYPE_COUNT*4 bytes wide. Overflow it by passing
+    // one byte more than the byte width.
+    const size_t types_byte_width = sizeof(((s_param_trusted_name *) 0)->types);
+    uint8_t buf_bytes[3 + 2 + 64];
+    buf_bytes[0] = 0x00;
+    buf_bytes[1] = 0x01;
+    buf_bytes[2] = 0x01;
+    buf_bytes[3] = 0x02;  // TYPES
+    buf_bytes[4] = (uint8_t) (types_byte_width + 1);
+    memset(buf_bytes + 5, 0, types_byte_width + 1);
+    buffer_t buf = {.ptr = buf_bytes, .size = 5 + types_byte_width + 1, .offset = 0};
+
+    s_param_trusted_name param;
+    memset(&param, 0, sizeof(param));
+    s_param_trusted_name_context ctx = {.param = &param};
+    assert_false(handle_param_trusted_name_struct(&buf, &ctx));
+}
+
+static void test_handle_tn_struct_sources_oversize_rejected(void **state) {
+    (void) state;
+    const size_t sources_byte_width = sizeof(((s_param_trusted_name *) 0)->sources);
+    uint8_t buf_bytes[3 + 2 + 64];
+    buf_bytes[0] = 0x00;
+    buf_bytes[1] = 0x01;
+    buf_bytes[2] = 0x01;
+    buf_bytes[3] = 0x03;  // SOURCES
+    buf_bytes[4] = (uint8_t) (sources_byte_width + 1);
+    memset(buf_bytes + 5, 0, sources_byte_width + 1);
+    buffer_t buf = {.ptr = buf_bytes, .size = 5 + sources_byte_width + 1, .offset = 0};
+
+    s_param_trusted_name param;
+    memset(&param, 0, sizeof(param));
+    s_param_trusted_name_context ctx = {.param = &param};
+    assert_false(handle_param_trusted_name_struct(&buf, &ctx));
+}
+
+static void test_handle_tn_struct_sender_addr_oversize_rejected(void **state) {
+    (void) state;
+    // The size guard is `value.size > sizeof(param->sender_addr)`, i.e.
+    // > MAX_SENDER_ADDRS * ADDRESS_LENGTH (=60). Overflow by one byte.
+    const size_t total = MAX_SENDER_ADDRS * ADDRESS_LENGTH + 1;
+    uint8_t buf_bytes[3 + 2 + 100];
+    buf_bytes[0] = 0x00;
+    buf_bytes[1] = 0x01;
+    buf_bytes[2] = 0x01;
+    buf_bytes[3] = 0x04;  // SENDER_ADDR
+    buf_bytes[4] = (uint8_t) total;
+    memset(buf_bytes + 5, 0xAA, total);
+    buffer_t buf = {.ptr = buf_bytes, .size = 5 + total, .offset = 0};
+
+    s_param_trusted_name param;
+    memset(&param, 0, sizeof(param));
+    s_param_trusted_name_context ctx = {.param = &param};
+    assert_false(handle_param_trusted_name_struct(&buf, &ctx));
+}
+
+static void test_handle_tn_struct_sender_addr_overflow_capacity_rejected(void **state) {
+    (void) state;
+    // VERSION + MAX_SENDER_ADDRS+1 sender entries → the 4th overflows.
+    uint8_t buf_bytes[3 + (MAX_SENDER_ADDRS + 1) * 3];
+    buf_bytes[0] = 0x00;
+    buf_bytes[1] = 0x01;
+    buf_bytes[2] = 0x01;
+    for (int i = 0; i < MAX_SENDER_ADDRS + 1; i++) {
+        buf_bytes[3 + i * 3 + 0] = 0x04;  // SENDER_ADDR
+        buf_bytes[3 + i * 3 + 1] = 0x01;
+        buf_bytes[3 + i * 3 + 2] = 0x20 + i;
+    }
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_trusted_name param;
+    memset(&param, 0, sizeof(param));
+    s_param_trusted_name_context ctx = {.param = &param};
+    assert_false(handle_param_trusted_name_struct(&buf, &ctx));
+}
+
+static void test_handle_tn_struct_value_type_out_of_range_rejected(void **state) {
+    (void) state;
+    // VERSION + VALUE_TYPE = 0xFF (outside [STANDARD, INTEROPERABLE])
+    uint8_t buf_bytes[] = {
+        0x00,
+        0x01,
+        0x01,
+        0x05,
+        0x01,
+        0xFF,
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_trusted_name param;
+    memset(&param, 0, sizeof(param));
+    s_param_trusted_name_context ctx = {.param = &param};
+    assert_false(handle_param_trusted_name_struct(&buf, &ctx));
+}
+
+// =============================================================================
 // Test runner
 // =============================================================================
 
@@ -595,6 +733,12 @@ int main(void) {
         cmocka_unit_test(test_trusted_name_interoperable_named),
         cmocka_unit_test(test_trusted_name_interoperable_raw),
         cmocka_unit_test(test_trusted_name_interoperable_unknown_network),
+        cmocka_unit_test(test_handle_tn_struct_all_tags_ok),
+        cmocka_unit_test(test_handle_tn_struct_types_oversize_rejected),
+        cmocka_unit_test(test_handle_tn_struct_sources_oversize_rejected),
+        cmocka_unit_test(test_handle_tn_struct_sender_addr_oversize_rejected),
+        cmocka_unit_test(test_handle_tn_struct_sender_addr_overflow_capacity_rejected),
+        cmocka_unit_test(test_handle_tn_struct_value_type_out_of_range_rejected),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -86,6 +86,8 @@ include_directories(
   ${APP_DIR}/features/provide_proxy_info
   ${APP_DIR}/features/get_public_key
   ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/sign_authorization_eip7702
+  ${APP_DIR}/features/sign_message_eip712
   ${APP_DIR}/features/get_challenge
   ${APP_DIR}/nbgl
   ${MOCK_DIR}
@@ -458,3 +460,1454 @@ target_link_libraries(test_param_calldata PUBLIC
 )
 
 add_test(test_param_calldata test_param_calldata)
+
+# RLP utils test (sign_tx)
+add_executable(test_rlp_utils
+  ${SRC_DIR}/test_rlp_utils.c
+  ${APP_DIR}/features/sign_tx/rlp_utils.c
+)
+
+target_include_directories(test_rlp_utils PRIVATE
+  ${APP_DIR}/features/sign_tx
+)
+
+target_link_libraries(test_rlp_utils PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_rlp_utils test_rlp_utils)
+
+# uint128 arithmetic test
+add_executable(test_uint128
+  ${SRC_DIR}/test_uint128.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/utils.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_compile_definitions(test_uint128 PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_uint128 PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_uint128 test_uint128)
+
+# uint256 arithmetic test
+add_executable(test_uint256
+  ${SRC_DIR}/test_uint256.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/utils.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_compile_definitions(test_uint256 PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_uint256 PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=cx_math_mult_no_throw
+)
+
+add_test(test_uint256 test_uint256)
+
+# utils helpers test
+add_executable(test_utils
+  ${SRC_DIR}/test_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_compile_definitions(test_utils PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_utils PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_utils test_utils)
+
+# network resolution test
+add_executable(test_network
+  ${SRC_DIR}/test_network.c
+  ${APP_DIR}/network.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_network PRIVATE
+  ${APP_DIR}/features/provide_network_info
+  ${APP_DIR}/features/sign_tx
+)
+
+target_compile_definitions(test_network PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_network PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_network test_network)
+
+# eth_ustream low-level helpers (init_tx, copy_tx_data)
+add_executable(test_eth_ustream_helpers
+  ${SRC_DIR}/test_eth_ustream_helpers.c
+  ${APP_DIR}/features/sign_tx/eth_ustream.c
+  ${APP_DIR}/features/sign_tx/rlp_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_eth_ustream_helpers PRIVATE
+  ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/generic_tx_parser
+  ${APP_DIR}/features/provide_network_info
+)
+
+target_compile_definitions(test_eth_ustream_helpers PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_eth_ustream_helpers PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_eth_ustream_helpers test_eth_ustream_helpers)
+
+# AMOUNT parameter test
+add_executable(test_param_amount
+  ${SRC_DIR}/test_param_amount.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_amount.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_amount PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_param_amount PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=value_get
+                      -Wl,--wrap=value_cleanup
+                      -Wl,--wrap=handle_value_struct
+                      -Wl,--wrap=get_current_tx_info
+                      -Wl,--wrap=get_displayable_ticker
+                      -Wl,--wrap=add_to_field_table
+)
+
+add_test(test_param_amount test_param_amount)
+
+# DATETIME parameter test
+add_executable(test_param_datetime
+  ${SRC_DIR}/test_param_datetime.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_datetime.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
+  ${APP_DIR}/time_format.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_datetime PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_param_datetime PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=value_get
+                      -Wl,--wrap=value_cleanup
+                      -Wl,--wrap=handle_value_struct
+                      -Wl,--wrap=add_to_field_table
+)
+
+add_test(test_param_datetime test_param_datetime)
+
+# DURATION parameter test
+add_executable(test_param_duration
+  ${SRC_DIR}/test_param_duration.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_duration.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_duration PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_param_duration PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=value_get
+                      -Wl,--wrap=value_cleanup
+                      -Wl,--wrap=handle_value_struct
+                      -Wl,--wrap=add_to_field_table
+)
+
+add_test(test_param_duration test_param_duration)
+
+# UNIT parameter test
+add_executable(test_param_unit
+  ${SRC_DIR}/test_param_unit.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_unit.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_unit PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_param_unit PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=value_get
+                      -Wl,--wrap=value_cleanup
+                      -Wl,--wrap=handle_value_struct
+                      -Wl,--wrap=add_to_field_table
+)
+
+add_test(test_param_unit test_param_unit)
+
+# ENUM parameter test
+add_executable(test_param_enum
+  ${SRC_DIR}/test_param_enum.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_enum.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+target_include_directories(test_param_enum PRIVATE
+  ${APP_DIR}/features/provide_enum_value
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_enum PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_param_enum PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=value_get
+                      -Wl,--wrap=value_cleanup
+                      -Wl,--wrap=handle_value_struct
+                      -Wl,--wrap=add_to_field_table
+                      -Wl,--wrap=get_current_tx_info
+                      -Wl,--wrap=get_current_calldata
+                      -Wl,--wrap=calldata_get_selector
+                      -Wl,--wrap=get_matching_enum
+)
+
+add_test(test_param_enum test_param_enum)
+
+# TOKEN parameter test
+add_executable(test_param_token
+  ${SRC_DIR}/test_param_token.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_token.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
+  ${APP_DIR}/features/provide_erc20_token_information/token_info.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_token PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_param_token PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=value_get
+                      -Wl,--wrap=value_cleanup
+                      -Wl,--wrap=handle_value_struct
+                      -Wl,--wrap=add_to_field_table
+                      -Wl,--wrap=get_current_tx_info
+                      -Wl,--wrap=get_matching_token_info_or_dummy
+                      -Wl,--wrap=get_displayable_ticker
+)
+
+add_test(test_param_token test_param_token)
+
+# NFT parameter test
+add_executable(test_param_nft
+  ${SRC_DIR}/test_param_nft.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_param_nft.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+target_include_directories(test_param_nft PRIVATE
+  ${APP_DIR}/features/provide_nft_information
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_param_nft PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_param_nft PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=value_get
+                      -Wl,--wrap=value_cleanup
+                      -Wl,--wrap=handle_value_struct
+                      -Wl,--wrap=add_to_field_table
+                      -Wl,--wrap=get_current_tx_info
+                      -Wl,--wrap=get_matching_nft_info
+)
+
+add_test(test_param_nft test_param_nft)
+
+# path_array TLV parser test
+add_executable(test_path_array
+  ${SRC_DIR}/test_path_array.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_path_array.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_link_libraries(test_path_array PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_path_array test_path_array)
+
+# path_slice TLV parser test
+add_executable(test_path_slice
+  ${SRC_DIR}/test_path_slice.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_path_slice.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_link_libraries(test_path_slice PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_path_slice test_path_slice)
+
+# gtp_field_table backend test
+add_executable(test_field_table
+  ${SRC_DIR}/test_field_table.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_field_table.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+)
+
+target_include_directories(test_field_table PRIVATE
+  ${APP_DIR}/features/sign_message_eip712
+  ${APP_DIR}/features/provide_trusted_name
+)
+
+target_compile_definitions(test_field_table PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_field_table PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_field_table test_field_table)
+
+# gtp_tx_info test
+add_executable(test_tx_info
+  ${SRC_DIR}/test_tx_info.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_tx_info.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${APP_DIR}/time_format.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+target_include_directories(test_tx_info PRIVATE
+  ${APP_DIR}/features/provide_proxy_info
+  ${APP_DIR}/features/provide_trusted_name
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_tx_info PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_tx_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=get_tx_ctx_count
+                      -Wl,--wrap=calldata_get_selector
+)
+
+add_test(test_tx_info test_tx_info)
+
+# gtp_data_path test
+add_executable(test_data_path
+  ${SRC_DIR}/test_data_path.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_data_path.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_path_array.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_path_slice.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_data_path PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_data_path PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_current_calldata
+                      -Wl,--wrap=calldata_get_chunk
+)
+
+add_test(test_data_path test_data_path)
+
+# gtp_value test
+add_executable(test_value
+  ${SRC_DIR}/test_value.c
+  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+target_include_directories(test_value PRIVATE
+  ${APP_DIR}/features/provide_map_entry
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c
+                            PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_value PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_value PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=data_path_get
+                      -Wl,--wrap=data_path_cleanup
+                      -Wl,--wrap=handle_data_path_struct
+                      -Wl,--wrap=get_current_tx_from
+                      -Wl,--wrap=get_current_tx_to
+                      -Wl,--wrap=get_current_tx_amount
+                      -Wl,--wrap=get_current_tx_info
+                      -Wl,--wrap=get_matching_map_entry
+)
+
+add_test(test_value test_value)
+
+# calldata storage test
+add_executable(test_calldata
+  ${SRC_DIR}/test_calldata.c
+  ${APP_DIR}/features/generic_tx_parser/calldata.c
+  ${APP_DIR}/mem_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+target_link_libraries(test_calldata PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_calldata test_calldata)
+
+# tx_ctx (GCS transaction context) test
+add_executable(test_tx_ctx
+  ${SRC_DIR}/test_tx_ctx.c
+  ${APP_DIR}/features/generic_tx_parser/tx_ctx.c
+  ${APP_DIR}/features/generic_tx_parser/calldata.c
+  ${APP_DIR}/mem_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+target_include_directories(test_tx_ctx PRIVATE
+  ${APP_DIR}/features/provide_proxy_info
+  ${APP_DIR}/features/provide_trusted_name
+  ${APP_DIR}/features/sign_message_eip712
+  ${APP_DIR}/features/get_public_key
+)
+
+target_compile_definitions(test_tx_ctx PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_tx_ctx PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_public_key
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=ui_gcs_cleanup
+                      -Wl,--wrap=delete_tx_info
+                      -Wl,--wrap=field_table_init
+                      -Wl,--wrap=field_table_cleanup
+                      -Wl,--wrap=get_implem_contract
+)
+
+add_test(test_tx_ctx test_tx_ctx)
+
+# cmd_field + cmd_tx_info APDU entry-point tests
+add_executable(test_cmd_field_tx_info
+  ${SRC_DIR}/test_cmd_field_tx_info.c
+  ${APP_DIR}/features/generic_tx_parser/cmd_field.c
+  ${APP_DIR}/features/generic_tx_parser/cmd_tx_info.c
+  ${MOCK_DIR}/mock.c
+)
+
+target_compile_definitions(test_cmd_field_tx_info PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_cmd_field_tx_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=tlv_from_apdu
+                      -Wl,--wrap=get_current_tx_info
+                      -Wl,--wrap=gcs_cleanup
+)
+
+add_test(test_cmd_field_tx_info test_cmd_field_tx_info)
+
+# eth_swap_utils (parse_swap_config + getters)
+add_executable(test_eth_swap_utils
+  ${SRC_DIR}/test_eth_swap_utils.c
+  ${APP_DIR}/swap/eth_swap_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_eth_swap_utils PRIVATE
+  ${APP_DIR}/swap
+  ${APP_DIR}/features/sign_tx
+  ${BOLOS_SDK}/io_legacy/include
+)
+
+target_compile_definitions(test_eth_swap_utils PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_SWAP                       # exposes SWAP_EC_* in swap_error_code_helpers.h
+  OS_IO_SEPH_BUFFER_SIZE=272      # matches the Stax/Flex target define
+)
+
+target_link_libraries(test_eth_swap_utils PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_displayable_ticker
+)
+
+add_test(test_eth_swap_utils test_eth_swap_utils)
+
+# ERC-20 token info registry
+add_executable(test_token_info
+  ${SRC_DIR}/test_token_info.c
+  ${APP_DIR}/features/provide_erc20_token_information/token_info.c
+  ${APP_DIR}/mem_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+target_link_libraries(test_token_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_token_info test_token_info)
+
+# ERC-20 plugin
+add_executable(test_erc20_plugin
+  ${SRC_DIR}/test_erc20_plugin.c
+  ${APP_DIR}/plugins/erc20/erc20_plugin.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_erc20_plugin PRIVATE
+  ${APP_DIR}/plugins
+  ${APP_DIR}/plugins/erc20
+  ${APP_DIR}/swap
+  ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/provide_erc20_token_information
+)
+
+target_compile_definitions(test_erc20_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+# Force-include os_pic.h so PIC() is defined as a macro. Without this
+# erc20_plugin.c's transitive include chain doesn't reach os_pic.h in
+# the unit-test build, and PIC ends up as an unresolved symbol at link.
+target_compile_options(test_erc20_plugin PRIVATE -include os_pic.h)
+
+target_link_libraries(test_erc20_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_tx_chain_id
+                      -Wl,--wrap=get_matching_token_info
+                      -Wl,--wrap=swap_check_destination
+                      -Wl,--wrap=swap_check_amount
+)
+
+add_test(test_erc20_plugin test_erc20_plugin)
+
+# eth_plugin_handler orchestrator
+add_executable(test_eth_plugin_handler
+  ${SRC_DIR}/test_eth_plugin_handler.c
+  ${APP_DIR}/plugins/eth_plugin_handler.c
+  ${MOCK_DIR}/mock.c
+)
+
+target_include_directories(test_eth_plugin_handler PRIVATE
+  ${APP_DIR}/plugins
+  ${APP_DIR}/plugins/erc20
+  ${APP_DIR}/plugins/eth2
+  ${APP_DIR}/plugins/erc721
+  ${APP_DIR}/plugins/erc1155
+  ${APP_DIR}/plugins/eip7002
+  ${APP_DIR}/plugins/eip7251
+  ${APP_DIR}/plugins/swap_with_calldata
+  ${APP_DIR}/swap
+  ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/set_plugin
+)
+
+target_compile_definitions(test_eth_plugin_handler PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_eth_plugin_handler PRIVATE -include os_pic.h)
+
+target_link_libraries(test_eth_plugin_handler PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_tx_chain_id
+                      -Wl,--wrap=get_displayable_ticker
+                      -Wl,--wrap=get_matching_asset_info
+)
+
+add_test(test_eth_plugin_handler test_eth_plugin_handler)
+
+# cmd_map_entry APDU entry-point (P1/P2 guards from 092cba0c)
+add_executable(test_cmd_map_entry
+  ${SRC_DIR}/test_cmd_map_entry.c
+  ${APP_DIR}/features/provide_map_entry/cmd_map_entry.c
+  ${MOCK_DIR}/mock.c
+)
+
+target_include_directories(test_cmd_map_entry PRIVATE
+  ${APP_DIR}/features/provide_map_entry
+)
+
+target_compile_definitions(test_cmd_map_entry PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_cmd_map_entry PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=tlv_from_apdu
+)
+
+add_test(test_cmd_map_entry test_cmd_map_entry)
+
+# tlv_apdu streamer
+add_executable(test_tlv_apdu
+  ${SRC_DIR}/test_tlv_apdu.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/mem_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+)
+
+target_link_libraries(test_tlv_apdu PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_tlv_apdu test_tlv_apdu)
+
+# tlv_utils — thin TLV decoder wrappers
+add_executable(test_tlv_utils
+  ${SRC_DIR}/test_tlv_utils.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_tlv_utils PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_tlv_utils PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_tlv_utils test_tlv_utils)
+
+# EIP-7702 authorization command entry point
+add_executable(test_commands_7702
+  ${SRC_DIR}/test_commands_7702.c
+  ${APP_DIR}/features/sign_authorization_eip7702/commands_7702.c
+  ${APP_DIR}/features/sign_authorization_eip7702/auth_7702.c
+  ${APP_DIR}/features/sign_authorization_eip7702/rlp_encode.c
+  ${APP_DIR}/features/sign_authorization_eip7702/whitelist_7702.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_compile_definitions(test_commands_7702 PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_commands_7702 PRIVATE "SHELL:-include os_pic.h" "SHELL:-include os_seed.h")
+
+target_link_libraries(test_commands_7702 PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=finalize_hash
+)
+
+add_test(test_commands_7702 test_commands_7702)
+
+# proxy_info — backend-signed proxy -> implementation descriptor
+add_executable(test_proxy_info
+  ${SRC_DIR}/test_proxy_info.c
+  ${APP_DIR}/features/provide_proxy_info/proxy_info.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_include_directories(test_proxy_info PRIVATE
+  ${APP_DIR}/features/provide_proxy_info
+)
+
+target_compile_definitions(test_proxy_info PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_proxy_info PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_proxy_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+)
+
+add_test(test_proxy_info test_proxy_info)
+
+# trusted_name — backend-signed (chain_id, addr) -> human-readable label
+add_executable(test_trusted_name
+  ${SRC_DIR}/test_trusted_name.c
+  ${APP_DIR}/features/provide_trusted_name/trusted_name.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_standard_app/bip32.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_include_directories(test_trusted_name PRIVATE
+  ${APP_DIR}/features/provide_trusted_name
+  ${APP_DIR}/features/provide_proxy_info
+)
+
+target_compile_definitions(test_trusted_name PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_SECP_CURVES
+  HAVE_ECC_WEIERSTRASS
+  MAJOR_VERSION=99
+  MINOR_VERSION=99
+  PATCH_VERSION=99
+)
+
+target_compile_options(test_trusted_name PRIVATE "SHELL:-include os_pic.h" "SHELL:-include os_seed.h")
+
+target_link_libraries(test_trusted_name PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=chain_is_ethereum_compatible
+                      -Wl,--wrap=get_implem_contract
+                      -Wl,--wrap=bip32_derive_with_seed_get_pubkey_256
+                      -Wl,--wrap=cx_keccak_256_hash
+)
+
+add_test(test_trusted_name test_trusted_name)
+
+# safe_descriptor + signer_descriptor — Gnosis Safe backend descriptors
+add_executable(test_safe_descriptors
+  ${SRC_DIR}/test_safe_descriptors.c
+  ${APP_DIR}/features/provide_safe_account/safe_descriptor.c
+  ${APP_DIR}/features/provide_safe_account/signer_descriptor.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_include_directories(test_safe_descriptors PRIVATE
+  ${APP_DIR}/features/provide_safe_account
+)
+
+target_compile_definitions(test_safe_descriptors PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_safe_descriptors PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_safe_descriptors PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+)
+
+add_test(test_safe_descriptors test_safe_descriptors)
+
+# enum_value — backend-signed (chain, contract, selector, id, value) -> name
+add_executable(test_enum_value
+  ${SRC_DIR}/test_enum_value.c
+  ${APP_DIR}/features/provide_enum_value/enum_value.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_include_directories(test_enum_value PRIVATE
+  ${APP_DIR}/features/provide_enum_value
+  ${APP_DIR}/features/provide_proxy_info
+)
+
+target_compile_definitions(test_enum_value PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_enum_value PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_enum_value PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=get_implem_contract
+)
+
+add_test(test_enum_value test_enum_value)
+
+# cmd_set_plugin — backend-signed plugin registration APDU
+add_executable(test_cmd_set_plugin
+  ${SRC_DIR}/test_cmd_set_plugin.c
+  ${APP_DIR}/features/set_plugin/cmd_set_plugin.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_cmd_set_plugin PRIVATE
+  ${APP_DIR}/features/set_plugin
+  ${APP_DIR}/plugins
+)
+
+target_compile_definitions(test_cmd_set_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_cmd_set_plugin PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_set_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=app_compatible_with_chain_id
+)
+
+add_test(test_cmd_set_plugin test_cmd_set_plugin)
+
+# network_info — backend-signed dynamic network descriptor
+add_executable(test_network_info
+  ${SRC_DIR}/test_network_info.c
+  ${APP_DIR}/features/provide_network_info/network_info.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_include_directories(test_network_info PRIVATE
+  ${APP_DIR}/features/provide_network_info
+)
+
+target_compile_definitions(test_network_info PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_network_info PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_network_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=find_dynamic_network_by_chain_id
+)
+
+add_test(test_network_info test_network_info)
+
+# cmd_get_tx_simulation — backend-signed transaction-simulation descriptor
+add_executable(test_cmd_get_tx_simulation
+  ${SRC_DIR}/test_cmd_get_tx_simulation.c
+  ${APP_DIR}/features/provide_tx_simulation/cmd_get_tx_simulation.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_include_directories(test_cmd_get_tx_simulation PRIVATE
+  ${APP_DIR}/features/provide_tx_simulation
+)
+
+target_compile_definitions(test_cmd_get_tx_simulation PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_TRANSACTION_CHECKS
+  HAVE_LEDGER_PKI
+)
+
+target_compile_options(test_cmd_get_tx_simulation PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_get_tx_simulation PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=os_pki_get_info
+                      -Wl,--wrap=get_public_key
+                      -Wl,--wrap=get_tx_chain_id
+)
+
+add_test(test_cmd_get_tx_simulation test_cmd_get_tx_simulation)
+
+# cmd_get_gating — backend-signed gated-signing descriptor
+add_executable(test_cmd_get_gating
+  ${SRC_DIR}/test_cmd_get_gating.c
+  ${APP_DIR}/features/provide_gating/cmd_get_gating.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+target_include_directories(test_cmd_get_gating PRIVATE
+  ${APP_DIR}/features/provide_gating
+  ${APP_DIR}/features/sign_message_eip712
+  ${APP_DIR}/features/provide_proxy_info
+)
+
+target_compile_definitions(test_cmd_get_gating PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_LEDGER_PKI
+)
+
+target_compile_options(test_cmd_get_gating PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_get_gating PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=get_tx_chain_id
+                      -Wl,--wrap=compute_schema_hash
+                      -Wl,--wrap=get_implem_contract
+                      -Wl,--wrap=get_proxy_contract
+                      -Wl,--wrap=nvm_write
+)
+
+add_test(test_cmd_get_gating test_cmd_get_gating)

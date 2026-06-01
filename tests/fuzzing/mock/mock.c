@@ -35,6 +35,18 @@ void __attribute__((noreturn)) os_lib_end(void) {
     longjmp(fuzz_exit_jump_ctx.jmp_buf, 1);
 }
 
+/* Short-circuit the lib_standard_app app_exit() WEAK definition. The
+ * SDK's app_exit calls os_io_stop() then os_sched_exit(-1); both end
+ * up routing back to the os_sched_exit mock above through the SDK
+ * chain. Defining app_exit as a strong symbol here lets the fuzzer
+ * jump straight to its recovery point without dragging os_io_stop's
+ * transitive dependencies in. Matches the SDK's noreturn contract so
+ * callers' unreachable-code semantics stay intact.
+ */
+void __attribute__((noreturn)) app_exit(void) {
+    longjmp(fuzz_exit_jump_ctx.jmp_buf, 1);
+}
+
 /** MemorySanitizer does not wrap explicit_bzero https://github.com/google/sanitizers/issues/1507
  * which results in false positives when running MemorySanitizer.
  */
@@ -45,7 +57,13 @@ void memset_s(void *buffer, char c, size_t n) {
     while (n--) *ptr++ = c;
 }
 
-void app_quit(void) {
+/* The real app_quit() in src/main.c ends with app_exit() and therefore
+ * never returns. Mirror that contract here so the fuzzer's stub does
+ * not silently fall through on paths that would have aborted on the
+ * device.
+ */
+__attribute__((noreturn)) void app_quit(void) {
+    app_exit();
 }
 void app_main(void) {
 }

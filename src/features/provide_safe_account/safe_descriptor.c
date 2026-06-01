@@ -7,6 +7,7 @@
 #include "lcx_ecdsa.h"
 #include "tlv_library.h"
 #include "tlv_utils.h"
+#include "os_utils.h"
 #include "utils.h"
 
 #define TYPE_LESM_ACCOUNT_INFO 0x27
@@ -126,10 +127,12 @@ static bool handle_signers_count(const tlv_data_t *data, s_safe_ctx *context) {
  * @return whether the handling was successful
  */
 static bool handle_role(const tlv_data_t *data, s_safe_ctx *context) {
-    if (!tlv_get_uint8_range(data, &context->safe->role, 0, ROLE_MAX)) {
+    uint8_t role;
+    if (!tlv_get_uint8_range(data, &role, 0, ROLE_MAX)) {
         PRINTF("ROLE: error\n");
         return false;
     }
+    context->safe->role = (safe_role_t) role;
     return true;
 }
 

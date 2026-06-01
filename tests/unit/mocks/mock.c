@@ -39,8 +39,11 @@ bool is_printable_string(const char *str, size_t len) {
     return true;
 }
 
-void assert_exit(bool confirm) {
+__attribute__((noreturn)) void assert_exit(bool confirm) {
     (void) confirm;
+    // The SDK declares assert_exit as noreturn — match that on the test side too
+    while (1) {
+    }
 }
 
 uint32_t cx_keccak_256_hash_iovec(void *iovec, size_t iovec_len, uint8_t *digest) {
@@ -70,7 +73,10 @@ uint32_t cx_math_mult_no_throw(uint8_t *r, const uint8_t *a, const uint8_t *b, s
     return 0;  // CX_OK
 }
 
-bool handle_data_path_struct(const void *data, void *context) {
+// The next three stubs are marked weak so test targets that link the real
+// gtp_data_path.c (e.g. test_data_path) can override them without a
+// multiple-definition link error.
+__attribute__((weak)) bool handle_data_path_struct(const void *data, void *context) {
     (void) data;
     (void) context;
     return true;
@@ -84,25 +90,28 @@ bool tlv_parse(const uint8_t *payload, uint16_t size, void *handler, void *conte
     return true;
 }
 
-void data_path_cleanup(const void *collection) {
+__attribute__((weak)) void data_path_cleanup(const void *collection) {
     (void) collection;
 }
 
-bool data_path_get(const void *data_path, void *collection) {
+__attribute__((weak)) bool data_path_get(const void *data_path, void *collection) {
     (void) data_path;
     (void) collection;
     return true;
 }
 
-const uint8_t *get_current_tx_to(void) {
+// These stubs are weak so test targets that link the real tx_ctx.c
+// (test_tx_ctx) can override them without a multiple-definition link
+// error.
+__attribute__((weak)) const uint8_t *get_current_tx_to(void) {
     return NULL;
 }
 
-const uint8_t *get_current_tx_from(void) {
+__attribute__((weak)) const uint8_t *get_current_tx_from(void) {
     return NULL;
 }
 
-const uint8_t *get_current_tx_info(void) {
+__attribute__((weak)) const uint8_t *get_current_tx_info(void) {
     return NULL;
 }
 
@@ -159,11 +168,11 @@ bool mem_utils_calloc(void **buffer, uint16_t size, bool permanent, const char *
     (void) permanent;
     (void) file;
     (void) line;
-    if (*buffer != NULL) {
-        free(*buffer);
-    }
+    // The real lib_alloc implementation does NOT pre-free *buffer; it just
+    // writes a fresh pointer. Many call sites (e.g. gtp_field_table.c) pass
+    // an uninitialized stack pointer, so a pre-free here would invoke
+    // free() on junk.
     if (size == 0) {
-        *buffer = NULL;
         return true;
     }
     if ((*buffer = malloc(size)) == NULL) {
@@ -173,7 +182,7 @@ bool mem_utils_calloc(void **buffer, uint16_t size, bool permanent, const char *
     return true;
 }
 
-const uint8_t *get_current_tx_amount(void) {
+__attribute__((weak)) const uint8_t *get_current_tx_amount(void) {
     return NULL;
 }
 

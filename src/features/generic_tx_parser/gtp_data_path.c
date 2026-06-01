@@ -1,6 +1,7 @@
 #include <string.h>  // memcpy / explicit_bzero
 #include "os_print.h"
 #include "os_math.h"  // MIN
+#include "os_utils.h"
 #include "gtp_data_path.h"
 #include "read.h"
 #include "utils.h"
@@ -352,7 +353,7 @@ bool data_path_get(const s_data_path *data_path, s_parsed_value_collection *coll
 void data_path_cleanup(const s_parsed_value_collection *collection) {
     for (int i = 0; i < collection->size; ++i) {
         if (collection->value[i].ptr != NULL) {
-            APP_MEM_FREE((void *) collection->value[i].ptr - collection->value[i].offset);
+            APP_MEM_FREE((uint8_t *) collection->value[i].ptr - collection->value[i].offset);
         }
     }
 }

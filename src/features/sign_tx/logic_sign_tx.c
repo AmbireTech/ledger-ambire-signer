@@ -438,8 +438,8 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                    SWAP_EC_ERROR_WRONG_METHOD,
                                    APP_CODE_NO_STANDARD_UI);
-            // unreachable
-            os_sched_exit(0);
+            // unreachable — app_exit is __attribute__((noreturn))
+            app_exit();
         }
         // Two success cases: we are in standard mode and no calldata was received
         // We are in crosschain mode and the correct calldata has been received
@@ -447,8 +447,8 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                    SWAP_EC_ERROR_CROSSCHAIN_WRONG_MODE,
                                    APP_CODE_DEFAULT);
-            // unreachable
-            os_sched_exit(0);
+            // unreachable — app_exit is __attribute__((noreturn))
+            app_exit();
         }
     }
 
@@ -573,16 +573,16 @@ uint16_t finalize_parsing(const txContext_t *context) {
                 send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                        SWAP_EC_ERROR_GENERIC,
                                        APP_CODE_DEFAULT);
-                // unreachable
-                os_sched_exit(0);
+                // unreachable — app_exit is __attribute__((noreturn))
+                app_exit();
             }
             if (tmpContent.txContent.dataPresent && (G_swap_mode == SWAP_MODE_STANDARD)) {
                 PRINTF("Unvalidated calldata is not allowed in standard swap\n");
                 send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                        SWAP_EC_ERROR_WRONG_METHOD,
                                        APP_CODE_DEFAULT);
-                // unreachable
-                os_sched_exit(0);
+                // unreachable — app_exit is __attribute__((noreturn))
+                app_exit();
             }
             io_seproxyhal_touch_tx_ok();
             sw = SWO_SUCCESS;

@@ -78,7 +78,12 @@ static bool handle_version(const tlv_data_t *data, s_value_context *context) {
 }
 
 static bool handle_type_family(const tlv_data_t *data, s_value_context *context) {
-    return tlv_get_uint8_range(data, (uint8_t *) &context->value->type_family, 0, UINT8_MAX);
+    uint8_t tf;
+    if (!tlv_get_uint8_range(data, &tf, 0, UINT8_MAX)) {
+        return false;
+    }
+    context->value->type_family = (e_type_family) tf;
+    return true;
 }
 
 static bool handle_type_size(const tlv_data_t *data, s_value_context *context) {
@@ -98,9 +103,11 @@ static bool handle_data_path(const tlv_data_t *data, s_value_context *context) {
 }
 
 static bool handle_container_path(const tlv_data_t *data, s_value_context *context) {
-    if (!tlv_get_uint8_range(data, (uint8_t *) &context->value->container_path, 0, UINT8_MAX)) {
+    uint8_t cp;
+    if (!tlv_get_uint8_range(data, &cp, 0, UINT8_MAX)) {
         return false;
     }
+    context->value->container_path = (e_container_path) cp;
     context->value->source = SOURCE_RLP;
     return true;
 }
