@@ -1912,3 +1912,38 @@ target_link_libraries(test_cmd_get_gating PUBLIC
 )
 
 add_test(test_cmd_get_gating test_cmd_get_gating)
+
+# cmd_get_challenge — anti-replay nonce primitive (CWE-294)
+add_executable(test_cmd_get_challenge
+  ${SRC_DIR}/test_cmd_get_challenge.c
+  ${APP_DIR}/features/get_challenge/cmd_get_challenge.c
+)
+
+target_include_directories(test_cmd_get_challenge PRIVATE
+  ${APP_DIR}/features/get_challenge
+  ${BOLOS_SDK}/io_legacy/include
+)
+
+target_compile_definitions(test_cmd_get_challenge PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_RNG                          # gate around cx_rng_u32 in lcx_rng.h
+  OS_IO_SEPH_BUFFER_SIZE=272
+)
+
+target_compile_options(test_cmd_get_challenge PRIVATE "SHELL:-include os_pic.h")
+
+# cx_rng_u32 is `static inline` in the SDK so it cannot be linker-wrapped;
+# wrap the cx_rng_no_throw call it delegates to instead.
+target_link_libraries(test_cmd_get_challenge PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=cx_rng_no_throw
+)
+
+add_test(test_cmd_get_challenge test_cmd_get_challenge)
