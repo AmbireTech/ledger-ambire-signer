@@ -2087,3 +2087,46 @@ target_link_libraries(test_logic_sign_tx_fee PUBLIC
 )
 
 add_test(test_logic_sign_tx_fee test_logic_sign_tx_fee)
+
+# cmd_provide_nft_info — NFT collection metadata descriptor
+add_executable(test_cmd_provide_nft_info
+  ${SRC_DIR}/test_cmd_provide_nft_info.c
+  ${APP_DIR}/features/provide_nft_information/cmd_provide_nft_info.c
+  ${APP_DIR}/features/provide_nft_information/nft_info.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+target_include_directories(test_cmd_provide_nft_info PRIVATE
+  ${APP_DIR}/features/provide_nft_information
+)
+
+target_compile_definitions(test_cmd_provide_nft_info PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_LEDGER_PKI
+)
+
+target_compile_options(test_cmd_provide_nft_info PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_provide_nft_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=app_compatible_with_chain_id
+                      -Wl,--wrap=cx_hash_sha256
+)
+
+add_test(test_cmd_provide_nft_info test_cmd_provide_nft_info)
