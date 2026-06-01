@@ -2576,3 +2576,44 @@ target_link_libraries(test_eip7002_plugin PUBLIC
 )
 
 add_test(test_eip7002_plugin test_eip7002_plugin)
+
+# eip7251_plugin — validator consolidation (Pectra)
+add_executable(test_eip7251_plugin
+  ${SRC_DIR}/test_eip7251_plugin.c
+  ${APP_DIR}/plugins/eip7251/eip7251_plugin.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_eip7251_plugin PRIVATE
+  ${APP_DIR}/plugins
+  ${APP_DIR}/plugins/eip7251
+)
+
+target_compile_definitions(test_eip7251_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_eip7251_plugin PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_eip7251_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=get_tx_chain_id
+                      -Wl,--wrap=get_displayable_ticker
+                      -Wl,--wrap=amountToString
+)
+
+add_test(test_eip7251_plugin test_eip7251_plugin)
