@@ -1999,3 +1999,41 @@ target_link_libraries(test_cmd_sign_message PUBLIC
 )
 
 add_test(test_cmd_sign_message test_cmd_sign_message)
+
+# eth_ustream typed-tx branches (EIP-2930 / EIP-1559 / EIP-7702)
+add_executable(test_eth_ustream_typed
+  ${SRC_DIR}/test_eth_ustream_typed.c
+  ${APP_DIR}/features/sign_tx/eth_ustream.c
+  ${APP_DIR}/features/sign_tx/rlp_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_eth_ustream_typed PRIVATE
+  ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/generic_tx_parser
+  ${APP_DIR}/features/provide_network_info
+)
+
+target_compile_definitions(test_eth_ustream_typed PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_link_libraries(test_eth_ustream_typed PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_eth_ustream_typed test_eth_ustream_typed)
