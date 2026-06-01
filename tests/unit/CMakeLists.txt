@@ -1860,3 +1860,54 @@ target_link_libraries(test_cmd_get_tx_simulation PUBLIC
 )
 
 add_test(test_cmd_get_tx_simulation test_cmd_get_tx_simulation)
+
+# cmd_get_gating — backend-signed gated-signing descriptor
+add_executable(test_cmd_get_gating
+  ${SRC_DIR}/test_cmd_get_gating.c
+  ${APP_DIR}/features/provide_gating/cmd_get_gating.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+target_include_directories(test_cmd_get_gating PRIVATE
+  ${APP_DIR}/features/provide_gating
+  ${APP_DIR}/features/sign_message_eip712
+  ${APP_DIR}/features/provide_proxy_info
+)
+
+target_compile_definitions(test_cmd_get_gating PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_LEDGER_PKI
+)
+
+target_compile_options(test_cmd_get_gating PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_get_gating PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=get_tx_chain_id
+                      -Wl,--wrap=compute_schema_hash
+                      -Wl,--wrap=get_implem_contract
+                      -Wl,--wrap=get_proxy_contract
+                      -Wl,--wrap=nvm_write
+)
+
+add_test(test_cmd_get_gating test_cmd_get_gating)

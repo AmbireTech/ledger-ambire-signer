@@ -27,3 +27,9 @@ bool is_zeroes_buffer(const void *buf, size_t n);
  *        reply paths must provide storage.
  */
 extern uint8_t G_io_tx_buffer[];
+
+/**
+ * @brief NVM write (from BOLOS_SDK os_nvm.h). Tests that exercise the
+ *        persistent-counter path must wrap or stub this symbol.
+ */
+void nvm_write(void *dst, void *src, unsigned int len);
