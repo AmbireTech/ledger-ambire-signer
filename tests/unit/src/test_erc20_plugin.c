@@ -538,6 +538,122 @@ static void test_query_ui_screen0_approve_unlimited(void **state) {
 }
 
 // =============================================================================
+// ETH_PLUGIN_QUERY_CONTRACT_UI — screens 1 and 2 (To / Approve to /
+// Extra Data) and the FINALIZE swap-mode error paths.
+//
+// These paths render the destination address the user is about to
+// approve a token transfer/allowance to. A regression here turns the
+// approval scam vector live — the user signs whatever the plugin
+// happens to put on screen.
+// =============================================================================
+
+static void test_query_ui_screen1_transfer_renders_to(void **state) {
+    (void) state;
+    char title[16] = {0};
+    char msgbuf[64] = {0};
+    g_ctx.selectorIndex = 0;  // TRANSFER
+    memset(g_ctx.destinationAddress, 0xAB, ADDRESS_LENGTH);
+
+    ethQueryContractUI_t msg = {0};
+    msg.screenIndex = 1;
+    msg.title = title;
+    msg.msg = msgbuf;
+    msg.titleLength = sizeof(title);
+    msg.msgLength = sizeof(msgbuf);
+    msg.pluginContext = (uint8_t *) &g_ctx;
+    erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+    assert_string_equal(title, "To");
+    // The mock getEthDisplayableAddress in the test environment writes
+    // a checksummed hex string to msg — we only assert it's non-empty.
+    assert_true(msgbuf[0] != '\0');
+}
+
+static void test_query_ui_screen1_approve_renders_approve_to(void **state) {
+    (void) state;
+    char title[16] = {0};
+    char msgbuf[64] = {0};
+    g_ctx.selectorIndex = 1;  // APPROVE
+    memset(g_ctx.destinationAddress, 0xCD, ADDRESS_LENGTH);
+
+    ethQueryContractUI_t msg = {0};
+    msg.screenIndex = 1;
+    msg.title = title;
+    msg.msg = msgbuf;
+    msg.titleLength = sizeof(title);
+    msg.msgLength = sizeof(msgbuf);
+    msg.pluginContext = (uint8_t *) &g_ctx;
+    erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+    assert_string_equal(title, "Approve to");
+}
+
+// Screen 2 — Extra Data, ASCII-printable path.
+static void test_query_ui_screen2_extra_data_printable(void **state) {
+    (void) state;
+    char title[16] = {0};
+    char msgbuf[64] = {0};
+    g_ctx.selectorIndex = 0;
+    strlcpy(g_ctx.extra_data, "Hello!", sizeof(g_ctx.extra_data));
+    g_ctx.extra_data_len = 6;
+
+    ethQueryContractUI_t msg = {0};
+    msg.screenIndex = 2;
+    msg.title = title;
+    msg.msg = msgbuf;
+    msg.titleLength = sizeof(title);
+    msg.msgLength = sizeof(msgbuf);
+    msg.pluginContext = (uint8_t *) &g_ctx;
+    erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+    assert_string_equal(title, "Extra Data");
+    assert_string_equal(msgbuf, "Hello!");
+}
+
+// Screen 2 — Extra Data, non-printable path (rendered as 0x-prefixed hex).
+static void test_query_ui_screen2_extra_data_hex(void **state) {
+    (void) state;
+    char title[16] = {0};
+    char msgbuf[64] = {0};
+    g_ctx.selectorIndex = 0;
+    g_ctx.extra_data[0] = 0x01;  // non-printable byte
+    g_ctx.extra_data[1] = 0xFE;
+    g_ctx.extra_data[2] = 0xAB;
+    g_ctx.extra_data_len = 3;
+
+    ethQueryContractUI_t msg = {0};
+    msg.screenIndex = 2;
+    msg.title = title;
+    msg.msg = msgbuf;
+    msg.titleLength = sizeof(title);
+    msg.msgLength = sizeof(msgbuf);
+    msg.pluginContext = (uint8_t *) &g_ctx;
+    erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+    assert_string_equal(msgbuf, "0x01FEAB");
+}
+
+// Screen 2 with empty extra_data is rejected (the plugin should never
+// reach this state — extra_data_len == 0 means no extra screen was
+// allocated — but the guard exists and must trip).
+static void test_query_ui_screen2_empty_extra_data_rejected(void **state) {
+    (void) state;
+    char title[16] = {0};
+    char msgbuf[64] = {0};
+    g_ctx.extra_data_len = 0;
+
+    ethQueryContractUI_t msg = {0};
+    msg.screenIndex = 2;
+    msg.title = title;
+    msg.msg = msgbuf;
+    msg.titleLength = sizeof(title);
+    msg.msgLength = sizeof(msgbuf);
+    msg.pluginContext = (uint8_t *) &g_ctx;
+    erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -565,6 +681,11 @@ int main(void) {
         cmocka_unit_test_setup(test_query_contract_id_approve, reset),
         cmocka_unit_test_setup(test_query_ui_screen0_transfer_amount, reset),
         cmocka_unit_test_setup(test_query_ui_screen0_approve_unlimited, reset),
+        cmocka_unit_test_setup(test_query_ui_screen1_transfer_renders_to, reset),
+        cmocka_unit_test_setup(test_query_ui_screen1_approve_renders_approve_to, reset),
+        cmocka_unit_test_setup(test_query_ui_screen2_extra_data_printable, reset),
+        cmocka_unit_test_setup(test_query_ui_screen2_extra_data_hex, reset),
+        cmocka_unit_test_setup(test_query_ui_screen2_empty_extra_data_rejected, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
