@@ -120,17 +120,27 @@ bool tx_ctx_init(s_calldata *calldata,
     return true;
 }
 
+// Controlled by the store_calldata tests below: when g_calldata_init_ok
+// is true, return a non-NULL sentinel; when false, return NULL to
+// exercise the calldata_init failure branch in process_data.
+static bool g_calldata_init_ok = true;
+static int g_calldata_init_calls = 0;
+static int g_calldata_append_calls = 0;
+static bool g_calldata_append_ok = true;
+static s_calldata g_calldata_sentinel;
 s_calldata *calldata_init(size_t size, const uint8_t *selector) {
     (void) size;
     (void) selector;
-    return NULL;
+    g_calldata_init_calls++;
+    return g_calldata_init_ok ? &g_calldata_sentinel : NULL;
 }
 
 bool calldata_append(s_calldata *calldata, const uint8_t *buffer, size_t size) {
     (void) calldata;
     (void) buffer;
     (void) size;
-    return true;
+    g_calldata_append_calls++;
+    return g_calldata_append_ok;
 }
 
 void calldata_delete(s_calldata *node) {
@@ -153,6 +163,10 @@ static int reset(void **state) {
     s_sdk.keccak_init_ret = CX_OK;
     s_sdk.hash_ret = CX_OK;
     g_parked_calldata = NULL;
+    g_calldata_init_ok = true;
+    g_calldata_append_ok = true;
+    g_calldata_init_calls = 0;
+    g_calldata_append_calls = 0;
     return 0;
 }
 
@@ -633,6 +647,213 @@ static void test_process_tx_eip1559_chainid_overflow_rejected(void **state) {
 }
 
 // =============================================================================
+// process_data — store_calldata path. Drives the calldata-init flow
+// inside process_data() with a legacy tx whose data field carries an
+// 8-byte payload (4-byte selector + 4-byte argument). store_calldata=true
+// asks the parser to fork the data bytes into the GCS calldata buffer
+// in addition to the running hash.
+//
+// Legacy tx layout: [nonce, gasPrice, startGas, to, value, data, v, r, s]
+// Data field 8 bytes: 0x88 prefix + 8 bytes.
+// Inner payload: 1+6+3+21+1+9+1+1+1 = 44 bytes -> list prefix 0xC0+44 = 0xEC.
+// =============================================================================
+
+static const uint8_t g_legacy_tx_with_8byte_data[] = {
+    0xEC,                                // list, payload = 44 bytes
+    0x07,                                // nonce = 7
+    0x85, 0x04, 0xA8, 0x17, 0xC8, 0x00,  // gasPrice
+    0x82, 0x52, 0x08,                    // startGas
+    0x94, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+    0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,  // to
+    0x80,                                                        // value = 0
+    0x88, 0xA9, 0x05, 0x9C, 0xBB,                                // data: selector
+    0x01, 0x02, 0x03, 0x04,                                      //       + 4 arg bytes
+    0x1B, 0x80, 0x80,                                            // v, r, s
+};
+
+static void test_process_data_captures_selector_bytes(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    ctx.txType = LEGACY;
+
+    parserStatus_e r =
+        process_tx(&ctx, g_legacy_tx_with_8byte_data, sizeof(g_legacy_tx_with_8byte_data));
+    assert_int_equal(r, USTREAM_FINISHED);
+
+    // process_data captures the first 4 bytes of the data field into
+    // ctx.selector_bytes for the gating cross-check.
+    static const uint8_t expected_selector[CALLDATA_SELECTOR_SIZE] = {0xA9, 0x05, 0x9C, 0xBB};
+    assert_memory_equal(ctx.selector_bytes, expected_selector, CALLDATA_SELECTOR_SIZE);
+}
+
+static void test_process_data_store_calldata_happy_path(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
+    ctx.txType = LEGACY;
+
+    parserStatus_e r =
+        process_tx(&ctx, g_legacy_tx_with_8byte_data, sizeof(g_legacy_tx_with_8byte_data));
+    assert_int_equal(r, USTREAM_FINISHED);
+
+    // store_calldata=true: calldata_init must be called once with the
+    // selector, and the remaining 4 arg bytes appended.
+    assert_int_equal(g_calldata_init_calls, 1);
+    assert_int_equal(g_calldata_append_calls, 1);
+}
+
+static void test_process_data_store_calldata_init_failure_rejected(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
+    ctx.txType = LEGACY;
+    g_calldata_init_ok = false;  // make calldata_init return NULL
+
+    parserStatus_e r =
+        process_tx(&ctx, g_legacy_tx_with_8byte_data, sizeof(g_legacy_tx_with_8byte_data));
+    assert_int_equal(r, USTREAM_FAULT);
+    assert_int_equal(g_calldata_init_calls, 1);
+    assert_int_equal(g_calldata_append_calls, 0);  // never reached
+}
+
+// Same legacy envelope but with a 2-byte data field — shorter than
+// the 4-byte selector. store_calldata mode must refuse rather than
+// initialise a calldata buffer without a complete selector.
+// Inner payload: 1+6+3+21+1+3+1+1+1 = 38 bytes -> list prefix 0xC0+38 = 0xE6.
+static const uint8_t g_legacy_tx_with_2byte_data[] = {
+    0xE6,                                // list, payload = 38 bytes
+    0x07,                                // nonce
+    0x85, 0x04, 0xA8, 0x17, 0xC8, 0x00,  // gasPrice
+    0x82, 0x52, 0x08,                    // startGas
+    0x94, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+    0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,  // to
+    0x80,                                                        // value = 0
+    0x82, 0x11, 0x22,                                            // data: 2 bytes
+    0x1B, 0x80, 0x80,                                            // v, r, s
+};
+
+static void test_process_data_store_calldata_short_data_rejected(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
+    ctx.txType = LEGACY;
+
+    parserStatus_e r =
+        process_tx(&ctx, g_legacy_tx_with_2byte_data, sizeof(g_legacy_tx_with_2byte_data));
+    assert_int_equal(r, USTREAM_FAULT);
+    assert_int_equal(g_calldata_init_calls, 0);  // refused before alloc
+}
+
+// =============================================================================
+// Non-empty access_list / auth_list. The base happy-path tests use
+// 0xC0 (empty list) which skips the per-list iteration body. Feed
+// concrete bytes through both lists so process_access_list /
+// process_auth_list are exercised on the path that actually walks
+// the payload.
+//
+// EIP-2930 with access_list = 0xC1 0x80 (list of 1 byte = empty inner
+// entry). The outer list grows by 1 byte vs the all-empty envelope.
+// Inner payload now 36 bytes -> list prefix 0xC0+36 = 0xE4.
+// =============================================================================
+
+static const uint8_t g_eip2930_tx_nonempty_access[] = {
+    0xE4,                                // list, payload = 36 bytes
+    0x01,                                // chainId = 1
+    0x07,                                // nonce
+    0x85, 0x04, 0xA8, 0x17, 0xC8, 0x00,  // gasPrice
+    0x82, 0x52, 0x08,                    // gasLimit
+    0x94, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+    0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,  // to
+    0x80,                                                        // value
+    0x80,                                                        // data
+    0xC1, 0x80,                                                  // accessList = [empty_entry]
+};
+
+static void test_process_tx_eip2930_nonempty_access_list(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = EIP2930;
+
+    parserStatus_e r =
+        process_tx(&ctx, g_eip2930_tx_nonempty_access, sizeof(g_eip2930_tx_nonempty_access));
+    assert_int_equal(r, USTREAM_FINISHED);
+}
+
+// EIP-7702 with both lists non-empty.
+// Inner payload: previous 37 + 1 (access) + 1 (auth) = 39 bytes.
+// List prefix: 0xC0 + 39 = 0xE7.
+static const uint8_t g_eip7702_tx_nonempty_lists[] = {
+    0xE7,                                // list, payload = 39 bytes
+    0x01,                                // chainId
+    0x07,                                // nonce
+    0x05,                                // maxPriorityFee
+    0x85, 0x04, 0xA8, 0x17, 0xC8, 0x00,  // maxFee
+    0x82, 0x52, 0x08,                    // gasLimit
+    0x94, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+    0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,  // to
+    0x80,                                                        // value
+    0x80,                                                        // data
+    0xC1, 0x80,                                                  // accessList = [empty]
+    0xC1, 0x80,                                                  // authList   = [empty]
+};
+
+static void test_process_tx_eip7702_nonempty_auth_list(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = EIP7702;
+
+    parserStatus_e r =
+        process_tx(&ctx, g_eip7702_tx_nonempty_lists, sizeof(g_eip7702_tx_nonempty_lists));
+    assert_int_equal(r, USTREAM_FINISHED);
+}
+
+// =============================================================================
+// parse_rlp error paths. The parser must reject malformed RLP rather
+// than silently advancing — buffer over-reads here would let a hostile
+// host slip bytes past the field boundary the parser thought it was
+// reading. Force the rejection by feeding a list-prefix tag whose
+// declared length is impossibly large vs the actual command bytes.
+// =============================================================================
+
+// 0xBD = string with 30-byte length prefix; we only feed 1 byte after.
+// rlp_can_decode succeeds (it has the prefix byte) but rlp_decode_length
+// catches that the inner length isn't representable / valid.
+static void test_process_tx_malformed_rlp_long_prefix_rejected(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = LEGACY;
+
+    // 0xBD declares "next 0xBD-0xB7=6 bytes are the length". Feed only
+    // 6 bytes total — parser sees the 6-byte length payload + 0 bytes
+    // of actual string. The 6-byte length must fit in size_t and not
+    // overflow; we use all zeros to exercise the validity check.
+    const uint8_t bytes[] = {0xBD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
+    // Either fault (rejected) or processing (waiting for more); both
+    // are valid outcomes — what must NOT happen is FINISHED, which
+    // would mean the parser accepted nonsense.
+    assert_int_not_equal(r, USTREAM_FINISHED);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -658,6 +879,13 @@ int main(void) {
         cmocka_unit_test_setup(test_process_tx_eip2930_happy_path, reset),
         cmocka_unit_test_setup(test_process_tx_eip7702_happy_path, reset),
         cmocka_unit_test_setup(test_process_tx_eip1559_chainid_overflow_rejected, reset),
+        cmocka_unit_test_setup(test_process_data_captures_selector_bytes, reset),
+        cmocka_unit_test_setup(test_process_data_store_calldata_happy_path, reset),
+        cmocka_unit_test_setup(test_process_data_store_calldata_init_failure_rejected, reset),
+        cmocka_unit_test_setup(test_process_data_store_calldata_short_data_rejected, reset),
+        cmocka_unit_test_setup(test_process_tx_eip2930_nonempty_access_list, reset),
+        cmocka_unit_test_setup(test_process_tx_eip7702_nonempty_auth_list, reset),
+        cmocka_unit_test_setup(test_process_tx_malformed_rlp_long_prefix_rejected, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
