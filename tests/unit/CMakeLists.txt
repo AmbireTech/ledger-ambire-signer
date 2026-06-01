@@ -2357,3 +2357,55 @@ target_link_libraries(test_cmd_set_external_plugin PUBLIC
 )
 
 add_test(test_cmd_set_external_plugin test_cmd_set_external_plugin)
+
+# cmd_perform_privacy_operation — X25519 pubkey / shared-secret derivation
+add_executable(test_cmd_perform_privacy_operation
+  ${SRC_DIR}/test_cmd_perform_privacy_operation.c
+  ${APP_DIR}/features/perform_privacy_operation/cmd_perform_privacy_operation.c
+  ${APP_DIR}/features/perform_privacy_operation/logic_perform_privacy_operation.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_cmd_perform_privacy_operation PRIVATE
+  ${APP_DIR}/features/perform_privacy_operation
+  ${BOLOS_SDK}/io_legacy/include
+)
+
+target_compile_definitions(test_cmd_perform_privacy_operation PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_ECC_WEIERSTRASS
+  HAVE_SECP_CURVES
+  HAVE_ECC_MONTGOMERY
+  HAVE_CV25519_CURVE
+  HAVE_ECDH
+  HAVE_X25519
+  HAVE_MATH
+  OS_IO_SEPH_BUFFER_SIZE=272
+)
+
+target_compile_options(test_cmd_perform_privacy_operation PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_perform_privacy_operation PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=parseBip32
+                      -Wl,--wrap=os_perso_derive_node_with_seed_key
+                      -Wl,--wrap=cx_ecfp_init_private_key_no_throw
+                      -Wl,--wrap=cx_ecfp_generate_pair_no_throw
+                      -Wl,--wrap=cx_x25519
+                      -Wl,--wrap=getEthAddressStringFromRawKey
+)
+
+add_test(test_cmd_perform_privacy_operation test_cmd_perform_privacy_operation)
