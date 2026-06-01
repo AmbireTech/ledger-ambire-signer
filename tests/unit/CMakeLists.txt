@@ -2617,3 +2617,45 @@ target_link_libraries(test_eip7251_plugin PUBLIC
 )
 
 add_test(test_eip7251_plugin test_eip7251_plugin)
+
+# swap_with_calldata_plugin — Exchange app calldata hash verification
+add_executable(test_swap_with_calldata_plugin
+  ${SRC_DIR}/test_swap_with_calldata_plugin.c
+  ${APP_DIR}/plugins/swap_with_calldata/swap_with_calldata_plugin.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_swap_with_calldata_plugin PRIVATE
+  ${APP_DIR}/plugins
+  ${APP_DIR}/plugins/swap_with_calldata
+  ${BOLOS_SDK}
+)
+
+target_compile_definitions(test_swap_with_calldata_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_swap_with_calldata_plugin PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_swap_with_calldata_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=cx_sha256_init_no_throw
+                      -Wl,--wrap=cx_sha256_update
+                      -Wl,--wrap=cx_sha256_final
+)
+
+add_test(test_swap_with_calldata_plugin test_swap_with_calldata_plugin)
