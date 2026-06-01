@@ -39,8 +39,11 @@ bool is_printable_string(const char *str, size_t len) {
     return true;
 }
 
-void assert_exit(bool confirm) {
+__attribute__((noreturn)) void assert_exit(bool confirm) {
     (void) confirm;
+    // The SDK declares assert_exit as noreturn — match that on the test side too
+    while (1) {
+    }
 }
 
 uint32_t cx_keccak_256_hash_iovec(void *iovec, size_t iovec_len, uint8_t *digest) {
