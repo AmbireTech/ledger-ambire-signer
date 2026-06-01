@@ -347,6 +347,139 @@ static void test_copy_tx_data_hash_failure_propagates(void **state) {
 }
 
 // =============================================================================
+// process_tx — end-to-end RLP parsing of a single transaction.
+//
+// Driving real RLP bytes through the public entry point exercises every
+// static helper (parse_rlp, check_cmd_length, check_empty_list,
+// check_fields, the per-type process_legacy_tx / process_eip1559_tx
+// dispatchers, and the field-specific process_* functions). The
+// alternative — calling each static helper individually — isn't
+// possible from outside the TU.
+//
+// Coverage focus, not crypto: SDK hash/keccak primitives are stubbed
+// (return CX_OK), so the running hash and signature recovery aren't
+// validated here. The point is to pin the byte-pump that decides what
+// goes into the signed digest in the first place.
+// =============================================================================
+
+// Build a minimal legacy transaction in RLP encoding.
+//
+// Plain values:
+//   nonce    = 0x07
+//   gasPrice = 0x04A817C800  (20 Gwei)
+//   startGas = 0x5208        (21000)
+//   to       = 20 * 0xAA
+//   value    = 0
+//   data     = (empty)
+//   v        = 0x1B          (chain_id-less / pre-EIP-155 path)
+//   r        = 0
+//   s        = 0
+//
+// Inner payload size = 1 + 6 + 3 + 21 + 1 + 1 + 1 + 1 + 1 = 36 bytes.
+// List prefix = 0xC0 + 36 = 0xE4.
+static const uint8_t g_minimal_legacy_tx[] = {
+    0xE4,                                // list, payload = 36 bytes
+    0x07,                                // nonce = 7
+    0x85, 0x04, 0xA8, 0x17, 0xC8, 0x00,  // gasPrice
+    0x82, 0x52, 0x08,                    // startGas
+    0x94,                                // 20-byte string
+    0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+    0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,  // to
+    0x80,                                                        // value = 0
+    0x80,                                                        // data = empty
+    0x1B,                                                        // v = 27 (self-encoded)
+    0x80,                                                        // r = 0
+    0x80,                                                        // s = 0
+};
+
+static void test_process_tx_legacy_happy_path(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    ctx.txType = LEGACY;  // cmd_sign_tx sets this before calling.
+
+    parserStatus_e r = process_tx(&ctx, g_minimal_legacy_tx, sizeof(g_minimal_legacy_tx));
+    assert_int_equal(r, USTREAM_FINISHED);
+
+    // process_* helpers write to ctx->content (i.e. our local `content`).
+    assert_int_equal(content.nonce.length, 1);
+    assert_int_equal(content.nonce.value[0], 0x07);
+
+    assert_int_equal(content.gasprice.length, 5);
+    static const uint8_t expected_gasprice[5] = {0x04, 0xA8, 0x17, 0xC8, 0x00};
+    assert_memory_equal(content.gasprice.value, expected_gasprice, 5);
+
+    assert_int_equal(content.startgas.length, 2);
+    static const uint8_t expected_startgas[2] = {0x52, 0x08};
+    assert_memory_equal(content.startgas.value, expected_startgas, 2);
+
+    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+    uint8_t expected_to[ADDRESS_LENGTH];
+    memset(expected_to, 0xAA, ADDRESS_LENGTH);
+    assert_memory_equal(content.destination, expected_to, ADDRESS_LENGTH);
+
+    // value=0 → length 0, no bytes.
+    assert_int_equal(content.value.length, 0);
+
+    // v = 0x1B captured in v[0].
+    assert_int_equal(content.v[0], 0x1B);
+    assert_int_equal(content.vLength, 1);
+}
+
+static void test_process_tx_truncated_mid_field_returns_processing(void **state) {
+    (void) state;
+    // Send only the first 12 bytes — far short of the 37-byte total.
+    // The parser must report USTREAM_PROCESSING (waiting for more
+    // data), not USTREAM_FAULT or FINISHED. That's the contract the
+    // multi-APDU chunked sign-tx flow depends on.
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    ctx.txType = LEGACY;
+
+    parserStatus_e r = process_tx(&ctx, g_minimal_legacy_tx, 12);
+    assert_int_equal(r, USTREAM_PROCESSING);
+}
+
+static void test_process_tx_chunked_two_halves_finishes(void **state) {
+    (void) state;
+    // Feed the same minimal tx in two slices via process_tx +
+    // continue_tx. The streamer must reassemble the field that
+    // straddles the boundary without losing bytes.
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    ctx.txType = LEGACY;
+
+    const size_t mid = sizeof(g_minimal_legacy_tx) / 2;
+    parserStatus_e r = process_tx(&ctx, g_minimal_legacy_tx, mid);
+    assert_int_equal(r, USTREAM_PROCESSING);
+
+    // Second slice — process_tx with the remainder.
+    r = process_tx(&ctx, g_minimal_legacy_tx + mid, sizeof(g_minimal_legacy_tx) - mid);
+    assert_int_equal(r, USTREAM_FINISHED);
+    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+}
+
+static void test_process_tx_unsupported_tx_type_returns_fault(void **state) {
+    (void) state;
+    // Force an out-of-range txType — the process_tx_internal default
+    // branch must reject rather than fall through to a wrong dispatcher.
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = 0x7F;  // not LEGACY/EIP2930/EIP1559/EIP7702
+
+    parserStatus_e r = process_tx(&ctx, g_minimal_legacy_tx, sizeof(g_minimal_legacy_tx));
+    assert_int_equal(r, USTREAM_FAULT);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -364,6 +497,10 @@ int main(void) {
                                reset),
         cmocka_unit_test_setup(test_copy_tx_data_command_length_underflow_rejected, reset),
         cmocka_unit_test_setup(test_copy_tx_data_hash_failure_propagates, reset),
+        cmocka_unit_test_setup(test_process_tx_legacy_happy_path, reset),
+        cmocka_unit_test_setup(test_process_tx_truncated_mid_field_returns_processing, reset),
+        cmocka_unit_test_setup(test_process_tx_chunked_two_halves_finishes, reset),
+        cmocka_unit_test_setup(test_process_tx_unsupported_tx_type_returns_fault, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
