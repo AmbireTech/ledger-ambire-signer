@@ -2316,3 +2316,44 @@ target_link_libraries(test_cmd_get_app_configuration PUBLIC
 )
 
 add_test(test_cmd_get_app_configuration test_cmd_get_app_configuration)
+
+# cmd_set_external_plugin — external plugin registration
+add_executable(test_cmd_set_external_plugin
+  ${SRC_DIR}/test_cmd_set_external_plugin.c
+  ${APP_DIR}/features/set_external_plugin/cmd_set_external_plugin.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_cmd_set_external_plugin PRIVATE
+  ${APP_DIR}/features/set_external_plugin
+  ${APP_DIR}/plugins
+)
+
+target_compile_definitions(test_cmd_set_external_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_LEDGER_PKI
+)
+
+target_compile_options(test_cmd_set_external_plugin PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_set_external_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=cx_hash_sha256
+)
+
+add_test(test_cmd_set_external_plugin test_cmd_set_external_plugin)
