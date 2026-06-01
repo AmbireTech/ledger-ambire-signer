@@ -1,6 +1,17 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
+
+#ifndef CERTIFICATE_TRUSTED_NAME_MAXLEN
+#define CERTIFICATE_TRUSTED_NAME_MAXLEN (32)
+#endif
+
+struct cx_ecfp_384_public_key_s;
+uint32_t os_pki_get_info(uint8_t *key_usage,
+                         uint8_t *trusted_name,
+                         size_t *trusted_name_len,
+                         struct cx_ecfp_384_public_key_s *public_key);
 
 enum {
     CERTIFICATE_PUBLIC_KEY_USAGE_GENUINE_CHECK = 0x01,
