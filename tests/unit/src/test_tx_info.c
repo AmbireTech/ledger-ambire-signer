@@ -469,6 +469,20 @@ static void test_verify_missing_version_rejected(void **state) {
     assert_false(verify_tx_info_struct(&ctx));
 }
 
+// VERSION = 1 but other required tags (CHAIN_ID, CONTRACT_ADDR,
+// SELECTOR, FIELDS_HASH, OPERATION_TYPE, SIGNATURE) absent. The switch
+// in verify_tx_info_struct routes to case 1 which fails the
+// multi-tag presence check — separate code path from "missing VERSION".
+static void test_verify_missing_required_field_with_version_present(void **state) {
+    (void) state;
+    s_tx_info info = {0};
+    s_tx_info_ctx ctx = {.tx_info = &info};
+    g_tx_ctx_count = 1;
+    const uint8_t bytes[] = {0x00, 0x01, 0x01};  // VERSION = 1, nothing else
+    assert_true(run_tlv(bytes, sizeof(bytes), &ctx));
+    assert_false(verify_tx_info_struct(&ctx));
+}
+
 static void test_verify_unsupported_version_rejected(void **state) {
     (void) state;
     s_tx_info info = {0};
@@ -528,6 +542,7 @@ int main(void) {
         cmocka_unit_test_setup(test_tlv_optional_metadata_tags_populated, reset),
         cmocka_unit_test_setup(test_delete_tx_info_frees_node, reset),
         cmocka_unit_test_setup(test_verify_missing_version_rejected, reset),
+        cmocka_unit_test_setup(test_verify_missing_required_field_with_version_present, reset),
         cmocka_unit_test_setup(test_verify_unsupported_version_rejected, reset),
         cmocka_unit_test_setup(test_verify_happy_path, reset),
         cmocka_unit_test_setup(test_verify_signature_check_failure_rejected, reset),

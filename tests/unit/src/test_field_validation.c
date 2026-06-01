@@ -510,6 +510,55 @@ static void test_cleanup_field_with_group_routes_through_group_cleanup(void **st
 // handle_separator — populates the field's separator string.
 // =============================================================================
 
+// The first `test_constraint_with_always_visibility_rejected` actually
+// hits the "no VISIBLE received in this call" branch (the TLV parser
+// resets received_tags on every entry, so a CONSTRAINT in a separate
+// call doesn't see the earlier VISIBLE). To exercise the
+// visibility==ALWAYS rejection branch we need VISIBLE + CONSTRAINT
+// in a single buffer.
+static void test_constraint_with_always_visibility_single_call_rejected(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    const uint8_t bytes[] = {
+        0x04,
+        0x01,
+        0x00,  // VISIBLE = ALWAYS
+        0x05,
+        0x04,
+        0x11,
+        0x22,
+        0x33,
+        0x44,  // CONSTRAINT (illegal with ALWAYS)
+    };
+    assert_false(run_field_tlv(bytes, sizeof(bytes), &ctx));
+    assert_null(field.constraints);
+}
+
+// node->size is uint8_t; a constraint value > 255 bytes would
+// silently truncate the stored size if the size guard were removed,
+// making the later memcmp-based constraint check always fail.
+// Send a 256-byte constraint to pin the explicit rejection.
+static void test_constraint_value_above_uint8_max_rejected(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+
+    // TLV: VISIBLE + CONSTRAINT(256 bytes). TLV length 256 needs
+    // DER long-form: 0x82 0x01 0x00.
+    uint8_t bytes[3 + 4 + 256];
+    bytes[0] = 0x04;  // VISIBLE
+    bytes[1] = 0x01;
+    bytes[2] = 0x01;  // MUST_BE
+    bytes[3] = 0x05;  // CONSTRAINT
+    bytes[4] = 0x82;  // length long-form, 2 bytes follow
+    bytes[5] = 0x01;
+    bytes[6] = 0x00;  // length = 0x0100 = 256
+    memset(bytes + 7, 0xCC, 256);
+    assert_false(run_field_tlv(bytes, sizeof(bytes), &ctx));
+    assert_null(field.constraints);
+}
+
 static void test_handle_separator_populates_field(void **state) {
     (void) state;
     s_field field = {0};
@@ -573,6 +622,8 @@ int main(void) {
         cmocka_unit_test(test_format_field_unsupported_type_rejected),
         cmocka_unit_test(test_cleanup_field_null_safe),
         cmocka_unit_test(test_cleanup_field_with_group_routes_through_group_cleanup),
+        cmocka_unit_test(test_constraint_with_always_visibility_single_call_rejected),
+        cmocka_unit_test(test_constraint_value_above_uint8_max_rejected),
         cmocka_unit_test(test_handle_separator_populates_field),
     };
 
