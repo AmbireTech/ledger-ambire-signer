@@ -480,6 +480,159 @@ static void test_process_tx_unsupported_tx_type_returns_fault(void **state) {
 }
 
 // =============================================================================
+// EIP-1559 / EIP-2930 / EIP-7702 RLP parsing — typed-transaction
+// envelopes. The wire format prepends a single txType byte (0x01 /
+// 0x02 / 0x04) to a list whose layout differs from legacy. The
+// parser doesn't see the type byte (cmd_sign_tx strips it and sets
+// ctx.txType before dispatching), so the test feeds only the inner
+// list and forces the type explicitly.
+//
+// Coverage focus: every per-type dispatcher
+// (process_eip1559_tx / process_eip2930_tx / process_eip7702_tx)
+// plus the field handlers that legacy doesn't reach (process_chain_id,
+// process_access_list, process_auth_list).
+// =============================================================================
+
+// EIP-1559 inner list: [chainId, nonce, maxPriorityFee, maxFee,
+//                       gasLimit, to, value, data, accessList]
+// 9 fields, payload = 36 bytes, list prefix = 0xC0 + 36 = 0xE4.
+static const uint8_t g_minimal_eip1559_tx[] = {
+    0xE4,                                // list, payload = 36 bytes
+    0x01,                                // chainId = 1
+    0x07,                                // nonce = 7
+    0x05,                                // maxPriorityFee = 5
+    0x85, 0x04, 0xA8, 0x17, 0xC8, 0x00,  // maxFee
+    0x82, 0x52, 0x08,                    // gasLimit
+    0x94,                                // 20-byte string
+    0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+    0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,  // to
+    0x80,                                                        // value = 0
+    0x80,                                                        // data = empty
+    0xC0,                                                        // accessList = empty list
+};
+
+static void test_process_tx_eip1559_happy_path(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    ctx.txType = EIP1559;
+
+    parserStatus_e r = process_tx(&ctx, g_minimal_eip1559_tx, sizeof(g_minimal_eip1559_tx));
+    assert_int_equal(r, USTREAM_FINISHED);
+
+    assert_int_equal(content.chainID.length, 1);
+    assert_int_equal(content.chainID.value[0], 0x01);
+    assert_int_equal(content.nonce.length, 1);
+    assert_int_equal(content.nonce.value[0], 0x07);
+    // maxFee lands in gasprice (alias) for EIP-1559.
+    assert_int_equal(content.gasprice.length, 5);
+    assert_int_equal(content.startgas.length, 2);
+    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+    // No v in the unsigned RLP — vLength stays 0.
+    assert_int_equal(content.vLength, 0);
+}
+
+// EIP-2930 inner list: [chainId, nonce, gasPrice, gasLimit, to, value,
+//                       data, accessList]
+// 8 fields, payload = 35 bytes, list prefix = 0xC0 + 35 = 0xE3.
+static const uint8_t g_minimal_eip2930_tx[] = {
+    0xE3,                                // list, payload = 35 bytes
+    0x01,                                // chainId = 1
+    0x07,                                // nonce = 7
+    0x85, 0x04, 0xA8, 0x17, 0xC8, 0x00,  // gasPrice
+    0x82, 0x52, 0x08,                    // gasLimit
+    0x94, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+    0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,  // to
+    0x80,                                                        // value = 0
+    0x80,                                                        // data = empty
+    0xC0,                                                        // accessList = empty list
+};
+
+static void test_process_tx_eip2930_happy_path(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = EIP2930;
+
+    parserStatus_e r = process_tx(&ctx, g_minimal_eip2930_tx, sizeof(g_minimal_eip2930_tx));
+    assert_int_equal(r, USTREAM_FINISHED);
+    assert_int_equal(content.chainID.value[0], 0x01);
+    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+}
+
+// EIP-7702 inner list: [chainId, nonce, maxPriorityFee, maxFee,
+//                       gasLimit, to, value, data, accessList, authList]
+// EIP-7702 is the highest-risk tx type: authList delegates EOA authority
+// to contract code, so a parser bug that lets bytes drift between the
+// signature and the rendered display is a permanent-account-compromise
+// vector. Pin the happy path so the dispatcher and process_auth_list
+// are exercised.
+//
+// 10 fields, payload = 37 bytes, list prefix = 0xC0 + 37 = 0xE5.
+static const uint8_t g_minimal_eip7702_tx[] = {
+    0xE5,                                // list, payload = 37 bytes
+    0x01,                                // chainId = 1
+    0x07,                                // nonce = 7
+    0x05,                                // maxPriorityFee = 5
+    0x85, 0x04, 0xA8, 0x17, 0xC8, 0x00,  // maxFee
+    0x82, 0x52, 0x08,                    // gasLimit
+    0x94, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+    0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,  // to
+    0x80,                                                        // value = 0
+    0x80,                                                        // data = empty
+    0xC0,                                                        // accessList = empty
+    0xC0,                                                        // authList = empty
+};
+
+static void test_process_tx_eip7702_happy_path(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = EIP7702;
+
+    parserStatus_e r = process_tx(&ctx, g_minimal_eip7702_tx, sizeof(g_minimal_eip7702_tx));
+    assert_int_equal(r, USTREAM_FINISHED);
+    assert_int_equal(content.chainID.value[0], 0x01);
+    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+}
+
+// process_chain_id explicitly rejects values that don't fit in a
+// uint64_t — the comment in eth_ustream.c flags this as CWE-197
+// hardening (signature covers one chain, display shows the truncated
+// 64-bit prefix). Pin the rejection.
+static void test_process_tx_eip1559_chainid_overflow_rejected(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = EIP1559;
+
+    // 9-byte chainId — exceeds sizeof(uint64_t)=8. The 9-byte string
+    // prefix is 0x80 + 9 = 0x89. Just feed the chainId prefix + bytes;
+    // the parser must fault before reaching the rest of the envelope.
+    const uint8_t bytes[] = {
+        0xEC,                                                        // list, payload = 44 bytes
+        0x89, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,  // 9-byte chainId
+        0x07,                                                        // nonce
+        0x05,                                                        // maxPriorityFee
+        0x85, 0x04, 0xA8, 0x17, 0xC8, 0x00,                          // maxFee
+        0x82, 0x52, 0x08,                                            // gasLimit
+        0x94, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+        0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,  // to
+        0x80, 0x80, 0xC0,                                            // value, data, accessList
+    };
+    parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
+    assert_int_equal(r, USTREAM_FAULT);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -501,6 +654,10 @@ int main(void) {
         cmocka_unit_test_setup(test_process_tx_truncated_mid_field_returns_processing, reset),
         cmocka_unit_test_setup(test_process_tx_chunked_two_halves_finishes, reset),
         cmocka_unit_test_setup(test_process_tx_unsupported_tx_type_returns_fault, reset),
+        cmocka_unit_test_setup(test_process_tx_eip1559_happy_path, reset),
+        cmocka_unit_test_setup(test_process_tx_eip2930_happy_path, reset),
+        cmocka_unit_test_setup(test_process_tx_eip7702_happy_path, reset),
+        cmocka_unit_test_setup(test_process_tx_eip1559_chainid_overflow_rejected, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
