@@ -2130,3 +2130,57 @@ target_link_libraries(test_cmd_provide_nft_info PUBLIC
 )
 
 add_test(test_cmd_provide_nft_info test_cmd_provide_nft_info)
+
+# cmd_provide_token_info — ERC-20 token metadata descriptor
+# DEFINE_TLV_PARSER expands with a trailing semicolon that trips
+# -Wpedantic; the macro is SDK-supplied so suppress it locally.
+set_source_files_properties(
+  ${APP_DIR}/features/provide_erc20_token_information/cmd_provide_token_info.c
+  PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+add_executable(test_cmd_provide_token_info
+  ${SRC_DIR}/test_cmd_provide_token_info.c
+  ${APP_DIR}/features/provide_erc20_token_information/cmd_provide_token_info.c
+  ${APP_DIR}/features/provide_erc20_token_information/token_info.c
+  ${APP_DIR}/tlv_apdu.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+target_include_directories(test_cmd_provide_token_info PRIVATE
+  ${APP_DIR}/features/provide_erc20_token_information
+  ${BOLOS_SDK}/lib_tlv/use_cases
+)
+
+target_compile_definitions(test_cmd_provide_token_info PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_LEDGER_PKI
+)
+
+target_compile_options(test_cmd_provide_token_info PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_provide_token_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=app_compatible_with_chain_id
+                      -Wl,--wrap=cx_hash_sha256
+                      -Wl,--wrap=tlv_use_case_dynamic_descriptor
+)
+
+add_test(test_cmd_provide_token_info test_cmd_provide_token_info)
