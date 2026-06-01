@@ -1252,6 +1252,27 @@ static void test_raw_uint_separator_with_index(void **state) {
 }
 
 // =============================================================================
+// TLV dispatch + format_bytes oversize
+// =============================================================================
+
+static void test_handle_param_raw_struct_version_and_value_ok(void **state) {
+    (void) state;
+    uint8_t buf_bytes[] = {
+        0x00,
+        0x01,
+        0x05,  // VERSION = 5
+        0x01,
+        0x00,  // VALUE (empty inner)
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_raw param = {0};
+    s_param_raw_context ctx = {.param = &param};
+    assert_true(handle_param_raw_struct(&buf, &ctx));
+    assert_int_equal(param.version, 5);
+}
+
+// =============================================================================
 // Test runner
 // =============================================================================
 
@@ -1309,6 +1330,9 @@ int main(void) {
         // SEPARATOR tests
         cmocka_unit_test(test_raw_uint_separator_literal),
         cmocka_unit_test(test_raw_uint_separator_with_index),
+
+        // TLV dispatch
+        cmocka_unit_test(test_handle_param_raw_struct_version_and_value_ok),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
