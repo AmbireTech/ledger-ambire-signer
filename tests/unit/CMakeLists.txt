@@ -1947,3 +1947,21 @@ target_link_libraries(test_cmd_get_challenge PUBLIC
 )
 
 add_test(test_cmd_get_challenge test_cmd_get_challenge)
+
+# rlp_encode — EIP-7702 RLP encoding primitives
+add_executable(test_rlp_encode
+  ${SRC_DIR}/test_rlp_encode.c
+  ${APP_DIR}/features/sign_authorization_eip7702/rlp_encode.c
+)
+
+target_include_directories(test_rlp_encode PRIVATE
+  ${APP_DIR}/features/sign_authorization_eip7702
+)
+
+target_link_libraries(test_rlp_encode PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_rlp_encode test_rlp_encode)
