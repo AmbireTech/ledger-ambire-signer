@@ -854,6 +854,107 @@ static void test_process_tx_malformed_rlp_long_prefix_rejected(void **state) {
 }
 
 // =============================================================================
+// Field-size gates. The per-field process_* helpers reject any field
+// whose length doesn't fit the receiving slot (INT256_LENGTH=32 for
+// numeric fields, ADDRESS_LENGTH=20 for `to`). These are *security
+// gates*, not just defensive bounds: silently accepting an oversize
+// nonce / value would let the parser advance into the next field's
+// bytes and shift everything downstream.
+// =============================================================================
+
+// Forge a tx whose nonce field is 33 bytes (one over INT256_LENGTH).
+// We don't need a complete tx — process_nonce rejects before any
+// downstream field is parsed.
+//
+// Outer list = 0xE2 (34-byte payload). Nonce = 0xA1 + 33 bytes.
+static void test_process_tx_oversize_nonce_rejected(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = LEGACY;
+
+    uint8_t bytes[2 + 33];
+    bytes[0] = 0xE2;  // outer list, 34 bytes payload
+    bytes[1] = 0xA1;  // nonce: 33-byte string
+    memset(bytes + 2, 0x00, 33);
+    parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
+    assert_int_equal(r, USTREAM_FAULT);
+}
+
+// Same pattern but the gate is on `to` (must be exactly 20 bytes).
+// Send a 21-byte `to` field — process_to's check_fields rejects.
+//
+// Layout: outer list + nonce(1) + gasPrice(0x80=0) + startGas(0x80=0)
+//       + to(0x95 + 21 bytes) — list payload = 1+1+1+22 = 25 bytes.
+static void test_process_tx_oversize_to_rejected(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = LEGACY;
+
+    uint8_t bytes[3 + 1 + 1 + 1 + 1 + 21];  // 28 bytes total
+    bytes[0] = 0xD9;                        // list, 25-byte payload
+    bytes[1] = 0x07;                        // nonce = 7
+    bytes[2] = 0x80;                        // gasPrice = 0
+    bytes[3] = 0x80;                        // startGas = 0
+    bytes[4] = 0x95;                        // to: 21-byte string
+    memset(bytes + 5, 0xAA, 21);
+    parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
+    assert_int_equal(r, USTREAM_FAULT);
+}
+
+// Oversize value (>INT256_LENGTH=32 bytes). process_value rejects via
+// the same check_fields gate.
+//
+// Layout: outer + nonce + gasPrice + startGas + to(20) + value(33)
+//       = 1+1+1+21+34 = 58 bytes.
+static void test_process_tx_oversize_value_rejected(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = LEGACY;
+
+    uint8_t bytes[2 + 58];  // list prefix is 2 bytes for 58-byte payload
+    bytes[0] = 0xF8;        // long-form list, 1-byte length
+    bytes[1] = 58;          // payload length
+    bytes[2] = 0x07;        // nonce
+    bytes[3] = 0x80;        // gasPrice
+    bytes[4] = 0x80;        // startGas
+    bytes[5] = 0x94;        // to: 20-byte string
+    memset(bytes + 6, 0xAA, 20);
+    bytes[26] = 0xA1;  // value: 33-byte string
+    memset(bytes + 27, 0xBB, 33);
+    parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
+    assert_int_equal(r, USTREAM_FAULT);
+}
+
+// calldata_append failure during store_calldata mode. The base
+// store_calldata happy-path test exercises calldata_init+append on the
+// success path; flip g_calldata_append_ok=false to drive the append-
+// failure branch in process_data (line 352).
+static void test_process_data_store_calldata_append_failure_rejected(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
+    ctx.txType = LEGACY;
+    g_calldata_append_ok = false;
+
+    parserStatus_e r =
+        process_tx(&ctx, g_legacy_tx_with_8byte_data, sizeof(g_legacy_tx_with_8byte_data));
+    assert_int_equal(r, USTREAM_FAULT);
+    assert_int_equal(g_calldata_init_calls, 1);
+    assert_int_equal(g_calldata_append_calls, 1);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -886,6 +987,10 @@ int main(void) {
         cmocka_unit_test_setup(test_process_tx_eip2930_nonempty_access_list, reset),
         cmocka_unit_test_setup(test_process_tx_eip7702_nonempty_auth_list, reset),
         cmocka_unit_test_setup(test_process_tx_malformed_rlp_long_prefix_rejected, reset),
+        cmocka_unit_test_setup(test_process_tx_oversize_nonce_rejected, reset),
+        cmocka_unit_test_setup(test_process_tx_oversize_to_rejected, reset),
+        cmocka_unit_test_setup(test_process_tx_oversize_value_rejected, reset),
+        cmocka_unit_test_setup(test_process_data_store_calldata_append_failure_rejected, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
