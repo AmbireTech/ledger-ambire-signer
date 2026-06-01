@@ -2450,3 +2450,45 @@ target_link_libraries(test_erc721_plugin PUBLIC
 )
 
 add_test(test_erc721_plugin test_erc721_plugin)
+
+# erc1155_plugin — multi-token NFT plugin (safeTransferFrom /
+# safeBatchTransferFrom / setApprovalForAll)
+add_executable(test_erc1155_plugin
+  ${SRC_DIR}/test_erc1155_plugin.c
+  ${APP_DIR}/plugins/erc1155/erc1155_plugin.c
+  ${APP_DIR}/plugins/erc1155/erc1155_provide_parameters.c
+  ${APP_DIR}/plugins/erc1155/erc1155_ui.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_erc1155_plugin PRIVATE
+  ${APP_DIR}/plugins
+  ${APP_DIR}/plugins/erc1155
+)
+
+target_compile_definitions(test_erc1155_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_erc1155_plugin PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_erc1155_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=getEthDisplayableAddress
+)
+
+add_test(test_erc1155_plugin test_erc1155_plugin)
