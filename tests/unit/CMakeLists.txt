@@ -2235,3 +2235,50 @@ target_link_libraries(test_cmd_sign_tx PUBLIC
 )
 
 add_test(test_cmd_sign_tx test_cmd_sign_tx)
+
+# cmd_get_public_key — GET_PUBLIC_KEY handler + derivation helpers
+add_executable(test_cmd_get_public_key
+  ${SRC_DIR}/test_cmd_get_public_key.c
+  ${APP_DIR}/features/get_public_key/cmd_get_public_key.c
+  ${APP_DIR}/features/get_public_key/get_public_key.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_cmd_get_public_key PRIVATE
+  ${APP_DIR}/features/get_public_key
+  ${BOLOS_SDK}/io_legacy/include
+)
+
+target_compile_definitions(test_cmd_get_public_key PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_ECC_WEIERSTRASS
+  HAVE_SECP_CURVES
+  HAVE_MATH
+  OS_IO_SEPH_BUFFER_SIZE=272
+)
+
+target_compile_options(test_cmd_get_public_key PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_get_public_key PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=parseBip32
+                      -Wl,--wrap=reset_app_context
+                      -Wl,--wrap=bip32_derive_with_seed_get_pubkey_256
+                      -Wl,--wrap=getEthAddressFromRawKey
+                      -Wl,--wrap=getEthAddressStringFromRawKey
+)
+
+add_test(test_cmd_get_public_key test_cmd_get_public_key)
