@@ -551,6 +551,130 @@ static void test_process_empty_txs_with_amount_no_tx_info_fails(void **state) {
 }
 
 // =============================================================================
+// Remaining gaps: simple getters with current set, process_empty_tx
+// amount happy path, set_tx_info_into_tx_ctx EIP712 + non-root,
+// tx_ctx_init field_table_init path.
+// =============================================================================
+
+static void test_get_fields_hash_ctx_returns_current_ctx(void **state) {
+    (void) state;
+    uint64_t chain = 1;
+    s_calldata *cd = make_complete_calldata(g_match_selector);
+    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    // Non-NULL is enough — the pointer references the current node's
+    // fields_hash_ctx member, opaque from here.
+    assert_non_null(get_fields_hash_ctx());
+}
+
+static void test_get_current_getters_return_attached_state(void **state) {
+    (void) state;
+    uint64_t chain = 1;
+    s_calldata *cd = make_complete_calldata(g_match_selector);
+    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, g_amount_1eth, &chain));
+    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+
+    // tx_info attached after the fact via set_tx_info_into_tx_ctx.
+    s_tx_info *info = calloc(1, sizeof(*info));
+    appState = APP_STATE_IDLE;
+    assert_true(set_tx_info_into_tx_ctx(info));
+
+    assert_ptr_equal(get_current_tx_info(), info);
+    assert_ptr_equal(get_root_tx_info(), info);  // root == current here
+    assert_non_null(get_current_calldata());
+    assert_non_null(get_root_calldata());
+}
+
+// Amount-branch happy path inside process_empty_tx. Tags an empty
+// predecessor with an amount, attaches a tx_info to the root (so
+// get_root_tx_info finds one), and lets the trusted_name / amount /
+// add_to_field_table stubs sail through.
+static void test_process_empty_txs_amount_branch_happy_path(void **state) {
+    (void) state;
+    uint64_t chain = 1;
+    s_calldata *cd_root = make_complete_calldata(g_match_selector);
+    assert_true(tx_ctx_init(cd_root, g_addr_a, g_addr_b, NULL, &chain));
+    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+
+    // Attach tx_info to the root so process_empty_tx's tx_info==NULL ->
+    // get_root_tx_info() resolution path succeeds.
+    s_tx_info *info = calloc(1, sizeof(*info));
+    info->chain_id = 1;
+    appState = APP_STATE_IDLE;
+    assert_true(set_tx_info_into_tx_ctx(info));
+
+    // Insert an empty SUCCESSOR with has_amount=true (g_amount_1eth).
+    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, g_amount_1eth, &chain));
+    assert_int_equal(get_tx_ctx_count(), 2);
+
+    // process_empty_txs_after now drives process_empty_tx's amount path:
+    //   set_intent_field("Send") + get_root_tx_info + amountToString +
+    //   add_to_field_table + trusted_name lookup (returns NULL, falls
+    //   back to RAW + getEthDisplayableAddress) + final add_to_field_table.
+    assert_true(process_empty_txs_after());
+    assert_int_equal(get_tx_ctx_count(), 1);  // empty successor removed
+}
+
+// set_tx_info_into_tx_ctx with appState=SIGNING_EIP712 takes the
+// EIP712 path: set_intent_field + cx_sha3_init + finalize_hash. We
+// arrange the hash mock so it does NOT match the tx_info hash, so
+// tx_ctx_pop is skipped (matching pop would otherwise leave the
+// node un-attached and surprise the assertion).
+static void test_set_tx_info_eip712_at_root_runs_hash_path(void **state) {
+    (void) state;
+    uint64_t chain = 1;
+    s_calldata *cd = make_complete_calldata(g_match_selector);
+    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+
+    s_tx_info *info = calloc(1, sizeof(*info));
+    info->fields_hash[0] = 0xAA;  // distinct from g_finalize_hash_out
+    appState = APP_STATE_SIGNING_EIP712;
+    assert_true(set_tx_info_into_tx_ctx(info));
+    // Node should still be attached (no pop) since hash mismatched.
+    assert_ptr_equal(get_current_tx_info(), info);
+}
+
+// set_tx_info_into_tx_ctx on a non-root node (g_tx_ctx_current is the
+// second node). The hash path runs unconditionally, set_intent_field
+// is called outside the EIP712 branch.
+static void test_set_tx_info_non_root_runs_intent_and_hash(void **state) {
+    (void) state;
+    uint64_t chain = 1;
+    // Root
+    s_calldata *cd_root = make_complete_calldata(g_match_selector);
+    assert_true(tx_ctx_init(cd_root, g_addr_a, g_addr_a, NULL, &chain));
+    // Second node (will become current)
+    static const uint8_t selector_2[CALLDATA_SELECTOR_SIZE] = {0xCA, 0xFE, 0xBA, 0xBE};
+    s_calldata *cd2 = make_complete_calldata(selector_2);
+    assert_true(tx_ctx_init(cd2, g_addr_a, g_addr_b, NULL, &chain));
+    assert_true(find_matching_tx_ctx(g_addr_b, selector_2, &chain));
+    assert_int_equal(get_tx_ctx_count(), 2);
+
+    s_tx_info *info = calloc(1, sizeof(*info));
+    info->fields_hash[0] = 0xAA;
+    appState = APP_STATE_IDLE;
+    // Non-root path: set_intent_field called, hash path runs, hash
+    // mismatches so no pop. Node stays.
+    assert_true(set_tx_info_into_tx_ctx(info));
+    assert_int_equal(get_tx_ctx_count(), 2);
+}
+
+// tx_ctx_init under APP_STATE_SIGNING_TX takes the field_table_init
+// branch at the end (line 312-313). The wrapped __wrap_field_table_init
+// returns true, so the init succeeds.
+static void test_tx_ctx_init_signing_tx_calls_field_table_init(void **state) {
+    (void) state;
+    uint64_t chain = 1;
+    appState = APP_STATE_SIGNING_TX;
+    s_calldata *cd = make_complete_calldata(g_match_selector);
+    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    assert_int_equal(get_tx_ctx_count(), 1);
+    // Restore — gcs_cleanup in reset() will run between tests.
+    appState = APP_STATE_IDLE;
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -574,6 +698,12 @@ int main(void) {
         cmocka_unit_test_setup(test_process_empty_txs_after_removes_empty_successors, reset),
         cmocka_unit_test_setup(test_process_empty_txs_before_stops_at_non_empty, reset),
         cmocka_unit_test_setup(test_process_empty_txs_with_amount_no_tx_info_fails, reset),
+        cmocka_unit_test_setup(test_get_fields_hash_ctx_returns_current_ctx, reset),
+        cmocka_unit_test_setup(test_get_current_getters_return_attached_state, reset),
+        cmocka_unit_test_setup(test_process_empty_txs_amount_branch_happy_path, reset),
+        cmocka_unit_test_setup(test_set_tx_info_eip712_at_root_runs_hash_path, reset),
+        cmocka_unit_test_setup(test_set_tx_info_non_root_runs_intent_and_hash, reset),
+        cmocka_unit_test_setup(test_tx_ctx_init_signing_tx_calls_field_table_init, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
