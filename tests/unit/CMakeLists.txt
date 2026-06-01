@@ -1764,3 +1764,49 @@ target_link_libraries(test_cmd_set_plugin PUBLIC
 )
 
 add_test(test_cmd_set_plugin test_cmd_set_plugin)
+
+# network_info — backend-signed dynamic network descriptor
+add_executable(test_network_info
+  ${SRC_DIR}/test_network_info.c
+  ${APP_DIR}/features/provide_network_info/network_info.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+  ${BOLOS_SDK}/lib_lists/lists.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_include_directories(test_network_info PRIVATE
+  ${APP_DIR}/features/provide_network_info
+)
+
+target_compile_definitions(test_network_info PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_network_info PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_network_info PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+                      -Wl,--wrap=find_dynamic_network_by_chain_id
+)
+
+add_test(test_network_info test_network_info)
