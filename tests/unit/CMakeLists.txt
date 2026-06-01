@@ -2409,3 +2409,44 @@ target_link_libraries(test_cmd_perform_privacy_operation PUBLIC
 )
 
 add_test(test_cmd_perform_privacy_operation test_cmd_perform_privacy_operation)
+
+# erc721_plugin — NFT plugin (transfer / approve / setApprovalForAll)
+add_executable(test_erc721_plugin
+  ${SRC_DIR}/test_erc721_plugin.c
+  ${APP_DIR}/plugins/erc721/erc721_plugin.c
+  ${APP_DIR}/plugins/erc721/erc721_provide_parameters.c
+  ${APP_DIR}/plugins/erc721/erc721_ui.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_erc721_plugin PRIVATE
+  ${APP_DIR}/plugins
+  ${APP_DIR}/plugins/erc721
+)
+
+target_compile_definitions(test_erc721_plugin PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_erc721_plugin PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_erc721_plugin PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=getEthDisplayableAddress
+)
+
+add_test(test_erc721_plugin test_erc721_plugin)
