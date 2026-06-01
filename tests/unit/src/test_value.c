@@ -224,6 +224,54 @@ static void test_value_get_rlp_chain_id_null_tx_info_rejected(void **state) {
     assert_false(value_get(&v, &collec));
 }
 
+// handle_data_path is reached by the TLV dispatcher when TAG_DATA_PATH
+// (0x03) appears inside a VALUE struct. The wrapped
+// handle_data_path_struct returns true so we exercise the success path
+// (lines 93-102) including the source = SOURCE_CALLDATA tail.
+static void test_handle_value_struct_data_path_tag_sets_source_calldata(void **state) {
+    (void) state;
+    uint8_t buf_bytes[] = {
+        0x03,
+        0x00,  // TAG_DATA_PATH, empty payload
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_value v = {0};
+    s_value_context ctx = {.value = &v};
+    assert_true(handle_value_struct(&buf, &ctx));
+    assert_int_equal(v.source, SOURCE_CALLDATA);
+}
+
+// Same tag but with handle_data_path_struct returning false: hits the
+// inner error return at line 99-100. This depends on the wrap being
+// controllable; we don't have that hook, so fall back to driving an
+// invalid inner buffer that causes the inner TLV parser to fail.
+//
+// Actually: handle_data_path_struct is wrapped to ALWAYS return true,
+// so the error branch isn't reachable from this suite. Skipping.
+
+static void test_value_get_rlp_to_null_rejected(void **state) {
+    (void) state;
+    g_tx_to = NULL;
+    s_value v = {0};
+    v.source = SOURCE_RLP;
+    v.container_path = CP_TO;
+
+    s_parsed_value_collection collec = {0};
+    assert_false(value_get(&v, &collec));
+}
+
+static void test_value_get_rlp_amount_null_rejected(void **state) {
+    (void) state;
+    g_tx_amount = NULL;
+    s_value v = {0};
+    v.source = SOURCE_RLP;
+    v.container_path = CP_VALUE;
+
+    s_parsed_value_collection collec = {0};
+    assert_false(value_get(&v, &collec));
+}
+
 static void test_value_get_rlp_invalid_container_path_rejected(void **state) {
     (void) state;
     s_value v = {0};
@@ -492,6 +540,9 @@ int main(void) {
         cmocka_unit_test_setup(test_value_get_rlp_chain_id_bigendian, reset),
         cmocka_unit_test_setup(test_value_get_rlp_from_null_rejected, reset),
         cmocka_unit_test_setup(test_value_get_rlp_chain_id_null_tx_info_rejected, reset),
+        cmocka_unit_test_setup(test_handle_value_struct_data_path_tag_sets_source_calldata, reset),
+        cmocka_unit_test_setup(test_value_get_rlp_to_null_rejected, reset),
+        cmocka_unit_test_setup(test_value_get_rlp_amount_null_rejected, reset),
         cmocka_unit_test_setup(test_value_get_rlp_invalid_container_path_rejected, reset),
         cmocka_unit_test_setup(test_value_get_calldata_delegates_to_data_path_get, reset),
         cmocka_unit_test_setup(test_value_get_calldata_data_path_failure_propagates, reset),
