@@ -955,6 +955,46 @@ static void test_process_data_store_calldata_append_failure_rejected(void **stat
 }
 
 // =============================================================================
+// parse_rlp partial-prefix and buffer-overrun branches.
+// =============================================================================
+
+// A single 0xB8 byte is the prefix of a long-form string ("next 1
+// byte is the length"). Without the length byte, rlp_can_decode
+// returns false. The parse_rlp loop exits with the input exhausted
+// and canDecode=false → USTREAM_PROCESSING. That's the chunked-feed
+// contract: the parser must signal "give me more bytes" rather than
+// commit half-decoded state.
+static void test_process_tx_partial_rlp_prefix_returns_processing(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = LEGACY;
+
+    const uint8_t bytes[1] = {0xB8};
+    parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
+    assert_int_equal(r, USTREAM_PROCESSING);
+}
+
+// rlpBuffer is 5 bytes wide. 0xBF declares "next 8 bytes are length".
+// Reading 5 bytes (0xBF + 4 zeros) fills rlpBuffer to capacity without
+// being decodable yet (we still need 4 more length bytes); the parser
+// must reject rather than overflow the buffer.
+static void test_process_tx_rlp_prefix_overflows_buffer_rejected(void **state) {
+    (void) state;
+    cx_sha3_t sha3;
+    txContent_t content = {0};
+    txContext_t ctx;
+    assert_true(init_tx(&ctx, &sha3, &content, false));
+    ctx.txType = LEGACY;
+
+    const uint8_t bytes[5] = {0xBF, 0x00, 0x00, 0x00, 0x00};
+    parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
+    assert_int_equal(r, USTREAM_FAULT);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -991,6 +1031,8 @@ int main(void) {
         cmocka_unit_test_setup(test_process_tx_oversize_to_rejected, reset),
         cmocka_unit_test_setup(test_process_tx_oversize_value_rejected, reset),
         cmocka_unit_test_setup(test_process_data_store_calldata_append_failure_rejected, reset),
+        cmocka_unit_test_setup(test_process_tx_partial_rlp_prefix_returns_processing, reset),
+        cmocka_unit_test_setup(test_process_tx_rlp_prefix_overflows_buffer_rejected, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
