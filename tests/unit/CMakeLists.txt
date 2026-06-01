@@ -2184,3 +2184,54 @@ target_link_libraries(test_cmd_provide_token_info PUBLIC
 )
 
 add_test(test_cmd_provide_token_info test_cmd_provide_token_info)
+
+# cmd_sign_tx — typed-tx prefix dispatcher (handle_sign / handle_first_sign_chunk)
+add_executable(test_cmd_sign_tx
+  ${SRC_DIR}/test_cmd_sign_tx.c
+  ${APP_DIR}/features/sign_tx/cmd_sign_tx.c
+  ${APP_DIR}/features/sign_tx/eth_ustream.c
+  ${APP_DIR}/features/sign_tx/rlp_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+)
+
+target_include_directories(test_cmd_sign_tx PRIVATE
+  ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/generic_tx_parser
+  ${APP_DIR}/features/provide_network_info
+  ${APP_DIR}/plugins
+  ${BOLOS_SDK}/io_legacy/include
+)
+
+target_compile_definitions(test_cmd_sign_tx PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_SWAP
+  OS_IO_SEPH_BUFFER_SIZE=272
+)
+
+target_compile_options(test_cmd_sign_tx PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_sign_tx PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=parseBip32
+                      -Wl,--wrap=reset_app_context
+                      -Wl,--wrap=cx_keccak_init_no_throw
+                      -Wl,--wrap=cx_hash_no_throw
+                      -Wl,--wrap=finalize_parsing
+                      -Wl,--wrap=custom_processor
+)
+
+add_test(test_cmd_sign_tx test_cmd_sign_tx)
