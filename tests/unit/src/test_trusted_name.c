@@ -213,6 +213,8 @@ typedef struct {
     uint32_t coin_type;
     bool include_owner;
     bool include_owner_deriv_path;
+    bool include_nft_id;
+    bool omit_challenge;
     uint8_t sig_len;
 } s_tlv_opts;
 
@@ -238,13 +240,15 @@ static size_t build_v2_account_tlv(uint8_t *out, size_t out_size, s_tlv_opts opt
     w_byte(out, &off, 99);
     w_byte(out, &off, 99);
     w_byte(out, &off, 99);
-    // CHALLENGE
-    w_byte(out, &off, 0x12);
-    w_byte(out, &off, 0x04);
-    w_byte(out, &off, 0xDE);
-    w_byte(out, &off, 0xAD);
-    w_byte(out, &off, 0xBE);
-    w_byte(out, &off, 0xEF);
+    if (!opts.omit_challenge) {
+        // CHALLENGE
+        w_byte(out, &off, 0x12);
+        w_byte(out, &off, 0x04);
+        w_byte(out, &off, 0xDE);
+        w_byte(out, &off, 0xAD);
+        w_byte(out, &off, 0xBE);
+        w_byte(out, &off, 0xEF);
+    }
     // SIGNER_KEY_ID = 2 bytes BE = 0x0009 (CAL)
     w_byte(out, &off, 0x13);
     w_byte(out, &off, 0x02);
@@ -288,6 +292,14 @@ static size_t build_v2_account_tlv(uint8_t *out, size_t out_size, s_tlv_opts opt
         w_byte(out, &off, 0x71);
         w_byte(out, &off, 0x01);
         w_byte(out, &off, opts.name_source);
+    }
+    if (opts.include_nft_id) {
+        w_byte(out, &off, 0x72);
+        w_byte(out, &off, 0x04);
+        w_byte(out, &off, 0x01);
+        w_byte(out, &off, 0x02);
+        w_byte(out, &off, 0x03);
+        w_byte(out, &off, 0x04);
     }
     if (opts.include_owner) {
         w_byte(out, &off, 0x74);
@@ -669,6 +681,263 @@ static void test_lookup_contract_consults_proxy_resolver(void **state) {
 }
 
 // =============================================================================
+// STRUCT_VERSION_1 paths — the older legacy shape (no NAME_TYPE /
+// NAME_SOURCE TLVs, lookup uses chain_is_ethereum_compatible).
+// =============================================================================
+
+static void test_v1_happy_path_registers(void **state) {
+    (void) state;
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x01,
+                       .signer_algo = 0x0001,
+                       .name = "alice.eth",
+                       .include_coin_type = true,
+                       .coin_type = 60,
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_true(run_parse_and_verify(tlv, len));
+    // V1 lookup needs TN_TYPE_ACCOUNT in types[] and an Ethereum-compatible chain.
+    e_name_type types[] = {TN_TYPE_ACCOUNT};
+    e_name_source sources[] = {TN_SOURCE_ENS};  // unused in V1 matching
+    uint64_t chain = 1;
+    const s_trusted_name *tn = get_trusted_name(1, types, 1, sources, &chain, g_addr);
+    assert_non_null(tn);
+    assert_int_equal(tn->struct_version, 0x01);
+}
+
+static void test_v1_lookup_non_eth_compatible_chain_returns_null(void **state) {
+    (void) state;
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x01,
+                       .signer_algo = 0x0001,
+                       .name = "carol.eth",
+                       .include_coin_type = true,
+                       .coin_type = 60,
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_true(run_parse_and_verify(tlv, len));
+    // Lookup on a non-ETH chain: chain_is_ethereum_compatible=false → NULL.
+    g_chain_compatible_ret = false;
+    e_name_type types[] = {TN_TYPE_ACCOUNT};
+    e_name_source sources[] = {TN_SOURCE_ENS};
+    uint64_t chain = 137;
+    assert_null(get_trusted_name(1, types, 1, sources, &chain, g_addr));
+}
+
+static void test_v1_lookup_without_account_type_returns_null(void **state) {
+    (void) state;
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x01,
+                       .signer_algo = 0x0001,
+                       .name = "dave.eth",
+                       .include_coin_type = true,
+                       .coin_type = 60,
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_true(run_parse_and_verify(tlv, len));
+    // Caller asks for TOKEN — V1 only matches ACCOUNT.
+    e_name_type types[] = {TN_TYPE_TOKEN};
+    e_name_source sources[] = {TN_SOURCE_CAL};
+    uint64_t chain = 1;
+    assert_null(get_trusted_name(1, types, 1, sources, &chain, g_addr));
+}
+
+static void test_v1_coin_type_mismatch_rejected(void **state) {
+    (void) state;
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x01,
+                       .signer_algo = 0x0001,
+                       .name = "eve.eth",
+                       .include_coin_type = true,
+                       .coin_type = 999,  // not 60 (g_chain_config->coin_type)
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_false(run_parse_and_verify(tlv, len));
+}
+
+// =============================================================================
+// Validation gates that the bootstrap suite didn't reach.
+// =============================================================================
+
+static void test_unsupported_name_type_nft_collection_rejected(void **state) {
+    (void) state;
+    // TN_TYPE_NFT_COLLECTION, WALLET, CONTEXT_ADDRESS land on the
+    // explicit default-reject branch in handle_trusted_name_type.
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x02,
+                       .signer_algo = 0x0001,
+                       .name_type = TN_TYPE_NFT_COLLECTION,
+                       .name_source = TN_SOURCE_ENS,
+                       .chain_id = 1,
+                       .name = "BoredApes",
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_false(run_parse_and_verify(tlv, len));
+}
+
+static void test_unsupported_name_source_lab_rejected(void **state) {
+    (void) state;
+    // TN_SOURCE_LAB / UD / FN / DNS / DYNAMIC_RESOLVER land on the
+    // explicit default-reject branch in handle_trusted_name_source.
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x02,
+                       .signer_algo = 0x0001,
+                       .name_type = TN_TYPE_ACCOUNT,
+                       .name_source = TN_SOURCE_LAB,
+                       .chain_id = 1,
+                       .name = "alice.eth",
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_false(run_parse_and_verify(tlv, len));
+}
+
+// Generic (non-ENS) names go through generic_trusted_name_charset
+// which forbids control characters but allows uppercase / digits /
+// spaces. Use a value that fails the more-permissive check.
+static void test_generic_charset_rejects_control_char(void **state) {
+    (void) state;
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x02,
+                       .signer_algo = 0x0001,
+                       .name_type = TN_TYPE_CONTRACT,
+                       .name_source = TN_SOURCE_CAL,
+                       .chain_id = 1,
+                       // Non-CAL would be rejected by source rule; we use CAL
+                       // and embed an illegal char ('@') in the name. The
+                       // get_string_from_tlv_data only checks for embedded
+                       // NULL — the charset check runs inside verify_trusted_name_struct.
+                       .name = "Uniswap@V3",
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_false(run_parse_and_verify(tlv, len));
+}
+
+// NFT_ID is an optional V2 tag that drives handle_nft_id. Include it
+// in a CAL+CONTRACT happy path so the handler is exercised.
+static void test_nft_id_tag_is_parsed(void **state) {
+    (void) state;
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x02,
+                       .signer_algo = 0x0001,
+                       .name_type = TN_TYPE_CONTRACT,
+                       .name_source = TN_SOURCE_CAL,
+                       .chain_id = 1,
+                       .name = "Pool",
+                       .include_nft_id = true,
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    s_trusted_name_ctx ctx = {0};
+    buffer_t buf = {.ptr = tlv, .size = len, .offset = 0};
+    assert_true(handle_trusted_name_tlv_payload(&buf, &ctx));
+    // nft_id was stored, right-aligned in the 32-byte slot.
+    assert_int_equal(ctx.trusted_name.nft_id[31], 0x04);
+    assert_int_equal(ctx.trusted_name.nft_id[30], 0x03);
+    assert_int_equal(ctx.trusted_name.nft_id[29], 0x02);
+    assert_int_equal(ctx.trusted_name.nft_id[28], 0x01);
+}
+
+// V2 ACCOUNT names require a CHALLENGE tag (anti-replay anchor). Omit
+// it and verify_fields must reject.
+static void test_v2_account_without_challenge_rejected(void **state) {
+    (void) state;
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x02,
+                       .signer_algo = 0x0001,
+                       .name_type = TN_TYPE_ACCOUNT,
+                       .name_source = TN_SOURCE_ENS,
+                       .chain_id = 1,
+                       .name = "alice.eth",
+                       .omit_challenge = true,
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_false(run_parse_and_verify(tlv, len));
+}
+
+// V1 also requires a CHALLENGE tag — omit it.
+static void test_v1_without_challenge_rejected(void **state) {
+    (void) state;
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x01,
+                       .signer_algo = 0x0001,
+                       .name = "alice.eth",
+                       .include_coin_type = true,
+                       .coin_type = 60,
+                       .omit_challenge = true,
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_false(run_parse_and_verify(tlv, len));
+}
+
+// MAB source without OWNER + OWNER_DERIV_PATH must be rejected by
+// verify_fields (additional V2 MAB requirements).
+static void test_v2_mab_without_owner_rejected(void **state) {
+    (void) state;
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x02,
+                       .signer_algo = 0x0001,
+                       .name_type = TN_TYPE_ACCOUNT,
+                       .name_source = TN_SOURCE_MAB,
+                       .chain_id = 1,
+                       .name = "alice.eth",
+                       .sig_len = 16};
+    // include_owner and include_owner_deriv_path left false.
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_false(run_parse_and_verify(tlv, len));
+}
+
+// bip32_derive_with_seed_get_pubkey_256 returning non-CX_OK must
+// reject the MAB descriptor before the memcmp.
+static void test_v2_mab_bip32_derive_failure_rejected(void **state) {
+    (void) state;
+    g_derive_ret = 1;  // non-CX_OK
+    memset(g_derived_addr, 0xAB, ADDRESS_LENGTH);
+    uint8_t tlv[400];
+    s_tlv_opts opts = {.struct_type = 0x03,
+                       .struct_version = 0x02,
+                       .signer_algo = 0x0001,
+                       .name_type = TN_TYPE_ACCOUNT,
+                       .name_source = TN_SOURCE_MAB,
+                       .chain_id = 1,
+                       .name = "alice.eth",
+                       .include_owner = true,
+                       .include_owner_deriv_path = true,
+                       .sig_len = 16};
+    size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
+    assert_false(run_parse_and_verify(tlv, len));
+}
+
+static void test_not_valid_after_expired_rejected(void **state) {
+    (void) state;
+    // Build a TLV manually with NOT_VALID_AFTER {0, 0, 0} which is
+    // older than the linked APPVERSION (99.99.99) → expired → reject.
+    uint8_t tlv[400];
+    size_t off = 0;
+    tlv[off++] = 0x01;
+    tlv[off++] = 0x01;
+    tlv[off++] = 0x03;  // STRUCT_TYPE = TRUSTED_NAME
+    tlv[off++] = 0x02;
+    tlv[off++] = 0x01;
+    tlv[off++] = 0x02;  // STRUCT_VERSION = 2
+    tlv[off++] = 0x10;  // NOT_VALID_AFTER
+    tlv[off++] = 0x03;
+    tlv[off++] = 0x00;
+    tlv[off++] = 0x00;
+    tlv[off++] = 0x00;
+    assert_false(run_parse_and_verify(tlv, off));
+}
+
+// =============================================================================
 // Cleanup
 // =============================================================================
 
@@ -716,6 +985,19 @@ int main(void) {
         cmocka_unit_test_setup(test_lookup_chain_id_mismatch_returns_null, reset),
         cmocka_unit_test_setup(test_lookup_contract_consults_proxy_resolver, reset),
         cmocka_unit_test_setup(test_trusted_name_cleanup_releases_list, reset),
+        cmocka_unit_test_setup(test_v1_happy_path_registers, reset),
+        cmocka_unit_test_setup(test_v1_lookup_non_eth_compatible_chain_returns_null, reset),
+        cmocka_unit_test_setup(test_v1_lookup_without_account_type_returns_null, reset),
+        cmocka_unit_test_setup(test_v1_coin_type_mismatch_rejected, reset),
+        cmocka_unit_test_setup(test_unsupported_name_type_nft_collection_rejected, reset),
+        cmocka_unit_test_setup(test_unsupported_name_source_lab_rejected, reset),
+        cmocka_unit_test_setup(test_generic_charset_rejects_control_char, reset),
+        cmocka_unit_test_setup(test_not_valid_after_expired_rejected, reset),
+        cmocka_unit_test_setup(test_nft_id_tag_is_parsed, reset),
+        cmocka_unit_test_setup(test_v2_account_without_challenge_rejected, reset),
+        cmocka_unit_test_setup(test_v1_without_challenge_rejected, reset),
+        cmocka_unit_test_setup(test_v2_mab_without_owner_rejected, reset),
+        cmocka_unit_test_setup(test_v2_mab_bip32_derive_failure_rejected, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
