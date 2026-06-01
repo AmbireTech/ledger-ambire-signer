@@ -120,6 +120,21 @@ bool check_challenge(uint32_t received_challenge) {
     return true;  // Always accept challenge in tests
 }
 
+// is_zeroes_buffer is part of the BOLOS_SDK os_utils.h API. Several
+// existing test units (test_cmd_get_tx_simulation, test_network_info,
+// test_safe_descriptors, ...) already define their own copy directly
+// inside the test file; that strong definition will override this
+// weak one without a multiple-definition error.
+__attribute__((weak)) bool is_zeroes_buffer(const void *buf, size_t n) {
+    const uint8_t *p = (const uint8_t *) buf;
+    for (size_t i = 0; i < n; i++) {
+        if (p[i] != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Memory management mocks - SDK lib_alloc compatible
 static void *test_heap = NULL;
 static size_t test_heap_size = 0;
