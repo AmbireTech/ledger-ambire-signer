@@ -2282,3 +2282,37 @@ target_link_libraries(test_cmd_get_public_key PUBLIC
 )
 
 add_test(test_cmd_get_public_key test_cmd_get_public_key)
+
+# cmd_get_app_configuration — wire-format of the GET_APP_CONFIGURATION reply
+add_executable(test_cmd_get_app_configuration
+  ${SRC_DIR}/test_cmd_get_app_configuration.c
+  ${APP_DIR}/features/get_app_configuration/cmd_get_app_configuration.c
+  ${MOCK_DIR}/mock.c
+)
+
+target_include_directories(test_cmd_get_app_configuration PRIVATE
+  ${APP_DIR}/features/get_app_configuration
+)
+
+target_compile_definitions(test_cmd_get_app_configuration PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+  HAVE_TRANSACTION_CHECKS
+  MAJOR_VERSION=99
+  MINOR_VERSION=88
+  PATCH_VERSION=77
+)
+
+target_compile_options(test_cmd_get_app_configuration PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_get_app_configuration PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+)
+
+add_test(test_cmd_get_app_configuration test_cmd_get_app_configuration)
