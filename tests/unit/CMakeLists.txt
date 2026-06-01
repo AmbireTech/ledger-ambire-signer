@@ -1633,3 +1633,48 @@ target_link_libraries(test_trusted_name PUBLIC
 )
 
 add_test(test_trusted_name test_trusted_name)
+
+# safe_descriptor + signer_descriptor — Gnosis Safe backend descriptors
+add_executable(test_safe_descriptors
+  ${SRC_DIR}/test_safe_descriptors.c
+  ${APP_DIR}/features/provide_safe_account/safe_descriptor.c
+  ${APP_DIR}/features/provide_safe_account/signer_descriptor.c
+  ${APP_DIR}/tlv_utils.c
+  ${APP_DIR}/utils.c
+  ${APP_DIR}/uint128.c
+  ${APP_DIR}/uint256.c
+  ${PLUGIN_DIR}/common_utils.c
+  ${MOCK_DIR}/mock.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
+
+set_source_files_properties(${BOLOS_SDK}/lib_tlv/tlv_library.c PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+
+target_include_directories(test_safe_descriptors PRIVATE
+  ${APP_DIR}/features/provide_safe_account
+)
+
+target_compile_definitions(test_safe_descriptors PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_safe_descriptors PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_safe_descriptors PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=check_signature_with_pubkey
+                      -Wl,--wrap=finalize_hash
+                      -Wl,--wrap=hash_nbytes
+)
+
+add_test(test_safe_descriptors test_safe_descriptors)
