@@ -337,6 +337,195 @@ static void test_constraint_empty_value_rejected(void **state) {
 }
 
 // =============================================================================
+// handle_param dispatch — every PARAM_TYPE has its own handle_param_X_struct
+// hop and the field_validation_mocks stubs always return true. The point
+// is to confirm the switch lands on the right helper for each type
+// rather than silently falling through to the default reject case (which
+// would let a host-controlled descriptor pick *no* handler — bypassing
+// the per-type size/range checks done inside the corresponding parser).
+// =============================================================================
+
+static void run_param_dispatch_for_type(uint8_t param_type) {
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    const uint8_t bytes[] = {
+        0x00,
+        0x01,
+        0x01,  // VERSION = 1
+        0x02,
+        0x01,
+        param_type,  // PARAM_TYPE
+        0x03,
+        0x00,  // PARAM (empty payload)
+    };
+    assert_true(run_field_tlv(bytes, sizeof(bytes), &ctx));
+    cleanup_field_constraints(&field);
+}
+
+static void test_handle_param_dispatches_raw(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_RAW);
+}
+static void test_handle_param_dispatches_amount(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_AMOUNT);
+}
+static void test_handle_param_dispatches_token_amount(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_TOKEN_AMOUNT);
+}
+static void test_handle_param_dispatches_nft(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_NFT);
+}
+static void test_handle_param_dispatches_datetime(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_DATETIME);
+}
+static void test_handle_param_dispatches_duration(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_DURATION);
+}
+static void test_handle_param_dispatches_unit(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_UNIT);
+}
+static void test_handle_param_dispatches_enum(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_ENUM);
+}
+static void test_handle_param_dispatches_trusted_name(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_TRUSTED_NAME);
+}
+static void test_handle_param_dispatches_calldata(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_CALLDATA);
+}
+static void test_handle_param_dispatches_token(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_TOKEN);
+}
+static void test_handle_param_dispatches_network(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_NETWORK);
+}
+static void test_handle_param_dispatches_group(void **state) {
+    (void) state;
+    run_param_dispatch_for_type(PARAM_TYPE_GROUP);
+}
+
+// =============================================================================
+// format_field dispatch — same surface as above, but for the render side.
+// Each branch calls a format_param_X stub that returns true.
+// =============================================================================
+
+static void run_format_for_type(uint8_t param_type) {
+    s_field field = {0};
+    field.version = 1;
+    field.param_type = param_type;
+    assert_true(format_field(&field, 0));
+}
+
+static void test_format_field_raw(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_RAW);
+}
+static void test_format_field_amount(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_AMOUNT);
+}
+static void test_format_field_token_amount(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_TOKEN_AMOUNT);
+}
+static void test_format_field_nft(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_NFT);
+}
+static void test_format_field_datetime(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_DATETIME);
+}
+static void test_format_field_duration(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_DURATION);
+}
+static void test_format_field_unit(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_UNIT);
+}
+static void test_format_field_enum(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_ENUM);
+}
+static void test_format_field_trusted_name(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_TRUSTED_NAME);
+}
+static void test_format_field_calldata(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_CALLDATA);
+}
+static void test_format_field_token(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_TOKEN);
+}
+static void test_format_field_network(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_NETWORK);
+}
+static void test_format_field_group(void **state) {
+    (void) state;
+    run_format_for_type(PARAM_TYPE_GROUP);
+}
+
+static void test_format_field_unsupported_type_rejected(void **state) {
+    (void) state;
+    s_field field = {0};
+    field.version = 1;
+    field.param_type = 0xFE;  // outside every case
+    assert_false(format_field(&field, 0));
+}
+
+// =============================================================================
+// cleanup_field — NULL-safe + tears down both group state and constraints.
+// =============================================================================
+
+static void test_cleanup_field_null_safe(void **state) {
+    (void) state;
+    cleanup_field(NULL);  // no crash
+}
+
+static void test_cleanup_field_with_group_routes_through_group_cleanup(void **state) {
+    (void) state;
+    s_field field = {0};
+    field.param_type = PARAM_TYPE_GROUP;
+    // No constraints, no real group nodes; mock cleanup_param_group is a
+    // no-op. The point is to land on the GROUP branch of cleanup_field.
+    cleanup_field(&field);
+}
+
+// =============================================================================
+// handle_separator — populates the field's separator string.
+// =============================================================================
+
+static void test_handle_separator_populates_field(void **state) {
+    (void) state;
+    s_field field = {0};
+    s_field_ctx ctx = {.field = &field};
+    const uint8_t bytes[] = {
+        0x06,
+        0x03,
+        ' ',
+        '|',
+        ' ',  // SEPARATOR = " | "
+    };
+    assert_true(run_field_tlv(bytes, sizeof(bytes), &ctx));
+    assert_string_equal(field.separator, " | ");
+}
+
+// =============================================================================
 // Main Test Runner
 // =============================================================================
 
@@ -355,6 +544,36 @@ int main(void) {
         cmocka_unit_test(test_handle_param_visible_out_of_range_rejected),
         cmocka_unit_test(test_handle_param_without_param_type_rejected),
         cmocka_unit_test(test_constraint_empty_value_rejected),
+        cmocka_unit_test(test_handle_param_dispatches_raw),
+        cmocka_unit_test(test_handle_param_dispatches_amount),
+        cmocka_unit_test(test_handle_param_dispatches_token_amount),
+        cmocka_unit_test(test_handle_param_dispatches_nft),
+        cmocka_unit_test(test_handle_param_dispatches_datetime),
+        cmocka_unit_test(test_handle_param_dispatches_duration),
+        cmocka_unit_test(test_handle_param_dispatches_unit),
+        cmocka_unit_test(test_handle_param_dispatches_enum),
+        cmocka_unit_test(test_handle_param_dispatches_trusted_name),
+        cmocka_unit_test(test_handle_param_dispatches_calldata),
+        cmocka_unit_test(test_handle_param_dispatches_token),
+        cmocka_unit_test(test_handle_param_dispatches_network),
+        cmocka_unit_test(test_handle_param_dispatches_group),
+        cmocka_unit_test(test_format_field_raw),
+        cmocka_unit_test(test_format_field_amount),
+        cmocka_unit_test(test_format_field_token_amount),
+        cmocka_unit_test(test_format_field_nft),
+        cmocka_unit_test(test_format_field_datetime),
+        cmocka_unit_test(test_format_field_duration),
+        cmocka_unit_test(test_format_field_unit),
+        cmocka_unit_test(test_format_field_enum),
+        cmocka_unit_test(test_format_field_trusted_name),
+        cmocka_unit_test(test_format_field_calldata),
+        cmocka_unit_test(test_format_field_token),
+        cmocka_unit_test(test_format_field_network),
+        cmocka_unit_test(test_format_field_group),
+        cmocka_unit_test(test_format_field_unsupported_type_rejected),
+        cmocka_unit_test(test_cleanup_field_null_safe),
+        cmocka_unit_test(test_cleanup_field_with_group_routes_through_group_cleanup),
+        cmocka_unit_test(test_handle_separator_populates_field),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
