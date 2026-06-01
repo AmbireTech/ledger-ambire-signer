@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include <bsd/string.h>  // strlcpy, strlcat from libbsd
 
+// Mirror the SDK os.h chain: pull in the BE/LE byte helpers (U4BE, ...)
+// so test units that exercise raw APDU parsers find them.
+#include "os_utils.h"
+
 /**
  * @brief Array length macro (from BOLOS_SDK os_utils.h)
  */

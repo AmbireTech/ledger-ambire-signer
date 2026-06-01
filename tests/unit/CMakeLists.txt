@@ -1965,3 +1965,37 @@ target_link_libraries(test_rlp_encode PUBLIC
 )
 
 add_test(test_rlp_encode test_rlp_encode)
+
+# cmd_sign_message — EIP-191 personal_sign handler
+add_executable(test_cmd_sign_message
+  ${SRC_DIR}/test_cmd_sign_message.c
+  ${APP_DIR}/features/sign_message/cmd_sign_message.c
+  ${MOCK_DIR}/mock.c
+)
+
+target_include_directories(test_cmd_sign_message PRIVATE
+  ${APP_DIR}/features/sign_message
+)
+
+target_compile_definitions(test_cmd_sign_message PRIVATE
+  HAVE_ECDSA
+  HAVE_HASH
+  HAVE_SHA256
+  HAVE_SHA3
+  HAVE_ECC
+  HAVE_MATH
+)
+
+target_compile_options(test_cmd_sign_message PRIVATE "SHELL:-include os_pic.h")
+
+target_link_libraries(test_cmd_sign_message PUBLIC
+                      cmocka
+                      gcov
+                      ${LIBBSD_LIBRARIES}
+                      -Wl,--wrap=parseBip32
+                      -Wl,--wrap=cx_keccak_init_no_throw
+                      -Wl,--wrap=cx_hash_no_throw
+                      -Wl,--wrap=finalize_hash
+)
+
+add_test(test_cmd_sign_message test_cmd_sign_message)
