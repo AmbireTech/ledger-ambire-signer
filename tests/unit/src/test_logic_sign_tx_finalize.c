@@ -37,64 +37,27 @@
 #include "eth_swap_utils.h"
 #include "wraps.h"
 
-uint16_t finalize_parsing(const txContext_t *context);
-
 // =============================================================================
-// noreturn catcher -- app_exit / app_quit / send_swap_error_simple all
-// jump to g_noreturn_jmp so the test continues. Tests that expect a
-// noreturn call set g_expect_noreturn = true and check g_noreturn_calls
-// after the longjmp returns.
+// Wraps + globals
 // =============================================================================
-
-static jmp_buf g_noreturn_jmp;
-static bool g_noreturn_armed = false;
-static int g_noreturn_calls = 0;
-
-#define EXPECT_NORETURN(stmt)                            \
-    do {                                                 \
-        g_noreturn_armed = true;                         \
-        g_noreturn_calls = 0;                            \
-        if (setjmp(g_noreturn_jmp) == 0) {               \
-            (stmt);                                      \
-            g_noreturn_armed = false;                    \
-            fail_msg("expected noreturn was not taken"); \
-        }                                                \
-        g_noreturn_armed = false;                        \
-    } while (0)
-
-__attribute__((noreturn)) void app_exit(void) {
-    g_noreturn_calls++;
-    if (g_noreturn_armed) longjmp(g_noreturn_jmp, 1);
-    while (1) {
-    }
-}
-
-__attribute__((noreturn)) void app_quit(void) {
-    g_noreturn_calls++;
-    if (g_noreturn_armed) longjmp(g_noreturn_jmp, 1);
-    while (1) {
-    }
-}
-
-__attribute__((noreturn)) void send_swap_error_simple(uint16_t status_word,
-                                                      uint8_t common_error_code,
-                                                      uint8_t application_specific_error_code) {
-    (void) status_word;
-    (void) common_error_code;
-    (void) application_specific_error_code;
-    g_noreturn_calls++;
-    if (g_noreturn_armed) longjmp(g_noreturn_jmp, 1);
-    while (1) {
-    }
-}
-
-// =============================================================================
-// Wraps (linker --wrap=) for the externally-callable helpers the
-// finalize_parsing path consults.
-// =============================================================================
-
-// get_tx_chain_id / get_displayable_ticker live WEAK in mocks/mock.c and
-// honour the wraps.h globals g_tx_chain_id and g_displayable_ticker.
+// Most external helpers consulted by finalize_parsing_helper are now WEAK
+// in mocks/mock.c driven through wraps.h globals:
+//
+//   get_tx_chain_id           -> g_tx_chain_id
+//   get_displayable_ticker    -> g_displayable_ticker
+//   get_public_key            -> g_get_public_key_ret
+//   getEthDisplayableAddress  -> g_getEthDisplayableAddress_ret
+//   amountToString            -> g_amountToString_ret
+//   get_network_as_string     -> g_get_network_as_string_ret
+//   app_exit                  -> g_noreturn_armed + g_noreturn_calls
+//   app_quit                  -> g_noreturn_calls (returns normally,
+//                                                  per the production
+//                                                  contract)
+//   send_swap_error_simple    -> g_noreturn_armed + g_noreturn_calls
+//
+// The wraps below are unique to this test (plugin / swap / IO seph
+// helpers + cx_hash_no_throw) -- no central default would carry the
+// same intent.
 
 static cx_err_t g_cx_hash_ret = CX_OK;
 cx_err_t __wrap_cx_hash_no_throw(cx_hash_t *hash,
@@ -110,48 +73,6 @@ cx_err_t __wrap_cx_hash_no_throw(cx_hash_t *hash,
     (void) out;
     (void) out_len;
     return g_cx_hash_ret;
-}
-
-static uint16_t g_get_public_key_ret = SWO_SUCCESS;
-uint16_t __wrap_get_public_key(uint8_t *out, uint8_t out_size) {
-    (void) out_size;
-    if (out != NULL && out_size >= 20) memset(out, 0xAB, 20);
-    return g_get_public_key_ret;
-}
-
-static bool g_getEthDisplayableAddress_ret = true;
-bool __wrap_getEthDisplayableAddress(uint8_t *in, char *out, size_t out_len, uint64_t chainId) {
-    (void) in;
-    (void) chainId;
-    if (g_getEthDisplayableAddress_ret && out != NULL && out_len > 0) {
-        strlcpy(out, "0xdeadbeef", out_len);
-    }
-    return g_getEthDisplayableAddress_ret;
-}
-
-static bool g_amountToString_ret = true;
-bool __wrap_amountToString(const uint8_t *amount,
-                           uint8_t amount_size,
-                           uint8_t decimals,
-                           const char *ticker,
-                           char *out_buffer,
-                           size_t out_buffer_size) {
-    (void) amount;
-    (void) amount_size;
-    (void) decimals;
-    (void) ticker;
-    if (g_amountToString_ret && out_buffer != NULL && out_buffer_size > 0) {
-        strlcpy(out_buffer, "1.5", out_buffer_size);
-    }
-    return g_amountToString_ret;
-}
-
-static bool g_get_network_as_string_ret = true;
-bool __wrap_get_network_as_string(char *out, size_t out_len) {
-    if (g_get_network_as_string_ret && out != NULL && out_len > 0) {
-        strlcpy(out, "Ethereum", out_len);
-    }
-    return g_get_network_as_string_ret;
 }
 
 // eth_plugin_call: drive the per-method return value via a small table.
@@ -528,7 +449,11 @@ static void test_swap_double_sign_safety_triggers_app_quit(void **state) {
     G_called_from_swap = true;
     G_swap_response_ready = true;  // already-replied flag
     pluginType = PLUGIN_TYPE_NONE;
-    EXPECT_NORETURN(finalize_parsing(&s_ctx));
+    // app_quit is *not* noreturn in production (shared_context.h declares
+    // it `void app_quit(void)` -- callers wrap it in `while(1);` as a
+    // defence in depth). The mock returns; we just count the call.
+    g_noreturn_calls = 0;
+    finalize_parsing(&s_ctx);
     assert_int_equal(g_noreturn_calls, 1);
 }
 

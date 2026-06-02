@@ -20,6 +20,7 @@
  * delimited by a banner that names the upstream header / source.
  */
 
+#include <setjmp.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -60,6 +61,17 @@ uint64_t g_tx_chain_id = 1;                // __wrap_get_tx_chain_id
 const char *g_displayable_ticker = "ETH";  // __wrap_get_displayable_ticker
 bool g_parsebip32_force_null = false;      // __wrap_parseBip32 short-circuit
 uint32_t g_keccak_init_ret = CX_OK;        // __wrap_cx_keccak_init_no_throw
+
+uint16_t g_get_public_key_ret = 0x9000;      // SWO_SUCCESS for get_public_key
+bool g_getEthDisplayableAddress_ret = true;  // true for getEthDisplayableAddress
+bool g_amountToString_ret = true;            // true for amountToString
+bool g_get_network_as_string_ret = true;     // true for get_network_as_string
+
+// Noreturn handshake: tests arm the jump, run the stmt inside the
+// EXPECT_NORETURN() macro (wraps.h), and inspect g_noreturn_calls.
+jmp_buf g_noreturn_jmp;
+bool g_noreturn_armed = false;
+int g_noreturn_calls = 0;
 
 // s_tx_info is an unnamed-struct typedef in gtp_tx_info.h, so we can't
 // forward-declare it here without pulling that header's chain. Use
@@ -391,15 +403,43 @@ bool check_challenge(uint32_t received_challenge) {
 // BOLOS_SDK -- lib_standard_app/main.c (app entry point)
 // =============================================================================
 
+// app_exit and send_swap_error_simple are noreturn in production
+// (SDK and ledger lib_standard_app respectively). When tests exercise
+// a code path that *should* call one of them, they arm g_noreturn_armed
+// (via EXPECT_NORETURN in wraps.h) and we longjmp back so the
+// assertion can inspect g_noreturn_calls. When not armed we fall
+// through to while(1) -- a runaway call MUST stall the test instead
+// of returning normally, since callers rely on the noreturn contract.
+//
+// app_quit is *not* noreturn in production (shared_context.h declares
+// it `void app_quit(void)`) -- it's called right before `while(1)` at
+// every callsite as a defence in depth. We keep that contract here:
+// app_quit just increments the counter and returns. Tests assert
+// app_quit was triggered by reading g_noreturn_calls after the call
+// under test returns.
+
 __attribute__((weak)) __attribute__((noreturn)) void app_exit(void) {
+    g_noreturn_calls++;
+    if (g_noreturn_armed) longjmp(g_noreturn_jmp, 1);
     while (1) {
     }
 }
 
-// app_quit is the graceful sibling of app_exit (called from main.c
-// when the user asks to quit). Plain no-op stub for the linker;
-// tests don't observe it.
 __attribute__((weak)) void app_quit(void) {
+    g_noreturn_calls++;
+}
+
+__attribute__((weak)) __attribute__((noreturn)) void send_swap_error_simple(
+    uint16_t status_word,
+    uint8_t common_error_code,
+    uint8_t application_specific_error_code) {
+    (void) status_word;
+    (void) common_error_code;
+    (void) application_specific_error_code;
+    g_noreturn_calls++;
+    if (g_noreturn_armed) longjmp(g_noreturn_jmp, 1);
+    while (1) {
+    }
 }
 
 // =============================================================================
@@ -589,6 +629,27 @@ __attribute__((weak)) const void *get_trusted_name(uint8_t type_count,
 // integration. test_tx_ctx (process_empty_tx) is the only consumer
 // today; bodies are trivial pass/no-ops.
 
+// amountToString / getEthDisplayableAddress write a deterministic
+// placeholder into `out` when the *_ret global is true so tests that
+// inspect strings.common.* can assert against a known value. Tests that
+// want to drive a failure path flip the global to false; tests that need
+// a specific output content keep a strong local override.
+//
+// Both helpers have a strong definition in
+// ethereum-plugin-sdk/src/common_utils.c. Tests that link common_utils.c
+// (most of them, via PLUGIN_DIR) AND want to short-circuit the real impl
+// add --wrap=amountToString / --wrap=getEthDisplayableAddress to their
+// cmake target. Tests that don't link common_utils.c get the bare
+// WEAK below directly.
+
+static bool _stub_amount_to_string(char *out_buffer, size_t out_buffer_size) {
+    if (g_amountToString_ret && out_buffer != NULL && out_buffer_size > 0) {
+        strncpy(out_buffer, "1.5", out_buffer_size);
+        out_buffer[out_buffer_size - 1] = '\0';
+    }
+    return g_amountToString_ret;
+}
+
 __attribute__((weak)) bool amountToString(const uint8_t *amount,
                                           uint8_t amount_len,
                                           uint8_t decimals,
@@ -599,9 +660,28 @@ __attribute__((weak)) bool amountToString(const uint8_t *amount,
     (void) amount_len;
     (void) decimals;
     (void) ticker;
-    (void) out_buffer;
-    (void) out_buffer_size;
-    return true;
+    return _stub_amount_to_string(out_buffer, out_buffer_size);
+}
+
+__attribute__((weak)) bool __wrap_amountToString(const uint8_t *amount,
+                                                 uint8_t amount_len,
+                                                 uint8_t decimals,
+                                                 const char *ticker,
+                                                 char *out_buffer,
+                                                 size_t out_buffer_size) {
+    (void) amount;
+    (void) amount_len;
+    (void) decimals;
+    (void) ticker;
+    return _stub_amount_to_string(out_buffer, out_buffer_size);
+}
+
+static bool _stub_eth_displayable_address(char *out, size_t out_size) {
+    if (g_getEthDisplayableAddress_ret && out != NULL && out_size > 0) {
+        strncpy(out, "0xdeadbeef", out_size);
+        out[out_size - 1] = '\0';
+    }
+    return g_getEthDisplayableAddress_ret;
 }
 
 __attribute__((weak)) bool getEthDisplayableAddress(const uint8_t *in,
@@ -609,10 +689,39 @@ __attribute__((weak)) bool getEthDisplayableAddress(const uint8_t *in,
                                                     size_t out_size,
                                                     uint64_t chain_id) {
     (void) in;
-    (void) out;
-    (void) out_size;
     (void) chain_id;
-    return true;
+    return _stub_eth_displayable_address(out, out_size);
+}
+
+__attribute__((weak)) bool __wrap_getEthDisplayableAddress(const uint8_t *in,
+                                                           char *out,
+                                                           size_t out_size,
+                                                           uint64_t chain_id) {
+    (void) in;
+    (void) chain_id;
+    return _stub_eth_displayable_address(out, out_size);
+}
+
+// get_public_key copies a deterministic 20-byte placeholder address
+// when the *_ret is SWO_SUCCESS so the caller's downstream formatting
+// has a stable input.
+
+__attribute__((weak)) uint16_t get_public_key(uint8_t *out, uint8_t out_size) {
+    if (g_get_public_key_ret == 0x9000 && out != NULL && out_size >= 20) {
+        memset(out, 0xAB, 20);
+    }
+    return g_get_public_key_ret;
+}
+
+// get_network_as_string writes "Ethereum" into out when the ret
+// global is true; otherwise leaves the buffer alone and returns false.
+
+__attribute__((weak)) bool get_network_as_string(char *out, size_t out_len) {
+    if (g_get_network_as_string_ret && out != NULL && out_len > 0) {
+        strncpy(out, "Ethereum", out_len);
+        out[out_len - 1] = '\0';
+    }
+    return g_get_network_as_string_ret;
 }
 
 // =============================================================================

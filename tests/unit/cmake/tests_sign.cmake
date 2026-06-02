@@ -95,10 +95,8 @@ add_eth_unit_test(test_logic_sign_tx_finalize
     get_tx_chain_id
     get_displayable_ticker
     cx_hash_no_throw
-    get_public_key
-    getEthDisplayableAddress
     amountToString
-    get_network_as_string
+    getEthDisplayableAddress
     eth_plugin_call
     io_seproxyhal_send_status
     io_seproxyhal_touch_tx_ok
