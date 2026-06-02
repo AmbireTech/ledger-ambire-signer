@@ -48,6 +48,7 @@ WEAK uint8_t appState = APP_STATE_IDLE;
 // Size matches BOLOS_SDK os_io.h (OS_IO_BUFFER_SIZE + 1 == 273).
 WEAK uint8_t G_io_tx_buffer[273];
 WEAK pluginType_t pluginType;
+WEAK uint32_t eth2WithdrawalIndex;
 
 // =============================================================================
 // app/src/main.c -- chain config (ETH mainnet by default)

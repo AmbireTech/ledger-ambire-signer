@@ -194,3 +194,40 @@ add_eth_unit_test(test_cmd_get_app_configuration
     PATCH_VERSION=77
   COMPILE_OPTIONS "SHELL:-include os_pic.h"
 )
+
+add_eth_unit_test(test_cmd_set_eth2_withdrawal_index
+  APP_SOURCES
+    ${APP_DIR}/features/set_eth2_withdrawal_index/cmd_set_eth2_withdrawal_index.c
+  DEFS
+    HAVE_ETH2
+)
+
+add_eth_unit_test(test_cmd_get_eth2_public_key
+  APP_SOURCES
+    ${APP_DIR}/features/get_eth2_public_key/cmd_get_eth2_public_key.c
+  INCLUDES
+    ${APP_DIR}/features/get_eth2_public_key
+    ${BOLOS_SDK}/io_legacy/include
+  DEFS
+    HAVE_ETH2
+    HAVE_ECC_WEIERSTRASS
+    HAVE_BLS12_381_G1_CURVE
+    OS_IO_SEPH_BUFFER_SIZE=272
+  WRAPS
+    parseBip32
+    set_result_get_eth2_publicKey
+    ui_display_public_eth2
+    reset_app_context
+    io_seproxyhal_io_heartbeat
+)
+
+add_eth_unit_test(test_handle_get_printable_amount
+  APP_SOURCES
+    ${APP_DIR}/swap/handle_get_printable_amount.c
+  INCLUDES
+    ${APP_DIR}/swap
+  WRAPS
+    parse_swap_config
+    get_asset_info_on_network
+    amountToString
+)

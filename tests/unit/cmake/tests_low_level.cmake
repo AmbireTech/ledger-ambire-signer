@@ -89,3 +89,23 @@ add_eth_unit_test(test_token_info
     ${BOLOS_SDK}/lib_lists/lists.c
   NO_GLOBALS
 )
+
+add_eth_unit_test(test_hash_bytes
+  APP_SOURCES
+    ${APP_DIR}/hash_bytes.c
+  WRAPS
+    cx_hash_no_throw
+)
+
+add_eth_unit_test(test_manage_asset_info
+  APP_SOURCES
+    ${APP_DIR}/manage_asset_info.c
+  INCLUDES
+    ${APP_DIR}/features/provide_erc20_token_information
+    ${APP_DIR}/features/provide_nft_information
+  WRAPS
+    get_matching_token_info
+    get_matching_nft_info
+    clear_token_infos
+    clear_nft_infos
+)
