@@ -56,6 +56,20 @@ add_eth_unit_test(test_cmd_enum_value
     verify_enum_value_struct
 )
 
+add_eth_unit_test(test_cmd_safe_account
+  APP_SOURCES
+    ${APP_DIR}/features/provide_safe_account/cmd_safe_account.c
+  INCLUDES
+    ${APP_DIR}/features/provide_safe_account
+  WRAPS
+    tlv_from_apdu
+    handle_safe_tlv_payload
+    handle_signer_tlv_payload
+    ui_display_safe_account
+    clear_safe_descriptor
+    clear_signer_descriptor
+)
+
 add_eth_unit_test(test_handle_swap_sign_transaction
   APP_SOURCES
     ${APP_DIR}/swap/handle_swap_sign_transaction.c
