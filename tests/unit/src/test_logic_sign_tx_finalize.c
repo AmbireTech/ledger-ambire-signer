@@ -147,13 +147,24 @@ eth_plugin_result_t __wrap_eth_plugin_perform_init(uint8_t *contract_address, vo
 }
 
 static bool g_copy_tx_data_ret = true;
+static uint8_t g_copy_tx_data_fill = 0xAA;
+// Optional override: if g_copy_tx_data_pattern_len > 0, the wrap copies
+// the first min(length, pattern_len) bytes of g_copy_tx_data_pattern
+// into `out` instead of using the flat fill byte. Tests that need a
+// specific byte layout (e.g. some 8-byte parameter chunks all-zero so
+// split_binary_parameter_part's zero branch fires) set the pattern.
+static const uint8_t *g_copy_tx_data_pattern = NULL;
+static size_t g_copy_tx_data_pattern_len = 0;
 bool __wrap_copy_tx_data(txContext_t *context, uint8_t *out, uint32_t length) {
     (void) context;
-    (void) length;
-    // Fill the destination so the inner format_hex on the selector path
-    // has something deterministic to consume.
     if (g_copy_tx_data_ret && out != NULL) {
-        memset(out, 0xAA, length);
+        if (g_copy_tx_data_pattern && g_copy_tx_data_pattern_len > 0) {
+            size_t n = length < g_copy_tx_data_pattern_len ? length : g_copy_tx_data_pattern_len;
+            memcpy(out, g_copy_tx_data_pattern, n);
+            if (n < length) memset(out + n, g_copy_tx_data_fill, length - n);
+        } else {
+            memset(out, g_copy_tx_data_fill, length);
+        }
     }
     return g_copy_tx_data_ret;
 }
@@ -199,6 +210,9 @@ static int reset(void **state) {
     g_swap_check_fee_ret = true;
     g_perform_init_ret = ETH_PLUGIN_RESULT_UNAVAILABLE;
     g_copy_tx_data_ret = true;
+    g_copy_tx_data_fill = 0xAA;
+    g_copy_tx_data_pattern = NULL;
+    g_copy_tx_data_pattern_len = 0;
     g_ui_confirm_selector_calls = 0;
     g_ui_confirm_parameter_calls = 0;
 
@@ -449,6 +463,50 @@ static void test_swap_crosschain_wrong_mode_triggers_app_exit(void **state) {
 }
 
 // =============================================================================
+// address_to_string -- "Contract" placeholder when no destination
+// =============================================================================
+// destinationLength == 0 means contract-creation; the formatter must
+// write "Contract" into strings.common.toAddress instead of calling
+// getEthDisplayableAddress. The bug we guard against is the inverse:
+// silently calling getEthDisplayableAddress on a NULL-length buffer.
+
+static void test_contract_creation_writes_contract_placeholder(void **state) {
+    (void) state;
+    pluginType = PLUGIN_TYPE_NONE;
+    G_called_from_swap = false;
+    tmpContent.txContent.destinationLength = 0;  // contract creation
+    assert_int_equal(finalize_parsing(&s_ctx), 0);
+    assert_string_equal(strings.common.toAddress, "Contract");
+}
+
+// =============================================================================
+// raw_fee_to_string -- ticker-too-long short-circuit
+// =============================================================================
+// raw_fee_to_string is `static`; reach it through max_transaction_fee_
+// to_string. The "(strlen + 1 + ticker_len + 1) > out_buffer_size"
+// gate fires when the fee buffer is small AND the ticker is long.
+// A regression here would silently emit a fee string with NO ticker --
+// the user sees the number on screen but cannot tell which chain the
+// fee is denominated in.
+
+static void test_raw_fee_to_string_long_ticker_aborts_without_ticker(void **state) {
+    (void) state;
+    txInt256_t gp = {.length = 1, .value = {1}};
+    txInt256_t gl = {.length = 1, .value = {1}};
+    g_displayable_ticker = "THIS_TICKER_IS_TOO_LONG";  // 23 chars
+    char buf[16] = {0};
+    memset(buf, 0xAA, sizeof(buf));
+    // max_transaction_fee_to_string returns true even on this internal
+    // short-circuit; only the side effect on buf is observable.
+    bool ok = max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf));
+    assert_true(ok);
+    // raw_fee_to_string zero-fills buf at entry, then returns early
+    // before appending the ticker. So buf ends with the bare fee (no
+    // trailing " <ticker>").
+    assert_null(strstr(buf, "THIS_TICKER"));
+}
+
+// =============================================================================
 // custom_processor -- per-chunk RLP DATA dispatcher
 // =============================================================================
 // custom_processor is what eth_ustream calls for every RLP DATA chunk
@@ -658,6 +716,37 @@ static void test_cp_continuation_copy_failure_returns_fault(void **state) {
     assert_int_equal(custom_processor(&s_ctx), CUSTOM_FAULT);
 }
 
+// --- continuation chunk -- split_binary_parameter_part zero branch ---
+
+static void test_cp_continuation_zero_param_segments_use_short_form(void **state) {
+    (void) state;
+    // contractDetails=true + continuation chunk + full 32-byte block ->
+    // ui_confirm_parameter path, which calls split_binary_parameter_part
+    // four times on consecutive 8-byte segments. When a segment is all
+    // zeros the helper writes "00" instead of "0000000000000000".
+    // Build a pattern with one zero segment (the second 8 bytes) so
+    // that branch fires.
+    cp_setup_first_chunk();
+    s_ctx.currentFieldPos = 4;
+    s_ctx.currentFieldLength = 4 + CALLDATA_CHUNK_SIZE;
+    s_ctx.commandLength = CALLDATA_CHUNK_SIZE;
+    g_n_storage_writable.contractDetails = true;
+    dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_UNAVAILABLE;
+    static const uint8_t pattern[CALLDATA_CHUNK_SIZE] = {
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,  // segment 0: non-zero
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // segment 1: all-zero
+        0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x01, 0x02,
+        0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,
+    };
+    g_copy_tx_data_pattern = pattern;
+    g_copy_tx_data_pattern_len = sizeof(pattern);
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_SUSPENDED);
+    assert_int_equal(g_ui_confirm_parameter_calls, 1);
+    // The formatted output: segment0:00:segment2:segment3 -- segment 1
+    // collapses to "00" thanks to the zero-only branch.
+    assert_non_null(strstr(strings.tmp.tmp, "1122334455667788:00:"));
+}
+
 // --- continuation chunk -- contractDetails, full block -> parameter UI ---
 
 static void test_cp_continuation_contract_details_shows_parameter(void **state) {
@@ -698,6 +787,8 @@ int main(void) {
         cmocka_unit_test_setup(test_swap_double_sign_safety_triggers_app_quit, reset),
         cmocka_unit_test_setup(test_swap_unexpected_plugin_type_triggers_app_exit, reset),
         cmocka_unit_test_setup(test_swap_crosschain_wrong_mode_triggers_app_exit, reset),
+        cmocka_unit_test_setup(test_contract_creation_writes_contract_placeholder, reset),
+        cmocka_unit_test_setup(test_raw_fee_to_string_long_ticker_aborts_without_ticker, reset),
         cmocka_unit_test_setup(test_cp_not_rlp_data_field_returns_not_handled, reset),
         cmocka_unit_test_setup(test_cp_empty_field_returns_not_handled, reset),
         cmocka_unit_test_setup(test_cp_new_contract_skips_plugin_dispatch, reset),
@@ -717,6 +808,7 @@ int main(void) {
                                reset),
         cmocka_unit_test_setup(test_cp_continuation_plugin_partial_block_returns_handled, reset),
         cmocka_unit_test_setup(test_cp_continuation_copy_failure_returns_fault, reset),
+        cmocka_unit_test_setup(test_cp_continuation_zero_param_segments_use_short_form, reset),
         cmocka_unit_test_setup(test_cp_continuation_contract_details_shows_parameter, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
