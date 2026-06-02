@@ -95,6 +95,7 @@ add_eth_unit_test(test_logic_sign_tx_finalize
     get_tx_chain_id
     get_displayable_ticker
     cx_hash_no_throw
+    cx_math_mult_no_throw
     amountToString
     getEthDisplayableAddress
     eth_plugin_call

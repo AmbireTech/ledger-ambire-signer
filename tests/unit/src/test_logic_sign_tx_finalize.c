@@ -179,6 +179,20 @@ void __wrap_ui_confirm_parameter(void) {
     g_ui_confirm_parameter_calls++;
 }
 
+// Strong overrides for the calldata-store lookup helpers. Tests flip
+// g_root_calldata_ret / g_calldata_selector_ret to drive the
+// store_calldata post-helper branches. Default behaviour matches the
+// WEAK stub in mock.c (both return NULL).
+static s_calldata *g_root_calldata_ret = NULL;
+static const uint8_t *g_calldata_selector_ret = NULL;
+s_calldata *get_root_calldata(void) {
+    return g_root_calldata_ret;
+}
+const uint8_t *calldata_get_selector(const s_calldata *node) {
+    (void) node;
+    return g_calldata_selector_ret;
+}
+
 // =============================================================================
 // Fixture
 // =============================================================================
@@ -215,6 +229,8 @@ static int reset(void **state) {
     g_copy_tx_data_pattern_len = 0;
     g_ui_confirm_selector_calls = 0;
     g_ui_confirm_parameter_calls = 0;
+    g_root_calldata_ret = NULL;
+    g_calldata_selector_ret = NULL;
 
     g_tx_chain_id = 1;
     g_displayable_ticker = "ETH";
@@ -463,6 +479,82 @@ static void test_swap_crosschain_wrong_mode_triggers_app_exit(void **state) {
 }
 
 // =============================================================================
+// finalize_parsing_helper edge branches
+// =============================================================================
+
+static void test_helper_amount_to_string_failure_returns_overflow(void **state) {
+    (void) state;
+    // pluginType == NONE -> enter the destination/amount block. Make
+    // amountToString fail; helper bails with EXCEPTION_OVERFLOW (the
+    // displayed amount would be garbage otherwise).
+    pluginType = PLUGIN_TYPE_NONE;
+    g_amountToString_ret = false;
+    assert_int_equal(finalize_parsing(&s_ctx), EXCEPTION_OVERFLOW);
+}
+
+static void test_helper_max_fee_to_string_failure_returns_incorrect_data(void **state) {
+    (void) state;
+    // Push gasprice and gasLimit to (2^256 - 1) each so mul256
+    // overflows; max_transaction_fee_to_string returns false and the
+    // helper surfaces SWO_INCORRECT_DATA.
+    pluginType = PLUGIN_TYPE_NONE;
+    memset(&tmpContent.txContent.gasprice, 0xFF, sizeof(tmpContent.txContent.gasprice));
+    tmpContent.txContent.gasprice.length = 32;
+    memset(&tmpContent.txContent.startgas, 0xFF, sizeof(tmpContent.txContent.startgas));
+    tmpContent.txContent.startgas.length = 32;
+    assert_int_equal(finalize_parsing(&s_ctx), SWO_INCORRECT_DATA);
+}
+
+// =============================================================================
+// store_calldata post-helper branches
+// =============================================================================
+
+static void test_store_calldata_with_selector_returns_success(void **state) {
+    (void) state;
+    // get_root_calldata + calldata_get_selector both return non-NULL
+    // -> finalize_parsing reports SUCCESS (the host can now reuse the
+    // buffered calldata in a later signing chunk).
+    s_ctx.store_calldata = true;
+    static int s_dummy_calldata;
+    static uint8_t s_dummy_selector[4] = {0xa9, 0x05, 0x9c, 0xbb};
+    g_root_calldata_ret = (s_calldata *) &s_dummy_calldata;
+    g_calldata_selector_ret = s_dummy_selector;
+    assert_int_equal(finalize_parsing(&s_ctx), SWO_SUCCESS);
+    // store_calldata path does NOT fire the review UI.
+    assert_int_equal(g_ux_approve_calls, 0);
+}
+
+// =============================================================================
+// Swap mode post-helper guards
+// =============================================================================
+
+static void test_swap_old_internal_with_swap_unchecked_triggers_app_exit(void **state) {
+    (void) state;
+    // pluginType == OLD_INTERNAL is in the swap-allow list, but the
+    // helper only sets G_swap_checked for NONE / SWAP_WITH_CALLDATA --
+    // so after the helper succeeds, the post-helper safety net catches
+    // the missing check and triggers send_swap_error_simple + app_exit.
+    G_called_from_swap = true;
+    G_swap_mode = SWAP_MODE_STANDARD;
+    pluginType = PLUGIN_TYPE_OLD_INTERNAL;
+    EXPECT_NORETURN(finalize_parsing(&s_ctx));
+}
+
+static void test_swap_standard_with_data_present_triggers_app_exit(void **state) {
+    (void) state;
+    // Swap STANDARD mode + tmpContent.txContent.dataPresent=true means
+    // the host sent calldata but didn't ask us to store it -- unvalidated
+    // data on a swap. The post-helper guard refuses with
+    // SWAP_EC_ERROR_WRONG_METHOD + app_exit.
+    G_called_from_swap = true;
+    G_swap_mode = SWAP_MODE_STANDARD;
+    pluginType = PLUGIN_TYPE_NONE;  // so helper sets G_swap_checked = true
+    tmpContent.txContent.dataPresent = true;
+    g_n_storage_writable.dataAllowed = true;  // bypass the earlier blind-signing gate
+    EXPECT_NORETURN(finalize_parsing(&s_ctx));
+}
+
+// =============================================================================
 // address_to_string -- "Contract" placeholder when no destination
 // =============================================================================
 // destinationLength == 0 means contract-creation; the formatter must
@@ -491,19 +583,21 @@ static void test_contract_creation_writes_contract_placeholder(void **state) {
 
 static void test_raw_fee_to_string_long_ticker_aborts_without_ticker(void **state) {
     (void) state;
-    txInt256_t gp = {.length = 1, .value = {1}};
-    txInt256_t gl = {.length = 1, .value = {1}};
-    g_displayable_ticker = "THIS_TICKER_IS_TOO_LONG";  // 23 chars
-    char buf[16] = {0};
-    memset(buf, 0xAA, sizeof(buf));
-    // max_transaction_fee_to_string returns true even on this internal
-    // short-circuit; only the side effect on buf is observable.
+    // adjustDecimals needs at least (srcLength + 2) bytes to write the
+    // raw decimal form ("1.000000000000000000" then trim). For
+    // 1e18 wei (srcLength=19) the minimum is 21 bytes -- so use a
+    // 22-byte buffer to let adjustDecimals through, then a ticker long
+    // enough to overflow the remaining space (1 + 1 + ticker_len + 1
+    // > 22 -> ticker_len > 19).
+    txInt256_t gp = {.length = 8, .value = {0x0D, 0xE0, 0xB6, 0xB3, 0xA7, 0x64, 0x00, 0x00}};
+    txInt256_t gl = {.length = 1, .value = {0x01}};
+    g_displayable_ticker = "ABCDEFGHIJKLMNOPQRST";  // 20 chars
+    char buf[22] = {0};
     bool ok = max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf));
     assert_true(ok);
-    // raw_fee_to_string zero-fills buf at entry, then returns early
-    // before appending the ticker. So buf ends with the bare fee (no
-    // trailing " <ticker>").
-    assert_null(strstr(buf, "THIS_TICKER"));
+    // adjustDecimals succeeded -> buf holds "1". Then the ticker-too-
+    // long guard at line 243 fired so the ticker is NOT appended.
+    assert_string_equal(buf, "1");
 }
 
 // =============================================================================
@@ -787,6 +881,11 @@ int main(void) {
         cmocka_unit_test_setup(test_swap_double_sign_safety_triggers_app_quit, reset),
         cmocka_unit_test_setup(test_swap_unexpected_plugin_type_triggers_app_exit, reset),
         cmocka_unit_test_setup(test_swap_crosschain_wrong_mode_triggers_app_exit, reset),
+        cmocka_unit_test_setup(test_helper_amount_to_string_failure_returns_overflow, reset),
+        cmocka_unit_test_setup(test_helper_max_fee_to_string_failure_returns_incorrect_data, reset),
+        cmocka_unit_test_setup(test_store_calldata_with_selector_returns_success, reset),
+        cmocka_unit_test_setup(test_swap_old_internal_with_swap_unchecked_triggers_app_exit, reset),
+        cmocka_unit_test_setup(test_swap_standard_with_data_present_triggers_app_exit, reset),
         cmocka_unit_test_setup(test_contract_creation_writes_contract_placeholder, reset),
         cmocka_unit_test_setup(test_raw_fee_to_string_long_ticker_aborts_without_ticker, reset),
         cmocka_unit_test_setup(test_cp_not_rlp_data_field_returns_not_handled, reset),
