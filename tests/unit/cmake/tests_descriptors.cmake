@@ -81,6 +81,16 @@ add_eth_unit_test(test_cmd_network_info
     network_info_cleanup
 )
 
+add_eth_unit_test(test_network_icon
+  APP_SOURCES
+    ${APP_DIR}/features/provide_network_info/network_icon.c
+  INCLUDES
+    ${APP_DIR}/features/provide_network_info
+  WRAPS
+    cx_sha256_hash_iovec
+    mem_utils_calloc
+)
+
 add_eth_unit_test(test_handle_swap_sign_transaction
   APP_SOURCES
     ${APP_DIR}/swap/handle_swap_sign_transaction.c
