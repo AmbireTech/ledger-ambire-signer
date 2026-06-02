@@ -49,6 +49,7 @@ WEAK uint8_t appState = APP_STATE_IDLE;
 WEAK uint8_t G_io_tx_buffer[273];
 WEAK pluginType_t pluginType;
 WEAK uint32_t eth2WithdrawalIndex;
+WEAK const caller_app_t *g_caller_app = NULL;
 
 // =============================================================================
 // app/src/main.c -- chain config (ETH mainnet by default)
