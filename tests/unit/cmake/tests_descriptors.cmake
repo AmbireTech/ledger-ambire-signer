@@ -23,6 +23,21 @@ add_eth_unit_test(test_handle_check_address
     get_public_key_string
 )
 
+add_eth_unit_test(test_handle_swap_sign_transaction
+  APP_SOURCES
+    ${APP_DIR}/swap/handle_swap_sign_transaction.c
+    ${APP_DIR}/mem_utils.c
+  INCLUDES
+    ${APP_DIR}/swap
+    ${APP_DIR}/features/sign_tx
+    ${APP_DIR}/features/set_plugin
+  WRAPS
+    parse_swap_config
+    get_asset_info_on_network
+    amountToString
+    mem_utils_alloc
+)
+
 add_eth_unit_test(test_network
   APP_SOURCES
     ${APP_DIR}/network.c
