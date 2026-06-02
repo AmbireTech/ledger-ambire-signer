@@ -97,6 +97,12 @@ add_eth_unit_test(test_hash_bytes
     cx_hash_no_throw
 )
 
+add_eth_unit_test(test_time_format
+  APP_SOURCES
+    ${APP_DIR}/time_format.c
+  NO_GLOBALS
+)
+
 add_eth_unit_test(test_manage_asset_info
   APP_SOURCES
     ${APP_DIR}/manage_asset_info.c
