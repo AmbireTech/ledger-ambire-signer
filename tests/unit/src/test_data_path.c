@@ -44,22 +44,6 @@
 #include "calldata.h"
 
 // =============================================================================
-// is_zeroes_buffer stub
-// =============================================================================
-// The path engine uses it to validate that the high bytes of a chunk are
-// zero (offsets/lengths fit in a u16, the remaining 30 bytes must be 0).
-// Provide a real implementation here so the tests exercise the same logic
-// as the firmware does at runtime.
-
-bool is_zeroes_buffer(const void *buf, size_t n) {
-    const uint8_t *p = (const uint8_t *) buf;
-    for (size_t i = 0; i < n; ++i) {
-        if (p[i] != 0) return false;
-    }
-    return true;
-}
-
-// =============================================================================
 // Wrapped collaborators — calldata_get_chunk / get_current_calldata
 // =============================================================================
 

@@ -29,17 +29,11 @@
 
 #include "eth_swap_utils.h"
 #include "shared_context.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals
 // =============================================================================
-
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
 
 // =============================================================================
 // Wraps

@@ -21,8 +21,6 @@
 #include "network.h"
 #include "common_utils.h"
 
-strings_t strings;
-
 // Helper macro to create a param_network with constant chain_id
 #define CREATE_NETWORK_PARAM_WITH_CHAIN_ID(param_name, chain_id_val)                  \
     uint8_t param_name##_data[8];                                                     \

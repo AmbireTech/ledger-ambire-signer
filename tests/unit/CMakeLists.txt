@@ -116,6 +116,7 @@ add_executable(test_param_network
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -158,6 +159,7 @@ add_executable(test_param_trusted_name
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -205,6 +207,7 @@ add_executable(test_param_raw
   ${APP_DIR}/utils/utils.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -247,6 +250,7 @@ add_executable(test_field_validation
   ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${MOCK_DIR}/field_validation_mocks.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
@@ -289,6 +293,7 @@ add_executable(test_provide_map_entry
   ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_lists/lists.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
@@ -333,6 +338,7 @@ add_executable(test_param_group
   ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_lists/lists.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
@@ -377,6 +383,7 @@ add_executable(test_param_token_amount
   ${APP_DIR}/utils/utils.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -428,6 +435,7 @@ add_executable(test_param_calldata
   ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -488,6 +496,7 @@ add_executable(test_uint128
   ${APP_DIR}/utils/utils.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -519,6 +528,7 @@ add_executable(test_uint256
   ${APP_DIR}/utils/utils.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -550,6 +560,7 @@ add_executable(test_utils
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -578,6 +589,7 @@ add_executable(test_network
   ${APP_DIR}/network.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -615,6 +627,7 @@ add_executable(test_eth_ustream_helpers
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -656,6 +669,7 @@ add_executable(test_param_amount
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -702,6 +716,7 @@ add_executable(test_param_datetime
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -745,6 +760,7 @@ add_executable(test_param_duration
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -788,6 +804,7 @@ add_executable(test_param_unit
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -831,6 +848,7 @@ add_executable(test_param_enum
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -883,6 +901,7 @@ add_executable(test_param_token
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -930,6 +949,7 @@ add_executable(test_param_nft
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1011,6 +1031,7 @@ add_executable(test_field_table
   ${SRC_DIR}/test_field_table.c
   ${APP_DIR}/features/generic_tx_parser/gtp_field_table.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_lists/lists.c
   ${BOLOS_SDK}/lib_standard_app/read.c
 )
@@ -1050,6 +1071,7 @@ add_executable(test_tx_info
   ${APP_DIR}/utils/time_format.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_lists/lists.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
@@ -1101,6 +1123,7 @@ add_executable(test_data_path
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1141,6 +1164,7 @@ add_executable(test_value
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1203,6 +1227,7 @@ add_executable(test_tx_ctx
   ${APP_DIR}/features/generic_tx_parser/calldata.c
   ${APP_DIR}/utils/mem_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_lists/lists.c
 )
 
@@ -1243,6 +1268,7 @@ add_executable(test_cmd_field_tx_info
   ${APP_DIR}/features/generic_tx_parser/cmd_field.c
   ${APP_DIR}/features/generic_tx_parser/cmd_tx_info.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
 )
 
 target_compile_definitions(test_cmd_field_tx_info PRIVATE
@@ -1274,6 +1300,7 @@ add_executable(test_eth_swap_utils
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1331,6 +1358,7 @@ add_executable(test_erc20_plugin
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1375,6 +1403,7 @@ add_executable(test_eth_plugin_handler
   ${SRC_DIR}/test_eth_plugin_handler.c
   ${APP_DIR}/plugins/eth_plugin_handler.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
 )
 
 target_include_directories(test_eth_plugin_handler PRIVATE
@@ -1418,6 +1447,7 @@ add_executable(test_cmd_map_entry
   ${SRC_DIR}/test_cmd_map_entry.c
   ${APP_DIR}/features/provide_map_entry/cmd_map_entry.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
 )
 
 target_include_directories(test_cmd_map_entry PRIVATE
@@ -1468,6 +1498,7 @@ add_executable(test_tlv_utils
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1507,6 +1538,7 @@ add_executable(test_commands_7702
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1545,6 +1577,7 @@ add_executable(test_proxy_info
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1589,6 +1622,7 @@ add_executable(test_trusted_name
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1646,6 +1680,7 @@ add_executable(test_safe_descriptors
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1690,6 +1725,7 @@ add_executable(test_enum_value
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1736,6 +1772,7 @@ add_executable(test_cmd_set_plugin
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1777,6 +1814,7 @@ add_executable(test_network_info
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1824,6 +1862,7 @@ add_executable(test_cmd_get_tx_simulation
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1874,6 +1913,7 @@ add_executable(test_cmd_get_gating
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -1918,6 +1958,7 @@ add_test(test_cmd_get_gating test_cmd_get_gating)
 add_executable(test_cmd_get_challenge
   ${SRC_DIR}/test_cmd_get_challenge.c
   ${APP_DIR}/features/get_challenge/cmd_get_challenge.c
+  ${MOCK_DIR}/app_globals.c
 )
 
 target_include_directories(test_cmd_get_challenge PRIVATE
@@ -1972,6 +2013,7 @@ add_executable(test_cmd_sign_message
   ${SRC_DIR}/test_cmd_sign_message.c
   ${APP_DIR}/features/sign_message/cmd_sign_message.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
 )
 
 target_include_directories(test_cmd_sign_message PRIVATE
@@ -2011,6 +2053,7 @@ add_executable(test_eth_ustream_typed
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2048,6 +2091,7 @@ add_executable(test_logic_sign_tx_fee
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2098,6 +2142,7 @@ add_executable(test_cmd_provide_nft_info
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2149,6 +2194,7 @@ add_executable(test_cmd_provide_token_info
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2196,6 +2242,7 @@ add_executable(test_cmd_sign_tx
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2246,6 +2293,7 @@ add_executable(test_cmd_get_public_key
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2288,6 +2336,7 @@ add_executable(test_cmd_get_app_configuration
   ${SRC_DIR}/test_cmd_get_app_configuration.c
   ${APP_DIR}/features/get_app_configuration/cmd_get_app_configuration.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
 )
 
 target_include_directories(test_cmd_get_app_configuration PRIVATE
@@ -2326,6 +2375,7 @@ add_executable(test_cmd_set_external_plugin
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2368,6 +2418,7 @@ add_executable(test_cmd_perform_privacy_operation
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2421,6 +2472,7 @@ add_executable(test_erc721_plugin
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2463,6 +2515,7 @@ add_executable(test_erc1155_plugin
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2502,6 +2555,7 @@ add_executable(test_eth2_plugin
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2545,6 +2599,7 @@ add_executable(test_eip7002_plugin
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2586,6 +2641,7 @@ add_executable(test_eip7251_plugin
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
@@ -2627,6 +2683,7 @@ add_executable(test_swap_with_calldata_plugin
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
+  ${MOCK_DIR}/app_globals.c
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c

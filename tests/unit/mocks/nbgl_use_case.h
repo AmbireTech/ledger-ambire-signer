@@ -59,3 +59,7 @@ typedef struct {
     const void *reviewTopRightIcon;
     const void *prelude;
 } nbgl_warning_t;
+
+// Storage lives in mocks/app_globals.c (weak); tests that drive the
+// warning UI screens poke its fields directly.
+extern nbgl_warning_t warning;

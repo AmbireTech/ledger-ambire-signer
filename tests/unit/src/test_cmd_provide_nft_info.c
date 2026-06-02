@@ -29,6 +29,7 @@
 #include "apdu_constants.h"
 #include "nft_info.h"
 #include "asset_info.h"  // COLLECTION_NAME_MAX_LEN
+#include "wraps.h"
 
 uint16_t handle_provide_nft_information(uint8_t p1,
                                         uint8_t p2,
@@ -40,48 +41,17 @@ uint16_t handle_provide_nft_information(uint8_t p1,
 // Globals required by linked translation units
 // =============================================================================
 
-uint8_t G_io_tx_buffer[260];
-
 // =============================================================================
 // Wraps
 // =============================================================================
 
-static bool g_sig_check_ret = true;
-static int g_sig_check_calls = 0;
-bool __wrap_check_signature_with_pubkey(uint8_t *buffer,
-                                        const uint8_t bufLen,
-                                        const uint8_t *PubKey,
-                                        const uint8_t keyLen,
-                                        const uint8_t keyUsageExp,
-                                        const uint8_t *signature,
-                                        const uint8_t sigLen) {
-    (void) buffer;
-    (void) bufLen;
-    (void) PubKey;
-    (void) keyLen;
-    (void) keyUsageExp;
-    (void) signature;
-    (void) sigLen;
-    g_sig_check_calls++;
-    return g_sig_check_ret;
-}
+// check_signature_with_pubkey is wrapped in mocks/mock.c; state via
+// g_sig_check_ret + g_sig_check_calls from wraps.h.
 
 static bool g_chain_compatible = true;
 bool __wrap_app_compatible_with_chain_id(const uint64_t *chain_id) {
     (void) chain_id;
     return g_chain_compatible;
-}
-
-// cx_hash_sha256 is the SDK SHA-256 one-shot; the digest contents do
-// not matter for these tests (check_signature_with_pubkey is wrapped),
-// so just return a deterministic stub.
-size_t __wrap_cx_hash_sha256(const uint8_t *in, size_t len, uint8_t *out, size_t out_len) {
-    (void) in;
-    (void) len;
-    if (out != NULL && out_len > 0) {
-        memset(out, 0xAB, out_len);
-    }
-    return out_len;
 }
 
 // =============================================================================

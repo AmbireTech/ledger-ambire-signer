@@ -38,28 +38,18 @@
 #include "commands_7702.h"
 #include "tlv_apdu.h"
 #include "shared_7702.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals the module reads — provide storage here.
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-uint8_t appState = APP_STATE_IDLE;
 // N_storage_real is declared `const` in shared_context.h and lives in
 // NVM in production. Tests need to flip eip7702_enable, so we provide
 // the storage non-const and tell GCC the type mismatch with the
 // extern declaration is intentional. Use cast through (uintptr_t) so
 // the assignments below don't have to litter cast-away-const at every
 // call site.
-internalStorage_t g_n_storage_writable;
-extern const internalStorage_t N_storage_real __attribute__((alias("g_n_storage_writable")));
 
 // =============================================================================
 // Controllable stubs
@@ -123,14 +113,6 @@ uint32_t get_public_key_string(bip32_path_t *bip32,
 const char *get_network_name_from_chain_id(const uint64_t *chain_id) {
     (void) chain_id;
     return NULL;
-}
-
-bool is_zeroes_buffer(const void *buf, size_t n) {
-    const uint8_t *p = (const uint8_t *) buf;
-    for (size_t i = 0; i < n; ++i) {
-        if (p[i] != 0) return false;
-    }
-    return true;
 }
 
 void hash_nbytes(const uint8_t *bytes, size_t n, cx_hash_t *hash_ctx) {

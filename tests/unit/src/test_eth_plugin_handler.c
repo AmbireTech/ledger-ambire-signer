@@ -34,41 +34,21 @@
 #include "eip7002_plugin.h"
 #include "eip7251_plugin.h"
 #include "shared_context.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-pluginType_t pluginType = PLUGIN_TYPE_NONE;
-volatile bool G_called_from_swap = false;
-bool G_swap_checked = false;
-
 // =============================================================================
 // Wraps
 // =============================================================================
 
-static uint64_t g_tx_chain_id = 1;
-uint64_t __wrap_get_tx_chain_id(void) {
-    return g_tx_chain_id;
-}
+// get_tx_chain_id is wrapped in mocks/mock.c; state via g_tx_chain_id
+// from wraps.h.
 
-static const char *g_displayable_ticker = "ETH";
-const char *__wrap_get_displayable_ticker(const uint64_t *chain_id,
-                                          const chain_config_t *config,
-                                          bool mainnet_only) {
-    (void) chain_id;
-    (void) config;
-    (void) mainnet_only;
-    return g_displayable_ticker;
-}
+// get_displayable_ticker is wrapped in mocks/mock.c; state via
+// g_displayable_ticker from wraps.h (defaults to "ETH").
 
 static union extraInfo_t *g_asset_info_ret = NULL;
 union extraInfo_t *__wrap_get_matching_asset_info(const uint64_t *chain_id,
@@ -160,24 +140,14 @@ __attribute__((noreturn)) void app_exit(void) {
     }
 }
 
-// SDK exception primitives referenced by the PLUGIN_TYPE_EXTERNAL
-// dispatch branch (BEGIN_TRY / TRY / CATCH_OTHER macros). Stubs are
-// sufficient since our tests don't exercise the external-plugin path.
-try_context_t *try_context_get(void) {
-    return NULL;
-}
-try_context_t *try_context_set(try_context_t *ctx) {
-    (void) ctx;
-    return NULL;
-}
+// os_longjmp is overridden locally (vs. the silent stub in mocks/mock.c)
+// to make any unexpected exception loud — the external-plugin path is
+// not exercised by these tests, so reaching it would be a bug.
 __attribute__((noreturn)) void os_longjmp(unsigned int e) {
     (void) e;
     fail_msg("os_longjmp() reached unexpectedly");
     while (1) {
     }
-}
-void os_lib_call(unsigned int *params) {
-    (void) params;
 }
 
 // Plugin selectors / addresses referenced by INTERNAL_ETH_PLUGINS.
@@ -213,6 +183,7 @@ static int reset(void **state) {
     memset(&tmpContent, 0, sizeof(tmpContent));
     pluginType = PLUGIN_TYPE_NONE;
     g_tx_chain_id = 1;
+    g_displayable_ticker = "ETH";
     g_asset_info_ret = NULL;
     g_plugin_result = ETH_PLUGIN_RESULT_OK;
     g_erc20_calls = 0;

@@ -31,21 +31,11 @@
 #include "apdu_constants.h"
 #include "sign_message.h"
 #include "cx_errors.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals required by linked translation units
 // =============================================================================
-
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-uint8_t appState = APP_STATE_IDLE;
-uint8_t G_io_tx_buffer[260];
 
 extern cx_sha3_t *g_msg_hash_ctx;
 
@@ -53,30 +43,9 @@ extern cx_sha3_t *g_msg_hash_ctx;
 // Wraps / stubs
 // =============================================================================
 
-// parseBip32 lives in main.c (out of scope). Re-implement the same wire
-// contract here as a __wrap_ so we can drive the bip32 parse outcome
-// without dragging main.c into the test link.
-static bool g_parsebip32_force_null = false;
-const uint8_t *__wrap_parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, void *bip32) {
-    (void) bip32;
-    if (g_parsebip32_force_null) {
-        return NULL;
-    }
-    if (*dataLength < 1) return NULL;
-    uint8_t count = *dataBuffer;
-    if ((size_t) *dataLength < 1 + (size_t) count * 4) return NULL;
-    dataBuffer += 1 + count * 4;
-    *dataLength -= 1 + count * 4;
-    return dataBuffer;
-}
-
-// keccak / hash wraps — return success unless flipped.
-static cx_err_t g_keccak_init_ret = CX_OK;
-cx_err_t __wrap_cx_keccak_init_no_throw(cx_sha3_t *hash, size_t size) {
-    (void) hash;
-    (void) size;
-    return g_keccak_init_ret;
-}
+// parseBip32 + cx_keccak_init_no_throw are wrapped in mocks/mock.c;
+// drive them through g_parsebip32_force_null + g_keccak_init_ret
+// from wraps.h.
 
 static cx_err_t g_cx_hash_ret = CX_OK;
 static size_t g_cx_hash_calls = 0;
@@ -96,7 +65,10 @@ cx_err_t __wrap_cx_hash_no_throw(void *ctx,
     return g_cx_hash_ret;
 }
 
-static bool g_finalize_hash_ret = true;
+// Strong override of mocks/mock.c's __wrap_finalize_hash: takes
+// `void *ctx` (vs cx_hash_t *) and fills with 0xAB so the assert
+// path can match a known digest. g_finalize_hash_ret lives in
+// wraps.h.
 bool __wrap_finalize_hash(void *ctx, uint8_t *out, size_t out_len) {
     (void) ctx;
     memset(out, 0xAB, out_len);

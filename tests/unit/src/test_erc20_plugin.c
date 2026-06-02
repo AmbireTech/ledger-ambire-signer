@@ -32,6 +32,7 @@
 #include "shared_context.h"
 #include "token_info.h"
 #include "eth_swap_utils.h"
+#include "wraps.h"
 
 // =============================================================================
 // erc20_parameters_t mirror
@@ -61,34 +62,14 @@ typedef struct {
 // Globals the module reads
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
 pluginType_t pluginType = PLUGIN_TYPE_OLD_INTERNAL;
-volatile bool G_called_from_swap = false;
-bool G_swap_checked = false;
 
 // =============================================================================
 // Wraps
 // =============================================================================
 
-// is_zeroes_buffer lives in SDK os.c and is not in our usual stub set.
-// erc20_plugin's INIT path calls it to enforce zero ETH value.
-bool is_zeroes_buffer(const void *buf, size_t n) {
-    const uint8_t *p = (const uint8_t *) buf;
-    for (size_t i = 0; i < n; ++i) {
-        if (p[i] != 0) return false;
-    }
-    return true;
-}
-
-static uint64_t g_tx_chain_id = 1;
-uint64_t __wrap_get_tx_chain_id(void) {
-    return g_tx_chain_id;
-}
+// get_tx_chain_id is wrapped in mocks/mock.c; state via g_tx_chain_id
+// from wraps.h.
 
 static const s_token_info *g_token_info_ret = NULL;
 const s_token_info *__wrap_get_matching_token_info(const uint64_t *chain_id, const uint8_t *addr) {
@@ -117,7 +98,6 @@ bool __wrap_swap_check_amount(const char *amount) {
 // Fixtures
 // =============================================================================
 
-static txContent_t g_tx_content;
 static erc20_parameters_t g_ctx;
 
 // Selectors copied from erc20_plugin.c (a duplicate but the source is private).

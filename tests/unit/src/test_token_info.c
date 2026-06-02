@@ -29,11 +29,14 @@
 
 #include "token_info.h"
 
+// Storage lives in mocks/mock.c so the linker resolves it without
+// dragging network.h's nbgl_types.h chain through this lightweight
+// target.
+extern const char g_unknown_ticker[];
+
 // =============================================================================
 // Globals expected by token_info.c (via network.h)
 // =============================================================================
-
-const char g_unknown_ticker[] = "???";
 
 // =============================================================================
 // Fixtures

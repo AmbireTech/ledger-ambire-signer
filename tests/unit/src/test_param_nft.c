@@ -35,17 +35,11 @@
 #include "gtp_tx_info.h"
 #include "nft_info.h"
 #include "shared_context.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals
 // =============================================================================
-
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
 
 // =============================================================================
 // Wrapped dependencies
@@ -65,11 +59,6 @@ bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collectio
     return ret;
 }
 
-void __wrap_value_cleanup(const s_value *value, const s_parsed_value_collection *collection) {
-    (void) value;
-    (void) collection;
-}
-
 static bool g_hvs_ret = true;
 bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
     (void) buf;
@@ -78,10 +67,6 @@ bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
 }
 
 static s_tx_info g_fake_tx_info;
-static const s_tx_info *g_tx_info_ret = NULL;
-const s_tx_info *__wrap_get_current_tx_info(void) {
-    return g_tx_info_ret;
-}
 
 const s_nft_info *__wrap_get_matching_nft_info(const uint64_t *chain_id, const uint8_t *address) {
     (void) chain_id;

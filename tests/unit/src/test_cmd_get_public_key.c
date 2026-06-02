@@ -39,38 +39,18 @@
 #include "apdu_constants.h"
 #include "get_public_key.h"
 #include "common_utils.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals required by linked translation units
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-uint8_t appState = APP_STATE_IDLE;
-uint8_t G_io_tx_buffer[260];
-volatile bool G_called_from_swap;
-
 // =============================================================================
 // Wraps
 // =============================================================================
 
-static bool g_parsebip32_force_null = false;
-const uint8_t *__wrap_parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, void *bip32) {
-    (void) bip32;
-    if (g_parsebip32_force_null) return NULL;
-    if (*dataLength < 1) return NULL;
-    uint8_t count = *dataBuffer;
-    if ((size_t) *dataLength < 1 + (size_t) count * 4) return NULL;
-    dataBuffer += 1 + count * 4;
-    *dataLength -= 1 + count * 4;
-    return dataBuffer;
-}
+// parseBip32 is wrapped in mocks/mock.c; toggle g_parsebip32_force_null
+// from wraps.h to drive the negative tests.
 
 // bip32_derive_get_pubkey_256 is a `static inline` in
 // crypto_helpers.h that delegates to bip32_derive_with_seed_get_pubkey_256;

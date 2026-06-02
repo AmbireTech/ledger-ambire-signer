@@ -47,30 +47,9 @@
 // Globals
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-
 // =============================================================================
 // Wraps
 // =============================================================================
-
-// copy_address / copy_parameter live in the plugin_utils.c we don't
-// link (it pulls a MIN macro that needs the SDK's os_math.h chain).
-// Re-implement them locally: ABI parameters are 32 bytes; an address
-// is the last 20 bytes (left-padded with zeroes), and a generic
-// parameter is copied verbatim into a dst-sized buffer.
-void copy_address(uint8_t *dst, const uint8_t *parameter, uint8_t dst_size) {
-    size_t n = dst_size < 20 ? dst_size : 20;
-    memmove(dst, parameter + PARAMETER_LENGTH - n, n);
-}
-void copy_parameter(uint8_t *dst, const uint8_t *parameter, uint8_t dst_size) {
-    size_t n = dst_size < PARAMETER_LENGTH ? dst_size : PARAMETER_LENGTH;
-    memmove(dst, parameter, n);
-}
 
 // getEthDisplayableAddress lives in common_utils.c. Wrap it so tests
 // see deterministic output without touching keccak.

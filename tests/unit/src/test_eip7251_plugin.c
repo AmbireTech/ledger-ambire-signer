@@ -49,24 +49,6 @@ typedef struct {
 // Globals
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-
-uint64_t __wrap_get_tx_chain_id(void) {
-    return 1;
-}
-
-const char *__wrap_get_displayable_ticker(const uint64_t *c, const chain_config_t *cfg, bool fb) {
-    (void) c;
-    (void) cfg;
-    (void) fb;
-    return "ETH";
-}
-
 bool __wrap_amountToString(const uint8_t *amount,
                            uint8_t amount_size,
                            uint8_t decimals,

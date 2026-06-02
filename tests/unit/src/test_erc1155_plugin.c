@@ -49,28 +49,9 @@
 // Globals
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-
 // =============================================================================
 // Helpers
 // =============================================================================
-
-// plugin_utils.c uses MIN from os_math; provide local re-implementations
-// of the two helpers the plugin actually uses (same shape as
-// test_erc721_plugin).
-void copy_address(uint8_t *dst, const uint8_t *parameter, uint8_t dst_size) {
-    size_t n = dst_size < 20 ? dst_size : 20;
-    memmove(dst, parameter + PARAMETER_LENGTH - n, n);
-}
-void copy_parameter(uint8_t *dst, const uint8_t *parameter, uint8_t dst_size) {
-    size_t n = dst_size < PARAMETER_LENGTH ? dst_size : PARAMETER_LENGTH;
-    memmove(dst, parameter, n);
-}
 
 bool __wrap_getEthDisplayableAddress(uint8_t *addr, char *out, size_t out_size, uint64_t chain) {
     (void) addr;

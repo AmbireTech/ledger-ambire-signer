@@ -61,14 +61,6 @@ bool verify_map_entry_struct(const void *ctx) {
     (void) ctx;
     return g_verify_ret;
 }
-// cx_sha256_init_no_throw is the underlying call cx_sha256_init wraps.
-// Linker needs the symbol even though the static handle_tlv_payload
-// that calls it is never reached (tlv_from_apdu is wrapped).
-cx_err_t cx_sha256_init_no_throw(cx_sha256_t *hash) {
-    (void) hash;
-    return CX_OK;
-}
-
 // =============================================================================
 // Fixture
 // =============================================================================

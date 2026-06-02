@@ -38,16 +38,11 @@
 #include "gtp_field.h"
 #include "shared_context.h"
 #include "network.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals the module reads
 // =============================================================================
-
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
 
 // =============================================================================
 // Wrapped dependencies
@@ -63,31 +58,12 @@ bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collectio
     return g_vg_ret;
 }
 
-void __wrap_value_cleanup(const s_value *value, const s_parsed_value_collection *collection) {
-    (void) value;
-    (void) collection;
-}
-
 // Used by the TAG_VALUE handler of handle_param_amount_struct.
 static bool g_hvs_ret = true;
 bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
     (void) buf;
     (void) context;
     return g_hvs_ret;
-}
-
-static const s_tx_info *g_tx_info_ret = NULL;
-const s_tx_info *__wrap_get_current_tx_info(void) {
-    return g_tx_info_ret;
-}
-
-const char *__wrap_get_displayable_ticker(const uint64_t *chain_id,
-                                          const chain_config_t *config,
-                                          bool mainnet_only) {
-    (void) chain_id;
-    (void) config;
-    (void) mainnet_only;
-    return "ETH";
 }
 
 bool __wrap_add_to_field_table(e_param_type type,

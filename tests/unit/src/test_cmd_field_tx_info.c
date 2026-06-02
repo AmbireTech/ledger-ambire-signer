@@ -34,18 +34,11 @@
 #include "status_words.h"
 #include "tlv_apdu.h"
 #include "cx.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals
 // =============================================================================
-
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-uint8_t appState = APP_STATE_IDLE;
 
 // =============================================================================
 // Wraps
@@ -75,10 +68,6 @@ e_tlv_apdu_ret __wrap_tlv_from_apdu(bool first_chunk,
 }
 
 // cmd_field reads from get_current_tx_info — control it via a wrap.
-static const s_tx_info *g_tx_info_ret = NULL;
-const s_tx_info *__wrap_get_current_tx_info(void) {
-    return g_tx_info_ret;
-}
 
 // cmd_field calls gcs_cleanup on the no-tx-info path — count calls.
 static int g_gcs_cleanup_calls = 0;
@@ -183,11 +172,6 @@ bool set_tx_info_into_tx_ctx(s_tx_info *info) {
     (void) info;
     return g_set_tx_info_into_tx_ctx_ret;
 }
-cx_err_t cx_sha256_init_no_throw(cx_sha256_t *hash) {
-    (void) hash;
-    return CX_OK;
-}
-
 // =============================================================================
 // Fixture
 // =============================================================================

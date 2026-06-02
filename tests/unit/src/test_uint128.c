@@ -25,33 +25,6 @@
 #include "uint128.h"
 #include "uint_common.h"
 
-// The mocks/mock.c stub for cx_math_mult_no_throw is a no-op that
-// leaves `r` untouched. mul128 now relies on the SDK syscall for the
-// real product (same path as mul256); wrap it locally with a big-
-// endian schoolbook multiply so the mul128 tests reflect actual
-// arithmetic. Mirror exactly the shape of the wrap in
-// test_logic_sign_tx_fee.c.
-uint32_t __wrap_cx_math_mult_no_throw(uint8_t *r, const uint8_t *a, const uint8_t *b, size_t len) {
-    memset(r, 0, 2 * len);
-    for (size_t i = 0; i < len; i++) {
-        size_t a_idx = len - 1 - i;
-        uint32_t carry = 0;
-        for (size_t j = 0; j < len; j++) {
-            size_t b_idx = len - 1 - j;
-            size_t r_idx = 2 * len - 1 - (i + j);
-            uint32_t prod = (uint32_t) a[a_idx] * (uint32_t) b[b_idx] + (uint32_t) r[r_idx] + carry;
-            r[r_idx] = (uint8_t) (prod & 0xFF);
-            carry = prod >> 8;
-        }
-        if (carry != 0) {
-            size_t r_idx = 2 * len - 1 - (i + len);
-            uint32_t v = (uint32_t) r[r_idx] + carry;
-            r[r_idx] = (uint8_t) (v & 0xFF);
-        }
-    }
-    return 0;
-}
-
 // =============================================================================
 // Constructors / accessors
 // =============================================================================

@@ -35,31 +35,17 @@
 #include "context_712.h"
 #include "nbgl_use_case.h"
 #include "nbgl_types.h"
+#include "wraps.h"
 
 // `warning` is referenced by set_gating_ui_screen; the real symbol
 // lives in libNbgl which we don't link here, so provide local storage.
-nbgl_warning_t warning;
 
 // =============================================================================
 // Globals required by linked translation units
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-uint8_t appState = APP_STATE_IDLE;
-uint8_t G_io_tx_buffer[260];
-
 s_eip712_context g_eip712_storage;
 s_eip712_context *eip712_context = NULL;
-
-internalStorage_t g_n_storage_writable;
-extern const internalStorage_t N_storage_real __attribute__((alias("g_n_storage_writable")));
 
 // ui_icons.h pulls in ICON_LEDGER → C_ledger_14px (no SCREEN_SIZE_WALLET
 // in the test build). Stub the symbol so set_gating_ui_screen links.
@@ -69,54 +55,10 @@ const nbgl_icon_details_t C_ledger_14px;
 // Controllable stubs
 // =============================================================================
 
-static bool g_sig_check_ret = true;
-bool __wrap_check_signature_with_pubkey(uint8_t *buffer,
-                                        const uint8_t bufLen,
-                                        const uint8_t *PubKey,
-                                        const uint8_t keyLen,
-                                        const uint8_t keyUsageExp,
-                                        const uint8_t *signature,
-                                        const uint8_t sigLen) {
-    (void) buffer;
-    (void) bufLen;
-    (void) PubKey;
-    (void) keyLen;
-    (void) keyUsageExp;
-    (void) signature;
-    (void) sigLen;
-    return g_sig_check_ret;
-}
-
-static bool g_finalize_hash_ret = true;
-bool __wrap_finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
-    (void) hash_ctx;
-    memset(out, 0, out_len);
-    return g_finalize_hash_ret;
-}
-
-void __wrap_hash_nbytes(const uint8_t *bytes, size_t n, cx_hash_t *hash_ctx) {
-    (void) bytes;
-    (void) n;
-    (void) hash_ctx;
-}
-
-uint32_t cx_sha256_init_no_throw(cx_sha256_t *hash) {
-    (void) hash;
-    return 0;
-}
-
-bool is_zeroes_buffer(const void *buf, size_t n) {
-    const uint8_t *p = (const uint8_t *) buf;
-    for (size_t i = 0; i < n; ++i) {
-        if (p[i] != 0) return false;
-    }
-    return true;
-}
-
-static uint64_t g_tx_chain_id = 1;
-uint64_t __wrap_get_tx_chain_id(void) {
-    return g_tx_chain_id;
-}
+// check_signature_with_pubkey / finalize_hash / hash_nbytes /
+// get_tx_chain_id are wrapped in mocks/mock.c; their state is driven
+// through g_sig_check_ret / g_finalize_hash_ret / g_tx_chain_id
+// from wraps.h.
 
 static bool g_compute_schema_hash_ret = true;
 bool __wrap_compute_schema_hash(void) {

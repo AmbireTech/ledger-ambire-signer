@@ -36,78 +36,25 @@
 #include "apdu_constants.h"
 #include "tlv_apdu.h"
 #include "nbgl_use_case.h"
+#include "wraps.h"
 
 // `warning` is referenced by set_tx_simulation_warning; the real symbol
 // lives in libNbgl which we don't link here, so provide local storage.
-nbgl_warning_t warning;
 
 // =============================================================================
 // Globals
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-uint8_t appState = APP_STATE_IDLE;
-uint8_t G_io_tx_buffer[260];
-
 // N_storage_real aliased to a writable shadow — the test toggles
 // tx_check_enable and tx_check_opt_in.
-internalStorage_t g_n_storage_writable;
-extern const internalStorage_t N_storage_real __attribute__((alias("g_n_storage_writable")));
 
 // =============================================================================
 // Controllable stubs
 // =============================================================================
 
-static bool g_sig_check_ret = true;
-bool __wrap_check_signature_with_pubkey(uint8_t *buffer,
-                                        const uint8_t bufLen,
-                                        const uint8_t *PubKey,
-                                        const uint8_t keyLen,
-                                        const uint8_t keyUsageExp,
-                                        const uint8_t *signature,
-                                        const uint8_t sigLen) {
-    (void) buffer;
-    (void) bufLen;
-    (void) PubKey;
-    (void) keyLen;
-    (void) keyUsageExp;
-    (void) signature;
-    (void) sigLen;
-    return g_sig_check_ret;
-}
-
-static bool g_finalize_hash_ret = true;
-bool __wrap_finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
-    (void) hash_ctx;
-    memset(out, 0, out_len);
-    return g_finalize_hash_ret;
-}
-
-void __wrap_hash_nbytes(const uint8_t *bytes, size_t n, cx_hash_t *hash_ctx) {
-    (void) bytes;
-    (void) n;
-    (void) hash_ctx;
-}
-
-uint32_t cx_sha256_init_no_throw(cx_sha256_t *hash) {
-    (void) hash;
-    return 0;
-}
-
-bool is_zeroes_buffer(const void *buf, size_t n) {
-    const uint8_t *p = (const uint8_t *) buf;
-    for (size_t i = 0; i < n; ++i) {
-        if (p[i] != 0) return false;
-    }
-    return true;
-}
+// check_signature_with_pubkey / finalize_hash / hash_nbytes are
+// wrapped in mocks/mock.c; state via g_sig_check_ret /
+// g_finalize_hash_ret from wraps.h.
 
 // os_pki_get_info wrap — returns 0 (success) and an empty trusted
 // name by default; tests can flip it to fail.
@@ -156,11 +103,8 @@ uint16_t __wrap_get_public_key(uint8_t *out, uint8_t out_size) {
     return SWO_SUCCESS;
 }
 
-// get_tx_chain_id wrap.
-static uint64_t g_tx_chain_id = 1;
-uint64_t __wrap_get_tx_chain_id(void) {
-    return g_tx_chain_id;
-}
+// get_tx_chain_id is wrapped in mocks/mock.c; state via g_tx_chain_id
+// from wraps.h.
 
 // =============================================================================
 // TLV builder for TX_SIMULATION descriptor

@@ -28,6 +28,7 @@
 #include "shared_context.h"
 #include "apdu_constants.h"
 #include "feature_perform_privacy_operation.h"
+#include "wraps.h"
 
 uint16_t handle_perform_privacy_operation(uint8_t p1,
                                           uint8_t p2,
@@ -39,32 +40,12 @@ uint16_t handle_perform_privacy_operation(uint8_t p1,
 // Globals
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-uint8_t appState = APP_STATE_IDLE;
-uint8_t G_io_tx_buffer[260];
-
 // =============================================================================
 // Wraps
 // =============================================================================
 
-static bool g_parsebip32_force_null = false;
-const uint8_t *__wrap_parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, void *bip32) {
-    (void) bip32;
-    if (g_parsebip32_force_null) return NULL;
-    if (*dataLength < 1) return NULL;
-    uint8_t count = *dataBuffer;
-    if ((size_t) *dataLength < 1 + (size_t) count * 4) return NULL;
-    dataBuffer += 1 + count * 4;
-    *dataLength -= 1 + count * 4;
-    return dataBuffer;
-}
+// parseBip32 is wrapped in mocks/mock.c; toggle g_parsebip32_force_null
+// from wraps.h to drive the negative tests.
 
 // os_derive_bip32_no_throw is a static inline that delegates to
 // os_derive_bip32_with_seed_no_throw, which itself wraps the syscall
@@ -91,22 +72,6 @@ void __wrap_os_perso_derive_node_with_seed_key(unsigned int mode,
     // derivation failure path. We don't drive that here (see cmd_set_plugin
     // for the accepted limitation around the SDK try-context layout).
     (void) g_derive_should_throw;
-}
-
-// SDK try-context scaffolding. The BEGIN_TRY/TRY macros in
-// os_derive_bip32_with_seed_no_throw need these symbols at link time;
-// we don't exercise the THROW path so the stubs stay trivial.
-try_context_t *try_context_get(void) {
-    return NULL;
-}
-try_context_t *try_context_set(try_context_t *ctx) {
-    (void) ctx;
-    return NULL;
-}
-__attribute__((noreturn)) void os_longjmp(unsigned int e) {
-    (void) e;
-    while (1) {
-    }
 }
 
 static cx_err_t g_init_priv_ret = CX_OK;

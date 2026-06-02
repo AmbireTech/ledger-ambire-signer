@@ -54,29 +54,13 @@ typedef struct {
 // Globals
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-
 // =============================================================================
 // Wraps
 // =============================================================================
 
-uint64_t __wrap_get_tx_chain_id(void) {
-    return 1;
-}
+// get_tx_chain_id is wrapped in mocks/mock.c (returns 1 by default).
 
-const char *__wrap_get_displayable_ticker(const uint64_t *chain_id,
-                                          const chain_config_t *cfg,
-                                          bool fallback) {
-    (void) chain_id;
-    (void) cfg;
-    (void) fallback;
-    return "ETH";
-}
+// get_displayable_ticker is wrapped in mocks/mock.c (defaults to "ETH").
 
 static int g_amount_calls = 0;
 bool __wrap_amountToString(const uint8_t *amount,

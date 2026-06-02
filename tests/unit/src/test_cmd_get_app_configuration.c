@@ -25,13 +25,9 @@
 
 #include "shared_context.h"
 #include "apdu_constants.h"
+#include "wraps.h"
 
 uint16_t handle_get_app_configuration(unsigned int *tx);
-
-uint8_t G_io_tx_buffer[260];
-
-internalStorage_t g_n_storage_writable;
-extern const internalStorage_t N_storage_real __attribute__((alias("g_n_storage_writable")));
 
 static int reset(void **state) {
     (void) state;

@@ -22,11 +22,6 @@
 #include "shared_context.h"
 
 // Required globals
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
 
 // ===========================================================================
 // value_get / value_cleanup mock
@@ -39,11 +34,6 @@ bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collectio
     (void) value;
     *collection = g_vg[g_vg_call++];
     return true;
-}
-
-void __wrap_value_cleanup(const s_value *value, const s_parsed_value_collection *collection) {
-    (void) value;
-    (void) collection;
 }
 
 // ===========================================================================
@@ -72,15 +62,6 @@ const s_token_info *__wrap_get_matching_token_info_or_dummy(const uint64_t *chai
     (void) chain_id;
     (void) addr;
     return (const s_token_info *) mock();
-}
-
-const char *__wrap_get_displayable_ticker(const uint64_t *chain_id,
-                                          const chain_config_t *config,
-                                          bool mainnet_only) {
-    (void) chain_id;
-    (void) config;
-    (void) mainnet_only;
-    return "ETH";
 }
 
 bool __wrap_add_to_field_table(e_param_type type,

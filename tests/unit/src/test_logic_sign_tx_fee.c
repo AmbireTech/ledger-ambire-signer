@@ -42,79 +42,15 @@ bool max_transaction_fee_to_string(const txInt256_t *BEGasPrice,
 // Globals required by linked translation units
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-uint8_t appState = APP_STATE_IDLE;
-uint8_t G_io_tx_buffer[260];
-
 // =============================================================================
 // Wraps
 // =============================================================================
-
-uint64_t __wrap_get_tx_chain_id(void) {
-    return 1;
-}
-
-// The default mocks/mock.c stub for cx_math_mult_no_throw returns
-// without touching `r`, which keeps mul256() outputs at zero. Wrap it
-// here with a real big-endian schoolbook multiply so the fee tests
-// reflect actual arithmetic.
-uint32_t __wrap_cx_math_mult_no_throw(uint8_t *r, const uint8_t *a, const uint8_t *b, size_t len) {
-    // len is the operand size (in bytes); the product is 2*len long.
-    memset(r, 0, 2 * len);
-    for (size_t i = 0; i < len; i++) {
-        // i counts from the LSB of `a` (BE: most significant byte at idx 0).
-        size_t a_idx = len - 1 - i;
-        uint32_t carry = 0;
-        for (size_t j = 0; j < len; j++) {
-            size_t b_idx = len - 1 - j;
-            size_t r_idx = 2 * len - 1 - (i + j);
-            uint32_t prod = (uint32_t) a[a_idx] * (uint32_t) b[b_idx] + (uint32_t) r[r_idx] + carry;
-            r[r_idx] = (uint8_t) (prod & 0xFF);
-            carry = prod >> 8;
-        }
-        if (carry != 0) {
-            size_t r_idx = 2 * len - 1 - (i + len);
-            uint32_t v = (uint32_t) r[r_idx] + carry;
-            r[r_idx] = (uint8_t) (v & 0xFF);
-            // Spillover beyond 2*len-1 means uint256 overflow, but the
-            // caller (mul256) checks the top half for nonzero bytes to
-            // detect overflow; we cap here.
-        }
-    }
-    return 0;  // CX_OK
-}
-
-const char *__wrap_get_displayable_ticker(const uint64_t *chain_id,
-                                          const chain_config_t *cfg,
-                                          bool fallback_to_unknown) {
-    (void) chain_id;
-    (void) cfg;
-    (void) fallback_to_unknown;
-    return "ETH";
-}
 
 // =============================================================================
 // Stubs — symbols referenced by logic_sign_tx.c that are not exercised
 // by max_transaction_fee_to_string but whose absence blocks the link.
 // =============================================================================
 
-pluginType_t pluginType;
-volatile bool G_called_from_swap;
-bool G_swap_checked;
-swap_mode_t G_swap_mode;
-volatile bool G_swap_response_ready;
-cx_sha3_t *g_tx_hash_ctx;
-const internalStorage_t N_storage_real;
-
-void app_quit(void) {
-}
 const char *get_network_as_string(const uint64_t *chain_id) {
     (void) chain_id;
     return "ETH";

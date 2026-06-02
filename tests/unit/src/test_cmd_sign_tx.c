@@ -39,6 +39,7 @@
 #include "eth_ustream.h"
 #include "calldata.h"
 #include "network.h"
+#include "wraps.h"
 
 uint16_t handle_sign(uint8_t p1, uint8_t p2, const uint8_t *payload, uint8_t length);
 
@@ -48,55 +49,17 @@ extern cx_sha3_t *g_tx_hash_ctx;
 // Globals required by linked translation units
 // =============================================================================
 
-strings_t strings;
-network_info_t *g_dynamic_network_list = NULL;
-static chain_config_t s_chain_cfg = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &s_chain_cfg;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-uint8_t appState = APP_STATE_IDLE;
-uint8_t G_io_tx_buffer[260];
-
-pluginType_t pluginType;
-volatile bool G_called_from_swap;
-volatile bool G_swap_response_ready;
-bool G_swap_checked;
-swap_mode_t G_swap_mode;
-const internalStorage_t N_storage_real;
-
-s_calldata *g_parked_calldata = NULL;
-
 // =============================================================================
 // Wraps
 // =============================================================================
 
-static bool g_parsebip32_force_null = false;
-const uint8_t *__wrap_parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, void *bip32) {
-    (void) bip32;
-    if (g_parsebip32_force_null) {
-        return NULL;
-    }
-    if (*dataLength < 1) return NULL;
-    uint8_t count = *dataBuffer;
-    if ((size_t) *dataLength < 1 + (size_t) count * 4) return NULL;
-    dataBuffer += 1 + count * 4;
-    *dataLength -= 1 + count * 4;
-    return dataBuffer;
-}
+// parseBip32 + cx_keccak_init_no_throw are wrapped in mocks/mock.c;
+// drive them through g_parsebip32_force_null + g_keccak_init_ret
+// from wraps.h.
 
 static int g_reset_app_calls = 0;
 void __wrap_reset_app_context(void) {
     g_reset_app_calls++;
-}
-
-static cx_err_t g_keccak_init_ret = CX_OK;
-cx_err_t __wrap_cx_keccak_init_no_throw(cx_sha3_t *hash, size_t size) {
-    (void) hash;
-    (void) size;
-    return g_keccak_init_ret;
 }
 
 static cx_err_t g_cx_hash_ret = CX_OK;
@@ -149,10 +112,6 @@ bool ui_gcs(void) {
 }
 void ui_gcs_cleanup(void) {
 }
-__attribute__((noreturn)) void app_exit(void) {
-    while (1) {
-    }
-}
 int send_swap_error_simple(uint16_t error, uint8_t error_code, uint16_t code, uint8_t code_idx) {
     (void) error;
     (void) error_code;
@@ -186,9 +145,6 @@ bool calldata_append(s_calldata *calldata, const uint8_t *buffer, size_t size) {
 }
 void calldata_delete(s_calldata *node) {
     (void) node;
-}
-uint64_t get_tx_chain_id(void) {
-    return 1;
 }
 
 // =============================================================================

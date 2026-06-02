@@ -36,6 +36,7 @@
 #include "shared_context.h"
 #include "apdu_constants.h"
 #include "eth_plugin_internal.h"
+#include "wraps.h"
 
 uint16_t handle_set_external_plugin(const uint8_t *workBuffer, uint8_t dataLength);
 
@@ -43,42 +44,12 @@ uint16_t handle_set_external_plugin(const uint8_t *workBuffer, uint8_t dataLengt
 // Globals required by linked translation units
 // =============================================================================
 
-uint8_t G_io_tx_buffer[260];
-dataContext_t dataContext;
-pluginType_t pluginType;
-
 // =============================================================================
 // Wraps
 // =============================================================================
 
-static bool g_sig_check_ret = true;
-static int g_sig_check_calls = 0;
-bool __wrap_check_signature_with_pubkey(uint8_t *buffer,
-                                        const uint8_t bufLen,
-                                        const uint8_t *PubKey,
-                                        const uint8_t keyLen,
-                                        const uint8_t keyUsageExp,
-                                        const uint8_t *signature,
-                                        const uint8_t sigLen) {
-    (void) buffer;
-    (void) bufLen;
-    (void) PubKey;
-    (void) keyLen;
-    (void) keyUsageExp;
-    (void) signature;
-    (void) sigLen;
-    g_sig_check_calls++;
-    return g_sig_check_ret;
-}
-
-size_t __wrap_cx_hash_sha256(const uint8_t *in, size_t len, uint8_t *out, size_t out_len) {
-    (void) in;
-    (void) len;
-    if (out != NULL && out_len > 0) {
-        memset(out, 0xAB, out_len);
-    }
-    return out_len;
-}
+// check_signature_with_pubkey is wrapped in mocks/mock.c; state via
+// g_sig_check_ret + g_sig_check_calls from wraps.h.
 
 // =============================================================================
 // SDK exception scaffolding — same approach as test_cmd_set_plugin
@@ -90,19 +61,6 @@ size_t __wrap_cx_hash_sha256(const uint8_t *in, size_t len, uint8_t *out, size_t
 // would require reproducing the SDK's struct try_context_s layout
 // faithfully. Provide enough stubs to satisfy the linker on the happy
 // path; CATCH_OTHER stays unreachable.
-
-try_context_t *try_context_get(void) {
-    return NULL;
-}
-try_context_t *try_context_set(try_context_t *ctx) {
-    (void) ctx;
-    return NULL;
-}
-__attribute__((noreturn)) void os_longjmp(unsigned int e) {
-    (void) e;
-    while (1) {
-    }
-}
 
 static int g_os_lib_calls = 0;
 void os_lib_call(unsigned int *params) {

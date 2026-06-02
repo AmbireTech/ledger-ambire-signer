@@ -47,14 +47,6 @@ void swap_with_calldata_plugin_call(eth_plugin_msg_t message, void *parameters);
 // Globals (the source reads these unconditionally)
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-volatile bool G_called_from_swap;
-swap_mode_t G_swap_mode;
 static uint8_t g_promised_hash[CX_SHA256_SIZE];
 uint8_t *G_swap_crosschain_hash = g_promised_hash;
 

@@ -41,6 +41,7 @@
 #include "shared_context.h"
 #include "tlv_apdu.h"
 #include "tlv_use_case_dynamic_descriptor.h"
+#include "wraps.h"
 
 uint16_t handle_provide_erc20_token_information(uint8_t p1,
                                                 uint8_t p2,
@@ -52,54 +53,17 @@ uint16_t handle_provide_erc20_token_information(uint8_t p1,
 // Globals required by linked translation units
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-uint8_t appState = APP_STATE_IDLE;
-uint8_t G_io_tx_buffer[260];
-
 // =============================================================================
 // Wraps
 // =============================================================================
 
-static bool g_sig_check_ret = true;
-static int g_sig_check_calls = 0;
-bool __wrap_check_signature_with_pubkey(uint8_t *buffer,
-                                        const uint8_t bufLen,
-                                        const uint8_t *PubKey,
-                                        const uint8_t keyLen,
-                                        const uint8_t keyUsageExp,
-                                        const uint8_t *signature,
-                                        const uint8_t sigLen) {
-    (void) buffer;
-    (void) bufLen;
-    (void) PubKey;
-    (void) keyLen;
-    (void) keyUsageExp;
-    (void) signature;
-    (void) sigLen;
-    g_sig_check_calls++;
-    return g_sig_check_ret;
-}
+// check_signature_with_pubkey is wrapped in mocks/mock.c; state via
+// g_sig_check_ret + g_sig_check_calls from wraps.h.
 
 static bool g_chain_compatible = true;
 bool __wrap_app_compatible_with_chain_id(const uint64_t *chain_id) {
     (void) chain_id;
     return g_chain_compatible;
-}
-
-size_t __wrap_cx_hash_sha256(const uint8_t *in, size_t len, uint8_t *out, size_t out_len) {
-    (void) in;
-    (void) len;
-    if (out != NULL && out_len > 0) {
-        memset(out, 0xAB, out_len);
-    }
-    return out_len;
 }
 
 // Drive the TLV use-case output. The handler reads coin_type, ticker,

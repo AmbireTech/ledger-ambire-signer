@@ -31,6 +31,7 @@
 #include "shared_context.h"
 #include "eth_ustream.h"
 #include "feature_sign_tx.h"
+#include "wraps.h"  // g_tx_chain_id
 #include "network.h"
 #include "tx_ctx.h"
 #include "calldata.h"
@@ -38,14 +39,6 @@
 // =============================================================================
 // Globals the module reads
 // =============================================================================
-
-strings_t strings;
-network_info_t *g_dynamic_network_list = NULL;
-static chain_config_t s_chain_cfg = {.chain_id = 1, .ticker = "ETH", .coin_type = 60};
-const chain_config_t *g_chain_config = &s_chain_cfg;
-txContext_t txContext;
-tmpContent_t tmpContent;
-s_calldata *g_parked_calldata = NULL;
 
 // =============================================================================
 // SDK crypto stubs
@@ -119,10 +112,6 @@ void calldata_delete(s_calldata *node) {
     (void) node;
 }
 
-uint64_t get_tx_chain_id(void) {
-    return 0;
-}
-
 // =============================================================================
 // Fixture
 // =============================================================================
@@ -137,6 +126,7 @@ static int reset(void **state) {
     g_custom_status = CUSTOM_NOT_HANDLED;
     g_tx_ctx_init_ok = true;
     g_parked_calldata = NULL;
+    g_tx_chain_id = 0;  // ustream parses bytes before chain_id is observed
     return 0;
 }
 

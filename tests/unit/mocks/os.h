@@ -12,6 +12,11 @@
 #include "os_seed.h"
 
 /**
+ * @brief os entry point
+ */
+void app_main(void);
+
+/**
  * @brief Array length macro (from BOLOS_SDK os_utils.h)
  */
 #define ARRAYLEN(array) (sizeof(array) / sizeof(array[0]))
@@ -29,10 +34,14 @@ int bytes_to_lowercase_hex(char *out, size_t outl, const void *value, size_t len
 bool is_zeroes_buffer(const void *buf, size_t n);
 
 /**
- * @brief APDU TX buffer (from BOLOS_SDK os_io.h). Tests that exercise APDU
- *        reply paths must provide storage.
+ * @brief APDU TX buffer (from BOLOS_SDK os_io.h). Storage lives in
+ *        mocks/app_globals.c; the size matches the SDK declaration
+ *        (`OS_IO_BUFFER_SIZE + 1 == 273`) so it doesn't conflict when a
+ *        target also pulls os_io.h directly, while keeping sizeof()
+ *        resolvable at the test callsites
+ *        (`memset(G_io_tx_buffer, 0, sizeof(G_io_tx_buffer))`).
  */
-extern uint8_t G_io_tx_buffer[];
+extern uint8_t G_io_tx_buffer[273];
 
 /**
  * @brief NVM write (from BOLOS_SDK os_nvm.h). Tests that exercise the

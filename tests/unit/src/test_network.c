@@ -29,23 +29,15 @@
 
 #include "shared_context.h"
 #include "network.h"
+#include "network_info.h"  // extern g_dynamic_network_list
 #include "caller_app.h"
+#include "wraps.h"  // extern g_tx_content
 
 // =============================================================================
 // Globals the module reads — provide storage here.
 // =============================================================================
 
-strings_t strings;
-network_info_t *g_dynamic_network_list = NULL;
-
 static chain_config_t s_chain_cfg = {.chain_id = 1, .ticker = "ETH", .coin_type = 60};
-const chain_config_t *g_chain_config = &s_chain_cfg;
-
-txContext_t txContext;
-tmpContent_t tmpContent;
-
-// Some shared tx storage so txContext.content is non-NULL by default.
-static txContent_t s_tx_content;
 
 // =============================================================================
 // Test fixtures / helpers
@@ -55,8 +47,8 @@ static int reset_globals(void **state) {
     (void) state;
     memset(&txContext, 0, sizeof(txContext));
     memset(&tmpContent, 0, sizeof(tmpContent));
-    memset(&s_tx_content, 0, sizeof(s_tx_content));
-    txContext.content = &s_tx_content;
+    memset(&g_tx_content, 0, sizeof(g_tx_content));
+    txContext.content = &g_tx_content;
     g_dynamic_network_list = NULL;
     s_chain_cfg.chain_id = 1;
     strlcpy(s_chain_cfg.ticker, "ETH", sizeof(s_chain_cfg.ticker));
@@ -213,9 +205,9 @@ static void test_get_tx_chain_id_legacy_reads_v(void **state) {
     (void) state;
     txContext.txType = LEGACY;
     // chainID encoded in v (BE)
-    s_tx_content.v[0] = 0x00;
-    s_tx_content.v[1] = 0x89;  // 137
-    s_tx_content.vLength = 2;
+    g_tx_content.v[0] = 0x00;
+    g_tx_content.v[1] = 0x89;  // 137
+    g_tx_content.vLength = 2;
     assert_int_equal(get_tx_chain_id(), 137);
 }
 
