@@ -38,8 +38,6 @@
 #include "eth_plugin_internal.h"
 #include "wraps.h"
 
-uint16_t handle_set_external_plugin(const uint8_t *workBuffer, uint8_t dataLength);
-
 // =============================================================================
 // Globals required by linked translation units
 // =============================================================================

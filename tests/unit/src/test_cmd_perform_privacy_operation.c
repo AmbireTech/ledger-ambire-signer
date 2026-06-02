@@ -30,12 +30,6 @@
 #include "feature_perform_privacy_operation.h"
 #include "wraps.h"
 
-uint16_t handle_perform_privacy_operation(uint8_t p1,
-                                          uint8_t p2,
-                                          const uint8_t *dataBuffer,
-                                          uint8_t dataLength,
-                                          unsigned int *tx);
-
 // =============================================================================
 // Globals
 // =============================================================================

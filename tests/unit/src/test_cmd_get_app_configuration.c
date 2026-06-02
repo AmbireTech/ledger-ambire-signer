@@ -27,8 +27,6 @@
 #include "apdu_constants.h"
 #include "wraps.h"
 
-uint16_t handle_get_app_configuration(unsigned int *tx);
-
 static int reset(void **state) {
     (void) state;
     memset(&g_n_storage_writable, 0, sizeof(g_n_storage_writable));

@@ -43,12 +43,6 @@
 #include "tlv_use_case_dynamic_descriptor.h"
 #include "wraps.h"
 
-uint16_t handle_provide_erc20_token_information(uint8_t p1,
-                                                uint8_t p2,
-                                                uint8_t lc,
-                                                const uint8_t *data,
-                                                unsigned int *tx);
-
 // =============================================================================
 // Globals required by linked translation units
 // =============================================================================

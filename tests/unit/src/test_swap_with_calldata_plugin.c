@@ -40,8 +40,7 @@
 #include "shared_context.h"
 #include "eth_plugin_interface.h"
 #include "lcx_sha256.h"
-
-void swap_with_calldata_plugin_call(eth_plugin_msg_t message, void *parameters);
+#include "swap_with_calldata_plugin.h"
 
 // =============================================================================
 // Globals (the source reads these unconditionally)

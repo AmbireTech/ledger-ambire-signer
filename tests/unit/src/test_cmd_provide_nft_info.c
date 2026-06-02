@@ -31,12 +31,6 @@
 #include "asset_info.h"  // COLLECTION_NAME_MAX_LEN
 #include "wraps.h"
 
-uint16_t handle_provide_nft_information(uint8_t p1,
-                                        uint8_t p2,
-                                        uint8_t lc,
-                                        const uint8_t *data,
-                                        unsigned int *tx);
-
 // =============================================================================
 // Globals required by linked translation units
 // =============================================================================

@@ -41,8 +41,6 @@
 #include "network.h"
 #include "wraps.h"
 
-uint16_t handle_sign(uint8_t p1, uint8_t p2, const uint8_t *payload, uint8_t length);
-
 extern cx_sha3_t *g_tx_hash_ctx;
 
 // =============================================================================

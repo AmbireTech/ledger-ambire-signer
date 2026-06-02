@@ -91,8 +91,6 @@ void ui_191_start(const char *display_buffer) {
     }
 }
 
-uint16_t handle_sign_personal_message(uint8_t p1, const uint8_t *const payload, uint8_t length);
-
 // =============================================================================
 // APDU builder
 // =============================================================================
