@@ -10,6 +10,19 @@ add_eth_unit_test(test_ledger_pki
     HAVE_ECC_WEIERSTRASS
 )
 
+add_eth_unit_test(test_handle_check_address
+  APP_SOURCES
+    ${APP_DIR}/swap/handle_check_address.c
+  INCLUDES
+    ${APP_DIR}/swap
+  DEFS
+    HAVE_SECP_CURVES
+    HAVE_ECC_WEIERSTRASS
+  WRAPS
+    bip32_path_read
+    get_public_key_string
+)
+
 add_eth_unit_test(test_network
   APP_SOURCES
     ${APP_DIR}/network.c
