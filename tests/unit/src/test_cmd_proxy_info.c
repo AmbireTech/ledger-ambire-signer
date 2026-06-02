@@ -38,35 +38,16 @@
 #include "tlv_apdu.h"
 #include "cmd_proxy_info.h"
 #include "proxy_info.h"
+#include "wraps.h"
 
 // =============================================================================
 // Wraps
 // =============================================================================
-// tlv_from_apdu can either bypass its callback (to test return propagation
-// only) or invoke it (to drive the inner handle_tlv_payload). g_invoke_handler
-// gates the second mode.
-
-static bool g_invoke_handler = false;
-static bool g_capture_first_chunk = false;
-static uint8_t g_capture_lc = 0;
-
-e_tlv_apdu_ret __wrap_tlv_from_apdu(bool first_chunk,
-                                    uint8_t lc,
-                                    const uint8_t *payload,
-                                    f_tlv_payload_handler handler) {
-    (void) payload;
-    g_capture_first_chunk = first_chunk;
-    g_capture_lc = lc;
-    if (g_invoke_handler && handler != NULL) {
-        buffer_t buf = {.ptr = NULL, .size = 0, .offset = 0};
-        // The callback's return doesn't affect tlv_from_apdu's own return
-        // here -- production code passes the same outcome both up the
-        // tlv_from_apdu stack and onto the SWO. Tests that want to observe
-        // the inner-callback outcome assert through the wrapped leaves.
-        (void) handler(&buf);
-    }
-    return (e_tlv_apdu_ret) mock();
-}
+// __wrap_tlv_from_apdu lives in mocks/mock.c and captures (first_chunk,
+// lc, handler) into g_tlv_from_apdu_*. g_tlv_from_apdu_invoke_handler
+// toggles the in-callback path so the in-test assertions can either
+// stop at tlv_from_apdu (framing only) or run the inner
+// handle_proxy_info_tlv_payload + verify_proxy_info_struct chain.
 
 bool __wrap_handle_proxy_info_tlv_payload(const buffer_t *buf, s_proxy_info_ctx *ctx) {
     (void) buf;
@@ -84,19 +65,16 @@ void __wrap_proxy_cleanup(void) {
     g_cleanup_calls++;
 }
 
-// cx_sha256_init is a static-inline macro in lcx_sha256.h that forwards to
-// cx_sha256_init_no_throw. mocks/mock.c already provides the latter as a
-// weak CX_OK stub.
-
 // =============================================================================
 // Fixture
 // =============================================================================
 
 static int reset(void **state) {
     (void) state;
-    g_invoke_handler = false;
-    g_capture_first_chunk = false;
-    g_capture_lc = 0;
+    g_tlv_from_apdu_invoke_handler = false;
+    g_tlv_from_apdu_first_chunk = false;
+    g_tlv_from_apdu_lc = 0;
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     g_cleanup_calls = 0;
     return 0;
 }
@@ -107,20 +85,20 @@ static int reset(void **state) {
 
 static void test_p1_first_chunk_forwards_true(void **state) {
     (void) state;
-    will_return(__wrap_tlv_from_apdu, TLV_APDU_SUCCESS);
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     uint16_t sw = handle_proxy_info(P1_FIRST_CHUNK, /*p2*/ 0, /*lc*/ 32, (uint8_t *) "");
     assert_int_equal(sw, SWO_SUCCESS);
-    assert_true(g_capture_first_chunk);
-    assert_int_equal(g_capture_lc, 32);
+    assert_true(g_tlv_from_apdu_first_chunk);
+    assert_int_equal(g_tlv_from_apdu_lc, 32);
 }
 
 static void test_p1_not_first_chunk_forwards_false(void **state) {
     (void) state;
-    will_return(__wrap_tlv_from_apdu, TLV_APDU_SUCCESS);
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     uint16_t sw = handle_proxy_info(P1_FOLLOWING_CHUNK, 0, 16, (uint8_t *) "");
     assert_int_equal(sw, SWO_SUCCESS);
-    assert_false(g_capture_first_chunk);
-    assert_int_equal(g_capture_lc, 16);
+    assert_false(g_tlv_from_apdu_first_chunk);
+    assert_int_equal(g_tlv_from_apdu_lc, 16);
 }
 
 // =============================================================================
@@ -129,7 +107,7 @@ static void test_p1_not_first_chunk_forwards_false(void **state) {
 
 static void test_tlv_apdu_error_returns_incorrect_data_and_cleans_up(void **state) {
     (void) state;
-    will_return(__wrap_tlv_from_apdu, TLV_APDU_ERROR);
+    g_tlv_from_apdu_ret = TLV_APDU_ERROR;
     uint16_t sw = handle_proxy_info(P1_FIRST_CHUNK, 0, 32, (uint8_t *) "");
     assert_int_equal(sw, SWO_INCORRECT_DATA);
     // proxy_cleanup() MUST be called on error so a half-parsed proxy entry
@@ -142,7 +120,7 @@ static void test_tlv_apdu_pending_returns_success_without_cleanup(void **state) 
     // PENDING signals "more chunks coming". The dispatcher must report
     // SWO_SUCCESS upstream so the host keeps streaming, and MUST NOT
     // run cleanup -- that would wipe the in-flight parser state.
-    will_return(__wrap_tlv_from_apdu, TLV_APDU_PENDING);
+    g_tlv_from_apdu_ret = TLV_APDU_PENDING;
     uint16_t sw = handle_proxy_info(P1_FIRST_CHUNK, 0, 32, (uint8_t *) "");
     assert_int_equal(sw, SWO_SUCCESS);
     assert_int_equal(g_cleanup_calls, 0);
@@ -150,7 +128,7 @@ static void test_tlv_apdu_pending_returns_success_without_cleanup(void **state) 
 
 static void test_tlv_apdu_success_returns_success(void **state) {
     (void) state;
-    will_return(__wrap_tlv_from_apdu, TLV_APDU_SUCCESS);
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     uint16_t sw = handle_proxy_info(P1_FIRST_CHUNK, 0, 32, (uint8_t *) "");
     assert_int_equal(sw, SWO_SUCCESS);
     assert_int_equal(g_cleanup_calls, 0);
@@ -166,10 +144,10 @@ static void test_inner_callback_runs_payload_then_verify(void **state) {
     // parser returns true, verifier returns true -> callback's overall
     // outcome is true (observable indirectly through the cleanup count
     // and the queue staying empty on exit).
-    g_invoke_handler = true;
+    g_tlv_from_apdu_invoke_handler = true;
     will_return(__wrap_handle_proxy_info_tlv_payload, true);
     will_return(__wrap_verify_proxy_info_struct, true);
-    will_return(__wrap_tlv_from_apdu, TLV_APDU_SUCCESS);
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     uint16_t sw = handle_proxy_info(P1_FIRST_CHUNK, 0, 32, (uint8_t *) "");
     assert_int_equal(sw, SWO_SUCCESS);
     // proxy_cleanup is called from the callback prelude (before parser).
@@ -178,12 +156,12 @@ static void test_inner_callback_runs_payload_then_verify(void **state) {
 
 static void test_inner_callback_short_circuits_on_payload_failure(void **state) {
     (void) state;
-    g_invoke_handler = true;
+    g_tlv_from_apdu_invoke_handler = true;
     will_return(__wrap_handle_proxy_info_tlv_payload, false);
     // verify_proxy_info_struct MUST NOT be reached -- a failed parse
     // means there's nothing to verify. Leaving its queue empty is the
     // safety check.
-    will_return(__wrap_tlv_from_apdu, TLV_APDU_ERROR);
+    g_tlv_from_apdu_ret = TLV_APDU_ERROR;
     uint16_t sw = handle_proxy_info(P1_FIRST_CHUNK, 0, 32, (uint8_t *) "");
     assert_int_equal(sw, SWO_INCORRECT_DATA);
     assert_int_equal(g_cleanup_calls, 2);  // once in callback, once on error
@@ -191,10 +169,10 @@ static void test_inner_callback_short_circuits_on_payload_failure(void **state) 
 
 static void test_inner_callback_rejects_when_verify_fails(void **state) {
     (void) state;
-    g_invoke_handler = true;
+    g_tlv_from_apdu_invoke_handler = true;
     will_return(__wrap_handle_proxy_info_tlv_payload, true);
     will_return(__wrap_verify_proxy_info_struct, false);
-    will_return(__wrap_tlv_from_apdu, TLV_APDU_ERROR);
+    g_tlv_from_apdu_ret = TLV_APDU_ERROR;
     uint16_t sw = handle_proxy_info(P1_FIRST_CHUNK, 0, 32, (uint8_t *) "");
     assert_int_equal(sw, SWO_INCORRECT_DATA);
     assert_int_equal(g_cleanup_calls, 2);

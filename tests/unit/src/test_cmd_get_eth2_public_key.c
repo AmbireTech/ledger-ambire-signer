@@ -45,12 +45,6 @@
 #include "apdu_constants.h"
 #include "feature_get_eth2_public_key.h"
 
-uint16_t handle_get_eth2_public_key(uint8_t p1,
-                                    uint8_t p2,
-                                    const uint8_t *dataBuffer,
-                                    uint8_t dataLength,
-                                    unsigned int *tx);
-
 // =============================================================================
 // Wraps for handle_get_eth2_public_key
 // =============================================================================

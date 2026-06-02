@@ -34,6 +34,7 @@
 #include "cmd_safe_account.h"
 #include "safe_descriptor.h"
 #include "signer_descriptor.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals the unit under test reads
@@ -47,21 +48,6 @@ signers_descriptor_t SIGNER_DESC;
 // =============================================================================
 // Wraps
 // =============================================================================
-
-static bool g_capture_first_chunk = false;
-static uint8_t g_capture_lc = 0;
-static f_tlv_payload_handler g_captured_handler = NULL;
-
-bool __wrap_tlv_from_apdu(bool first_chunk,
-                          uint8_t lc,
-                          const uint8_t *payload,
-                          f_tlv_payload_handler handler) {
-    (void) payload;
-    g_capture_first_chunk = first_chunk;
-    g_capture_lc = lc;
-    g_captured_handler = handler;
-    return (bool) mock();
-}
 
 bool __wrap_handle_safe_tlv_payload(const buffer_t *payload) {
     (void) payload;
@@ -103,9 +89,10 @@ static int reset(void **state) {
     SAFE_DESC = NULL;
     memset(&SIGNER_DESC, 0, sizeof(SIGNER_DESC));
     memset(&s_safe_storage, 0, sizeof(s_safe_storage));
-    g_capture_first_chunk = false;
-    g_capture_lc = 0;
-    g_captured_handler = NULL;
+    g_tlv_from_apdu_first_chunk = false;
+    g_tlv_from_apdu_lc = 0;
+    g_tlv_from_apdu_handler = NULL;
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     g_ui_display_calls = 0;
     g_clear_safe_calls = 0;
     g_clear_signer_calls = 0;
@@ -169,11 +156,17 @@ static void test_signer_already_exists_rejected(void **state) {
 
 static void test_safe_descriptor_tlv_failure_returns_incorrect_data(void **state) {
     (void) state;
-    will_return(__wrap_tlv_from_apdu, false);
+    g_tlv_from_apdu_ret = TLV_APDU_ERROR;
     uint16_t sw = handle_safe_account(P1_FIRST_CHUNK, /*p2*/ 0, (uint8_t *) "", 32);
     assert_int_equal(sw, SWO_INCORRECT_DATA);
-    assert_true(g_capture_first_chunk);
-    assert_ptr_equal(g_captured_handler, &handle_safe_tlv_payload);
+    assert_true(g_tlv_from_apdu_first_chunk);
+    // Function-pointer <-> void* cast is UB per ISO C but defined on
+    // every POSIX platform; the union sidesteps -Wpedantic.
+    union {
+        f_tlv_payload_handler fn;
+        void *ptr;
+    } u = {.fn = &handle_safe_tlv_payload};
+    assert_ptr_equal(g_tlv_from_apdu_handler, u.ptr);
 }
 
 static void test_safe_descriptor_tlv_success_returns_success(void **state) {
@@ -181,7 +174,7 @@ static void test_safe_descriptor_tlv_success_returns_success(void **state) {
     // First chunk of a SAFE_DESCRIPTOR; tlv_from_apdu accepts it but
     // SIGNER_DESC.is_valid stays false (no signer posted yet), so the
     // handler returns SWO_SUCCESS without showing the UI.
-    will_return(__wrap_tlv_from_apdu, true);
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     uint16_t sw = handle_safe_account(P1_FIRST_CHUNK, /*p2*/ 0, (uint8_t *) "", 32);
     assert_int_equal(sw, SWO_SUCCESS);
     assert_int_equal(g_ui_display_calls, 0);
@@ -190,11 +183,15 @@ static void test_safe_descriptor_tlv_success_returns_success(void **state) {
 static void test_signer_descriptor_tlv_failure_returns_incorrect_data(void **state) {
     (void) state;
     SAFE_DESC = &s_safe_storage;
-    will_return(__wrap_tlv_from_apdu, false);
+    g_tlv_from_apdu_ret = TLV_APDU_ERROR;
     uint16_t sw = handle_safe_account(P1_FOLLOWING_CHUNK, /*p2*/ 1, (uint8_t *) "", 32);
     assert_int_equal(sw, SWO_INCORRECT_DATA);
-    assert_false(g_capture_first_chunk);
-    assert_ptr_equal(g_captured_handler, &handle_signer_tlv_payload);
+    assert_false(g_tlv_from_apdu_first_chunk);
+    union {
+        f_tlv_payload_handler fn;
+        void *ptr;
+    } u = {.fn = &handle_signer_tlv_payload};
+    assert_ptr_equal(g_tlv_from_apdu_handler, u.ptr);
 }
 
 static void test_signer_complete_triggers_ui_and_no_response(void **state) {
@@ -204,7 +201,7 @@ static void test_signer_complete_triggers_ui_and_no_response(void **state) {
     // chunk arrived). The dispatcher MUST show the UI synchronously and
     // report SWO_NO_RESPONSE so the foreground waits for user confirmation.
     SAFE_DESC = &s_safe_storage;
-    will_return(__wrap_tlv_from_apdu, true);
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     // Simulate the parser flipping is_valid by post-hooking the mock.
     SIGNER_DESC.is_valid = true;
     uint16_t sw = handle_safe_account(P1_FOLLOWING_CHUNK, /*p2*/ 1, (uint8_t *) "", 32);
@@ -218,7 +215,7 @@ static void test_signer_incomplete_still_returns_success_no_ui(void **state) {
     // SIGNER_DESC.is_valid stays false -- the dispatcher reports SWO_SUCCESS
     // and the host keeps streaming.
     SAFE_DESC = &s_safe_storage;
-    will_return(__wrap_tlv_from_apdu, true);
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     SIGNER_DESC.is_valid = false;
     uint16_t sw = handle_safe_account(P1_FOLLOWING_CHUNK, /*p2*/ 1, (uint8_t *) "", 32);
     assert_int_equal(sw, SWO_SUCCESS);

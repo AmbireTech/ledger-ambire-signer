@@ -38,24 +38,11 @@
 #include "network_info.h"
 #include "network_icon.h"
 #include "read.h"
+#include "wraps.h"
 
 // =============================================================================
 // Wraps
 // =============================================================================
-
-static bool g_capture_first_chunk = false;
-static uint8_t g_capture_lc = 0;
-
-bool __wrap_tlv_from_apdu(bool first_chunk,
-                          uint8_t lc,
-                          const uint8_t *payload,
-                          f_tlv_payload_handler handler) {
-    (void) payload;
-    (void) handler;
-    g_capture_first_chunk = first_chunk;
-    g_capture_lc = lc;
-    return (bool) mock();
-}
 
 uint16_t __wrap_handle_network_icon_chunks(uint8_t p1, const buffer_t *buf) {
     (void) p1;
@@ -83,14 +70,15 @@ bool handle_network_tlv_payload(const buffer_t *buf) {
 // =============================================================================
 
 extern network_info_t *g_dynamic_network_list;  // mocks/app_globals.c
-network_info_t *g_last_added_network;           // file-scope -- not provided elsewhere
+extern network_info_t *g_last_added_network;    // mocks/app_globals.c
 
 static int reset(void **state) {
     (void) state;
     g_dynamic_network_list = NULL;
     g_last_added_network = NULL;
-    g_capture_first_chunk = false;
-    g_capture_lc = 0;
+    g_tlv_from_apdu_first_chunk = false;
+    g_tlv_from_apdu_lc = 0;
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     g_cleanup_calls = 0;
     g_cleanup_last_arg = NULL;
     memset(G_io_tx_buffer, 0, sizeof(G_io_tx_buffer));
@@ -104,12 +92,12 @@ static int reset(void **state) {
 static void test_network_config_tlv_success_returns_success(void **state) {
     (void) state;
     unsigned int tx = 0;
-    will_return(__wrap_tlv_from_apdu, true);
+    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     uint16_t sw = handle_network_info(P1_FIRST_CHUNK, /*p2*/ 0x00, (uint8_t *) "", 32, &tx);
     assert_int_equal(sw, SWO_SUCCESS);
     assert_int_equal(g_cleanup_calls, 0);
-    assert_true(g_capture_first_chunk);
-    assert_int_equal(g_capture_lc, 32);
+    assert_true(g_tlv_from_apdu_first_chunk);
+    assert_int_equal(g_tlv_from_apdu_lc, 32);
 }
 
 static void test_network_config_tlv_failure_cleans_up(void **state) {
@@ -119,7 +107,7 @@ static void test_network_config_tlv_failure_cleans_up(void **state) {
     // free -- this proves the cleanup call passes the right node.
     network_info_t partial = {0};
     g_last_added_network = &partial;
-    will_return(__wrap_tlv_from_apdu, false);
+    g_tlv_from_apdu_ret = TLV_APDU_ERROR;
     uint16_t sw = handle_network_info(P1_FOLLOWING_CHUNK, 0x00, (uint8_t *) "", 32, &tx);
     assert_int_equal(sw, SWO_INCORRECT_DATA);
     assert_int_equal(g_cleanup_calls, 1);

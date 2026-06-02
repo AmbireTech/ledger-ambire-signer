@@ -198,6 +198,8 @@ add_eth_unit_test(test_cmd_get_app_configuration
 add_eth_unit_test(test_cmd_set_eth2_withdrawal_index
   APP_SOURCES
     ${APP_DIR}/features/set_eth2_withdrawal_index/cmd_set_eth2_withdrawal_index.c
+  INCLUDES
+    ${APP_DIR}/features/set_eth2_withdrawal_index
   DEFS
     HAVE_ETH2
 )

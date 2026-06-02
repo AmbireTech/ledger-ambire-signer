@@ -30,8 +30,7 @@
 #include "swap_lib_calls.h"
 #include "chain_config.h"
 #include "eth_swap_utils.h"
-
-void handle_get_printable_amount(get_printable_amount_parameters_t *params, chain_config_t *config);
+#include "handle_get_printable_amount.h"
 
 // =============================================================================
 // Wraps

@@ -19,11 +19,7 @@
 
 #include "shared_context.h"
 #include "apdu_constants.h"
-
-uint16_t handle_set_eth2_withdrawal_index(uint8_t p1,
-                                          uint8_t p2,
-                                          const uint8_t *dataBuffer,
-                                          uint16_t dataLength);
+#include "withdrawal_index.h"
 
 static int reset(void **state) {
     (void) state;

@@ -66,7 +66,10 @@
 // =============================================================================
 // cx_sha256_hash() is a static inline in lcx_sha256.h that forwards to
 // cx_sha256_hash_iovec; wrap the iovec entry-point so cmocka mock() drives
-// the hash outcome AND lets the test push the canned digest.
+// the hash outcome AND lets the test push the canned digest. mocks/mock.c
+// also ships a WEAK default (CX_OK + zero digest) for any future test
+// that needs the call to succeed silently; this strong override wins on
+// link.
 
 struct cx_iovec_s;
 
@@ -106,11 +109,10 @@ bool __wrap_mem_utils_calloc(void **buffer,
 // =============================================================================
 // Globals the unit under test reads
 // =============================================================================
-// g_last_added_network and g_network_icon_hash are declared extern in
-// network_info.h. Production code defines them in network_info.c which we
-// don't link; provide storage here.
+// g_last_added_network is provided as a WEAK fallback by mocks/app_globals.c.
+// g_network_icon_hash is also declared extern in network_info.h but its
+// storage lives here -- no other test needs it.
 
-network_info_t *g_last_added_network;
 uint8_t *g_network_icon_hash;
 
 // =============================================================================

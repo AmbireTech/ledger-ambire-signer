@@ -30,6 +30,7 @@
 #include "read.h"
 #include "cx_errors.h"
 #include "tlv_library.h"
+#include "tlv_apdu.h"
 
 // =============================================================================
 // Forward-declared SDK opaque types
@@ -194,6 +195,24 @@ __attribute__((weak)) size_t cx_hash_sha256(const uint8_t *in,
         memset(out, 0xAB, out_len);
     }
     return out_len;
+}
+
+// cx_sha256_hash() is a static inline in lcx_sha256.h that forwards to
+// cx_sha256_hash_iovec; the iovec entry-point is where the linker can
+// catch the call. The default returns CX_OK and zero-fills the digest;
+// tests that need to drive return values / canned outputs (e.g. test
+// vectors against a known hash) install a strong cmocka-backed override
+// locally. Forward-decl cx_iovec_s so we don't pull lcx_*.h here.
+struct cx_iovec_s;
+__attribute__((weak)) cx_err_t __wrap_cx_sha256_hash_iovec(const struct cx_iovec_s *iovec,
+                                                           size_t iovec_len,
+                                                           uint8_t *digest) {
+    (void) iovec;
+    (void) iovec_len;
+    if (digest != NULL) {
+        memset(digest, 0, 32);
+    }
+    return CX_OK;
 }
 
 // =============================================================================
@@ -425,6 +444,51 @@ __attribute__((weak)) void __wrap_hash_nbytes(const uint8_t *bytes, size_t n, cx
     (void) bytes;
     (void) n;
     (void) hash_ctx;
+}
+
+// =============================================================================
+// app/src/tlv_apdu.c
+// =============================================================================
+// Centralised __wrap_tlv_from_apdu for the descriptor-parser dispatchers
+// (proxy_info, trusted_name, enum_value, network_info, safe_account).
+// Captures (first_chunk, lc, handler), optionally invokes the handler
+// with an empty buffer (gated by g_tlv_from_apdu_invoke_handler), and
+// returns g_tlv_from_apdu_ret. Tests reset captures and set the return
+// in their fixture; a test that needs richer behavior (counters across
+// re-entry, handler-specific capture, multi-call sequencing) keeps a
+// strong local override.
+
+int g_tlv_from_apdu_calls = 0;
+bool g_tlv_from_apdu_first_chunk = false;
+uint8_t g_tlv_from_apdu_lc = 0;
+void *g_tlv_from_apdu_handler = NULL;
+bool g_tlv_from_apdu_invoke_handler = false;
+int g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
+
+__attribute__((weak)) e_tlv_apdu_ret __wrap_tlv_from_apdu(bool first_chunk,
+                                                          uint8_t lc,
+                                                          const uint8_t *payload,
+                                                          f_tlv_payload_handler handler) {
+    (void) payload;
+    g_tlv_from_apdu_calls++;
+    g_tlv_from_apdu_first_chunk = first_chunk;
+    g_tlv_from_apdu_lc = lc;
+    // Function-pointer to void* is UB per ISO C; union sidesteps -Wpedantic.
+    union {
+        f_tlv_payload_handler fn;
+        void *ptr;
+    } u = {.fn = handler};
+    g_tlv_from_apdu_handler = u.ptr;
+    if (g_tlv_from_apdu_invoke_handler && handler != NULL) {
+        buffer_t buf = {.ptr = NULL, .size = 0, .offset = 0};
+        // The callback's return doesn't affect tlv_from_apdu's own
+        // return -- production code surfaces the same outcome both up
+        // the tlv_from_apdu stack and onto the SWO. Tests that want to
+        // observe the inner callback outcome assert through the wrapped
+        // leaves.
+        (void) handler(&buf);
+    }
+    return (e_tlv_apdu_ret) g_tlv_from_apdu_ret;
 }
 
 // =============================================================================

@@ -17,6 +17,20 @@ extern const void *g_tx_info_ret;         // __wrap_get_current_tx_info (cast on
 extern bool g_parsebip32_force_null;      // __wrap_parseBip32 -> NULL when true
 extern uint32_t g_keccak_init_ret;        // __wrap_cx_keccak_init_no_throw
 
+// __wrap_tlv_from_apdu in mocks/mock.c: captures the (first_chunk, lc,
+// handler) trio, optionally invokes the handler with an empty buffer
+// (gated by g_tlv_from_apdu_invoke_handler), and returns
+// g_tlv_from_apdu_ret. Tests reset the captures in their fixture and
+// assign g_tlv_from_apdu_ret before driving the APDU. The handler is
+// stored as void * to keep wraps.h free of tlv_apdu.h; tests that need
+// to identify which handler the dispatcher passed cast it back.
+extern int g_tlv_from_apdu_calls;
+extern bool g_tlv_from_apdu_first_chunk;
+extern uint8_t g_tlv_from_apdu_lc;
+extern void *g_tlv_from_apdu_handler;
+extern bool g_tlv_from_apdu_invoke_handler;
+extern int g_tlv_from_apdu_ret;  // e_tlv_apdu_ret value, plain int to avoid header
+
 // The chain config defined in mocks/app_globals.c. A couple of tests
 // (test_cmd_get_public_key, test_eth_swap_utils) mutate chain_id to
 // drive multi-chain assertions; expose it through wraps.h so they

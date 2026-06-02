@@ -93,11 +93,15 @@ WEAK s_calldata *g_parked_calldata = NULL;
 // =============================================================================
 // app/src/features/provide_network_info/network_info.c
 // =============================================================================
-// Head of the host-provided dynamic network list. test_network links
-// the real network.c which defines this for real; weak here so that
-// def wins.
+// Head of the host-provided dynamic network list, plus the per-APDU
+// landing pointer the descriptor parser sets so downstream commands
+// (e.g. cmd_network_icon) can attach payload to the partially-built
+// entry. test_network_info links the real network_info.c so the
+// strong defs there win; the weak fallbacks here cover the other
+// tests that pull the headers without linking the source.
 
 WEAK network_info_t *g_dynamic_network_list = NULL;
+WEAK network_info_t *g_last_added_network = NULL;
 
 // =============================================================================
 // app/src/features/sign_tx/cmd_sign_tx.c
