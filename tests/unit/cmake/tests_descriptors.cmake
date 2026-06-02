@@ -70,6 +70,17 @@ add_eth_unit_test(test_cmd_safe_account
     clear_signer_descriptor
 )
 
+add_eth_unit_test(test_cmd_network_info
+  APP_SOURCES
+    ${APP_DIR}/features/provide_network_info/cmd_network_info.c
+  INCLUDES
+    ${APP_DIR}/features/provide_network_info
+  WRAPS
+    tlv_from_apdu
+    handle_network_icon_chunks
+    network_info_cleanup
+)
+
 add_eth_unit_test(test_handle_swap_sign_transaction
   APP_SOURCES
     ${APP_DIR}/swap/handle_swap_sign_transaction.c
