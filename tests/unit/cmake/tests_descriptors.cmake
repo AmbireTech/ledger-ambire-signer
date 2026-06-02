@@ -23,6 +23,39 @@ add_eth_unit_test(test_handle_check_address
     get_public_key_string
 )
 
+add_eth_unit_test(test_cmd_proxy_info
+  APP_SOURCES
+    ${APP_DIR}/features/provide_proxy_info/cmd_proxy_info.c
+  INCLUDES
+    ${APP_DIR}/features/provide_proxy_info
+  WRAPS
+    tlv_from_apdu
+    handle_proxy_info_tlv_payload
+    verify_proxy_info_struct
+    proxy_cleanup
+)
+
+add_eth_unit_test(test_cmd_trusted_name
+  APP_SOURCES
+    ${APP_DIR}/features/provide_trusted_name/cmd_trusted_name.c
+  WRAPS
+    tlv_from_apdu
+    handle_trusted_name_tlv_payload
+    verify_trusted_name_struct
+    roll_challenge
+)
+
+add_eth_unit_test(test_cmd_enum_value
+  APP_SOURCES
+    ${APP_DIR}/features/provide_enum_value/cmd_enum_value.c
+  INCLUDES
+    ${APP_DIR}/features/provide_enum_value
+  WRAPS
+    tlv_from_apdu
+    handle_enum_value_tlv_payload
+    verify_enum_value_struct
+)
+
 add_eth_unit_test(test_handle_swap_sign_transaction
   APP_SOURCES
     ${APP_DIR}/swap/handle_swap_sign_transaction.c
