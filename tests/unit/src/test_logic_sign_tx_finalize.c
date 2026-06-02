@@ -40,21 +40,6 @@
 // =============================================================================
 // Wraps + globals
 // =============================================================================
-// Most external helpers consulted by finalize_parsing_helper are now WEAK
-// in mocks/mock.c driven through wraps.h globals:
-//
-//   get_tx_chain_id           -> g_tx_chain_id
-//   get_displayable_ticker    -> g_displayable_ticker
-//   get_public_key            -> g_get_public_key_ret
-//   getEthDisplayableAddress  -> g_getEthDisplayableAddress_ret
-//   amountToString            -> g_amountToString_ret
-//   get_network_as_string     -> g_get_network_as_string_ret
-//   app_exit                  -> g_noreturn_armed + g_noreturn_calls
-//   app_quit                  -> g_noreturn_calls (returns normally,
-//                                                  per the production
-//                                                  contract)
-//   send_swap_error_simple    -> g_noreturn_armed + g_noreturn_calls
-//
 // The wraps below are unique to this test (plugin / swap / IO seph
 // helpers + cx_hash_no_throw) -- no central default would carry the
 // same intent.
@@ -150,58 +135,6 @@ void __wrap_mem_utils_free_and_null(void **ptr_storage, const char *file, int li
     if (ptr_storage != NULL) {
         *ptr_storage = NULL;
     }
-}
-
-// =============================================================================
-// Strong stubs for symbols referenced but not exercised on the paths
-// under test.
-// =============================================================================
-
-s_calldata *get_root_calldata(void) {
-    return NULL;
-}
-
-const uint8_t *calldata_get_selector(const s_calldata *node) {
-    (void) node;
-    return NULL;
-}
-
-bool copy_tx_data(txContext_t *context, uint8_t *out, uint32_t length) {
-    (void) context;
-    (void) out;
-    (void) length;
-    return true;
-}
-
-void eth_plugin_prepare_finalize(void *msg) {
-    (void) msg;
-}
-void eth_plugin_prepare_init(void *msg, const uint8_t *pluginName, uint8_t pluginNameLength) {
-    (void) msg;
-    (void) pluginName;
-    (void) pluginNameLength;
-}
-void eth_plugin_prepare_provide_info(void *msg) {
-    (void) msg;
-}
-void eth_plugin_prepare_provide_parameter(void *msg, const uint8_t *param, uint32_t paramOffset) {
-    (void) msg;
-    (void) param;
-    (void) paramOffset;
-}
-bool eth_plugin_perform_init(uint8_t *contractAddress, void *msg) {
-    (void) contractAddress;
-    (void) msg;
-    return true;
-}
-void *get_matching_asset_info(const uint64_t *chain_id, const uint8_t *address) {
-    (void) chain_id;
-    (void) address;
-    return NULL;
-}
-void ui_confirm_parameter(void) {
-}
-void ui_confirm_selector(void) {
 }
 
 // =============================================================================

@@ -813,6 +813,82 @@ __attribute__((weak)) const void *get_matching_map_entry(uint8_t id,
 }
 
 // =============================================================================
+// app/src/features/sign_tx/logic_sign_tx.c link-fillers
+// =============================================================================
+// logic_sign_tx.c references a handful of plugin / UI / calldata helpers
+// that the finalize-side tests don't exercise (most live inside
+// custom_processor). The defaults below let any test that links
+// logic_sign_tx.c resolve them without redeclaring the boilerplate.
+// Tests that DO exercise the plugin path keep a strong local override.
+
+struct txContext_t;
+__attribute__((weak)) bool copy_tx_data(struct txContext_t *context,
+                                        uint8_t *out,
+                                        uint32_t length) {
+    (void) context;
+    (void) out;
+    (void) length;
+    return true;
+}
+
+__attribute__((weak)) void eth_plugin_prepare_init(void *msg,
+                                                   const uint8_t *pluginName,
+                                                   uint8_t pluginNameLength) {
+    (void) msg;
+    (void) pluginName;
+    (void) pluginNameLength;
+}
+
+__attribute__((weak)) bool eth_plugin_perform_init(uint8_t *contractAddress, void *msg) {
+    (void) contractAddress;
+    (void) msg;
+    return true;
+}
+
+__attribute__((weak)) void eth_plugin_prepare_finalize(void *msg) {
+    (void) msg;
+}
+
+__attribute__((weak)) void eth_plugin_prepare_provide_info(void *msg) {
+    (void) msg;
+}
+
+__attribute__((weak)) void eth_plugin_prepare_provide_parameter(void *msg,
+                                                                const uint8_t *param,
+                                                                uint32_t paramOffset) {
+    (void) msg;
+    (void) param;
+    (void) paramOffset;
+}
+
+__attribute__((weak)) void *get_matching_asset_info(const uint64_t *chain_id,
+                                                    const uint8_t *address) {
+    (void) chain_id;
+    (void) address;
+    return NULL;
+}
+
+__attribute__((weak)) void ui_confirm_parameter(void) {
+}
+
+__attribute__((weak)) void ui_confirm_selector(void) {
+}
+
+// get_root_calldata + calldata_get_selector live in tx_ctx.c in production.
+// Test targets that link tx_ctx.c get the real impl; targets that don't
+// (e.g. logic_sign_tx tests) fall through to these WEAKs.
+
+struct s_calldata;
+__attribute__((weak)) struct s_calldata *get_root_calldata(void) {
+    return NULL;
+}
+
+__attribute__((weak)) const uint8_t *calldata_get_selector(const struct s_calldata *node) {
+    (void) node;
+    return NULL;
+}
+
+// =============================================================================
 // app/src/main.c -- BIP-32 path parsing
 // =============================================================================
 // parseBip32 reads a length byte then N*4 path bytes. The stub mirrors
