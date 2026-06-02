@@ -72,6 +72,45 @@ add_eth_unit_test(test_logic_sign_tx_fee
   COMPILE_OPTIONS "SHELL:-include os_pic.h"
 )
 
+add_eth_unit_test(test_logic_sign_tx_finalize
+  APP_SOURCES
+    ${APP_DIR}/features/sign_tx/logic_sign_tx.c
+    ${APP_DIR}/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  INCLUDES
+    ${APP_DIR}/features/sign_tx
+    ${APP_DIR}/features/get_public_key
+    ${APP_DIR}/features/generic_tx_parser
+    ${APP_DIR}/features/provide_network_info
+    ${APP_DIR}/features/provide_proxy_info
+    ${APP_DIR}/plugins
+    ${APP_DIR}/swap
+    ${BOLOS_SDK}/io_legacy/include
+  DEFS
+    HAVE_SWAP
+    OS_IO_SEPH_BUFFER_SIZE=272
+  WRAPS
+    get_tx_chain_id
+    get_displayable_ticker
+    cx_hash_no_throw
+    get_public_key
+    getEthDisplayableAddress
+    amountToString
+    get_network_as_string
+    eth_plugin_call
+    io_seproxyhal_send_status
+    io_seproxyhal_touch_tx_ok
+    ui_error_blind_signing
+    ux_approve_tx
+    swap_check_destination
+    swap_check_amount
+    swap_check_fee
+    mem_utils_free_and_null
+  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+)
+
 add_eth_unit_test(test_cmd_sign_tx
   APP_SOURCES
     ${APP_DIR}/features/sign_tx/cmd_sign_tx.c
