@@ -1,5 +1,15 @@
 # tests_descriptors.cmake -- generated test definitions
 
+add_eth_unit_test(test_ledger_pki
+  APP_SOURCES
+    ${APP_DIR}/ledger_pki.c
+  INCLUDES
+    ${BOLOS_SDK}/lib_pki
+  DEFS
+    HAVE_SECP_CURVES
+    HAVE_ECC_WEIERSTRASS
+)
+
 add_eth_unit_test(test_network
   APP_SOURCES
     ${APP_DIR}/network.c
