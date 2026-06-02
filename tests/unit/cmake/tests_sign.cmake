@@ -98,9 +98,13 @@ add_eth_unit_test(test_logic_sign_tx_finalize
     amountToString
     getEthDisplayableAddress
     eth_plugin_call
+    eth_plugin_perform_init
+    copy_tx_data
     io_seproxyhal_send_status
     io_seproxyhal_touch_tx_ok
     ui_error_blind_signing
+    ui_confirm_selector
+    ui_confirm_parameter
     ux_approve_tx
     swap_check_destination
     swap_check_amount

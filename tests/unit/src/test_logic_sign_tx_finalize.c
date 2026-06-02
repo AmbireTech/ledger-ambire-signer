@@ -137,6 +137,37 @@ void __wrap_mem_utils_free_and_null(void **ptr_storage, const char *file, int li
     }
 }
 
+// custom_processor wraps. The default lets the plugin path run "as
+// installed"; tests that need a specific outcome flip the *_ret global.
+static eth_plugin_result_t g_perform_init_ret = ETH_PLUGIN_RESULT_UNAVAILABLE;
+eth_plugin_result_t __wrap_eth_plugin_perform_init(uint8_t *contract_address, void *init) {
+    (void) contract_address;
+    (void) init;
+    return g_perform_init_ret;
+}
+
+static bool g_copy_tx_data_ret = true;
+bool __wrap_copy_tx_data(txContext_t *context, uint8_t *out, uint32_t length) {
+    (void) context;
+    (void) length;
+    // Fill the destination so the inner format_hex on the selector path
+    // has something deterministic to consume.
+    if (g_copy_tx_data_ret && out != NULL) {
+        memset(out, 0xAA, length);
+    }
+    return g_copy_tx_data_ret;
+}
+
+static int g_ui_confirm_selector_calls = 0;
+void __wrap_ui_confirm_selector(void) {
+    g_ui_confirm_selector_calls++;
+}
+
+static int g_ui_confirm_parameter_calls = 0;
+void __wrap_ui_confirm_parameter(void) {
+    g_ui_confirm_parameter_calls++;
+}
+
 // =============================================================================
 // Fixture
 // =============================================================================
@@ -166,6 +197,10 @@ static int reset(void **state) {
     g_swap_check_destination_ret = true;
     g_swap_check_amount_ret = true;
     g_swap_check_fee_ret = true;
+    g_perform_init_ret = ETH_PLUGIN_RESULT_UNAVAILABLE;
+    g_copy_tx_data_ret = true;
+    g_ui_confirm_selector_calls = 0;
+    g_ui_confirm_parameter_calls = 0;
 
     g_tx_chain_id = 1;
     g_displayable_ticker = "ETH";
@@ -414,6 +449,231 @@ static void test_swap_crosschain_wrong_mode_triggers_app_exit(void **state) {
 }
 
 // =============================================================================
+// custom_processor -- per-chunk RLP DATA dispatcher
+// =============================================================================
+// custom_processor is what eth_ustream calls for every RLP DATA chunk
+// during the parse. It decides whether to:
+//   - skip the chunk entirely (CUSTOM_NOT_HANDLED, no calldata handling)
+//   - dispatch to a plugin (CUSTOM_HANDLED / CUSTOM_SUSPENDED)
+//   - reject the transaction (CUSTOM_FAULT, e.g. blind-signing forbidden)
+//
+// A bug here either skips a plugin parameter (the review shows partial
+// info) or accepts data that should have been rejected as blind
+// signing. The fixture sets up a "valid first chunk on LEGACY RLP DATA"
+// baseline; each test perturbs one field.
+
+static void cp_setup_first_chunk(void) {
+    // Default: LEGACY tx, first chunk of an 8-byte data field, plugin
+    // unavailable, no contractDetails, data allowed.
+    memset(&s_ctx, 0, sizeof(s_ctx));
+    s_ctx.txType = LEGACY;
+    s_ctx.currentField = LEGACY_RLP_DATA;
+    s_ctx.currentFieldLength = 8;
+    s_ctx.currentFieldPos = 0;
+    s_ctx.commandLength = 8;
+    s_ctx.store_calldata = false;
+    // context->content is dereferenced on the first `dataPresent = true`
+    // -- point it at the app-globals tmpContent so the test process
+    // doesn't segfault.
+    s_ctx.content = &tmpContent.txContent;
+    tmpContent.txContent.destinationLength = ADDRESS_LENGTH;
+    g_n_storage_writable.dataAllowed = true;
+    g_n_storage_writable.contractDetails = false;
+    G_called_from_swap = false;
+}
+
+// --- outer gates ---------------------------------------------------------
+
+static void test_cp_not_rlp_data_field_returns_not_handled(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.currentField = LEGACY_RLP_DATA + 1;  // any non-DATA field
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_NOT_HANDLED);
+    // dataPresent MUST NOT be flipped on a non-DATA field.
+    assert_false(tmpContent.txContent.dataPresent);
+}
+
+static void test_cp_empty_field_returns_not_handled(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.currentFieldLength = 0;
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_NOT_HANDLED);
+    assert_false(tmpContent.txContent.dataPresent);
+}
+
+static void test_cp_new_contract_skips_plugin_dispatch(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    tmpContent.txContent.destinationLength = 0;  // contract creation
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_NOT_HANDLED);
+    // dataPresent flips even though we don't dispatch -- the user must
+    // still see "Contract creation: data attached".
+    assert_true(tmpContent.txContent.dataPresent);
+}
+
+static void test_cp_short_field_returns_not_handled(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.currentFieldLength = 3;  // shorter than CALLDATA_SELECTOR_SIZE
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_NOT_HANDLED);
+    assert_true(tmpContent.txContent.dataPresent);
+}
+
+// --- first chunk -- plugin path -----------------------------------------
+
+static void test_cp_first_chunk_short_command_returns_fault(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.commandLength = 3;  // can't even read the selector -- corrupt frame
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_FAULT);
+}
+
+static void test_cp_plugin_init_error_returns_fault(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    g_n_storage_writable.contractDetails = false;  // trigger plugin path
+    g_perform_init_ret = ETH_PLUGIN_RESULT_ERROR;
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_FAULT);
+}
+
+static void test_cp_plugin_success_selector_only_returns_not_handled(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.currentFieldLength = 4;  // only the selector, no params
+    s_ctx.commandLength = 4;
+    g_perform_init_ret = ETH_PLUGIN_RESULT_SUCCESSFUL;
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_NOT_HANDLED);
+}
+
+static void test_cp_plugin_success_selector_copy_failure_returns_fault(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    g_perform_init_ret = ETH_PLUGIN_RESULT_SUCCESSFUL;
+    g_copy_tx_data_ret = false;  // selector copy fails
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_FAULT);
+}
+
+// --- first chunk -- no plugin / blind signing gate ----------------------
+
+static void test_cp_first_chunk_data_forbidden_returns_fault(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    g_n_storage_writable.dataAllowed = false;  // blind signing forbidden
+    // pluginStatus stays UNAVAILABLE -> we fall through to the no-plugin
+    // path which checks dataAllowed.
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_FAULT);
+    assert_int_equal(g_blind_signing_calls, 1);
+}
+
+static void test_cp_first_chunk_store_calldata_returns_not_handled(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.store_calldata = true;  // host asked us to buffer the calldata
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_NOT_HANDLED);
+}
+
+static void test_cp_first_chunk_no_contract_details_returns_not_handled(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    g_n_storage_writable.contractDetails = false;
+    // pluginStatus stays UNAVAILABLE, dataAllowed=true -> falls to the
+    // `store_calldata || !contractDetails` gate -> NOT_HANDLED.
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_NOT_HANDLED);
+}
+
+// --- first chunk -- contractDetails on -> selector confirm UI -----------
+
+static void test_cp_first_chunk_contract_details_shows_selector(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    g_n_storage_writable.contractDetails = true;  // user wants to see selector
+    // perform_init NOT called when contractDetails is on AND
+    // G_called_from_swap is false (early return guard). pluginStatus
+    // stays UNAVAILABLE -> falls to the no-plugin path.
+    // blockSize=4, copySize=4 -> SUSPENDED with ui_confirm_selector.
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_SUSPENDED);
+    assert_int_equal(g_ui_confirm_selector_calls, 1);
+    assert_int_equal(g_ui_confirm_parameter_calls, 0);
+}
+
+// --- continuation chunks (currentFieldPos > 0) --------------------------
+
+static void test_cp_continuation_store_calldata_returns_not_handled(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.currentFieldPos = 4;  // already past the selector
+    s_ctx.currentFieldLength = 36;
+    s_ctx.commandLength = 32;
+    s_ctx.store_calldata = true;
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_NOT_HANDLED);
+}
+
+static void test_cp_continuation_no_plugin_no_details_returns_not_handled(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.currentFieldPos = 4;
+    s_ctx.currentFieldLength = 36;
+    s_ctx.commandLength = 32;
+    g_n_storage_writable.contractDetails = false;
+    dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_UNAVAILABLE;
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_NOT_HANDLED);
+}
+
+static void test_cp_continuation_plugin_provide_param_success_returns_handled(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.currentFieldPos = 4;
+    s_ctx.currentFieldLength = 4 + CALLDATA_CHUNK_SIZE;  // selector + 1 param
+    s_ctx.commandLength = CALLDATA_CHUNK_SIZE;
+    dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_SUCCESSFUL;
+    // eth_plugin_call(PROVIDE_PARAMETER) defaults to FALLBACK which is
+    // > ETH_PLUGIN_RESULT_ERROR; the source uses `if (!eth_plugin_call(...))`
+    // so any non-zero return is "ok". g_plugin_call_finalize_ret is the
+    // FINALIZE method; PROVIDE_PARAMETER isn't routed through it.
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_HANDLED);
+    // fieldIndex bumps after a successful PROVIDE_PARAMETER round.
+    assert_int_equal(dataContext.tokenContext.fieldIndex, 1);
+}
+
+static void test_cp_continuation_plugin_partial_block_returns_handled(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.currentFieldPos = 4;
+    s_ctx.currentFieldLength = 4 + CALLDATA_CHUNK_SIZE;
+    s_ctx.commandLength = 10;  // less than blockSize -> partial copy
+    dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_SUCCESSFUL;
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_HANDLED);
+    // No PROVIDE_PARAMETER on partial block; fieldOffset advanced.
+    assert_int_equal(dataContext.tokenContext.fieldOffset, 10);
+}
+
+static void test_cp_continuation_copy_failure_returns_fault(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.currentFieldPos = 4;
+    s_ctx.currentFieldLength = 4 + CALLDATA_CHUNK_SIZE;
+    s_ctx.commandLength = CALLDATA_CHUNK_SIZE;
+    dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_SUCCESSFUL;
+    g_copy_tx_data_ret = false;
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_FAULT);
+}
+
+// --- continuation chunk -- contractDetails, full block -> parameter UI ---
+
+static void test_cp_continuation_contract_details_shows_parameter(void **state) {
+    (void) state;
+    cp_setup_first_chunk();
+    s_ctx.currentFieldPos = 4;
+    s_ctx.currentFieldLength = 4 + CALLDATA_CHUNK_SIZE;
+    s_ctx.commandLength = CALLDATA_CHUNK_SIZE;
+    g_n_storage_writable.contractDetails = true;
+    dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_UNAVAILABLE;
+    assert_int_equal(custom_processor(&s_ctx), CUSTOM_SUSPENDED);
+    assert_int_equal(g_ui_confirm_parameter_calls, 1);
+    assert_int_equal(g_ui_confirm_selector_calls, 0);
+}
+
+// =============================================================================
 // Tests already pinned in test_logic_sign_tx_fee.c remain there; this
 // file deliberately doesn't re-cover max_transaction_fee_to_string.
 // =============================================================================
@@ -438,6 +698,26 @@ int main(void) {
         cmocka_unit_test_setup(test_swap_double_sign_safety_triggers_app_quit, reset),
         cmocka_unit_test_setup(test_swap_unexpected_plugin_type_triggers_app_exit, reset),
         cmocka_unit_test_setup(test_swap_crosschain_wrong_mode_triggers_app_exit, reset),
+        cmocka_unit_test_setup(test_cp_not_rlp_data_field_returns_not_handled, reset),
+        cmocka_unit_test_setup(test_cp_empty_field_returns_not_handled, reset),
+        cmocka_unit_test_setup(test_cp_new_contract_skips_plugin_dispatch, reset),
+        cmocka_unit_test_setup(test_cp_short_field_returns_not_handled, reset),
+        cmocka_unit_test_setup(test_cp_first_chunk_short_command_returns_fault, reset),
+        cmocka_unit_test_setup(test_cp_plugin_init_error_returns_fault, reset),
+        cmocka_unit_test_setup(test_cp_plugin_success_selector_only_returns_not_handled, reset),
+        cmocka_unit_test_setup(test_cp_plugin_success_selector_copy_failure_returns_fault, reset),
+        cmocka_unit_test_setup(test_cp_first_chunk_data_forbidden_returns_fault, reset),
+        cmocka_unit_test_setup(test_cp_first_chunk_store_calldata_returns_not_handled, reset),
+        cmocka_unit_test_setup(test_cp_first_chunk_no_contract_details_returns_not_handled, reset),
+        cmocka_unit_test_setup(test_cp_first_chunk_contract_details_shows_selector, reset),
+        cmocka_unit_test_setup(test_cp_continuation_store_calldata_returns_not_handled, reset),
+        cmocka_unit_test_setup(test_cp_continuation_no_plugin_no_details_returns_not_handled,
+                               reset),
+        cmocka_unit_test_setup(test_cp_continuation_plugin_provide_param_success_returns_handled,
+                               reset),
+        cmocka_unit_test_setup(test_cp_continuation_plugin_partial_block_returns_handled, reset),
+        cmocka_unit_test_setup(test_cp_continuation_copy_failure_returns_fault, reset),
+        cmocka_unit_test_setup(test_cp_continuation_contract_details_shows_parameter, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
