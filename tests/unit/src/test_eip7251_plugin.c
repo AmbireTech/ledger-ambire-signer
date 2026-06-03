@@ -103,6 +103,85 @@ static void test_parameter_overflow_rejected(void **state) {
     assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
+// =============================================================================
+// Branch-coverage quick wins -- NULL guards, switch defaults, edge buffers
+// =============================================================================
+
+static void test_dispatcher_null_param_silent(void **state) {
+    (void) state;
+    eip7251_plugin_call(ETH_PLUGIN_INIT_CONTRACT, NULL);
+}
+
+static void test_dispatcher_unknown_message_silent(void **state) {
+    (void) state;
+    ethPluginInitContract_t msg = {0};
+    msg.result = 0xAB;
+    eip7251_plugin_call((eth_plugin_msg_t) 0x7F, &msg);
+    assert_int_equal(msg.result, 0xAB);
+}
+
+static void test_ui_msg_too_small_returns(void **state) {
+    (void) state;
+    // msgLength < 2 short-circuits BEFORE the switch.
+    eip7251_context_t ctx = {0};
+    char title[16] = {0};
+    char msg_buf[2] = {0};
+    ethQueryContractUI_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.title = title;
+    msg.titleLength = sizeof(title);
+    msg.msg = msg_buf;
+    msg.msgLength = 1;
+    msg.screenIndex = 0;
+    msg.result = ETH_PLUGIN_RESULT_OK;
+    txContent_t tx = {0};
+    msg.txContent = &tx;
+    eip7251_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
+    assert_string_equal(title, "");
+}
+
+static void test_ui_unknown_screen_returns_no_result_set(void **state) {
+    (void) state;
+    // screenIndex not in {0, target?1, tx_value?...} -> S_UNKNOWN ->
+    // bare `return` -> param->result NOT bumped.
+    eip7251_context_t ctx = {0};
+    char title[16] = {0};
+    char msg_buf[64] = {0};
+    ethQueryContractUI_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.title = title;
+    msg.titleLength = sizeof(title);
+    msg.msg = msg_buf;
+    msg.msgLength = sizeof(msg_buf);
+    msg.screenIndex = 99;
+    msg.result = 0xAB;
+    txContent_t tx = {0};
+    msg.txContent = &tx;
+    eip7251_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
+    assert_int_equal(msg.result, 0xAB);
+}
+
+static void test_has_tx_value_length_above_uint64_returns_true(void **state) {
+    (void) state;
+    // The `value.length > sizeof(uint64_t)` early-true branch in
+    // has_tx_value never fires on the existing tests (all use
+    // length<=8). FINALIZE with a >8-byte value reaches it and the
+    // tx-value extra screen gets added.
+    eip7251_context_t ctx = {.received = CONSOLIDATION_REQUEST_SIZE};
+    memset(ctx.source_pubkey, 0xAA, VALIDATOR_PUBKEY_SIZE);
+    memset(ctx.target_pubkey, 0xBB, VALIDATOR_PUBKEY_SIZE);  // target != source
+    txContent_t tx = {0};
+    tx.value.length = 9;  // > sizeof(uint64_t)
+    memset(tx.value.value, 0xFF, tx.value.length);
+    ethPluginFinalize_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.txContent = &tx;
+    eip7251_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+    // 2 screens for consolidate (source + target) + 1 for tx value = 3.
+    assert_int_equal(msg.numScreens, 3);
+}
+
 static void test_parameter_success_copies_into_context(void **state) {
     (void) state;
     // Normal path: ctx empty, push a 32-byte chunk -> memcpy into
@@ -299,6 +378,11 @@ int main(void) {
         cmocka_unit_test(test_init_copies_selector),
         cmocka_unit_test(test_parameter_overflow_rejected),
         cmocka_unit_test(test_parameter_success_copies_into_context),
+        cmocka_unit_test(test_dispatcher_null_param_silent),
+        cmocka_unit_test(test_dispatcher_unknown_message_silent),
+        cmocka_unit_test(test_ui_msg_too_small_returns),
+        cmocka_unit_test(test_ui_unknown_screen_returns_no_result_set),
+        cmocka_unit_test(test_has_tx_value_length_above_uint64_returns_true),
         cmocka_unit_test(test_finalize_incomplete_rejected),
         cmocka_unit_test(test_finalize_compound_single_screen),
         cmocka_unit_test(test_finalize_consolidate_two_screens),

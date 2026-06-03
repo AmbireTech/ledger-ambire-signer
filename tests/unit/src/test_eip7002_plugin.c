@@ -358,6 +358,84 @@ static void test_ui_amount_screen_when_partial(void **state) {
 }
 
 // =============================================================================
+// Branch-coverage quick wins -- NULL guards, switch defaults, edge buffers
+// =============================================================================
+
+static void test_dispatcher_null_param_silent(void **state) {
+    (void) state;
+    // The dispatcher's outer `if (param != NULL)` guards every sub-handler.
+    // Passing NULL must short-circuit silently rather than crash.
+    eip7002_plugin_call(ETH_PLUGIN_INIT_CONTRACT, NULL);
+}
+
+static void test_dispatcher_unknown_message_silent(void **state) {
+    (void) state;
+    // switch (msg) default branch: an unmapped eth_plugin_msg_t value
+    // hits the PRINTF default and returns without touching param.
+    ethPluginInitContract_t msg = {0};
+    msg.result = 0xAB;  // sentinel
+    eip7002_plugin_call((eth_plugin_msg_t) 0x7F, &msg);
+    assert_int_equal(msg.result, 0xAB);
+}
+
+static void test_ui_validator_msg_too_small_short_circuits(void **state) {
+    (void) state;
+    // msgLength < 2 means we can't even write the "0x" prefix.
+    eip7002_context_t ctx = {0};
+    char title[16] = {0};
+    char msg_buf[4] = {0};
+    ethQueryContractUI_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.title = title;
+    msg.titleLength = sizeof(title);
+    msg.msg = msg_buf;
+    msg.msgLength = 1;    // too small for "0x"
+    msg.screenIndex = 0;  // S_VALIDATOR
+    msg.result = ETH_PLUGIN_RESULT_OK;
+    txContent_t tx = {0};
+    msg.txContent = &tx;
+    eip7002_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
+    // The S_VALIDATOR path returns early on msgLength<2 without
+    // writing "Validator" into the title.
+    assert_string_equal(title, "");
+}
+
+static void test_ui_unknown_screen_index_no_op(void **state) {
+    (void) state;
+    // screenIndex doesn't match S_VALIDATOR / S_TX_VALUE / S_REQUEST_AMOUNT
+    // -> falls into S_UNKNOWN -> bare `break` -> result set to OK at end.
+    eip7002_context_t ctx = {0};
+    char title[16] = {0};
+    char msg_buf[64] = {0};
+    ethQueryContractUI_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.title = title;
+    msg.titleLength = sizeof(title);
+    msg.msg = msg_buf;
+    msg.msgLength = sizeof(msg_buf);
+    msg.screenIndex = 99;
+    txContent_t tx = {0};
+    msg.txContent = &tx;
+    eip7002_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+    assert_string_equal(title, "");
+}
+
+static void test_has_tx_value_null_txcontent_returns_false(void **state) {
+    (void) state;
+    // has_tx_value is static; reach it through FINALIZE with NULL
+    // txContent. has_tx_value()'s first OR clause catches NULL and
+    // returns false -- the finalize then proceeds without adding the
+    // tx-value extra screen.
+    eip7002_context_t ctx = {.received = WITHDRAWAL_REQUEST_SIZE};
+    ethPluginFinalize_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.txContent = NULL;
+    eip7002_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -377,6 +455,11 @@ int main(void) {
         cmocka_unit_test_setup(test_ui_validator_screen_renders_pubkey, reset),
         cmocka_unit_test_setup(test_ui_tx_value_screen_when_above_threshold, reset),
         cmocka_unit_test_setup(test_ui_amount_screen_when_partial, reset),
+        cmocka_unit_test_setup(test_dispatcher_null_param_silent, reset),
+        cmocka_unit_test_setup(test_dispatcher_unknown_message_silent, reset),
+        cmocka_unit_test_setup(test_ui_validator_msg_too_small_short_circuits, reset),
+        cmocka_unit_test_setup(test_ui_unknown_screen_index_no_op, reset),
+        cmocka_unit_test_setup(test_has_tx_value_null_txcontent_returns_false, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
