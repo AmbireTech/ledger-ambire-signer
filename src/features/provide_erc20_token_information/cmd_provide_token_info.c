@@ -134,7 +134,7 @@ static bool handle_tuid_address(const tlv_data_t *data, s_tuid_ctx *out) {
     X(0x23, TAG_CHAIN_ID, handle_tuid_chain_id, ENFORCE_UNIQUE_TAG) \
     X(0x22, TAG_ADDRESS, handle_tuid_address, ENFORCE_UNIQUE_TAG)
 
-DEFINE_TLV_PARSER(TUID_TLV_TAGS, NULL, parse_dynamic_token_tuid);
+DEFINE_TLV_PARSER(TUID_TLV_TAGS, NULL, parse_dynamic_token_tuid)
 
 static bool erc20_token_info_handler(const buffer_t *buf) {
     tlv_dynamic_descriptor_out_t tlv_output = {0};

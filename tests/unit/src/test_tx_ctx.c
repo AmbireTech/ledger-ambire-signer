@@ -46,14 +46,6 @@
 // Globals
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-uint8_t appState = APP_STATE_IDLE;
-
 // =============================================================================
 // Wraps / stubs for collaborators
 // =============================================================================
@@ -64,76 +56,11 @@ static const uint8_t g_self_addr[ADDRESS_LENGTH] = {
     0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
     0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
 };
-// cx_sha3_init_no_throw is a SDK syscall — we never use the resulting
-// hash context except to feed finalize_hash (also wrapped), so a plain
-// CX_OK stub is enough.
-uint32_t cx_sha3_init_no_throw(cx_sha3_t *hash, size_t size) {
-    (void) hash;
-    (void) size;
-    return 0;  // CX_OK
-}
 
 // process_empty_tx is a static helper inside tx_ctx.c that drags display-
 // layer symbols into the link even though our tests don't exercise it.
 // Provide minimal stubs so the link resolves; these are NEVER called by
 // the test cases below.
-bool set_intent_field(const char *value) {
-    (void) value;
-    return true;
-}
-const char *get_displayable_ticker(const uint64_t *chain_id,
-                                   const chain_config_t *cfg,
-                                   bool mainnet) {
-    (void) chain_id;
-    (void) cfg;
-    (void) mainnet;
-    return "ETH";
-}
-bool amountToString(const uint8_t *amount,
-                    uint8_t amount_len,
-                    uint8_t decimals,
-                    const char *ticker,
-                    char *out_buffer,
-                    size_t out_buffer_size) {
-    (void) amount;
-    (void) amount_len;
-    (void) decimals;
-    (void) ticker;
-    (void) out_buffer;
-    (void) out_buffer_size;
-    return true;
-}
-bool add_to_field_table(e_param_type type, const char *key, const char *value, const void *extra) {
-    (void) type;
-    (void) key;
-    (void) value;
-    (void) extra;
-    return true;
-}
-uint64_t get_tx_chain_id(void) {
-    return 1;
-}
-const s_trusted_name *get_trusted_name(uint8_t type_count,
-                                       const e_name_type *types,
-                                       uint8_t source_count,
-                                       const e_name_source *sources,
-                                       const uint64_t *chain_id,
-                                       const uint8_t *addr) {
-    (void) type_count;
-    (void) types;
-    (void) source_count;
-    (void) sources;
-    (void) chain_id;
-    (void) addr;
-    return NULL;
-}
-bool getEthDisplayableAddress(const uint8_t *addr, char *out, size_t out_size, uint64_t chain_id) {
-    (void) addr;
-    (void) out;
-    (void) out_size;
-    (void) chain_id;
-    return true;
-}
 
 // EIP-712 calldata-info helpers — only reached when appState ==
 // APP_STATE_SIGNING_EIP712, which our tests never set.

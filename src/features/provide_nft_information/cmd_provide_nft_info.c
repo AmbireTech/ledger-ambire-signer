@@ -92,7 +92,7 @@ uint16_t handle_provide_nft_information(uint8_t p1,
         return SWO_INCORRECT_DATA;
     }
     collection_name_length = data[offset];
-    if ((collection_name_length + 1) > sizeof(info.collection_name)) {
+    if ((size_t) collection_name_length + 1 > sizeof(info.collection_name)) {
         return SWO_INCORRECT_DATA;
     }
     offset += sizeof(collection_name_length);

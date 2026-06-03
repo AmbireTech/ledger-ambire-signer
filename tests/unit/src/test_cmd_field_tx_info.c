@@ -34,18 +34,11 @@
 #include "status_words.h"
 #include "tlv_apdu.h"
 #include "cx.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals
 // =============================================================================
-
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-uint8_t appState = APP_STATE_IDLE;
 
 // =============================================================================
 // Wraps
@@ -55,11 +48,11 @@ uint8_t appState = APP_STATE_IDLE;
 // Caller treats return as a bool (`if (!tlv_from_apdu(...))`), so
 // TLV_APDU_ERROR == 0 means "fail" and any non-zero (PENDING, SUCCESS)
 // is "ok".
-static e_tlv_apdu_ret g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
+static e_tlv_apdu_ret g_field_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
 // When true, the wrap actually invokes the handler with an empty buffer.
 // Used by tests that want to exercise the static handle_tlv_payload helpers.
-static bool g_tlv_invoke_handler = false;
-static bool g_tlv_handler_returned = false;
+static bool g_field_tlv_invoke_handler = false;
+static bool g_field_tlv_handler_returned = false;
 e_tlv_apdu_ret __wrap_tlv_from_apdu(bool first_chunk,
                                     uint8_t lc,
                                     const uint8_t *payload,
@@ -67,18 +60,14 @@ e_tlv_apdu_ret __wrap_tlv_from_apdu(bool first_chunk,
     (void) first_chunk;
     (void) lc;
     (void) payload;
-    if (g_tlv_invoke_handler && handler != NULL) {
+    if (g_field_tlv_invoke_handler && handler != NULL) {
         buffer_t buf = {.ptr = NULL, .size = 0, .offset = 0};
-        g_tlv_handler_returned = handler(&buf);
+        g_field_tlv_handler_returned = handler(&buf);
     }
-    return g_tlv_from_apdu_ret;
+    return g_field_tlv_from_apdu_ret;
 }
 
 // cmd_field reads from get_current_tx_info — control it via a wrap.
-static const s_tx_info *g_tx_info_ret = NULL;
-const s_tx_info *__wrap_get_current_tx_info(void) {
-    return g_tx_info_ret;
-}
 
 // cmd_field calls gcs_cleanup on the no-tx-info path — count calls.
 static int g_gcs_cleanup_calls = 0;
@@ -183,11 +172,6 @@ bool set_tx_info_into_tx_ctx(s_tx_info *info) {
     (void) info;
     return g_set_tx_info_into_tx_ctx_ret;
 }
-cx_err_t cx_sha256_init_no_throw(cx_sha256_t *hash) {
-    (void) hash;
-    return CX_OK;
-}
-
 // =============================================================================
 // Fixture
 // =============================================================================
@@ -195,9 +179,9 @@ cx_err_t cx_sha256_init_no_throw(cx_sha256_t *hash) {
 static int reset(void **state) {
     (void) state;
     appState = APP_STATE_IDLE;
-    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
-    g_tlv_invoke_handler = false;
-    g_tlv_handler_returned = false;
+    g_field_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
+    g_field_tlv_invoke_handler = false;
+    g_field_tlv_handler_returned = false;
     g_tx_info_ret = NULL;
     g_gcs_cleanup_calls = 0;
     g_handle_field_struct_ret = true;
@@ -257,7 +241,7 @@ static void test_field_tlv_failure_returns_incorrect_data(void **state) {
     static const s_tx_info dummy = {0};
     g_tx_info_ret = &dummy;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_from_apdu_ret = TLV_APDU_ERROR;
+    g_field_tlv_from_apdu_ret = TLV_APDU_ERROR;
     assert_int_equal(handle_field(P1_FIRST_CHUNK, 0, 0, NULL), SWO_INCORRECT_DATA);
     // gcs_cleanup is NOT called on this path — only on the no-tx-info
     // branch.
@@ -269,7 +253,7 @@ static void test_field_tlv_success_returns_success(void **state) {
     static const s_tx_info dummy = {0};
     g_tx_info_ret = &dummy;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
+    g_field_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     assert_int_equal(handle_field(P1_FIRST_CHUNK, 0, 0, NULL), SWO_SUCCESS);
 }
 
@@ -278,7 +262,7 @@ static void test_field_signing_eip712_allowed(void **state) {
     static const s_tx_info dummy = {0};
     g_tx_info_ret = &dummy;
     appState = APP_STATE_SIGNING_EIP712;
-    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
+    g_field_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     assert_int_equal(handle_field(P1_FIRST_CHUNK, 0, 0, NULL), SWO_SUCCESS);
 }
 
@@ -305,21 +289,21 @@ static void test_tx_info_signing_message_state_rejected(void **state) {
 static void test_tx_info_tlv_failure_returns_incorrect_data(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_from_apdu_ret = TLV_APDU_ERROR;
+    g_field_tlv_from_apdu_ret = TLV_APDU_ERROR;
     assert_int_equal(handle_tx_info(P1_FIRST_CHUNK, 0, 0, NULL), SWO_INCORRECT_DATA);
 }
 
 static void test_tx_info_tlv_success_returns_success(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
+    g_field_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     assert_int_equal(handle_tx_info(P1_FIRST_CHUNK, 0, 0, NULL), SWO_SUCCESS);
 }
 
 static void test_tx_info_eip712_signing_allowed(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_EIP712;
-    g_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
+    g_field_tlv_from_apdu_ret = TLV_APDU_SUCCESS;
     assert_int_equal(handle_tx_info(P1_FIRST_CHUNK, 0, 0, NULL), SWO_SUCCESS);
 }
 
@@ -335,12 +319,12 @@ static void test_field_handler_happy_path(void **state) {
     static const s_tx_info dummy = {0};
     g_tx_info_ret = &dummy;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     g_tx_ctx_is_root_ret = true;  // not signing EIP-712 & at root → exit while loop
     g_validate_instruction_hash_budget = 0;
 
     assert_int_equal(handle_field(P1_FIRST_CHUNK, 0, 0, NULL), SWO_SUCCESS);
-    assert_true(g_tlv_handler_returned);
+    assert_true(g_field_tlv_handler_returned);
     // cleanup_field is NOT called on happy path
     assert_int_equal(g_cleanup_field_calls, 0);
 }
@@ -350,11 +334,11 @@ static void test_field_handler_handle_field_struct_failure(void **state) {
     static const s_tx_info dummy = {0};
     g_tx_info_ret = &dummy;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     g_handle_field_struct_ret = false;
 
     handle_field(P1_FIRST_CHUNK, 0, 0, NULL);
-    assert_false(g_tlv_handler_returned);
+    assert_false(g_field_tlv_handler_returned);
     // cleanup_field must be called to release any half-built state
     assert_int_equal(g_cleanup_field_calls, 1);
 }
@@ -364,11 +348,11 @@ static void test_field_handler_hash_failure(void **state) {
     static const s_tx_info dummy = {0};
     g_tx_info_ret = &dummy;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     g_cx_hash_ret = 0x1234;  // not CX_OK
 
     handle_field(P1_FIRST_CHUNK, 0, 0, NULL);
-    assert_false(g_tlv_handler_returned);
+    assert_false(g_field_tlv_handler_returned);
     assert_int_equal(g_cleanup_field_calls, 1);
 }
 
@@ -377,11 +361,11 @@ static void test_field_handler_verify_failure(void **state) {
     static const s_tx_info dummy = {0};
     g_tx_info_ret = &dummy;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     g_verify_field_struct_ret = false;
 
     handle_field(P1_FIRST_CHUNK, 0, 0, NULL);
-    assert_false(g_tlv_handler_returned);
+    assert_false(g_field_tlv_handler_returned);
     assert_int_equal(g_cleanup_field_calls, 1);
 }
 
@@ -390,11 +374,11 @@ static void test_field_handler_format_failure(void **state) {
     static const s_tx_info dummy = {0};
     g_tx_info_ret = &dummy;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     g_format_field_ret = false;
 
     handle_field(P1_FIRST_CHUNK, 0, 0, NULL);
-    assert_false(g_tlv_handler_returned);
+    assert_false(g_field_tlv_handler_returned);
     // format_field failure does NOT trigger cleanup_field (different path)
     assert_int_equal(g_cleanup_field_calls, 0);
 }
@@ -404,7 +388,7 @@ static void test_field_handler_eip712_pop_loop_runs(void **state) {
     static const s_tx_info dummy = {0};
     g_tx_info_ret = &dummy;
     appState = APP_STATE_SIGNING_EIP712;  // forces the while loop entry
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     // The validator returns true twice then false → two pops, then exit.
     g_validate_instruction_hash_budget = 2;
 
@@ -417,12 +401,12 @@ static void test_field_handler_process_empty_failure_propagates(void **state) {
     static const s_tx_info dummy = {0};
     g_tx_info_ret = &dummy;
     appState = APP_STATE_SIGNING_EIP712;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     g_validate_instruction_hash_budget = 1;  // first iter true, then false
     g_process_empty_txs_after_ret = false;   // bail out of while loop
 
     handle_field(P1_FIRST_CHUNK, 0, 0, NULL);
-    assert_false(g_tlv_handler_returned);
+    assert_false(g_field_tlv_handler_returned);
 }
 
 // --- cmd_tx_info internal handler ---
@@ -430,50 +414,50 @@ static void test_field_handler_process_empty_failure_propagates(void **state) {
 static void test_tx_info_handler_happy_path(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
 
     assert_int_equal(handle_tx_info(P1_FIRST_CHUNK, 0, 0, NULL), SWO_SUCCESS);
-    assert_true(g_tlv_handler_returned);
+    assert_true(g_field_tlv_handler_returned);
 }
 
 static void test_tx_info_handler_struct_failure(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     g_handle_tx_info_struct_ret = false;
 
     handle_tx_info(P1_FIRST_CHUNK, 0, 0, NULL);
-    assert_false(g_tlv_handler_returned);
+    assert_false(g_field_tlv_handler_returned);
 }
 
 static void test_tx_info_handler_verify_failure(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     g_verify_tx_info_struct_ret = false;
 
     handle_tx_info(P1_FIRST_CHUNK, 0, 0, NULL);
-    assert_false(g_tlv_handler_returned);
+    assert_false(g_field_tlv_handler_returned);
 }
 
 static void test_tx_info_handler_no_matching_ctx_rejected(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     g_find_matching_tx_ctx_ret = false;
 
     handle_tx_info(P1_FIRST_CHUNK, 0, 0, NULL);
-    assert_false(g_tlv_handler_returned);
+    assert_false(g_field_tlv_handler_returned);
 }
 
 static void test_tx_info_handler_set_info_failure_propagates(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_TX;
-    g_tlv_invoke_handler = true;
+    g_field_tlv_invoke_handler = true;
     g_set_tx_info_into_tx_ctx_ret = false;
 
     handle_tx_info(P1_FIRST_CHUNK, 0, 0, NULL);
-    assert_false(g_tlv_handler_returned);
+    assert_false(g_field_tlv_handler_returned);
 }
 
 // =============================================================================

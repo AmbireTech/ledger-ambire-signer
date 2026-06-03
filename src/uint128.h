@@ -39,7 +39,7 @@ bool gte128(const uint128_t *number1, const uint128_t *number2);
 void add128(const uint128_t *number1, const uint128_t *number2, uint128_t *target);
 void sub128(const uint128_t *number1, const uint128_t *number2, uint128_t *target);
 void or128(const uint128_t *number1, const uint128_t *number2, uint128_t *target);
-void mul128(const uint128_t *number1, const uint128_t *number2, uint128_t *target);
+bool mul128(const uint128_t *number1, const uint128_t *number2, uint128_t *target);
 void divmod128(const uint128_t *l, const uint128_t *r, uint128_t *div, uint128_t *mod);
 bool tostring128(const uint128_t *number, uint32_t base, char *out, uint32_t outLength);
 bool tostring128_signed(const uint128_t *number, uint32_t base, char *out, uint32_t out_length);

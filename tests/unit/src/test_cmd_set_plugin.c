@@ -34,20 +34,11 @@
 #include "shared_context.h"
 #include "apdu_constants.h"  // handle_set_plugin
 #include "cmd_set_plugin.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals
 // =============================================================================
-
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-tmpCtx_t tmpCtx;
-dataContext_t dataContext;
-pluginType_t pluginType = PLUGIN_TYPE_NONE;
 
 // =============================================================================
 // Controllable stubs
@@ -59,52 +50,8 @@ bool __wrap_app_compatible_with_chain_id(const uint64_t *chain_id) {
     return g_chain_compatible_ret;
 }
 
-static bool g_sig_check_ret = true;
-bool __wrap_check_signature_with_pubkey(uint8_t *buffer,
-                                        const uint8_t bufLen,
-                                        const uint8_t *PubKey,
-                                        const uint8_t keyLen,
-                                        const uint8_t keyUsageExp,
-                                        const uint8_t *signature,
-                                        const uint8_t sigLen) {
-    (void) buffer;
-    (void) bufLen;
-    (void) PubKey;
-    (void) keyLen;
-    (void) keyUsageExp;
-    (void) signature;
-    (void) sigLen;
-    return g_sig_check_ret;
-}
-
-// cx_hash_sha256 wrap — we don't validate the hash output, just need
-// the symbol to resolve.
-size_t cx_hash_sha256(const uint8_t *in, size_t in_len, uint8_t *out, size_t out_len) {
-    (void) in;
-    (void) in_len;
-    (void) out;
-    (void) out_len;
-    return 32;
-}
-
-// SDK exception scaffolding for the EXTERNAL plugin BEGIN_TRY/TRY path.
-// We don't exercise that branch from these tests (PROD key path is
-// restricted to ERC721/ERC1155); provide enough symbols for the link.
-try_context_t *try_context_get(void) {
-    return NULL;
-}
-try_context_t *try_context_set(try_context_t *ctx) {
-    (void) ctx;
-    return NULL;
-}
-__attribute__((noreturn)) void os_longjmp(unsigned int e) {
-    (void) e;
-    while (1) {
-    }
-}
-void os_lib_call(unsigned int *params) {
-    (void) params;
-}
+// check_signature_with_pubkey is wrapped in mocks/mock.c; state via
+// g_sig_check_ret from wraps.h.
 
 // =============================================================================
 // Fixture

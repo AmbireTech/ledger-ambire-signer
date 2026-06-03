@@ -39,7 +39,8 @@ static void eip7251_plugin_init_contract(ethPluginInitContract_t *param) {
     eip7251_context_t *context = (eip7251_context_t *) param->pluginContext;
 
     explicit_bzero(context, sizeof(*context));
-    if ((context->received + CALLDATA_SELECTOR_SIZE) > sizeof(context->consolidation_request)) {
+    if ((size_t) context->received + CALLDATA_SELECTOR_SIZE >
+        sizeof(context->consolidation_request)) {
         param->result = ETH_PLUGIN_RESULT_ERROR;
     } else {
         memcpy(&context->consolidation_request[context->received],

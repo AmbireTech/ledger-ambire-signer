@@ -36,53 +36,19 @@
 #include "shared_context.h"
 #include "tx_ctx.h"
 #include "calldata.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals the module reads
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-s_calldata *g_parked_calldata = NULL;
-
 // =============================================================================
 // Wrapped collaborators
 // =============================================================================
 
-static bool g_finalize_hash_ret = true;
-bool __wrap_finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
-    (void) hash_ctx;
-    memset(out, 0, out_len);
-    return g_finalize_hash_ret;
-}
-
-void __wrap_hash_nbytes(const uint8_t *bytes, size_t n, cx_hash_t *hash_ctx) {
-    (void) bytes;
-    (void) n;
-    (void) hash_ctx;
-}
-
-static bool g_sig_check_ret = true;
-bool __wrap_check_signature_with_pubkey(uint8_t *buffer,
-                                        const uint8_t bufLen,
-                                        const uint8_t *PubKey,
-                                        const uint8_t keyLen,
-                                        const uint8_t keyUsageExp,
-                                        const uint8_t *signature,
-                                        const uint8_t sigLen) {
-    (void) buffer;
-    (void) bufLen;
-    (void) PubKey;
-    (void) keyLen;
-    (void) keyUsageExp;
-    (void) signature;
-    (void) sigLen;
-    return g_sig_check_ret;
-}
+// check_signature_with_pubkey / finalize_hash / hash_nbytes are
+// wrapped in mocks/mock.c; state via g_sig_check_ret /
+// g_finalize_hash_ret from wraps.h.
 
 static uint16_t g_tx_ctx_count = 0;
 uint16_t __wrap_get_tx_ctx_count(void) {

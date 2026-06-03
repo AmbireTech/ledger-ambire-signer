@@ -35,12 +35,6 @@
 // Globals
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-
 // =============================================================================
 // Wrapped dependencies
 // =============================================================================
@@ -53,11 +47,6 @@ bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collectio
     (void) value;
     *collection = g_vg[g_vg_call++];
     return g_vg_ret;
-}
-
-void __wrap_value_cleanup(const s_value *value, const s_parsed_value_collection *collection) {
-    (void) value;
-    (void) collection;
 }
 
 static bool g_hvs_ret = true;

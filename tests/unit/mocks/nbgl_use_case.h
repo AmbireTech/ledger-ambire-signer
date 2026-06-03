@@ -1,9 +1,22 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
-#define nbgl_contentTagValue_t     char
-#define nbgl_contentTagValueList_t char
+// Trimmed-down stand-ins for the SDK's nbgl_contentTagValue_t /
+// nbgl_contentTagValueList_t. Only the fields actually touched by app
+// code in host tests are present; tests that need richer struct content
+// keep their own override.
+typedef struct {
+    const char *item;
+    const char *value;
+} nbgl_contentTagValue_t;
+
+typedef struct {
+    const nbgl_contentTagValue_t *pairs;
+    uint8_t nbPairs;
+    bool wrapping;
+} nbgl_contentTagValueList_t;
 
 // nbgl_icon_details_t comes from the SDK's nbgl_types.h, which is
 // transitively pulled in by network.h. Don't redefine it here.
@@ -59,3 +72,7 @@ typedef struct {
     const void *reviewTopRightIcon;
     const void *prelude;
 } nbgl_warning_t;
+
+// Storage lives in mocks/app_globals.c (weak); tests that drive the
+// warning UI screens poke its fields directly.
+extern nbgl_warning_t warning;

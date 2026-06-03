@@ -16,9 +16,6 @@
 #include "tlv_library.h"
 
 // External dependencies
-strings_t strings;
-static chain_config_t chainConfig_storage = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &chainConfig_storage;
 
 // =============================================================================
 // Test Cases

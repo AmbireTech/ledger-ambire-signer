@@ -33,60 +33,19 @@
 
 #include "shared_context.h"
 #include "trusted_name.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals the module reads
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-
 // =============================================================================
 // Controllable stubs
 // =============================================================================
 
-static bool g_sig_check_ret = true;
-bool __wrap_check_signature_with_pubkey(uint8_t *buffer,
-                                        const uint8_t bufLen,
-                                        const uint8_t *PubKey,
-                                        const uint8_t keyLen,
-                                        const uint8_t keyUsageExp,
-                                        const uint8_t *signature,
-                                        const uint8_t sigLen) {
-    (void) buffer;
-    (void) bufLen;
-    (void) PubKey;
-    (void) keyLen;
-    (void) keyUsageExp;
-    (void) signature;
-    (void) sigLen;
-    return g_sig_check_ret;
-}
-
-static bool g_finalize_hash_ret = true;
-bool __wrap_finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
-    (void) hash_ctx;
-    memset(out, 0, out_len);
-    return g_finalize_hash_ret;
-}
-
-void __wrap_hash_nbytes(const uint8_t *bytes, size_t n, cx_hash_t *hash_ctx) {
-    (void) bytes;
-    (void) n;
-    (void) hash_ctx;
-}
-
-uint32_t cx_sha256_init_no_throw(cx_sha256_t *hash) {
-    (void) hash;
-    return 0;
-}
-
-void roll_challenge(void) {
-}
+// check_signature_with_pubkey / finalize_hash / hash_nbytes are
+// wrapped in mocks/mock.c; state via g_sig_check_ret /
+// g_finalize_hash_ret from wraps.h.
 
 // chain_is_ethereum_compatible is read on the STRUCT_VERSION_1 lookup
 // path. Make it controllable so we can test both branches.

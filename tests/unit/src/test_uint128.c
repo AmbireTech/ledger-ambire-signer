@@ -269,22 +269,52 @@ static void test_mul128_small_values(void **state) {
     uint128_t a = {{0, 0x100000000ULL}};  // 2^32
     uint128_t b = {{0, 0x100000000ULL}};  // 2^32
     uint128_t r;
-    mul128(&a, &b, &r);
+    assert_true(mul128(&a, &b, &r));
     // 2^32 * 2^32 = 2^64 → upper = 1, lower = 0
     assert_int_equal(UPPER(r), 1);
     assert_int_equal(LOWER(r), 0);
 
     // 0 * anything = 0
     uint128_t z = {{0, 0}};
-    mul128(&z, &a, &r);
+    assert_true(mul128(&z, &a, &r));
     assert_true(zero128(&r));
 
     // 1 * anything = anything
     uint128_t one = {{0, 1}};
     uint128_t v = {{0x1122334455667788ULL, 0x99AABBCCDDEEFF00ULL}};
-    mul128(&one, &v, &r);
+    assert_true(mul128(&one, &v, &r));
     assert_int_equal(UPPER(r), UPPER(v));
     assert_int_equal(LOWER(r), LOWER(v));
+}
+
+static void test_mul128_overflow_returns_false(void **state) {
+    (void) state;
+    // (2^128 - 1) * (2^128 - 1) overflows uint128. mul128 must detect
+    // the spillover into the high 128 bits of the 256-bit product and
+    // return false. Without this gate a future caller would silently
+    // truncate the product (CWE-682), the same gap mul256 had before
+    // its own overflow guard was added.
+    uint128_t max = {{0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL}};
+    uint128_t r;
+    // Sentinel write so we can confirm `target` is not touched on
+    // failure.
+    UPPER(r) = 0xAA;
+    LOWER(r) = 0xBB;
+    assert_false(mul128(&max, &max, &r));
+    assert_int_equal(UPPER(r), 0xAA);
+    assert_int_equal(LOWER(r), 0xBB);
+}
+
+static void test_mul128_boundary_fits_in_uint128(void **state) {
+    (void) state;
+    // 2^64 * 2^63 = 2^127 fits exactly under uint128's 2^128 ceiling.
+    uint128_t a = {{1, 0}};                      // 2^64
+    uint128_t b = {{0, 0x8000000000000000ULL}};  // 2^63
+    uint128_t r;
+    assert_true(mul128(&a, &b, &r));
+    // 2^127 has bit 127 set: UPPER = 0x8000000000000000, LOWER = 0.
+    assert_int_equal(UPPER(r), 0x8000000000000000ULL);
+    assert_int_equal(LOWER(r), 0);
 }
 
 static void test_divmod128_basic(void **state) {
@@ -521,6 +551,8 @@ int main(void) {
         cmocka_unit_test(test_sub128_with_borrow),
         cmocka_unit_test(test_or128),
         cmocka_unit_test(test_mul128_small_values),
+        cmocka_unit_test(test_mul128_overflow_returns_false),
+        cmocka_unit_test(test_mul128_boundary_fits_in_uint128),
         cmocka_unit_test(test_divmod128_basic),
         cmocka_unit_test(test_tostring128_base10),
         cmocka_unit_test(test_tostring128_base16),

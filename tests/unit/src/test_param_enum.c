@@ -37,20 +37,11 @@
 #include "enum_value.h"
 #include "calldata.h"
 #include "shared_context.h"
+#include "wraps.h"
 
 // =============================================================================
 // Globals
 // =============================================================================
-
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-
-// txContext.content->destination is read for the lookup key.
-static txContent_t s_tx_content;
-txContext_t txContext = {.content = &s_tx_content};
-tmpContent_t tmpContent;
 
 // =============================================================================
 // Wrapped dependencies
@@ -66,11 +57,6 @@ bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collectio
     return g_vg_ret;
 }
 
-void __wrap_value_cleanup(const s_value *value, const s_parsed_value_collection *collection) {
-    (void) value;
-    (void) collection;
-}
-
 static bool g_hvs_ret = true;
 bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
     (void) buf;
@@ -79,10 +65,6 @@ bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
 }
 
 static s_tx_info g_fake_tx_info;
-static const s_tx_info *g_tx_info_ret = NULL;
-const s_tx_info *__wrap_get_current_tx_info(void) {
-    return g_tx_info_ret;
-}
 
 static s_calldata g_fake_calldata;  // contents irrelevant — only pointer identity matters
 static s_calldata *g_calldata_ret = &g_fake_calldata;
@@ -146,8 +128,9 @@ static int reset(void **state) {
     g_selector_ret = g_selector;
     g_enum_ret = NULL;
 
-    memset(&s_tx_content, 0, sizeof(s_tx_content));
-    memcpy(s_tx_content.destination, g_contract, ADDRESS_LENGTH);
+    memset(&g_tx_content, 0, sizeof(g_tx_content));
+    memcpy(g_tx_content.destination, g_contract, ADDRESS_LENGTH);
+    txContext.content = &g_tx_content;
     return 0;
 }
 

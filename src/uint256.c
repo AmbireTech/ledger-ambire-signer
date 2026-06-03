@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "lcx_math.h"
+#include "os_utils.h"  // is_zeroes_buffer
 #include "uint256.h"
 #include "read.h"
 #include "write.h"
@@ -168,6 +169,16 @@ bool mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *targe
         write_u64_be(num2 + i * sizeof(uint64_t), 0, number2->elements[i / 2].elements[i % 2]);
     }
     if (cx_math_mult_no_throw(result, num1, num2, sizeof(num1)) != CX_OK) {
+        return false;
+    }
+    // Detect uint256 overflow: cx_math_mult_no_throw produces a 512-bit
+    // big-endian product, where bytes 0..31 are the high 256 bits and
+    // bytes 32..63 are the low 256 bits that we keep. Any nonzero byte
+    // in the high half means the product does not fit in uint256, and
+    // silently truncating would let callers (e.g.
+    // max_transaction_fee_to_string) display a fee that's many orders
+    // of magnitude smaller than what the chain will actually charge.
+    if (!is_zeroes_buffer(result, INT256_LENGTH)) {
         return false;
     }
     for (uint8_t i = 0; i < 4; i++) {

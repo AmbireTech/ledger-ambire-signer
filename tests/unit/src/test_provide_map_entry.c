@@ -25,15 +25,11 @@
 #include "proxy_info.h"
 #include "utils.h"
 #include "common_utils.h"
+#include "wraps.h"  // extern g_tx_content
 
 // =============================================================================
 // Global stubs
 // =============================================================================
-
-strings_t strings;
-
-static chain_config_t chainConfig_storage = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &chainConfig_storage;
 
 // Contract address used in all TLV payloads — must match CONTRACT_ADDR_BYTES below
 static const uint8_t s_contract_addr[ADDRESS_LENGTH] = {
@@ -41,18 +37,9 @@ static const uint8_t s_contract_addr[ADDRESS_LENGTH] = {
     0x55, 0x66, 0x77, 0x88, 0x99, 0x00, 0xAA, 0xBB, 0xCC, 0xDD,
 };
 
-static txContent_t s_tx_content;
-txContext_t txContext;
-
 // =============================================================================
 // Mock functions
 // =============================================================================
-
-void __wrap_hash_nbytes(const uint8_t *const bytes_ptr, size_t n, cx_hash_t *hash_ctx) {
-    (void) bytes_ptr;
-    (void) n;
-    (void) hash_ctx;
-}
 
 bool __wrap_finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
     (void) hash_ctx;
@@ -264,8 +251,8 @@ static void test_map_entry_lookup_found(void **state) {
     static const uint8_t selector[] = {SELECTOR_BYTES};
 
     // Set txContext.content->destination to the registered contract address
-    memcpy(s_tx_content.destination, s_contract_addr, ADDRESS_LENGTH);
-    txContext.content = &s_tx_content;
+    memcpy(g_tx_content.destination, s_contract_addr, ADDRESS_LENGTH);
+    txContext.content = &g_tx_content;
 
     register_entry();
 
@@ -287,8 +274,8 @@ static void test_map_entry_lookup_wrong_key(void **state) {
     static const s_tx_info tx_info = {.chain_id = 1};
     static const uint8_t selector[] = {SELECTOR_BYTES};
 
-    memcpy(s_tx_content.destination, s_contract_addr, ADDRESS_LENGTH);
-    txContext.content = &s_tx_content;
+    memcpy(g_tx_content.destination, s_contract_addr, ADDRESS_LENGTH);
+    txContext.content = &g_tx_content;
 
     register_entry();
 
@@ -307,8 +294,8 @@ static void test_map_entry_lookup_wrong_id(void **state) {
     static const s_tx_info tx_info = {.chain_id = 1};
     static const uint8_t selector[] = {SELECTOR_BYTES};
 
-    memcpy(s_tx_content.destination, s_contract_addr, ADDRESS_LENGTH);
-    txContext.content = &s_tx_content;
+    memcpy(g_tx_content.destination, s_contract_addr, ADDRESS_LENGTH);
+    txContext.content = &g_tx_content;
 
     register_entry();
 

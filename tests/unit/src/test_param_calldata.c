@@ -22,10 +22,6 @@
 #include "eth_ustream.h"
 
 // Required globals
-txContext_t txContext;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
 
 // ===========================================================================
 // value_get / value_cleanup mock
@@ -38,11 +34,6 @@ bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collectio
     (void) value;
     *collection = g_vg[g_vg_call++];
     return true;
-}
-
-void __wrap_value_cleanup(const s_value *value, const s_parsed_value_collection *collection) {
-    (void) value;
-    (void) collection;
 }
 
 // ===========================================================================

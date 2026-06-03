@@ -40,6 +40,7 @@
 #include "gtp_parsed_value.h"
 #include "gtp_tx_info.h"
 #include "map_entry.h"
+#include "wraps.h"
 
 // =============================================================================
 // Wrapped collaborators
@@ -80,11 +81,6 @@ const uint8_t *__wrap_get_current_tx_to(void) {
 }
 const uint8_t *__wrap_get_current_tx_amount(void) {
     return g_tx_amount;
-}
-
-static const s_tx_info *g_tx_info_ret = NULL;
-const s_tx_info *__wrap_get_current_tx_info(void) {
-    return g_tx_info_ret;
 }
 
 // MAP_REF

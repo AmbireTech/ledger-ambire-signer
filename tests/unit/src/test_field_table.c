@@ -44,14 +44,6 @@
 // Globals the module reads
 // =============================================================================
 
-strings_t strings;
-static chain_config_t g_chainConfig = {.ticker = "ETH", .chain_id = 1, .coin_type = 60};
-const chain_config_t *g_chain_config = &g_chainConfig;
-const char g_unknown_ticker[] = "???";
-txContext_t txContext;
-tmpContent_t tmpContent;
-uint8_t appState = APP_STATE_IDLE;
-
 // =============================================================================
 // Stubs for collaborators
 // =============================================================================
