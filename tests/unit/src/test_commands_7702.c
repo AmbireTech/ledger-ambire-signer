@@ -90,10 +90,39 @@ uint32_t cx_hash_no_throw(cx_hash_t *hash,
     (void) out_len;
     return 0;
 }
+// Honour the shared g_finalize_hash_ret (wraps.h) so tests can drive
+// the post-hash failure path in handle_auth7702_tlv.
 bool __wrap_finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
     (void) hash_ctx;
     (void) out;
     (void) out_len;
+    return g_finalize_hash_ret;
+}
+
+// Wrap mem_utils_calloc (--wrap in cmake) to drive Nth-call failure.
+// g_calloc_fail_at_call_n = N forces the Nth invocation to return
+// false (0 = first, 1 = second, ...). Default -1 = never fail.
+static int g_calloc_fail_at_call_n = -1;
+static int g_calloc_call_count = 0;
+bool __wrap_mem_utils_calloc(void **buffer,
+                             uint16_t size,
+                             bool permanent,
+                             const char *file,
+                             int line) {
+    (void) permanent;
+    (void) file;
+    (void) line;
+    int idx = g_calloc_call_count++;
+    if (idx == g_calloc_fail_at_call_n) {
+        return false;
+    }
+    if (size == 0) {
+        *buffer = NULL;
+        return true;
+    }
+    *buffer = malloc(size);
+    if (*buffer == NULL) return false;
+    memset(*buffer, 0, size);
     return true;
 }
 
@@ -163,6 +192,9 @@ static int reset(void **state) {
     memset(&tmpCtx, 0, sizeof(tmpCtx));
     memset(&strings, 0, sizeof(strings));
     g_n_storage_writable.eip7702_enable = true;
+    g_finalize_hash_ret = true;
+    g_calloc_fail_at_call_n = -1;
+    g_calloc_call_count = 0;
     // tlv_apdu carries internal state across calls — clear it.
     tlv_from_apdu(false, 0, NULL, NULL);
     return 0;
@@ -321,6 +353,49 @@ static void test_chain_id_all_uses_wildcard_display(void **state) {
     assert_string_equal(strings.common.network_name, "All");
 }
 
+static void test_finalize_hash_failure_short_circuits_review(void **state) {
+    (void) state;
+    // finalize_hash returns false (e.g. lib_cxng failure) -> handle_auth7702_
+    // tlv jumps to `end` without ever calling ui_sign_7702_auth /
+    // ui_sign_7702_revocation. The SW surfaced to the host is the
+    // SWO_PARAMETER_ERROR_NO_INFO seeded at function entry (no later
+    // assignment runs).
+    g_finalize_hash_ret = false;
+    uint8_t payload[80];
+    size_t len = build_tlv_payload(payload, sizeof(payload), 0x01, g_simple7702_account, 1, 0x07);
+    uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
+    assert_int_equal(sw, SWO_PARAMETER_ERROR_NO_INFO);
+    assert_int_equal(g_ui_auth_calls, 0);
+    assert_int_equal(g_ui_revocation_calls, 0);
+}
+
+// hashRLP is non-static; call it directly to pin the rlpEncodeNumber-
+// failure branch (line 41). rlpEncodeNumber returns 0 when its output
+// buffer is too small to hold the encoded form -- pass rlpTmpLength=0.
+uint16_t hashRLP(const uint8_t *data, uint8_t dataLength, uint8_t *rlpTmp, uint8_t rlpTmpLength);
+
+static void test_hashRLP_with_too_small_buffer_returns_parameter_error(void **state) {
+    (void) state;
+    uint8_t data[1] = {0x42};
+    uint8_t rlpTmp[1];
+    uint16_t sw = hashRLP(data, sizeof(data), rlpTmp, 0);
+    assert_int_equal(sw, SWO_PARAMETER_ERROR_NO_INFO);
+}
+
+static void test_hash_ctx_alloc_failure_short_circuits_review(void **state) {
+    (void) state;
+    // APP_MEM_CALLOC for g_7702_hash_ctx (the first calloc in
+    // handle_auth7702_tlv) fails -> goto end without setting g_7702_sw
+    // -> SW remains the SWO_PARAMETER_ERROR_NO_INFO seeded at function
+    // entry. UI MUST NOT fire.
+    g_calloc_fail_at_call_n = 0;  // first calloc call fails
+    uint8_t payload[80];
+    size_t len = build_tlv_payload(payload, sizeof(payload), 0x01, g_simple7702_account, 1, 0x07);
+    uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
+    assert_int_equal(sw, SWO_PARAMETER_ERROR_NO_INFO);
+    assert_int_equal(g_ui_auth_calls, 0);
+}
+
 // =============================================================================
 // Runner
 // =============================================================================
@@ -336,6 +411,9 @@ int main(void) {
         cmocka_unit_test_setup(test_delegate_not_in_whitelist_rejected, reset),
         cmocka_unit_test_setup(test_invalid_version_rejected, reset),
         cmocka_unit_test_setup(test_chain_id_all_uses_wildcard_display, reset),
+        cmocka_unit_test_setup(test_finalize_hash_failure_short_circuits_review, reset),
+        cmocka_unit_test_setup(test_hashRLP_with_too_small_buffer_returns_parameter_error, reset),
+        cmocka_unit_test_setup(test_hash_ctx_alloc_failure_short_circuits_review, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

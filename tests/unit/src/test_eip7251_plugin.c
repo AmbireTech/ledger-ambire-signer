@@ -103,6 +103,24 @@ static void test_parameter_overflow_rejected(void **state) {
     assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
+static void test_parameter_success_copies_into_context(void **state) {
+    (void) state;
+    // Normal path: ctx empty, push a 32-byte chunk -> memcpy into
+    // consolidation_request, received bumps to 32, result OK.
+    eip7251_context_t ctx = {0};
+    uint8_t chunk[32];
+    memset(chunk, 0x42, sizeof(chunk));
+    ethPluginProvideParameter_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.parameter = chunk;
+    msg.parameter_size = sizeof(chunk);
+    eip7251_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+    assert_int_equal(ctx.received, 32);
+    assert_int_equal(ctx.consolidation_request[0], 0x42);
+    assert_int_equal(ctx.consolidation_request[31], 0x42);
+}
+
 static void test_finalize_incomplete_rejected(void **state) {
     (void) state;
     eip7251_context_t ctx = {.received = CONSOLIDATION_REQUEST_SIZE - 1};
@@ -280,6 +298,7 @@ int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_init_copies_selector),
         cmocka_unit_test(test_parameter_overflow_rejected),
+        cmocka_unit_test(test_parameter_success_copies_into_context),
         cmocka_unit_test(test_finalize_incomplete_rejected),
         cmocka_unit_test(test_finalize_compound_single_screen),
         cmocka_unit_test(test_finalize_consolidate_two_screens),

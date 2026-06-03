@@ -169,6 +169,7 @@ add_eth_unit_test(test_commands_7702
     ${PLUGIN_DIR}/common_utils.c
   WRAPS
     finalize_hash
+    mem_utils_calloc
   COMPILE_OPTIONS "SHELL:-include os_pic.h" "SHELL:-include os_seed.h"
 )
 

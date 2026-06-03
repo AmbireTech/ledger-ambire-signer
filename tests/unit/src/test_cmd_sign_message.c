@@ -337,6 +337,26 @@ static void test_hash_is_keccak_seeded_with_prefix(void **state) {
 }
 
 // =============================================================================
+// P1=MORE while SIGNING but signMsgCtx already freed
+// =============================================================================
+// The handler is called with P1_MORE after appState has been bumped to
+// SIGNING_MESSAGE (so the earlier guard at line 244 doesn't fire), but
+// signMsgCtx is NULL -- e.g. a previous chunk failed and called
+// message_cleanup() which freed it without resetting appState. The
+// gate at line 251-254 must catch this and refuse rather than
+// dereferencing NULL.
+
+static void test_p1_more_with_null_ctx_rejected(void **state) {
+    (void) state;
+    appState = APP_STATE_SIGNING_MESSAGE;
+    // signMsgCtx left NULL by reset() (message_cleanup() runs there).
+    uint8_t data[8] = {0};
+    uint16_t sw = handle_sign_personal_message(P1_MORE, data, sizeof(data));
+    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    assert_int_equal(g_ui_idle_calls, 1);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -356,6 +376,7 @@ int main(void) {
         cmocka_unit_test_setup(test_cleanup_after_p1_first_when_busy, reset),
         cmocka_unit_test_setup(test_message_cleanup_safe_when_nothing_allocated, reset),
         cmocka_unit_test_setup(test_hash_is_keccak_seeded_with_prefix, reset),
+        cmocka_unit_test_setup(test_p1_more_with_null_ctx_rejected, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
