@@ -264,6 +264,7 @@ add_eth_unit_test(test_cmd_get_eth2_public_key
     ui_display_public_eth2
     reset_app_context
     io_seproxyhal_io_heartbeat
+    cx_math_mult_no_throw
 )
 
 add_eth_unit_test(test_handle_get_printable_amount
