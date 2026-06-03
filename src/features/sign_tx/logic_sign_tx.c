@@ -5,7 +5,6 @@
 #include "eth_plugin_handler.h"
 #include "network.h"
 #include "common_ui.h"
-#include "ui_callbacks.h"
 #include "apdu_constants.h"
 #include "format.h"
 #include "manage_asset_info.h"

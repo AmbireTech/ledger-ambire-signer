@@ -1,4 +1,4 @@
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "ui_nbgl.h"
 #include "cmd_get_tx_simulation.h"
 #include "ui_utils.h"

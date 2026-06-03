@@ -1,6 +1,6 @@
 #include "nbgl_use_case.h"
 #include "shared_context.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "ui_nbgl.h"
 
 static void ui_error_no_7702_choice(bool confirm) {

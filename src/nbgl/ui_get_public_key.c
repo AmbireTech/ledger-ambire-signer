@@ -1,6 +1,6 @@
 #include "shared_context.h"
 #include "apdu_constants.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "ui_nbgl.h"
 #include "network.h"
 #include "network_icons.h"

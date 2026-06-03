@@ -1,7 +1,7 @@
 #include "apdu_constants.h"
 #include "os_io_seproxyhal.h"
 #include "crypto_helpers.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "utils.h"
 #include "ui_utils.h"
 #include "ui_logic.h"

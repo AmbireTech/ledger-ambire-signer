@@ -6,7 +6,7 @@
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "network.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "feature_sign_tx.h"
 #include "apdu_constants.h"
 #include "cmd_get_tx_simulation.h"

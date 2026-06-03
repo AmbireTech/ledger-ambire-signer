@@ -1,5 +1,4 @@
 #include "shared_context.h"
-#include "ui_callbacks.h"
 #include "ui_nbgl.h"
 #include "nbgl_use_case.h"
 #include "common_ui.h"

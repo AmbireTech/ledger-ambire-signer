@@ -28,7 +28,7 @@
 #include "utils.h"
 #include "os_pki.h"
 #include "network.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "ui_nbgl.h"
 #include "common_utils.h"
 #include "plugin_utils.h"

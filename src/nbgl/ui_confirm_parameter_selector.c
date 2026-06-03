@@ -1,5 +1,5 @@
 #include "ui_nbgl.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "ui_utils.h"
 
 #define TITLE_MSG_LEN  20

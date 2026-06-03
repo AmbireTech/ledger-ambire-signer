@@ -1,7 +1,6 @@
 #include "nbgl_use_case.h"
 #include "apdu_constants.h"
 #include "shared_context.h"
-#include "ui_callbacks.h"
 #include "ui_nbgl.h"
 #include "common_ui.h"
 #include "ui_utils.h"

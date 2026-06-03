@@ -2,7 +2,7 @@
 #include "os_utils.h"
 #include "apdu_constants.h"
 #include "shared_context.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "ui_message_signing.h"
 #include "ui_nbgl.h"
 #include "plugins.h"
