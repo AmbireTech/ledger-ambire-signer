@@ -45,6 +45,7 @@
 #include "swap_lib_calls.h"
 #include "chain_config.h"
 #include "eth_swap_utils.h"
+#include "wraps.h"  // g_noreturn_jmp / g_noreturn_armed / g_noreturn_calls + EXPECT_NORETURN
 
 bool copy_transaction_parameters(create_transaction_parameters_t *sign_transaction_params,
                                  const chain_config_t *config);
@@ -135,18 +136,31 @@ void os_explicit_zero_BSS_segment(void) {
     // BSS-zero would clobber the test's own globals -- intentionally a no-op.
 }
 
-void set_swap_with_calldata_plugin_type(void) {
-}
-
+static int g_ui_swap_show_signing_calls = 0;
 void ui_swap_show_signing(void) {
+    g_ui_swap_show_signing_calls++;
 }
 
+static int g_set_swap_with_calldata_calls = 0;
+void set_swap_with_calldata_plugin_type(void) {
+    g_set_swap_with_calldata_calls++;
+}
+
+// app_main and os_lib_end are noreturn in production. Honour the
+// EXPECT_NORETURN handshake from wraps.h so tests can drive the
+// dedicated noreturn entry points (handle_swap_sign_transaction,
+// swap_finalize_exchange_sign_transaction) without freezing the test
+// process.
 __attribute__((noreturn)) void app_main(void) {
+    g_noreturn_calls++;
+    if (g_noreturn_armed) longjmp(g_noreturn_jmp, 1);
     while (1) {
     }
 }
 
 __attribute__((noreturn)) void os_lib_end(void) {
+    g_noreturn_calls++;
+    if (g_noreturn_armed) longjmp(g_noreturn_jmp, 1);
     while (1) {
     }
 }
@@ -364,6 +378,57 @@ static void test_alloc_failure_returns_false(void **state) {
     assert_false(copy_transaction_parameters(&p, &s_chain));
 }
 
+// =============================================================================
+// Noreturn entry points
+// =============================================================================
+// swap_finalize_exchange_sign_transaction and handle_swap_sign_transaction
+// are both __attribute__((noreturn)). Use EXPECT_NORETURN to catch their
+// final os_lib_end() / app_main() call and inspect the side effects they
+// committed before the noreturn fired.
+
+void swap_finalize_exchange_sign_transaction(bool is_success);
+void handle_swap_sign_transaction(const chain_config_t *config);
+
+static void test_swap_finalize_commits_status_byte_and_ends_lib(void **state) {
+    (void) state;
+    static volatile uint8_t s_status = 0xAA;
+    G_swap_signing_return_value_address = &s_status;
+    // Pre-allocate a heap buffer that swap_finalize's APP_MEM_FREE will
+    // release (the underlying mem_utils_free calls free() at host).
+    extern uint8_t *G_swap_crosschain_hash;
+    G_swap_crosschain_hash = malloc(32);
+    EXPECT_NORETURN(swap_finalize_exchange_sign_transaction(true));
+    assert_int_equal(g_noreturn_calls, 1);  // os_lib_end fired
+    assert_int_equal((int) s_status, 1);    // is_success committed
+}
+
+static void test_handle_swap_sign_seeds_globals_then_runs_app_main(void **state) {
+    (void) state;
+    G_swap_mode = SWAP_MODE_STANDARD;
+    G_swap_response_ready = true;  // pre-set, must be reset to false
+    G_called_from_swap = false;
+    g_set_swap_with_calldata_calls = 0;
+    g_ui_swap_show_signing_calls = 0;
+    EXPECT_NORETURN(handle_swap_sign_transaction(&s_chain));
+    assert_int_equal(g_noreturn_calls, 1);  // app_main fired
+    assert_true(G_called_from_swap);
+    assert_false(G_swap_response_ready);
+    assert_int_equal(g_ui_swap_show_signing_calls, 1);
+    // STANDARD mode -> no auto-register of the crosschain plugin.
+    assert_int_equal(g_set_swap_with_calldata_calls, 0);
+    assert_ptr_equal(g_chain_config, &s_chain);
+}
+
+static void test_handle_swap_sign_crosschain_pending_registers_plugin(void **state) {
+    (void) state;
+    G_swap_mode = SWAP_MODE_CROSSCHAIN_PENDING_CHECK;
+    g_set_swap_with_calldata_calls = 0;
+    EXPECT_NORETURN(handle_swap_sign_transaction(&s_chain));
+    // CROSSCHAIN_PENDING_CHECK is the gate that auto-registers the
+    // swap-with-calldata plugin so the upcoming TX parser dispatches to it.
+    assert_int_equal(g_set_swap_with_calldata_calls, 1);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup(test_amount_length_over_32_rejected, reset),
@@ -377,6 +442,9 @@ int main(void) {
         cmocka_unit_test_setup(test_crosschain_non_native_zero_amount_path, reset),
         cmocka_unit_test_setup(test_crosschain_non_native_zero_amount_failure_rejected, reset),
         cmocka_unit_test_setup(test_alloc_failure_returns_false, reset),
+        cmocka_unit_test_setup(test_swap_finalize_commits_status_byte_and_ends_lib, reset),
+        cmocka_unit_test_setup(test_handle_swap_sign_seeds_globals_then_runs_app_main, reset),
+        cmocka_unit_test_setup(test_handle_swap_sign_crosschain_pending_registers_plugin, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

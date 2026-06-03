@@ -378,6 +378,41 @@ static void test_query_contract_id_transfer(void **state) {
     assert_string_equal(version, "Transfer");
 }
 
+static void test_finalize_unknown_selector_rejects(void **state) {
+    (void) state;
+    erc721_context_t ctx = {.selectorIndex = 0x7F};
+    txContent_t tx = {0};
+    ethPluginFinalize_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.txContent = &tx;
+    erc721_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+}
+
+static void test_query_id_unknown_selector_rejects(void **state) {
+    (void) state;
+    erc721_context_t ctx = {.selectorIndex = 0x7F};
+    char name[32] = {0};
+    char version[32] = {0};
+    ethQueryContractID_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.name = name;
+    msg.nameLength = sizeof(name);
+    msg.version = version;
+    msg.versionLength = sizeof(version);
+    erc721_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+}
+
+static void test_provide_info_returns_ok(void **state) {
+    (void) state;
+    // handle_provide_info_721 just sets result = OK; pin the dispatch
+    // path through erc721_plugin_call too.
+    ethPluginProvideInfo_t msg = {0};
+    erc721_plugin_call(ETH_PLUGIN_PROVIDE_INFO, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+}
+
 // =============================================================================
 // Tests — QUERY_CONTRACT_UI
 // =============================================================================
@@ -629,6 +664,9 @@ int main(void) {
         cmocka_unit_test(test_finalize_set_approval_with_eth_rejected),
         cmocka_unit_test(test_query_contract_id_approve),
         cmocka_unit_test(test_query_contract_id_transfer),
+        cmocka_unit_test(test_finalize_unknown_selector_rejects),
+        cmocka_unit_test(test_query_id_unknown_selector_rejects),
+        cmocka_unit_test(test_provide_info_returns_ok),
         cmocka_unit_test(test_ui_null_item1_rejected),
         cmocka_unit_test(test_ui_transfer_screen0_is_to_address),
         cmocka_unit_test(test_ui_transfer_screen1_is_collection),

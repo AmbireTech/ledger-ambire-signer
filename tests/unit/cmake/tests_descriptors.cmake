@@ -327,6 +327,30 @@ add_eth_unit_test(test_cmd_set_plugin
   COMPILE_OPTIONS "SHELL:-include os_pic.h"
 )
 
+# Second target with HAVE_NFT_STAGING_KEY defined so valid_keyId becomes
+# TEST_PLUGIN_KEY. This is the only way to reach the EXTERNAL-plugin
+# BEGIN_TRY block in cmd_set_plugin.c: under the prod key, the gate at
+# line 204 ("AWS key must only be used to set NFT internal plugins")
+# rejects every non-ERC721/ERC1155 plugin name before the EXTERNAL
+# branch can fire.
+add_eth_unit_test(test_cmd_set_plugin_staging
+  APP_SOURCES
+    ${APP_DIR}/features/set_plugin/cmd_set_plugin.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  INCLUDES
+    ${APP_DIR}/features/set_plugin
+    ${APP_DIR}/plugins
+  DEFS
+    HAVE_NFT_STAGING_KEY
+  WRAPS
+    check_signature_with_pubkey
+    app_compatible_with_chain_id
+  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+)
+
 add_eth_unit_test(test_cmd_set_external_plugin
   APP_SOURCES
     ${APP_DIR}/features/set_external_plugin/cmd_set_external_plugin.c

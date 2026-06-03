@@ -366,6 +366,49 @@ static void test_set_swap_with_calldata_plugin_type(void **state) {
     assert_int_equal(pluginType, PLUGIN_TYPE_SWAP_WITH_CALLDATA);
 }
 
+// Data large enough to clear the dataLength <= HEADER_SIZE guard (line 87)
+// but too short to hold the full payload (line 112). Constructed by hand
+// because build_payload's `omit_after_header` writes only 3 bytes -- which
+// stops at the earlier HEADER_SIZE check.
+static void test_data_too_small_for_full_payload_rejected(void **state) {
+    (void) state;
+    uint8_t payload[16] = {0};
+    payload[0] = 0x01;  // type ETH_PLUGIN
+    payload[1] = 0x01;  // version VERSION_1
+    payload[2] = 6;     // plugin name length
+    memcpy(payload + 3, "ERC721", 6);
+    // Total length 9: > HEADER_SIZE=3 but << expected payloadSize (~43).
+    assert_int_equal(handle_set_plugin(payload, 9), SWO_INCORRECT_DATA);
+}
+
+// Payload exactly covers up to ALGORITHM_ID but truncates BEFORE the
+// signature-length byte (line 172-174 check fires).
+static void test_data_too_short_for_sig_length_byte_rejected(void **state) {
+    (void) state;
+    uint8_t payload[64] = {0};
+    payload[0] = 0x01;  // type
+    payload[1] = 0x01;  // version
+    payload[2] = 6;     // name length
+    memcpy(payload + 3, "ERC721", 6);
+    // ADDRESS (20) + SELECTOR (4) + CHAIN_ID (8) + KEY_ID (1) + ALGO_ID (1)
+    // chain_id = 1 (big-endian), key_id = PROD (0x02), algo = 0x01.
+    size_t off = 9;
+    memset(payload + off, 0xAB, 20);  // address
+    off += 20;
+    memset(payload + off, 0xCD, 4);  // selector
+    off += 4;
+    payload[off + 7] = 1;  // chain_id big-endian = 1
+    off += 8;
+    payload[off++] = 0x02;  // PROD key_id
+    payload[off++] = 0x01;  // algo
+    // payloadSize complete (43 bytes). dataLength = 43, no room for sig_len.
+    assert_int_equal(handle_set_plugin(payload, (uint8_t) off), SWO_INCORRECT_DATA);
+}
+
+// EXTERNAL-plugin BEGIN_TRY block is covered by a dedicated target
+// test_cmd_set_plugin_staging (HAVE_NFT_STAGING_KEY defined so the
+// non-PROD key is accepted -- the PROD key forbids non-NFT plugins).
+
 // =============================================================================
 // Runner
 // =============================================================================
@@ -388,6 +431,8 @@ int main(void) {
         cmocka_unit_test_setup(test_signature_check_failure_rejects, reset),
         cmocka_unit_test_setup(test_prod_key_with_external_plugin_rejected, reset),
         cmocka_unit_test_setup(test_set_swap_with_calldata_plugin_type, reset),
+        cmocka_unit_test_setup(test_data_too_small_for_full_payload_rejected, reset),
+        cmocka_unit_test_setup(test_data_too_short_for_sig_length_byte_rejected, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
