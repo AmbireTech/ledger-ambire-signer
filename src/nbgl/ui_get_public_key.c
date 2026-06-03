@@ -3,7 +3,7 @@
 #include "common_ui.h"
 #include "ui_nbgl.h"
 #include "network.h"
-#include "network_icons.h"
+#include "ui_icons.h"
 #include "ui_utils.h"
 
 static void review_choice(bool confirm) {

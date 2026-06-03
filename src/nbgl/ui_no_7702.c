@@ -2,6 +2,7 @@
 #include "shared_context.h"
 #include "common_ui.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 
 static void ui_error_no_7702_choice(bool confirm) {
     if (confirm) {

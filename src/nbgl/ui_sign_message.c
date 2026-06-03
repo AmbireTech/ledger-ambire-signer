@@ -1,5 +1,6 @@
 #include "common_ui.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "cmd_get_tx_simulation.h"
 #include "ui_utils.h"
 

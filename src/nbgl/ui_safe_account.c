@@ -5,6 +5,7 @@
 #include "apdu_constants.h"
 #include "common_ui.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "ui_utils.h"
 #include "app_mem_utils.h"
 

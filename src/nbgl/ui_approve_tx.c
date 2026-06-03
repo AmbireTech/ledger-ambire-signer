@@ -5,6 +5,7 @@
 #include "common_ui.h"
 #include "ui_message_signing.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "plugins.h"
 #include "trusted_name.h"
 #include "caller_app.h"

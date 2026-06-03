@@ -1,6 +1,7 @@
 #include <string.h>
 #include "shared_context.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "gtp_tx_info.h"
 #include "gtp_field_table.h"
 #include "app_mem_utils.h"

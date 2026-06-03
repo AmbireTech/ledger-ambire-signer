@@ -30,6 +30,7 @@
 #include "network.h"
 #include "common_ui.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "common_utils.h"
 #include "plugin_utils.h"
 #include "mem_utils.h"
