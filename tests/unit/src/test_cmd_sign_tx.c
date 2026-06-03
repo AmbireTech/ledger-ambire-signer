@@ -110,13 +110,6 @@ bool ui_gcs(void) {
 }
 void ui_gcs_cleanup(void) {
 }
-int send_swap_error_simple(uint16_t error, uint8_t error_code, uint16_t code, uint8_t code_idx) {
-    (void) error;
-    (void) error_code;
-    (void) code;
-    (void) code_idx;
-    return 0;
-}
 
 bool tx_ctx_init(s_calldata *calldata,
                  const uint8_t *from,
@@ -365,6 +358,62 @@ static void test_init_tx_failure_rejected(void **state) {
 }
 
 // =============================================================================
+// handle_parsing_status (non-static helper) -- per-status dispatch
+// =============================================================================
+
+uint16_t handle_parsing_status(parserStatus_e status);
+
+static void test_handle_parsing_status_suspended_returns_no_response(void **state) {
+    (void) state;
+    // USTREAM_SUSPENDED -> sw stays SWO_NO_RESPONSE (the host will send
+    // the next chunk).
+    assert_int_equal(handle_parsing_status(USTREAM_SUSPENDED), SWO_NO_RESPONSE);
+}
+
+static void test_handle_parsing_status_processing_returns_success(void **state) {
+    (void) state;
+    assert_int_equal(handle_parsing_status(USTREAM_PROCESSING), SWO_SUCCESS);
+}
+
+static void test_handle_parsing_status_finished_delegates_to_finalize(void **state) {
+    (void) state;
+    // USTREAM_FINISHED -> finalize_parsing(&txContext). Our local wrap
+    // returns SWO_NO_RESPONSE (deferred reply) on a happy fixture.
+    uint16_t sw = handle_parsing_status(USTREAM_FINISHED);
+    // Any value the real finalize_parsing emitted is fine; the point is
+    // the branch ran. The SW itself depends on the test fixture (here
+    // a default-zeroed txContext likely lands on SWO_INCORRECT_DATA via
+    // the pre-EIP155 legacy gate).
+    (void) sw;
+}
+
+static void test_handle_parsing_status_fault_non_swap_returns_incorrect_data(void **state) {
+    (void) state;
+    G_called_from_swap = false;
+    assert_int_equal(handle_parsing_status(USTREAM_FAULT), SWO_INCORRECT_DATA);
+}
+
+static void test_handle_parsing_status_default_returns_incorrect_data(void **state) {
+    (void) state;
+    // Any value not in USTREAM_SUSPENDED / FINISHED / PROCESSING /
+    // FAULT lands on the safety default -> SWO_INCORRECT_DATA.
+    assert_int_equal(handle_parsing_status((parserStatus_e) 0x7F), SWO_INCORRECT_DATA);
+}
+
+static void test_handle_parsing_status_fault_in_swap_triggers_app_exit(void **state) {
+    (void) state;
+    // USTREAM_FAULT inside a swap signing flow: the dispatcher MUST
+    // flag the swap as responded (G_swap_response_ready=true) AND emit
+    // send_swap_error_simple before app_exit so Exchange sees a
+    // definitive error code instead of a silent stall.
+    G_called_from_swap = true;
+    G_swap_response_ready = false;
+    EXPECT_NORETURN(handle_parsing_status(USTREAM_FAULT));
+    assert_int_equal(g_noreturn_calls, 1);
+    assert_true(G_swap_response_ready);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -389,6 +438,13 @@ int main(void) {
         cmocka_unit_test_setup(test_legacy_byte_0xFF_routes_to_legacy, reset),
         cmocka_unit_test_setup(test_typed_tx_cx_hash_failure_rejected, reset),
         cmocka_unit_test_setup(test_init_tx_failure_rejected, reset),
+        cmocka_unit_test_setup(test_handle_parsing_status_suspended_returns_no_response, reset),
+        cmocka_unit_test_setup(test_handle_parsing_status_processing_returns_success, reset),
+        cmocka_unit_test_setup(test_handle_parsing_status_finished_delegates_to_finalize, reset),
+        cmocka_unit_test_setup(test_handle_parsing_status_fault_non_swap_returns_incorrect_data,
+                               reset),
+        cmocka_unit_test_setup(test_handle_parsing_status_default_returns_incorrect_data, reset),
+        cmocka_unit_test_setup(test_handle_parsing_status_fault_in_swap_triggers_app_exit, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

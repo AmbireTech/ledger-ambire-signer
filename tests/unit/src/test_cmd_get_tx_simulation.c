@@ -676,6 +676,42 @@ static void test_set_warning_wrong_app_state_forces_unknown(void **state) {
     assert_int_equal(warning.predefinedSet, 1U << W3C_ISSUE_WARN);
 }
 
+// Prime a TYPED_DATA descriptor + SIGNING_EIP712 app state so
+// check_tx_simulation_validity takes the TYPED_DATA branch and
+// check_tx_simulation_hash takes the SIGNING_EIP712 branch (reading
+// from messageSigningContext712).
+static void prime_for_warning_typed_data(tx_simulation_score_t risk) {
+    g_os_pki_name = "Provider";
+    uint8_t tlv[500];
+    s_opts opts = {.struct_type = 0x09,
+                   .struct_version = 0x01,
+                   .include_domain_hash = true,
+                   .risk = risk,
+                   .category = TX_SIMULATION_CATEGORY_OTHERS,
+                   .type = TX_SIMULATION_TYPE_TYPED_DATA,
+                   .sig_len = 16};
+    size_t len = build_tlv(tlv, sizeof(tlv), opts);
+    assert_true(send_first(tlv, len));
+    // tx_hash + domain_hash in the descriptor are 0xBB-filled and
+    // 0xCC-filled respectively (see build_tlv). Mirror them into the
+    // active EIP-712 signing context.
+    memset(tmpCtx.messageSigningContext712.messageHash, 0xBB, INT256_LENGTH);
+    memset(tmpCtx.messageSigningContext712.domainHash, 0xCC, INT256_LENGTH);
+    appState = APP_STATE_SIGNING_EIP712;
+    memset(g_pubkey_addr, 0xAA, ADDRESS_LENGTH);
+}
+
+static void test_set_warning_typed_data_match_sets_warning_bit(void **state) {
+    (void) state;
+    // Hits the TYPED_DATA branch in check_tx_simulation_validity AND
+    // the APP_STATE_SIGNING_EIP712 branch in check_tx_simulation_hash
+    // (which reads messageHash AND domainHash).
+    prime_for_warning_typed_data(TX_SIMULATION_RISK_WARNING);
+    warning.predefinedSet = 0;
+    set_tx_simulation_warning();
+    assert_int_equal(warning.predefinedSet, 1U << W3C_RISK_DETECTED_WARN);
+}
+
 // =============================================================================
 // Runner
 // =============================================================================
@@ -712,6 +748,7 @@ int main(void) {
         cmocka_unit_test_setup(test_set_warning_tx_hash_mismatch_forces_unknown, reset),
         cmocka_unit_test_setup(test_set_warning_chain_id_mismatch_forces_unknown, reset),
         cmocka_unit_test_setup(test_set_warning_wrong_app_state_forces_unknown, reset),
+        cmocka_unit_test_setup(test_set_warning_typed_data_match_sets_warning_bit, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
