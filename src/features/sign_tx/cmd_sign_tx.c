@@ -5,7 +5,6 @@
 #include "apdu_constants.h"
 #include "swap_error_code_helpers.h"
 #include "common_ui.h"
-#include "ui_callbacks.h"
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "tx_ctx.h"

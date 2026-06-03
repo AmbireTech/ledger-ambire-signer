@@ -42,6 +42,7 @@ target_include_directories(
          # remove once fixed in the SDK's fuzzing TLV lib
          ${BOLOS_SDK}/lib_tlv/use_cases
          ${APP_SRC}
+         ${APP_SRC}/utils
          ${APP_SRC}/features/generic_tx_parser
          ${APP_SRC}/features/get_public_key
          ${APP_SRC}/features/get_eth2_public_key

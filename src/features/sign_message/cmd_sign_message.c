@@ -3,7 +3,6 @@
 #include "apdu_constants.h"
 #include "sign_message.h"
 #include "common_ui.h"
-#include "ui_callbacks.h"
 #include "ui_utils.h"
 #include "mem_utils.h"
 #include "hash_bytes.h"

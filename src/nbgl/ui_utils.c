@@ -1,7 +1,7 @@
 #include "nbgl_use_case.h"
 #include "app_mem_utils.h"
 #include "apdu_constants.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "ui_utils.h"
 #include "mem_utils.h"
 

@@ -8,7 +8,6 @@
 #include "filtering.h"
 #include "common_ui.h"  // ui_idle
 #include "manage_asset_info.h"
-#include "ui_callbacks.h"
 #include "tx_ctx.h"  // get_tx_ctx_count
 
 // APDUs P1

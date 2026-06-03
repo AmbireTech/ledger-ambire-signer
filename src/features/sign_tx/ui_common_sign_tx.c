@@ -3,7 +3,7 @@
 #include "handle_swap_sign_transaction.h"
 #include "feature_sign_tx.h"
 #include "apdu_constants.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 
 uint32_t io_seproxyhal_touch_tx_ok(void) {
     uint32_t info = 0;

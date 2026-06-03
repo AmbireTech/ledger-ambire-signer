@@ -90,6 +90,7 @@ include_directories(
   ${APP_DIR}/features/sign_message_eip712
   ${APP_DIR}/features/get_challenge
   ${APP_DIR}/nbgl
+  ${APP_DIR}/utils
   ${MOCK_DIR}
   ${BOLOS_SDK}/io/include
   ${BOLOS_SDK}/lib_cxng/include
@@ -108,9 +109,9 @@ add_executable(test_param_network
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
   ${APP_DIR}/features/generic_tx_parser/gtp_param_network.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -150,9 +151,9 @@ add_executable(test_param_trusted_name
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
   ${APP_DIR}/features/generic_tx_parser/gtp_param_trusted_name.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -197,11 +198,11 @@ add_executable(test_param_raw
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
   ${APP_DIR}/features/generic_tx_parser/gtp_param_raw.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
   ${APP_DIR}/uint256.c
   ${APP_DIR}/uint128.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/utils.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_standard_app/format.c
@@ -238,10 +239,10 @@ add_executable(test_field_validation
   ${SRC_DIR}/test_field_validation.c
   ${APP_DIR}/features/generic_tx_parser/gtp_field.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
   ${BOLOS_SDK}/lib_lists/lists.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint256.c
   ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
@@ -281,9 +282,9 @@ add_executable(test_provide_map_entry
   ${SRC_DIR}/test_provide_map_entry.c
   ${APP_DIR}/features/provide_map_entry/map_entry.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint256.c
   ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
@@ -325,9 +326,9 @@ add_executable(test_param_group
   ${SRC_DIR}/test_param_group.c
   ${APP_DIR}/features/generic_tx_parser/gtp_param_group.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint256.c
   ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
@@ -369,11 +370,11 @@ add_executable(test_param_token_amount
   ${APP_DIR}/features/generic_tx_parser/gtp_param_token_amount.c
   ${APP_DIR}/features/provide_erc20_token_information/token_info.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
   ${APP_DIR}/uint256.c
   ${APP_DIR}/uint128.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/utils.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_standard_app/format.c
@@ -420,9 +421,9 @@ add_executable(test_param_calldata
   ${SRC_DIR}/test_param_calldata.c
   ${APP_DIR}/features/generic_tx_parser/gtp_param_calldata.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint256.c
   ${APP_DIR}/uint128.c
   ${PLUGIN_DIR}/common_utils.c
@@ -484,7 +485,7 @@ add_executable(test_uint128
   ${SRC_DIR}/test_uint128.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/utils.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_standard_app/format.c
@@ -514,7 +515,7 @@ add_executable(test_uint256
   ${SRC_DIR}/test_uint256.c
   ${APP_DIR}/uint256.c
   ${APP_DIR}/uint128.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/utils.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_standard_app/format.c
@@ -543,7 +544,7 @@ add_test(test_uint256 test_uint256)
 # utils helpers test
 add_executable(test_utils
   ${SRC_DIR}/test_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -608,7 +609,7 @@ add_executable(test_eth_ustream_helpers
   ${SRC_DIR}/test_eth_ustream_helpers.c
   ${APP_DIR}/features/sign_tx/eth_ustream.c
   ${APP_DIR}/features/sign_tx/rlp_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -647,9 +648,9 @@ add_executable(test_param_amount
   ${APP_DIR}/features/generic_tx_parser/gtp_param_amount.c
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -691,11 +692,11 @@ add_executable(test_param_datetime
   ${SRC_DIR}/test_param_datetime.c
   ${APP_DIR}/features/generic_tx_parser/gtp_param_datetime.c
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
-  ${APP_DIR}/time_format.c
+  ${APP_DIR}/utils/time_format.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -736,9 +737,9 @@ add_executable(test_param_duration
   ${APP_DIR}/features/generic_tx_parser/gtp_param_duration.c
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -779,9 +780,9 @@ add_executable(test_param_unit
   ${APP_DIR}/features/generic_tx_parser/gtp_param_unit.c
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -822,9 +823,9 @@ add_executable(test_param_enum
   ${APP_DIR}/features/generic_tx_parser/gtp_param_enum.c
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -874,9 +875,9 @@ add_executable(test_param_token
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
   ${APP_DIR}/features/provide_erc20_token_information/token_info.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -921,9 +922,9 @@ add_executable(test_param_nft
   ${APP_DIR}/features/generic_tx_parser/gtp_param_nft.c
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1040,12 +1041,12 @@ add_executable(test_tx_info
   ${SRC_DIR}/test_tx_info.c
   ${APP_DIR}/features/generic_tx_parser/gtp_tx_info.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
-  ${APP_DIR}/time_format.c
+  ${APP_DIR}/utils/time_format.c
   ${PLUGIN_DIR}/common_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_lists/lists.c
@@ -1092,9 +1093,9 @@ add_executable(test_data_path
   ${APP_DIR}/features/generic_tx_parser/gtp_path_array.c
   ${APP_DIR}/features/generic_tx_parser/gtp_path_slice.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1132,9 +1133,9 @@ add_executable(test_value
   ${SRC_DIR}/test_value.c
   ${APP_DIR}/features/generic_tx_parser/gtp_value.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/mem_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1181,7 +1182,7 @@ add_test(test_value test_value)
 add_executable(test_calldata
   ${SRC_DIR}/test_calldata.c
   ${APP_DIR}/features/generic_tx_parser/calldata.c
-  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils/mem_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_lists/lists.c
 )
@@ -1199,7 +1200,7 @@ add_executable(test_tx_ctx
   ${SRC_DIR}/test_tx_ctx.c
   ${APP_DIR}/features/generic_tx_parser/tx_ctx.c
   ${APP_DIR}/features/generic_tx_parser/calldata.c
-  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils/mem_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_lists/lists.c
 )
@@ -1267,7 +1268,7 @@ add_test(test_cmd_field_tx_info test_cmd_field_tx_info)
 add_executable(test_eth_swap_utils
   ${SRC_DIR}/test_eth_swap_utils.c
   ${APP_DIR}/swap/eth_swap_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1307,7 +1308,7 @@ add_test(test_eth_swap_utils test_eth_swap_utils)
 add_executable(test_token_info
   ${SRC_DIR}/test_token_info.c
   ${APP_DIR}/features/provide_erc20_token_information/token_info.c
-  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils/mem_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_lists/lists.c
 )
@@ -1324,7 +1325,7 @@ add_test(test_token_info test_token_info)
 add_executable(test_erc20_plugin
   ${SRC_DIR}/test_erc20_plugin.c
   ${APP_DIR}/plugins/erc20/erc20_plugin.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1444,7 +1445,7 @@ add_test(test_cmd_map_entry test_cmd_map_entry)
 add_executable(test_tlv_apdu
   ${SRC_DIR}/test_tlv_apdu.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/mem_utils.c
+  ${APP_DIR}/utils/mem_utils.c
   ${MOCK_DIR}/mock.c
   ${BOLOS_SDK}/lib_standard_app/read.c
 )
@@ -1460,8 +1461,8 @@ add_test(test_tlv_apdu test_tlv_apdu)
 # tlv_utils — thin TLV decoder wrappers
 add_executable(test_tlv_utils
   ${SRC_DIR}/test_tlv_utils.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1499,8 +1500,8 @@ add_executable(test_commands_7702
   ${APP_DIR}/features/sign_authorization_eip7702/rlp_encode.c
   ${APP_DIR}/features/sign_authorization_eip7702/whitelist_7702.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1537,8 +1538,8 @@ add_test(test_commands_7702 test_commands_7702)
 add_executable(test_proxy_info
   ${SRC_DIR}/test_proxy_info.c
   ${APP_DIR}/features/provide_proxy_info/proxy_info.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1581,8 +1582,8 @@ add_test(test_proxy_info test_proxy_info)
 add_executable(test_trusted_name
   ${SRC_DIR}/test_trusted_name.c
   ${APP_DIR}/features/provide_trusted_name/trusted_name.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1638,8 +1639,8 @@ add_executable(test_safe_descriptors
   ${SRC_DIR}/test_safe_descriptors.c
   ${APP_DIR}/features/provide_safe_account/safe_descriptor.c
   ${APP_DIR}/features/provide_safe_account/signer_descriptor.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1682,8 +1683,8 @@ add_test(test_safe_descriptors test_safe_descriptors)
 add_executable(test_enum_value
   ${SRC_DIR}/test_enum_value.c
   ${APP_DIR}/features/provide_enum_value/enum_value.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1729,7 +1730,7 @@ add_test(test_enum_value test_enum_value)
 add_executable(test_cmd_set_plugin
   ${SRC_DIR}/test_cmd_set_plugin.c
   ${APP_DIR}/features/set_plugin/cmd_set_plugin.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1769,8 +1770,8 @@ add_test(test_cmd_set_plugin test_cmd_set_plugin)
 add_executable(test_network_info
   ${SRC_DIR}/test_network_info.c
   ${APP_DIR}/features/provide_network_info/network_info.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1816,8 +1817,8 @@ add_executable(test_cmd_get_tx_simulation
   ${SRC_DIR}/test_cmd_get_tx_simulation.c
   ${APP_DIR}/features/provide_tx_simulation/cmd_get_tx_simulation.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c
@@ -1866,8 +1867,8 @@ add_executable(test_cmd_get_gating
   ${SRC_DIR}/test_cmd_get_gating.c
   ${APP_DIR}/features/provide_gating/cmd_get_gating.c
   ${APP_DIR}/tlv_apdu.c
-  ${APP_DIR}/tlv_utils.c
-  ${APP_DIR}/utils.c
+  ${APP_DIR}/utils/tlv_utils.c
+  ${APP_DIR}/utils/utils.c
   ${APP_DIR}/uint128.c
   ${APP_DIR}/uint256.c
   ${PLUGIN_DIR}/common_utils.c

@@ -1,6 +1,7 @@
 #include "nbgl_use_case.h"
 #include "app_mem_utils.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "caller_app.h"
 #include "network.h"
 #include "cmd_get_tx_simulation.h"

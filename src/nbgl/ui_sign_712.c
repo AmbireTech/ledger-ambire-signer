@@ -2,6 +2,7 @@
 #include "common_ui.h"
 #include "common_712.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "ui_message_signing.h"
 #include "cmd_get_tx_simulation.h"
 #include "ui_utils.h"

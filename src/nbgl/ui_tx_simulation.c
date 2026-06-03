@@ -2,8 +2,7 @@
 #include "utils.h"
 #include "nbgl_use_case.h"
 #include "ui_nbgl.h"
-#include "ui_callbacks.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "cmd_get_tx_simulation.h"
 
 #ifdef HAVE_TRANSACTION_CHECKS
