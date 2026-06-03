@@ -645,7 +645,6 @@ bool path_new_array_depth(const uint8_t *data, uint8_t length) {
  */
 static bool path_advance_in_struct(void) {
     bool end_reached = true;
-    uint8_t *depth = &path_struct->depths[path_struct->depth_count - 1];
     uint8_t fields_count;
 
     if (path_struct == NULL) {
@@ -655,6 +654,7 @@ static bool path_advance_in_struct(void) {
         return false;
     }
     if (path_struct->depth_count > 0) {
+        uint8_t *depth = &path_struct->depths[path_struct->depth_count - 1];
         *depth += 1;
         end_reached = (*depth == fields_count);
     }
