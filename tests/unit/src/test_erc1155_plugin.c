@@ -447,6 +447,41 @@ static void test_finalize_eth_attached_rejected(void **state) {
     assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
+static void test_finalize_unknown_selector_rejects(void **state) {
+    (void) state;
+    erc1155_context_t ctx = {.selectorIndex = 0x7F};
+    txContent_t tx = {0};
+    ethPluginFinalize_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.txContent = &tx;
+    erc1155_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+}
+
+static void test_query_id_unknown_selector_rejects(void **state) {
+    (void) state;
+    erc1155_context_t ctx = {.selectorIndex = 0x7F};
+    char name[32] = {0};
+    char version[16] = {0};
+    ethQueryContractID_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.name = name;
+    msg.nameLength = sizeof(name);
+    msg.version = version;
+    msg.versionLength = sizeof(version);
+    erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+}
+
+static void test_provide_info_returns_ok(void **state) {
+    (void) state;
+    // handle_provide_info_1155 just sets result = OK; pin the dispatch
+    // path through erc1155_plugin_call too.
+    ethPluginProvideInfo_t msg = {0};
+    erc1155_plugin_call(ETH_PLUGIN_PROVIDE_INFO, &msg);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+}
+
 // =============================================================================
 // Tests — QUERY_CONTRACT_ID
 // =============================================================================
@@ -811,6 +846,9 @@ int main(void) {
         cmocka_unit_test(test_finalize_batch_screens_formula),
         cmocka_unit_test(test_finalize_approval_three_screens),
         cmocka_unit_test(test_finalize_eth_attached_rejected),
+        cmocka_unit_test(test_finalize_unknown_selector_rejects),
+        cmocka_unit_test(test_query_id_unknown_selector_rejects),
+        cmocka_unit_test(test_provide_info_returns_ok),
         cmocka_unit_test(test_query_contract_id_per_selector),
         cmocka_unit_test(test_ui_null_item1_rejected),
         cmocka_unit_test(test_ui_safe_transfer_screen0),
