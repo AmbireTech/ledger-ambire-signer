@@ -61,7 +61,7 @@ s_eip712_context *eip712_context = NULL;
 internalStorage_t g_n_storage_writable;
 extern const internalStorage_t N_storage_real __attribute__((alias("g_n_storage_writable")));
 
-// ui_nbgl.h pulls in ICON_LEDGER → C_ledger_14px (no SCREEN_SIZE_WALLET
+// ui_icons.h pulls in ICON_LEDGER → C_ledger_14px (no SCREEN_SIZE_WALLET
 // in the test build). Stub the symbol so set_gating_ui_screen links.
 const nbgl_icon_details_t C_ledger_14px;
 
