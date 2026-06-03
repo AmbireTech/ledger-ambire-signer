@@ -75,7 +75,7 @@ add_eth_unit_test(test_logic_sign_tx_fee
 add_eth_unit_test(test_logic_sign_tx_finalize
   APP_SOURCES
     ${APP_DIR}/features/sign_tx/logic_sign_tx.c
-    ${APP_DIR}/utils.c
+    ${APP_DIR}/utils/utils.c
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c

@@ -94,7 +94,7 @@ add_eth_unit_test(test_network_icon
 add_eth_unit_test(test_handle_swap_sign_transaction
   APP_SOURCES
     ${APP_DIR}/swap/handle_swap_sign_transaction.c
-    ${APP_DIR}/mem_utils.c
+    ${APP_DIR}/utils/mem_utils.c
   INCLUDES
     ${APP_DIR}/swap
     ${APP_DIR}/features/sign_tx
@@ -118,7 +118,7 @@ add_eth_unit_test(test_network
 add_eth_unit_test(test_network_info
   APP_SOURCES
     ${APP_DIR}/features/provide_network_info/network_info.c
-    ${APP_DIR}/tlv_utils.c
+    ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/utils.c
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
@@ -138,7 +138,7 @@ add_eth_unit_test(test_network_info
 add_eth_unit_test(test_proxy_info
   APP_SOURCES
     ${APP_DIR}/features/provide_proxy_info/proxy_info.c
-    ${APP_DIR}/tlv_utils.c
+    ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/utils.c
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
@@ -155,7 +155,7 @@ add_eth_unit_test(test_proxy_info
 add_eth_unit_test(test_trusted_name
   APP_SOURCES
     ${APP_DIR}/features/provide_trusted_name/trusted_name.c
-    ${APP_DIR}/tlv_utils.c
+    ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/utils.c
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
@@ -187,7 +187,7 @@ add_eth_unit_test(test_safe_descriptors
   APP_SOURCES
     ${APP_DIR}/features/provide_safe_account/safe_descriptor.c
     ${APP_DIR}/features/provide_safe_account/signer_descriptor.c
-    ${APP_DIR}/tlv_utils.c
+    ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/utils.c
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
@@ -205,7 +205,7 @@ add_eth_unit_test(test_cmd_get_tx_simulation
   APP_SOURCES
     ${APP_DIR}/features/provide_tx_simulation/cmd_get_tx_simulation.c
     ${APP_DIR}/tlv_apdu.c
-    ${APP_DIR}/tlv_utils.c
+    ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/utils.c
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
@@ -228,7 +228,7 @@ add_eth_unit_test(test_cmd_get_gating
   APP_SOURCES
     ${APP_DIR}/features/provide_gating/cmd_get_gating.c
     ${APP_DIR}/tlv_apdu.c
-    ${APP_DIR}/tlv_utils.c
+    ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/utils.c
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
@@ -291,7 +291,7 @@ add_eth_unit_test(test_cmd_provide_token_info
     ${APP_DIR}/features/provide_erc20_token_information/cmd_provide_token_info.c
     ${APP_DIR}/features/provide_erc20_token_information/token_info.c
     ${APP_DIR}/tlv_apdu.c
-    ${APP_DIR}/tlv_utils.c
+    ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/utils.c
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c

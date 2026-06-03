@@ -92,14 +92,14 @@ add_eth_unit_test(test_token_info
 
 add_eth_unit_test(test_hash_bytes
   APP_SOURCES
-    ${APP_DIR}/hash_bytes.c
+    ${APP_DIR}/utils/hash_bytes.c
   WRAPS
     cx_hash_no_throw
 )
 
 add_eth_unit_test(test_time_format
   APP_SOURCES
-    ${APP_DIR}/time_format.c
+    ${APP_DIR}/utils/time_format.c
   NO_GLOBALS
 )
 
