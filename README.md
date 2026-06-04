@@ -16,6 +16,14 @@
     · <a href="https://github.com/LedgerHQ/app-ethereum/issues">Request Feature</a>
     · <a href="https://github.com/LedgerHQ/app-ethereum/issues">Request New Network</a>
   </p>
+<br/>
+
+[![Guidelines](https://img.shields.io/github/actions/workflow/status/LedgerHQ/app-ethereum/guidelines_enforcer.yml?branch=develop&label=Ledger%20Guidelines)](https://github.com/LedgerHQ/app-ethereum/actions/workflows/guidelines_enforcer.yml)
+[![Functional tests](https://img.shields.io/github/actions/workflow/status/LedgerHQ/app-ethereum/build_and_functional_tests.yml?branch=develop&label=Functional%20tests)](https://github.com/LedgerHQ/app-ethereum/actions/workflows/build_and_functional_tests.yml)
+[![codecov](https://codecov.io/gh/LedgerHQ/app-ethereum/graph/badge.svg)](https://codecov.io/gh/LedgerHQ/app-ethereum)
+[![Code style](https://img.shields.io/github/actions/workflow/status/LedgerHQ/app-ethereum/lint-workflow.yml?branch=develop&label=Code%20style)](https://github.com/LedgerHQ/app-ethereum/actions/workflows/lint-workflow.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+<br/>
 </div>
 <br/>
 
