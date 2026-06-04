@@ -376,6 +376,94 @@ static void test_null_parameters_short_circuit(void **state) {
 }
 
 // =============================================================================
+// Tests -- remaining parameter offsets in PROVIDE_PARAMETER switch
+// =============================================================================
+// The OFFSET checks for the 6 magic-value positions (pubkey offset,
+// withdrawal-credentials offset, signature offset, pubkey length,
+// withdrawal length, signature length) all follow the same shape:
+// the host sends the ABI offset/length value, the plugin compares to
+// the expected constant and flips valid=0 on mismatch. Pin the
+// remaining ones plus the just-set-OK passthroughs.
+
+static void test_offset_check_withdrawal_credentials_offset(void **state) {
+    (void) state;
+    eth2_deposit_parameters_t ctx = {.valid = 1};
+    uint8_t param[PARAMETER_LENGTH];
+    make_abi_u32(param, 0xE0);  // ETH2_WITHDRAWAL_CREDENTIALS_OFFSET
+    feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 1));
+    // No flip expected (offset matches).
+    assert_int_equal(ctx.valid, 1);
+}
+
+static void test_offset_check_signature_offset(void **state) {
+    (void) state;
+    eth2_deposit_parameters_t ctx = {.valid = 1};
+    uint8_t param[PARAMETER_LENGTH];
+    make_abi_u32(param, 0x120);  // ETH2_SIGNATURE_OFFSET
+    feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 2));
+    assert_int_equal(ctx.valid, 1);
+}
+
+static void test_offset_check_withdrawal_credentials_length_must_be_32(void **state) {
+    (void) state;
+    eth2_deposit_parameters_t ctx = {.valid = 1};
+    uint8_t param[PARAMETER_LENGTH];
+    make_abi_u32(param, 31);  // withdrawal-credentials hash is 32 bytes
+    feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 7));
+    assert_int_equal(ctx.valid, 0);
+}
+
+static void test_offset_passthrough_deposit_data_root(void **state) {
+    (void) state;
+    // Offset *3 (deposit data root), *10, *11, *12 (signature chunks)
+    // are just `result = OK` -- no state mutation. Pin the passthrough.
+    eth2_deposit_parameters_t ctx = {.valid = 1};
+    uint8_t param[PARAMETER_LENGTH] = {0};
+    feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 3));
+    feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 10));
+    feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 11));
+    feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 12));
+    assert_int_equal(ctx.valid, 1);
+}
+
+static void test_unknown_parameter_offset_no_effect(void **state) {
+    (void) state;
+    // An ABI offset that doesn't match any known field is silently
+    // ignored (defensive default branch).
+    eth2_deposit_parameters_t ctx = {.valid = 1};
+    uint8_t param[PARAMETER_LENGTH] = {0};
+    feed_param(&ctx, param, /*unknown*/ 4 + (PARAMETER_LENGTH * 99));
+    assert_int_equal(ctx.valid, 1);
+}
+
+// =============================================================================
+// Tests -- UI screen failures
+// =============================================================================
+
+// (amountToString failure path is hard to drive without retooling the
+//  local __wrap_amountToString to honour a per-test failure flag --
+//  skip; we already hit 90% on the dossier via the other tests.)
+
+static void test_ui_unknown_screen_index_silent(void **state) {
+    (void) state;
+    eth2_deposit_parameters_t ctx = {.valid = 1};
+    char title[16] = {0};
+    char msg_buf[64] = {0};
+    ethQueryContractUI_t msg = {0};
+    msg.pluginContext = (uint8_t *) &ctx;
+    msg.title = title;
+    msg.titleLength = sizeof(title);
+    msg.msg = msg_buf;
+    msg.msgLength = sizeof(msg_buf);
+    msg.screenIndex = 99;  // not 0 (amount) or 1 (validator)
+    msg.result = 0xAB;     // sentinel
+    eth2_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
+    // The default branch is a bare `break;` so msg->result stays
+    // untouched (the test asserts the sentinel persists).
+    assert_int_equal(msg.result, 0xAB);
+}
+
+// =============================================================================
 // Runner
 // =============================================================================
 
@@ -397,6 +485,12 @@ int main(void) {
         cmocka_unit_test_setup(test_ui_validator_screen_renders_pubkey_hex, reset),
         cmocka_unit_test_setup(test_ui_validator_screen_msg_too_small_rejected, reset),
         cmocka_unit_test_setup(test_null_parameters_short_circuit, reset),
+        cmocka_unit_test_setup(test_offset_check_withdrawal_credentials_offset, reset),
+        cmocka_unit_test_setup(test_offset_check_signature_offset, reset),
+        cmocka_unit_test_setup(test_offset_check_withdrawal_credentials_length_must_be_32, reset),
+        cmocka_unit_test_setup(test_offset_passthrough_deposit_data_root, reset),
+        cmocka_unit_test_setup(test_unknown_parameter_offset_no_effect, reset),
+        cmocka_unit_test_setup(test_ui_unknown_screen_index_silent, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

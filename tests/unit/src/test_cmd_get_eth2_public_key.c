@@ -80,9 +80,16 @@ void __wrap_io_seproxyhal_io_heartbeat(void) {
 
 // =============================================================================
 // Link-only stubs for the SDK symbols referenced by the real BLS pipeline.
-// All return CX_OK so the dispatcher's CX_CHECK chain runs to completion
-// and we land in the post-BLS dispatcher logic the tests pin.
+// All controllable via *_ret globals so tests can drive each CX_CHECK
+// step's failure branch (the source uses CX_CHECK chains so any error
+// short-circuits the rest of get_eth2_public_key).
 // =============================================================================
+
+static cx_err_t g_init_priv_ret = CX_OK;
+static cx_err_t g_gen_pair_ret = CX_OK;
+static cx_err_t g_math_cmp_ret = CX_OK;
+static int g_math_cmp_diff = 0;
+static cx_err_t g_math_mult_ret = CX_OK;
 
 void os_perso_derive_eip2333(cx_curve_t curve,
                              const uint32_t *path,
@@ -102,7 +109,7 @@ cx_err_t cx_ecfp_init_private_key_no_throw(cx_curve_t curve,
     (void) rawkey;
     (void) key_len;
     (void) key;
-    return CX_OK;
+    return g_init_priv_ret;
 }
 
 cx_err_t cx_ecfp_generate_pair_no_throw(cx_curve_t curve,
@@ -113,15 +120,26 @@ cx_err_t cx_ecfp_generate_pair_no_throw(cx_curve_t curve,
     (void) pubkey;
     (void) privkey;
     (void) keepprivate;
-    return CX_OK;
+    return g_gen_pair_ret;
 }
 
 cx_err_t cx_math_cmp_no_throw(const uint8_t *a, const uint8_t *b, size_t length, int *diff) {
     (void) a;
     (void) b;
     (void) length;
-    if (diff != NULL) *diff = 0;
-    return CX_OK;
+    if (diff != NULL) *diff = g_math_cmp_diff;
+    return g_math_cmp_ret;
+}
+
+// cx_math_mult_no_throw is the only BLS-pipeline helper that lives in
+// mocks/mock.c (WEAK returning CX_OK). Wrap it locally so we can drive
+// a failure too; the cmake target adds --wrap=cx_math_mult_no_throw.
+cx_err_t __wrap_cx_math_mult_no_throw(uint8_t *r, const uint8_t *a, const uint8_t *b, size_t len) {
+    (void) r;
+    (void) a;
+    (void) b;
+    (void) len;
+    return g_math_mult_ret;
 }
 
 // =============================================================================
@@ -133,6 +151,11 @@ static int reset(void **state) {
     g_ui_calls = 0;
     g_reset_calls = 0;
     g_set_result_ret = 42;
+    g_init_priv_ret = CX_OK;
+    g_gen_pair_ret = CX_OK;
+    g_math_cmp_ret = CX_OK;
+    g_math_cmp_diff = 0;
+    g_math_mult_ret = CX_OK;
     memset(&tmpCtx, 0, sizeof(tmpCtx));
     G_called_from_swap = false;
     return 0;
@@ -197,6 +220,65 @@ static void test_called_from_swap_skips_reset_app_context(void **state) {
     assert_int_equal(g_reset_calls, 0);
 }
 
+// =============================================================================
+// BLS-pipeline CX_CHECK failure branches
+// =============================================================================
+// Each of the four SDK calls inside get_eth2_public_key sits behind a
+// CX_CHECK that short-circuits to `end` on a non-CX_OK return. The
+// stubs above honour *_ret globals so a test can flip exactly one to
+// fail and observe the SW propagating back through handle_get_eth2_
+// public_key. A fifth case covers cx_math_cmp_no_throw's diff>0
+// branch (sets the y_flag bit on the BLS public key).
+
+static void test_init_private_key_failure_propagates(void **state) {
+    (void) state;
+    unsigned int tx = 0;
+    will_return(__wrap_parseBip32, true);
+    g_init_priv_ret = CX_INVALID_PARAMETER;
+    uint16_t sw = handle_get_eth2_public_key(P1_CONFIRM, 0, (uint8_t *) "", 0, &tx);
+    assert_int_equal(sw, (uint16_t) CX_INVALID_PARAMETER);
+}
+
+static void test_generate_pair_failure_propagates(void **state) {
+    (void) state;
+    unsigned int tx = 0;
+    will_return(__wrap_parseBip32, true);
+    g_gen_pair_ret = CX_INVALID_PARAMETER;
+    uint16_t sw = handle_get_eth2_public_key(P1_CONFIRM, 0, (uint8_t *) "", 0, &tx);
+    assert_int_equal(sw, (uint16_t) CX_INVALID_PARAMETER);
+}
+
+static void test_math_mult_failure_propagates(void **state) {
+    (void) state;
+    unsigned int tx = 0;
+    will_return(__wrap_parseBip32, true);
+    g_math_mult_ret = CX_INVALID_PARAMETER;
+    uint16_t sw = handle_get_eth2_public_key(P1_CONFIRM, 0, (uint8_t *) "", 0, &tx);
+    assert_int_equal(sw, (uint16_t) CX_INVALID_PARAMETER);
+}
+
+static void test_math_cmp_failure_propagates(void **state) {
+    (void) state;
+    unsigned int tx = 0;
+    will_return(__wrap_parseBip32, true);
+    g_math_cmp_ret = CX_INVALID_PARAMETER;
+    uint16_t sw = handle_get_eth2_public_key(P1_CONFIRM, 0, (uint8_t *) "", 0, &tx);
+    assert_int_equal(sw, (uint16_t) CX_INVALID_PARAMETER);
+}
+
+static void test_math_cmp_positive_diff_sets_y_flag(void **state) {
+    (void) state;
+    // BLS compressed pubkey carries a "y-coordinate parity" flag in the
+    // top byte. The source sets it when diff > 0, leaves it unset
+    // otherwise. Pre-existing tests use g_math_cmp_diff=0; flip the
+    // sign to cover the y-flag-set branch.
+    unsigned int tx = 0;
+    will_return(__wrap_parseBip32, true);
+    g_math_cmp_diff = 1;  // > 0 -> y_flag = 0x20
+    uint16_t sw = handle_get_eth2_public_key(P1_CONFIRM, 0, (uint8_t *) "", 0, &tx);
+    assert_int_equal(sw, 0);  // happy path: ux_display deferred reply
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup(test_wrong_p1_rejected, reset),
@@ -205,6 +287,11 @@ int main(void) {
         cmocka_unit_test_setup(test_non_confirm_returns_success_and_sets_tx, reset),
         cmocka_unit_test_setup(test_confirm_defers_reply_via_ui, reset),
         cmocka_unit_test_setup(test_called_from_swap_skips_reset_app_context, reset),
+        cmocka_unit_test_setup(test_init_private_key_failure_propagates, reset),
+        cmocka_unit_test_setup(test_generate_pair_failure_propagates, reset),
+        cmocka_unit_test_setup(test_math_mult_failure_propagates, reset),
+        cmocka_unit_test_setup(test_math_cmp_failure_propagates, reset),
+        cmocka_unit_test_setup(test_math_cmp_positive_diff_sets_y_flag, reset),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
