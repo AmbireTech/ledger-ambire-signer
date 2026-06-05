@@ -20,8 +20,6 @@
 from __future__ import print_function
 
 from ledgerblue.comm import getDongle
-from ledgerblue.commException import CommException
-from decimal import Decimal
 from ethBase import sha3
 from eth_keys import KeyAPI
 import argparse
@@ -55,7 +53,7 @@ args = parser.parse_args()
 
 args.message = args.message.encode()
 
-if args.path == None:
+if args.path is None:
     args.path = "44'/0'"
 
 encodedTx = struct.pack(">I", len(args.message))

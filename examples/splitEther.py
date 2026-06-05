@@ -20,14 +20,13 @@
 from __future__ import print_function
 
 from ledgerblue.comm import getDongle
-from ledgerblue.commException import CommException
 import argparse
 import struct
 import requests
 import json
 from decimal import Decimal
 from rlp import encode
-from rlp.utils import decode_hex, encode_hex, str_to_bytes
+from rlp.utils import decode_hex
 from ethBase import Transaction, UnsignedTransaction, sha3
 
 # https://etherscan.io/address/0x5dc8108fc79018113a58328f5283b376b83922ef#code
@@ -82,14 +81,14 @@ parser.add_argument(
     '--broadcast', help="Broadcast generated transaction (default : false)", action='store_true')
 args = parser.parse_args()
 
-if args.path == None:
+if args.path is None:
     if args.split_to_eth:  # sign from ETC
         #args.path = "44'/60'/160720'/0'/0"
         args.path = "44'/60'/0'/0"
     else:  # sign from ETH
         args.path = "44'/60'/0'/0"
 
-if args.to == None:
+if args.to is None:
     if args.split_to_eth:  # target ETH
         args.to = "44'/60'/0'/0"
     else:  # target ETC transitional
@@ -108,7 +107,7 @@ result = dongle.exchange(bytes(apdu))
 publicKey = str(result[1: 1 + result[0]])
 encodedPublicKey = sha3(publicKey[1:])[12:]
 
-if (args.nonce == None) or (args.amount == None):
+if (args.nonce is None) or (args.amount is None):
     donglePathFrom = parse_bip32_path(args.path)
     apdu = bytearray.fromhex("e0020000") + chr(len(donglePathFrom) + 1).encode() + \
         chr(len(donglePathFrom) // 4).encode() + donglePathFrom
@@ -118,24 +117,24 @@ if (args.nonce == None) or (args.amount == None):
 
 
 http = None
-if (args.gasprice == None) or (args.nonce == None) or (args.amount == None) or (args.broadcast):
+if (args.gasprice is None) or (args.nonce is None) or (args.amount is None) or (args.broadcast):
     http = requests.session()
 
-if args.gasprice == None:
+if args.gasprice is None:
     print("Fetching gas price")
     result = rpc_call(
         http, "https://api.etherscan.io/api?module=proxy&action=eth_gasPrice", "gasPrice")
     args.gasprice = int(result['result'], 16)
     print("Gas price:", str(args.gasprice))
 
-if args.nonce == None:
+if args.nonce is None:
     print("Fetching nonce")
     result = rpc_call(http, "https://api.etherscan.io/api?module=proxy&action=eth_getTransactionCount&address=0x" +
                       encodedPublicKeyFrom.encode('hex'), "getTransactionCount")
     args.nonce = int(result['result'], 16)
     print("Nonce for 0x", encodedPublicKeyFrom.encode('hex'), " ", args.nonce, sep='')
 
-if args.amount == None:
+if args.amount is None:
     print("Fetching balance")
     result = rpc_call(http, "https://api.etherscan.io/api?module=account&action=balance&address=0x" +
                       encodedPublicKeyFrom.encode('hex'), "getBalance")
@@ -143,7 +142,6 @@ if args.amount == None:
     print("Balance for 0x", encodedPublicKeyFrom.encode('hex'), " ", str(amount), sep='')
     amount -= (int(args.startgas) - int(args.startgas_delta)) * \
         int(args.gasprice)
-    amount = 2
     if amount < 0:
         raise Exception("Remaining amount too small to pay for contract fees")
 else:

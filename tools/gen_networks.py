@@ -98,7 +98,7 @@ def network_icon_exists(net: Network, path: str) -> bool:
     return os.path.isfile(get_network_glyph_path(net, path))
 
 
-def main(output_dir: str) -> bool:
+def main(output_dir: str) -> int:
     networks: list[Network] = list()
 
     # get chain IDs and network names
@@ -119,8 +119,8 @@ def main(output_dir: str) -> bool:
     if not gen_icons_array(list(filter(partial(network_icon_exists, path=output_dir),
                                        networks)),
                            output_dir):
-        return False
-    return True
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
@@ -130,4 +130,4 @@ if __name__ == "__main__":
     # also created by the SDK, but just in case this script is called too soon
     os.makedirs(args.OUTPUT_DIR, exist_ok=True)
     assert os.path.isdir(args.OUTPUT_DIR)
-    quit(0 if main(args.OUTPUT_DIR) else 1)
+    sys.exit(main(args.OUTPUT_DIR))

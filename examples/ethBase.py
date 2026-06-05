@@ -24,7 +24,7 @@ from rlp import Serializable
 try:
     from Crypto.Hash import keccak
     def sha3_256(x): return keccak.new(digest_bits=256, data=x.encode()).digest()
-except:
+except ImportError:
     import sha3 as _sha3
     def sha3_256(x): return _sha3.sha3_256(x).digest()
 

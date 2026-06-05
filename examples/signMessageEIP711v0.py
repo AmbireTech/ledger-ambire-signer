@@ -20,8 +20,6 @@
 from __future__ import print_function
 
 from ledgerblue.comm import getDongle
-from ledgerblue.commException import CommException
-from decimal import Decimal
 from Crypto.Hash import keccak
 from eth_keys import KeyAPI
 import argparse
@@ -54,7 +52,7 @@ parser.add_argument('--domainHash', help="Domain Hash (hex)", required=True)
 parser.add_argument('--messageHash', help='Message Hash (hex)', required=True)
 args = parser.parse_args()
 
-if args.path == None:
+if args.path is None:
     args.path = "44'/60'"
 domainHash = binascii.unhexlify(args.domainHash)
 messageHash = binascii.unhexlify(args.messageHash)
