@@ -3,9 +3,9 @@ from ragger.bip import CurveChoice, calculate_public_key_and_chaincode
 from ragger.navigator.navigation_scenario import NavigateWithScenario
 from web3 import Web3
 
+from test_sign import common
 import client.response_parser as ResponseParser
 from client.client import EthAppClient
-from test_sign import common
 
 # Values used across all tests
 ADDR = bytes.fromhex("5a321744667052affa8386ed49e00ef223cbffc3")

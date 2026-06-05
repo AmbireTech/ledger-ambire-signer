@@ -5,10 +5,10 @@ from pathlib import Path
 from ragger.navigator.navigation_scenario import NavigateWithScenario
 from web3 import Web3
 
+from constants import ABIS_FOLDER
 from client.client import EthAppClient
 import client.response_parser as ResponseParser
 from client.utils import recover_transaction
-from constants import ABIS_FOLDER
 
 
 BEACON_DEPOSIT_CONTRACT_ADDR = bytes.fromhex("00000000219ab540356cBB839Cbe05303d7705Fa")
@@ -19,7 +19,7 @@ def test_eth2_deposit(scenario_navigator: NavigateWithScenario) -> None:
     app_client = EthAppClient(scenario_navigator.backend)
     with app_client.get_eth2_public_addr(display=False):
         pass
-    with Path(f"{ABIS_FOLDER}/beacon_deposit.abi.json").open() as f:
+    with Path(f"{ABIS_FOLDER}/beacon_deposit.abi.json").open(encoding="utf-8") as f:
         contract = Web3().eth.contract(
             abi=json.load(f),
             address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
