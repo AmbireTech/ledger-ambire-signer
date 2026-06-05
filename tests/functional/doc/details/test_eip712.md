@@ -92,7 +92,7 @@ Tests use **50+ JSON input files** covering real-world use cases:
 
 ### Basic EIP-712 Tests
 
-**Test files in:** `tests/ragger/eip712_input_files/*.json`
+**Test files in:** `tests/functional/eip712_input_files/*.json`
 
 Each JSON file contains:
 
@@ -205,4 +205,4 @@ Voting Power: 1250.5 tokens
 - [Main Test Overview](../test_overview.md#test_eip712py)
 - [Quick Reference](../quick_reference.md)
 - [Ethereum Glossary](../glossary.md) - Terminology and concepts reference
-- Test input files: `tests/ragger/eip712_input_files/`
+- Test input files: `tests/functional/eip712_input_files/`

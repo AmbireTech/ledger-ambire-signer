@@ -169,7 +169,7 @@ Some features are device-specific:
 
 For detailed information about any test file:
 
-1. Open the test file (e.g., `tests/ragger/test_sign.py`)
+1. Open the test file (e.g., `tests/functional/test_sign.py`)
 2. Look at the docstrings and function names
 3. Check the `common()` helper functions for shared logic
 4. Review fixture parameters for test variations

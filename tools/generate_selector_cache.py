@@ -147,7 +147,7 @@ def scan_abi_directory(directory: Path, logger: Optional[logging.Logger]) -> Dic
     return all_selectors
 
 
-def gen_selector_cache(input_path: Path = Path("tests/ragger/abis"), logger: Optional[logging.Logger] = None) -> Dict[str, str]:
+def gen_selector_cache(input_path: Path = Path("tests/functional/abis"), logger: Optional[logging.Logger] = None) -> Dict[str, str]:
     # Validate input directory
     assert input_path.exists()
 

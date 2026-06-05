@@ -219,7 +219,7 @@ The Ethereum app comes with different tests:
 
 ### Functional Tests (Ragger based)
 
-> 📚 **For a comprehensive overview of all tested functionalities, see the [Test Documentation](tests/ragger/doc/).**
+> 📚 **For a comprehensive overview of all tested functionalities, see the [Test Documentation](tests/functional/doc/).**
 
 #### Linux (Ubuntu)
 
@@ -229,7 +229,7 @@ If you prefer not to, open a terminal and follow the steps below.
 Install the tests requirements:
 
 ```shell
-pip install -r tests/ragger/requirements.txt
+pip install -r tests/functional/requirements.txt
 ```
 
 Then you can:
@@ -237,10 +237,10 @@ Then you can:
 Run the functional tests (here for flex but available for any device once you have built the binaries):
 
 ```shell
-pytest tests/ragger/ --tb=short -v --device flex
+pytest tests/functional/ --tb=short -v --device flex
 ```
 
-Please see the corresponding ducomentation [USAGE](tests/ragger/usage.md)
+Please see the corresponding ducomentation [USAGE](tests/functional/usage.md)
 
 Or run your app directly with Speculos
 
