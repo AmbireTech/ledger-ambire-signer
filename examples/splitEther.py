@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 *******************************************************************************
 *   Ledger Ethereum App
@@ -17,8 +17,6 @@
 *  limitations under the License.
 ********************************************************************************
 """
-from __future__ import print_function
-
 from ledgerblue.comm import getDongle
 import argparse
 import struct
@@ -44,7 +42,7 @@ def rpc_call(http, url, methodDebug):
         return result
     else:
         raise Exception("Server error - " + methodDebug +
-                        " got status " + req.status)
+                        " got status " + str(req.status_code))
 
 
 def parse_bip32_path(path):
@@ -97,22 +95,28 @@ if args.to is None:
 dongle = getDongle(True)
 
 donglePath = parse_bip32_path(args.to)
-apdu = bytearray.fromhex("e0060000") + chr(len(donglePath) + 1).encode() + \
-    chr(len(donglePath) // 4).encode() + donglePath
+apdu = bytearray.fromhex("e0060000")
+apdu.append(len(donglePath) + 1)
+apdu.append(len(donglePath) // 4)
+apdu += donglePath
 dongle.exchange(bytes(apdu))
 
-apdu = bytearray.fromhex("e0020000") + chr(len(donglePath) + 1).encode() + \
-    chr(len(donglePath) // 4).encode() + donglePath
+apdu = bytearray.fromhex("e0020000")
+apdu.append(len(donglePath) + 1)
+apdu.append(len(donglePath) // 4)
+apdu += donglePath
 result = dongle.exchange(bytes(apdu))
-publicKey = str(result[1: 1 + result[0]])
+publicKey = result[1: 1 + result[0]]
 encodedPublicKey = sha3(publicKey[1:])[12:]
 
 if (args.nonce is None) or (args.amount is None):
     donglePathFrom = parse_bip32_path(args.path)
-    apdu = bytearray.fromhex("e0020000") + chr(len(donglePathFrom) + 1).encode() + \
-        chr(len(donglePathFrom) // 4).encode() + donglePathFrom
+    apdu = bytearray.fromhex("e0020000")
+    apdu.append(len(donglePathFrom) + 1)
+    apdu.append(len(donglePathFrom) // 4)
+    apdu += donglePathFrom
     result = dongle.exchange(bytes(apdu))
-    publicKeyFrom = str(result[1: 1 + result[0]])
+    publicKeyFrom = result[1: 1 + result[0]]
     encodedPublicKeyFrom = sha3(publicKeyFrom[1:])[12:]
 
 
@@ -130,16 +134,16 @@ if args.gasprice is None:
 if args.nonce is None:
     print("Fetching nonce")
     result = rpc_call(http, "https://api.etherscan.io/api?module=proxy&action=eth_getTransactionCount&address=0x" +
-                      encodedPublicKeyFrom.encode('hex'), "getTransactionCount")
+                      encodedPublicKeyFrom.hex(), "getTransactionCount")
     args.nonce = int(result['result'], 16)
-    print("Nonce for 0x", encodedPublicKeyFrom.encode('hex'), " ", args.nonce, sep='')
+    print("Nonce for 0x", encodedPublicKeyFrom.hex(), " ", args.nonce, sep='')
 
 if args.amount is None:
     print("Fetching balance")
     result = rpc_call(http, "https://api.etherscan.io/api?module=account&action=balance&address=0x" +
-                      encodedPublicKeyFrom.encode('hex'), "getBalance")
+                      encodedPublicKeyFrom.hex(), "getBalance")
     amount = int(result['result'])
-    print("Balance for 0x", encodedPublicKeyFrom.encode('hex'), " ", str(amount), sep='')
+    print("Balance for 0x", encodedPublicKeyFrom.hex(), " ", str(amount), sep='')
     amount -= (int(args.startgas) - int(args.startgas_delta)) * \
         int(args.gasprice)
     if amount < 0:
@@ -148,15 +152,15 @@ else:
     amount = Decimal(args.amount) * 10**18
 
 print("Amount transferred", str((Decimal(amount) / 10 ** 18)),
-      "to", encodedPublicKey.encode('hex'))
+      "to", encodedPublicKey.hex())
 
 txData = SPLIT_CONTRACT_FUNCTION
-txData += "\x00" * 31
+txData += b"\x00" * 31
 if (args.split_to_eth):
-    txData += "\x01"
+    txData += b"\x01"
 else:
-    txData += "\x00"
-txData += "\x00" * 12
+    txData += b"\x00"
+txData += b"\x00" * 12
 txData += encodedPublicKey
 
 tx = Transaction(
@@ -171,22 +175,24 @@ tx = Transaction(
 encodedTx = encode(tx, UnsignedTransaction)
 
 donglePath = parse_bip32_path(args.path)
-apdu = "e0040000".decode('hex') + chr(len(donglePath) + 1 +
-                                      len(encodedTx)) + chr(len(donglePath) / 4) + donglePath + encodedTx
+apdu = bytearray.fromhex("e0040000")
+apdu.append(len(donglePath) + 1 + len(encodedTx))
+apdu.append(len(donglePath) // 4)
+apdu += donglePath + encodedTx
 
 result = dongle.exchange(bytes(apdu))
 
 v = result[0]
-r = int(str(result[1:1 + 32]).encode('hex'), 16)
-s = int(str(result[1 + 32: 1 + 32 + 32]).encode('hex'), 16)
+r = int.from_bytes(result[1:1 + 32], "big")
+s = int.from_bytes(result[1 + 32: 1 + 32 + 32], "big")
 
 tx = Transaction(tx.nonce, tx.gasprice, tx.startgas,
                  tx.to, tx.value, tx.data, v, r, s)
 serializedTx = encode(tx)
 
-print("Signed transaction", serializedTx.encode('hex'))
+print("Signed transaction", serializedTx.hex())
 
 if (args.broadcast):
     result = rpc_call(http, "https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex=0x" +
-                      serializedTx.encode('hex'), "sendRawTransaction")
+                      serializedTx.hex(), "sendRawTransaction")
     print(result)

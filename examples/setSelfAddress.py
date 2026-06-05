@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 *******************************************************************************
 *   Ledger Ethereum App
@@ -44,8 +44,10 @@ if args.path is None:
     args.path = "44'/60'/0'/0/0"
 
 donglePath = parse_bip32_path(args.path)
-apdu = bytearray.fromhex("e0060000") + chr(len(donglePath) + 1).encode() + \
-    chr(len(donglePath) // 4).encode() + donglePath
+apdu = bytearray.fromhex("e0060000")
+apdu.append(len(donglePath) + 1)
+apdu.append(len(donglePath) // 4)
+apdu += donglePath
 
 dongle = getDongle(True)
 dongle.exchange(bytes(apdu))

@@ -40,10 +40,14 @@
 /**
  * @brief Mock implementation of add_to_field_table
  */
-bool __wrap_add_to_field_table(e_param_type param_type, const char *name, const char *value) {
+bool __wrap_add_to_field_table(e_param_type param_type,
+                               const char *name,
+                               const char *value,
+                               const void *extra_data) {
     check_expected(param_type);
     check_expected(name);
     check_expected(value);
+    check_expected_ptr(extra_data);
     return (bool) mock();
 }
 
@@ -88,6 +92,7 @@ static void test_format_network_ethereum_mainnet(void **state) {
     expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_NETWORK);
     expect_string(__wrap_add_to_field_table, name, field_name);
     expect_string(__wrap_add_to_field_table, value, network_name);
+    expect_value(__wrap_add_to_field_table, extra_data, NULL);
     will_return(__wrap_add_to_field_table, true);
 
     // Test
@@ -111,6 +116,7 @@ static void test_format_network_polygon(void **state) {
     expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_NETWORK);
     expect_string(__wrap_add_to_field_table, name, field_name);
     expect_string(__wrap_add_to_field_table, value, network_name);
+    expect_value(__wrap_add_to_field_table, extra_data, NULL);
     will_return(__wrap_add_to_field_table, true);
 
     assert_true(format_param_network(&param, field_name));
@@ -163,6 +169,7 @@ static void test_format_network_max_chain_id(void **state) {
     expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_NETWORK);
     expect_string(__wrap_add_to_field_table, name, field_name);
     expect_string(__wrap_add_to_field_table, value, network_name);
+    expect_value(__wrap_add_to_field_table, extra_data, NULL);
     will_return(__wrap_add_to_field_table, true);
 
     assert_true(format_param_network(&param, field_name));

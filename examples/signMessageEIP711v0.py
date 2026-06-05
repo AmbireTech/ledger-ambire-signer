@@ -17,8 +17,6 @@
 *  limitations under the License.
 ********************************************************************************
 """
-from __future__ import print_function
-
 from ledgerblue.comm import getDongle
 from Crypto.Hash import keccak
 from eth_keys import KeyAPI
@@ -72,9 +70,9 @@ v = int(result[0])
 
 # Compute parity
 if (CHAIN_ID*2 + 35) + 1 > 255:
-	ecc_parity = v - ((CHAIN_ID*2 + 35) % 256)
+    ecc_parity = v - ((CHAIN_ID*2 + 35) % 256)
 else:
-	ecc_parity = (v + 1) % 2
+    ecc_parity = (v + 1) % 2
 
 v = "%02X" % ecc_parity
 r = binascii.hexlify(result[1:1 + 32]).decode()
@@ -88,8 +86,8 @@ pubkey = KeyAPI.PublicKey.recover_from_msg_hash(hash, signature)
 print("[INFO] Hash is: 0x", binascii.hexlify(hash).decode(), sep='');
 print('{')
 print('  "address": "', pubkey.to_address(), '",', sep='')
-print('  "domain hash": "', binascii.hexlify(domainHash),'",', sep='')
-print('  "message hash": "', binascii.hexlify(messageHash),'",', sep='')
+print('  "domain hash": "', binascii.hexlify(domainHash).decode(),'",', sep='')
+print('  "message hash": "', binascii.hexlify(messageHash).decode(),'",', sep='')
 print('  "sig": "', signature, '",', sep = '')
 print('  "version": "3"')
 print('  "signed": "ledger"')

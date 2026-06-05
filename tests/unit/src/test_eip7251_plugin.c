@@ -5,7 +5,7 @@
  *
  * EIP-7251 lets a validator move its effective balance to another
  * validator (or itself, "compound") by calling the predeploy at
- * 0x0000BBdDc7CE488642fb579F8B00f3a59000725 1 with a 96-byte payload
+ * 0x0000BBdDc7CE488642fb579F8B00f3a590007251 with a 96-byte payload
  * of source_pubkey || target_pubkey. The plugin concatenates the
  * calldata into a 96-byte union and renders 1-3 screens depending
  * on whether the target differs from the source and whether a
