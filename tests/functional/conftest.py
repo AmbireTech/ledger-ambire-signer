@@ -22,7 +22,7 @@ def pytest_configure(config):
     current_setup = config.getoption("--setup")
     if current_setup == "lib_mode":
         warnings.warn("Main app is started in library mode")
-        configuration.OPTIONAL.MAIN_APP_DIR = "tests/ragger/.test_dependencies/"
+        configuration.OPTIONAL.MAIN_APP_DIR = "tests/functional/.test_dependencies/"
 
 
 @pytest.fixture(name="app_version")

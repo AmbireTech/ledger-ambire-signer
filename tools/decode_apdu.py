@@ -4,6 +4,7 @@
 from pathlib import Path
 import argparse
 import logging
+import sys
 from typing import Callable, Optional
 import rlp
 import re
@@ -697,7 +698,6 @@ def decode_eip712_struct_def_apdu(apdu: bytes) -> None:
         keyNameLen = to_int(data[0])
         data = data[1:]
         keyName = data[:keyNameLen]
-        data = data[keyNameLen:]
         logger.info(f"  Field KeyName[{keyNameLen}]: {keyName.decode('utf-8')}")
 
 
@@ -707,7 +707,6 @@ def decode_eip712_struct_impl_apdu(apdu: bytes) -> None:
         apdu: APDU command (without "0x" prefix)
     """
 
-    p1 = to_int(apdu[2])
     p2 = to_int(apdu[3])
     lc = int(apdu[4])
     data = apdu[5:5 + lc]
@@ -718,7 +717,6 @@ def decode_eip712_struct_impl_apdu(apdu: bytes) -> None:
 
     elif p2 == P2Type.ARRAY:
         size = data[0]
-        data = data[1:]
         logger.info(f"  ARRAY SIZE: {size}")
 
     elif p2 == P2Type.STRUCT_FIELD:
@@ -744,7 +742,6 @@ def decode_eip712_filtering_apdu(apdu: bytes) -> None:
         apdu: APDU command (without "0x" prefix)
     """
 
-    p1 = to_int(apdu[2])
     p2 = to_int(apdu[3])
     lc = int(apdu[4])
     data = apdu[5:5 + lc]
@@ -807,7 +804,6 @@ def decode_eip712_filtering_apdu(apdu: bytes) -> None:
 
     elif p2 == P2Type.FILTERING_AMOUNT_JOIN_VALUE:
         size = data[0]
-        data = data[1:]
         logger.info(f"  AMOUNT FIELD SIZE: {size}")
 
 
@@ -1115,4 +1111,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

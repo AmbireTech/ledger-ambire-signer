@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 *******************************************************************************
 *   Ledger Ethereum App
@@ -23,15 +23,17 @@ from rlp import Serializable
 
 try:
     from Crypto.Hash import keccak
-    def sha3_256(x): return keccak.new(digest_bits=256, data=x.encode()).digest()
-except:
+    def sha3_256(x): return keccak.new(digest_bits=256, data=x).digest()
+except ImportError:
     import sha3 as _sha3
     def sha3_256(x): return _sha3.sha3_256(x).digest()
 
 address = Binary.fixed_length(20, allow_empty=True)
 
 def sha3(seed):
-    return sha3_256(str(seed))
+    if isinstance(seed, str):
+        seed = seed.encode()
+    return sha3_256(seed)
 
 
 class Transaction(Serializable):
@@ -48,7 +50,7 @@ class Transaction(Serializable):
     ]
 
     def __init__(self, nonce, gasprice, startgas, to, value, data, v=0, r=0, s=0):
-        super(Transaction, self).__init__(
+        super().__init__(
             nonce, gasprice, startgas, to, value, data, v, r, s)
 
 class UnsignedTransaction(Serializable):

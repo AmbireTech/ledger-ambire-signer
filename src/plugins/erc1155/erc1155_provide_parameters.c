@@ -161,10 +161,6 @@ void handle_provide_parameter_1155(ethPluginProvideParameter_t *msg) {
 
     msg->result = ETH_PLUGIN_RESULT_SUCCESSFUL;
 
-    // if (context->targetOffset > SELECTOR_SIZE &&
-    //     context->targetOffset != msg->parameterOffset - SELECTOR_SIZE) {
-    //     return;
-    // }
     switch (context->selectorIndex) {
         case SAFE_TRANSFER:
             handle_safe_transfer(msg, context);

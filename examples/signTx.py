@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 *******************************************************************************
 *   Ledger Ethereum App
@@ -17,25 +17,22 @@
 *  limitations under the License.
 ********************************************************************************
 """
-from __future__ import print_function
-
 from ledgerblue.comm import getDongle
-from ledgerblue.commException import CommException
 from decimal import Decimal
 import argparse
 import struct
 import binascii
-from ethBase import Transaction, UnsignedTransaction, unsigned_tx_from_tx
+from ethBase import UnsignedTransaction
 from rlp import encode
 
 # Define here Chain_ID for EIP-155
 CHAIN_ID = 0
 
 try:
-    from rlp.utils import decode_hex, encode_hex, str_to_bytes
-except:
+    from rlp.utils import decode_hex, encode_hex
+except ImportError:
     # Python3 hack import for pyethereum
-    from ethereum.utils import decode_hex, encode_hex, str_to_bytes
+    from ethereum.utils import decode_hex, encode_hex
 
 
 def parse_bip32_path(path):
@@ -68,17 +65,17 @@ parser.add_argument(
 parser.add_argument('--descriptor', help="Optional descriptor")
 args = parser.parse_args()
 
-if args.path == None:
+if args.path is None:
     # if you want to use the next account ->  "44'/60'/1'/0/0"
     args.path = "44'/60'/0'/0/0"
 
-if args.data == None:
+if args.data is None:
     args.data = b""
 else:
     args.data = decode_hex(args.data[2:])
 
 # default to Ethereum mainnet
-if args.chainid == None:
+if args.chainid is None:
     args.chainid = 1
 
 amount = Decimal(args.amount) * 10**18
@@ -118,19 +115,8 @@ apdu.append(len(donglePath) + 1 + len(encodedTx))
 apdu.append(len(donglePath) // 4)
 apdu += donglePath + encodedTx
 
-result = dongle.exchange(bytes(apdu))
+dongle.exchange(bytes(apdu))
 
-# Needs to recover (main.c:1121)
-# if (CHAIN_ID*2 + 35) + 1 > 255:
-#     ecc_parity = result[0] - ((CHAIN_ID*2 + 35) % 256)
-#     v = (CHAIN_ID*2 + 35) + ecc_parity
-# else:
-#     v = result[0]
-
-# r = int(binascii.hexlify(result[1:1 + 32]), 16)
-# s = int(binascii.hexlify(result[1 + 32: 1 + 32 + 32]), 16)
-
-# tx = Transaction(tx.nonce, tx.gasprice, tx.startgas,
-#                  tx.to, tx.value, tx.data, v, r, s)
-
-print("Signed transaction", encode_hex(encode(tx)))
+# Note: this prints the unsigned RLP that was sent to the device, not the
+# reconstructed signed transaction (the v/r/s from `result` are not reassembled).
+print("Unsigned transaction", encode_hex(encode(tx)))

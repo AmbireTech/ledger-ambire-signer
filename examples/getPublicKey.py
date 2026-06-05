@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 *******************************************************************************
 *   Ledger Ethereum App
@@ -17,10 +17,7 @@
 *  limitations under the License.
 ********************************************************************************
 """
-from __future__ import print_function
-
 from ledgerblue.comm import getDongle
-from ledgerblue.commException import CommException
 import argparse
 import struct
 import binascii
@@ -44,12 +41,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--path', help="BIP 32 path to retrieve")
 args = parser.parse_args()
 
-if args.path == None:
+if args.path is None:
     args.path = "44'/60'/0'/0/0"
 
 donglePath = parse_bip32_path(args.path)
-apdu = bytearray.fromhex("e0020100") + chr(len(donglePath) + 1).encode() + \
-    chr(len(donglePath) // 4).encode() + donglePath
+apdu = bytearray.fromhex("e0020100")
+apdu.append(len(donglePath) + 1)
+apdu.append(len(donglePath) // 4)
+apdu += donglePath
 
 dongle = getDongle(True)
 result = dongle.exchange(bytes(apdu))

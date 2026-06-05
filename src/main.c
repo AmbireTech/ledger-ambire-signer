@@ -178,11 +178,13 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
     }
 
     switch (cmd->ins) {
+        // Key derivation and app configuration
         case INS_GET_PUBLIC_KEY:
             forget_known_assets();
             sw = handle_get_public_key(cmd->p1, cmd->p2, cmd->data, cmd->lc, tx);
             break;
 
+        // Provide off-chain metadata used to enrich the signing UI
         case INS_PROVIDE_ERC20_TOKEN_INFORMATION:
             sw = handle_provide_erc20_token_information(cmd->p1, cmd->p2, cmd->lc, cmd->data, tx);
             break;
@@ -191,6 +193,7 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
             sw = handle_provide_nft_information(cmd->p1, cmd->p2, cmd->lc, cmd->data, tx);
             break;
 
+        // External / internal plugin selection
         case INS_SET_EXTERNAL_PLUGIN:
             sw = handle_set_external_plugin(cmd->data, cmd->lc);
             break;
@@ -203,6 +206,7 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
             sw = handle_perform_privacy_operation(cmd->p1, cmd->p2, cmd->data, cmd->lc, tx);
             break;
 
+        // Transaction and message signing
         case INS_SIGN:
             sw = handle_sign(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
@@ -241,6 +245,7 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
             break;
 #endif  // HAVE_ETH2
 
+        // EIP-712 full implementation: structure definition, instantiation, filtering
         case INS_EIP712_STRUCT_DEF:
             sw = handle_eip712_struct_def(cmd->p2, cmd->data, cmd->lc);
             break;
@@ -253,6 +258,7 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
             sw = handle_eip712_filtering(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
 
+        // Generic clear-signing protocol (GTP) and trusted data provisioning
         case INS_GET_CHALLENGE:
             sw = handle_get_challenge(tx);
             break;

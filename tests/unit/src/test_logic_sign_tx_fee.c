@@ -32,6 +32,7 @@
 #include "common_utils.h"
 #include "feature_sign_tx.h"
 #include "eth_ustream.h"
+#include "manage_asset_info.h"
 
 // =============================================================================
 // Globals required by linked translation units
@@ -107,7 +108,7 @@ void eth_plugin_prepare_provide_parameter(void *msg, const uint8_t *param, uint3
     (void) param;
     (void) paramOffset;
 }
-void *get_matching_asset_info(uint64_t chain_id, uint8_t *address) {
+extraInfo_t *get_matching_asset_info(const uint64_t *chain_id, const uint8_t *address) {
     (void) chain_id;
     (void) address;
     return NULL;

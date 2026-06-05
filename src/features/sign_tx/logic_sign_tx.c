@@ -36,12 +36,25 @@ static uint32_t split_binary_parameter_part(char *result, size_t result_size, ui
     }
 }
 
+// Whether the field currently being parsed is the transaction's data/calldata
+// field, whose RLP index depends on the transaction type.
+static bool is_rlp_data_field(const txContext_t *context) {
+    switch (context->txType) {
+        case LEGACY:
+            return context->currentField == LEGACY_RLP_DATA;
+        case EIP2930:
+            return context->currentField == EIP2930_RLP_DATA;
+        case EIP1559:
+            return context->currentField == EIP1559_RLP_DATA;
+        case EIP7702:
+            return context->currentField == EIP7702_RLP_DATA;
+        default:
+            return false;
+    }
+}
+
 customStatus_e custom_processor(txContext_t *context) {
-    if (((context->txType == LEGACY && context->currentField == LEGACY_RLP_DATA) ||
-         (context->txType == EIP2930 && context->currentField == EIP2930_RLP_DATA) ||
-         (context->txType == EIP1559 && context->currentField == EIP1559_RLP_DATA) ||
-         (context->txType == EIP7702 && context->currentField == EIP7702_RLP_DATA)) &&
-        (context->currentFieldLength != 0)) {
+    if (is_rlp_data_field(context) && (context->currentFieldLength != 0)) {
         context->content->dataPresent = true;
         // If handling a new contract rather than a function call, abort immediately
         if (tmpContent.txContent.destinationLength == 0) {

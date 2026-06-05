@@ -17,11 +17,7 @@
 *  limitations under the License.
 ********************************************************************************
 """
-from __future__ import print_function
-
 from ledgerblue.comm import getDongle
-from ledgerblue.commException import CommException
-from decimal import Decimal
 from ethBase import sha3
 from eth_keys import KeyAPI
 import argparse
@@ -55,7 +51,7 @@ args = parser.parse_args()
 
 args.message = args.message.encode()
 
-if args.path == None:
+if args.path is None:
     args.path = "44'/0'"
 
 encodedTx = struct.pack(">I", len(args.message))
@@ -74,15 +70,15 @@ v = int(result[0])
 
 # Compute parity
 if (CHAIN_ID*2 + 35) + 1 > 255:
-	ecc_parity = v - ((CHAIN_ID*2 + 35) % 256)
+    ecc_parity = v - ((CHAIN_ID*2 + 35) % 256)
 else:
-	ecc_parity = (v + 1) % 2
+    ecc_parity = (v + 1) % 2
 
 v = "%02X" % ecc_parity
 r = binascii.hexlify(result[1:1 + 32]).decode()
 s = binascii.hexlify(result[1 + 32: 1 + 32 + 32]).decode()
 msg_to_sign = SIGN_MAGIC + str(len(args.message)).encode() + args.message
-hash = sha3(msg_to_sign.decode())
+hash = sha3(msg_to_sign)
 
 signature = KeyAPI.Signature(vrs=(int(v, 16), int(r, 16), int(s, 16)))
 pubkey = KeyAPI.PublicKey.recover_from_msg_hash(hash, signature)

@@ -229,12 +229,16 @@ static size_t build_tlv(uint8_t *out, size_t out_size, s_opts opts) {
 }
 
 static bool send_first(const uint8_t *tlv, size_t len) {
-    // Prepend the BE16 length prefix that tlv_apdu expects on the
-    // first chunk.
-    uint8_t framed[600];
+    // Prepend the BE16 length prefix that tlv_apdu expects on the first chunk.
+    // This helper sends the whole TLV as a single APDU chunk, whose Lc field is
+    // a single byte, so the framed payload can never exceed UINT8_MAX bytes.
+    uint8_t framed[UINT8_MAX];
     framed[0] = (uint8_t) (len >> 8);
     framed[1] = (uint8_t) (len & 0xFF);
-    assert_true(len + 2 <= sizeof(framed));
+    // The APDU Lc field is a single byte, so the framed length (payload + the
+    // 2-byte prefix) must fit in a uint8_t; otherwise the cast below would
+    // silently truncate it and the test would exercise the wrong length.
+    assert_true(len + 2 <= UINT8_MAX);
     memcpy(framed + 2, tlv, len);
     uint16_t sw =
         handle_tx_simulation(/*p1=*/0x00, /*p2=*/P1_FIRST_CHUNK, framed, (uint8_t) (len + 2));

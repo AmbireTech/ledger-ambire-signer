@@ -17,7 +17,7 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell
-        args: ['--ignore-words-list', 'ontop,shft,hte,eSpace', '--skip', 'makefile_conf/chain/*,tests/ragger/eip712_input_files/*']
+        args: ['--ignore-words-list', 'ontop,shft,hte,eSpace', '--skip', 'makefile_conf/chain/*,tests/functional/eip712_input_files/*']
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v14.0.6
@@ -45,5 +45,5 @@ repos:
       - id: pylint
         language: system
         types: [python]
-        args: ['--jobs=0', '--rcfile=tests/ragger/setup.cfg']
-        files: '^tests/ragger/.*$'
+        args: ['--jobs=0', '--rcfile=tests/functional/setup.cfg']
+        files: '^tests/functional/.*$'

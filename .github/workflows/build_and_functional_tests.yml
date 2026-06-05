@@ -62,7 +62,7 @@ jobs:
     with:
       download_app_binaries_artifact: "ragger_elfs"
       additional_app_binaries_artifact: "clone_elfs"
-      additional_app_binaries_artifact_dir: ./tests/ragger/.test_dependencies/clone/build/
+      additional_app_binaries_artifact_dir: ./tests/functional/.test_dependencies/clone/build/
       test_options: "--setup lib_mode"
       regenerate_snapshots: ${{ inputs.golden_run == 'Open a PR' }}
       post_stack_consumption: true
