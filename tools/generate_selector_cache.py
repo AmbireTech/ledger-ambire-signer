@@ -72,7 +72,7 @@ def extract_function_signature(func: dict) -> str:
     return f"{name}({','.join(input_types)})"
 
 
-def process_abi_file(abi_path: Path, logger: Optional[logging.Logger]) -> Dict[str, str]:
+def process_abi_file(abi_path: Path, logger: logging.Logger) -> Dict[str, str]:
     """Process a single ABI file and extract all function signatures.
 
     Args:
@@ -114,7 +114,7 @@ def process_abi_file(abi_path: Path, logger: Optional[logging.Logger]) -> Dict[s
     return selectors
 
 
-def scan_abi_directory(directory: Path, logger: Optional[logging.Logger]) -> Dict[str, str]:
+def scan_abi_directory(directory: Path, logger: logging.Logger) -> Dict[str, str]:
     """Scan directory for ABI files and extract all signatures.
 
     Args:
@@ -147,7 +147,12 @@ def scan_abi_directory(directory: Path, logger: Optional[logging.Logger]) -> Dic
     return all_selectors
 
 
-def gen_selector_cache(input_path: Path = Path("tests/functional/abis"), logger: Optional[logging.Logger] = None) -> Dict[str, str]:
+def gen_selector_cache(input_path: Path = Path("tests/functional/abis"),
+                       logger: Optional[logging.Logger] = None) -> Dict[str, str]:
+    # Fall back to a default logger so downstream helpers always get a valid logger
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
     # Validate input directory
     assert input_path.exists()
 
