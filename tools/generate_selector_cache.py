@@ -149,14 +149,29 @@ def scan_abi_directory(directory: Path, logger: logging.Logger) -> Dict[str, str
 
 def gen_selector_cache(input_path: Path = Path("tests/functional/abis"),
                        logger: Optional[logging.Logger] = None) -> Dict[str, str]:
+    """Generate the function selector cache from a directory of ABI files.
+
+    Args:
+        input_path: Directory containing the ABI JSON files to scan
+        logger: Logger to use; defaults to the module logger when None
+
+    Returns:
+        Dictionary mapping selector to signature
+
+    Raises:
+        FileNotFoundError: If input_path does not exist
+        NotADirectoryError: If input_path is not a directory
+    """
     # Fall back to a default logger so downstream helpers always get a valid logger
     if logger is None:
         logger = logging.getLogger(__name__)
 
     # Validate input directory
-    assert input_path.exists()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input path does not exist: {input_path}")
 
-    assert input_path.is_dir()
+    if not input_path.is_dir():
+        raise NotADirectoryError(f"Input path is not a directory: {input_path}")
 
     # Scan ABI files
     return scan_abi_directory(input_path, logger)
