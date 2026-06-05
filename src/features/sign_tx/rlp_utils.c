@@ -31,7 +31,9 @@
 
 bool rlp_can_decode(uint8_t *buffer, uint32_t bufferLength, bool *valid) {
     if (*buffer <= RLP_SINGLE_BYTE_MAX) {
+        // single byte: nothing to validate
     } else if (*buffer <= RLP_SHORT_STRING_MAX) {
+        // short string: nothing to validate
     } else if (*buffer <= RLP_LONG_STRING_MAX) {
         if (bufferLength < (uint32_t) (1 + (*buffer - RLP_LONG_STRING_BASE))) {
             return false;
@@ -41,6 +43,7 @@ bool rlp_can_decode(uint8_t *buffer, uint32_t bufferLength, bool *valid) {
             return true;
         }
     } else if (*buffer <= RLP_SHORT_LIST_MAX) {
+        // short list: nothing to validate
     } else {
         if (bufferLength < (uint32_t) (1 + (*buffer - RLP_LONG_LIST_BASE))) {
             return false;

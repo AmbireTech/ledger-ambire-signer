@@ -134,6 +134,7 @@ bool value_get(const s_value *value, s_parsed_value_collection *collection) {
     const s_tx_info *tx_info = NULL;
 
     switch (value->source) {
+        // Value extracted from the transaction calldata via a data path
         case SOURCE_CALLDATA:
             collection->size = 0;
             if (!data_path_get(&value->data_path, collection)) {
@@ -141,8 +142,10 @@ bool value_get(const s_value *value, s_parsed_value_collection *collection) {
             }
             break;
 
+        // Value read directly from a well-known RLP field of the current tx
         case SOURCE_RLP:
             switch (value->container_path) {
+                // Sender address (20 bytes)
                 case CP_FROM:
                     if (((collection->value[0].ptr = get_current_tx_from())) == NULL) {
                         return false;
@@ -151,6 +154,7 @@ bool value_get(const s_value *value, s_parsed_value_collection *collection) {
                     collection->size = 1;
                     break;
 
+                // Recipient address (20 bytes)
                 case CP_TO:
                     if ((collection->value[0].ptr = get_current_tx_to()) == NULL) {
                         return false;
@@ -159,6 +163,7 @@ bool value_get(const s_value *value, s_parsed_value_collection *collection) {
                     collection->size = 1;
                     break;
 
+                // Native amount transferred (256-bit big-endian)
                 case CP_VALUE:
                     if ((collection->value[0].ptr = get_current_tx_amount()) == NULL) {
                         return false;
@@ -167,6 +172,7 @@ bool value_get(const s_value *value, s_parsed_value_collection *collection) {
                     collection->size = 1;
                     break;
 
+                // Chain ID, normalized to a big-endian 64-bit value
                 case CP_CHAIN_ID:
                     // Get chain ID as uint64_t
                     tx_info = get_current_tx_info();
@@ -186,13 +192,17 @@ bool value_get(const s_value *value, s_parsed_value_collection *collection) {
             }
             break;
 
+        // Literal constant carried by the descriptor itself
         case SOURCE_CONSTANT:
             collection->value[0].ptr = value->constant.buf;
             collection->value[0].length = value->constant.size;
             collection->size = 1;
             break;
 
+        // Indirect lookup: resolve a key value, then fetch the matching map entry
         case SOURCE_MAP_REF: {
+            // The key to look up is itself a nested value descriptor (TLV);
+            // parse it into a temporary value before resolving it.
             s_value key_value = {0};
             s_value_context key_ctx = {.value = &key_value};
             s_parsed_value_collection key_collection = {0};
@@ -201,20 +211,25 @@ bool value_get(const s_value *value, s_parsed_value_collection *collection) {
                                 .size = value->map_ref.key_tlv_size,
                                 .offset = 0};
 
+            // Decode the embedded key descriptor
             if (!handle_value_struct(&key_buf, &key_ctx)) {
                 return false;
             }
+            // Refuse recursion: a map key cannot itself be a map reference
             if (key_value.source == SOURCE_MAP_REF) {
                 PRINTF("Error: Nested MAP_REF not supported\n");
                 return false;
             }
+            // Resolve the key descriptor to its concrete byte value
             if (!value_get(&key_value, &key_collection)) {
                 return false;
             }
+            // A map key must resolve to exactly one value fitting in a uint8 length
             if (key_collection.size != 1 || key_collection.value[0].length > UINT8_MAX) {
                 value_cleanup(&key_value, &key_collection);
                 return false;
             }
+            // Look up the map entry matching (map id, key), then release the key
             entry = get_matching_map_entry(value->map_ref.id,
                                            key_collection.value[0].ptr,
                                            (uint8_t) key_collection.value[0].length);
@@ -223,6 +238,7 @@ bool value_get(const s_value *value, s_parsed_value_collection *collection) {
                 PRINTF("Error: No MAP_ENTRY found for id=%d\n", (int) value->map_ref.id);
                 return false;
             }
+            // Expose the resolved entry's value to the caller
             collection->value[0].ptr = entry->value;
             collection->value[0].length = entry->value_size;
             collection->size = 1;
