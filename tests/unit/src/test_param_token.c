@@ -136,10 +136,10 @@ static const s_token_info g_usdc_info = {
 static void test_format_native_match_uses_displayable_ticker(void **state) {
     (void) state;
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_native_sentinel,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_native_sentinel,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
 
     // get_matching_token_info_or_dummy MUST NOT be called when the address
     // is native — the test would fail with an unsatisfied mock if it were
@@ -163,10 +163,10 @@ static void test_format_native_match_uses_displayable_ticker(void **state) {
 static void test_format_erc20_match_uses_token_info(void **state) {
     (void) state;
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_usdc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_usdc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
 
     will_return(__wrap_get_matching_token_info_or_dummy, &g_usdc_info);
 
@@ -184,10 +184,10 @@ static void test_format_erc20_match_uses_token_info(void **state) {
 static void test_format_erc20_not_found_rejects(void **state) {
     (void) state;
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_usdc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_usdc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
 
     will_return(__wrap_get_matching_token_info_or_dummy, NULL);
     // No add_to_field_table expected.
@@ -206,14 +206,14 @@ static void test_format_resets_token_info_between_iterations(void **state) {
     // Iteration 2: native (must surface token_info=NULL in the field
     // table, NOT the &g_usdc_info pointer from the previous iteration).
     g_vg[0].size = 2;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_usdc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
-    g_vg[0].value[1] = (s_parsed_value){.ptr = g_native_sentinel,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_usdc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
+    g_vg[0].value[1] = (s_parsed_value) {.ptr = g_native_sentinel,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
 
     // ERC-20 lookup runs only on the first iteration.
     will_return(__wrap_get_matching_token_info_or_dummy, &g_usdc_info);
@@ -260,10 +260,10 @@ static void test_format_native_ticker_null_rejected(void **state) {
     (void) state;
     // Edge case: native match but get_displayable_ticker returns NULL.
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_native_sentinel,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_native_sentinel,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
     g_ticker_ret = NULL;
 
     s_param_token param = {0};
@@ -275,10 +275,10 @@ static void test_format_native_ticker_null_rejected(void **state) {
 static void test_format_add_to_field_table_failure_propagates(void **state) {
     (void) state;
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_usdc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_usdc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
 
     will_return(__wrap_get_matching_token_info_or_dummy, &g_usdc_info);
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_TOKEN);

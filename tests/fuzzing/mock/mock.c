@@ -26,8 +26,8 @@ try_context_t *try_context_set(try_context_t *context) {
     return previous;
 }
 
-void __attribute__((noreturn))
-os_sched_exit(bolos_task_status_t exit_code __attribute__((unused))) {
+void __attribute__((noreturn)) os_sched_exit(bolos_task_status_t exit_code
+                                             __attribute__((unused))) {
     longjmp(fuzz_exit_jump_ctx.jmp_buf, 1);
 }
 

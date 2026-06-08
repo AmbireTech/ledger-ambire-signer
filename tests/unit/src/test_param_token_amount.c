@@ -124,21 +124,21 @@ static void test_token_amount_broadcast_ok(void **state) {
 
     // Primary collection: two amounts
     g_vg[0].size = 2;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_amount1,
-                                        .size = INT256_LENGTH,
-                                        .offset = 0,
-                                        .length = INT256_LENGTH};
-    g_vg[0].value[1] = (s_parsed_value){.ptr = g_amount2,
-                                        .size = INT256_LENGTH,
-                                        .offset = 0,
-                                        .length = INT256_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_amount1,
+                                         .size = INT256_LENGTH,
+                                         .offset = 0,
+                                         .length = INT256_LENGTH};
+    g_vg[0].value[1] = (s_parsed_value) {.ptr = g_amount2,
+                                         .size = INT256_LENGTH,
+                                         .offset = 0,
+                                         .length = INT256_LENGTH};
 
     // Secondary (token) collection: one address — broadcast
     g_vg[1].size = 1;
-    g_vg[1].value[0] = (s_parsed_value){.ptr = g_usdc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[1].value[0] = (s_parsed_value) {.ptr = g_usdc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
 
     g_vg_call = 0;
     memset(&g_fake_tx_info, 0, sizeof(g_fake_tx_info));

@@ -119,12 +119,12 @@ static void test_calldata_broadcast_ok(void **state) {
 
     // Primary collection: two empty calldatas (length=0 skips calldata_init)
     g_vg[0].size = 2;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = NULL, .size = 0, .offset = 0, .length = 0};
-    g_vg[0].value[1] = (s_parsed_value){.ptr = NULL, .size = 0, .offset = 0, .length = 0};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = NULL, .size = 0, .offset = 0, .length = 0};
+    g_vg[0].value[1] = (s_parsed_value) {.ptr = NULL, .size = 0, .offset = 0, .length = 0};
 
     // Secondary (contract_addr) collection: one address — broadcast
     g_vg[1].size = 1;
-    g_vg[1].value[0] = (s_parsed_value){
+    g_vg[1].value[0] = (s_parsed_value) {
         .ptr = g_contract_addr,
         .size = ADDRESS_LENGTH,
         .offset = 0,
@@ -279,7 +279,7 @@ static void test_nested_calldata_with_selector_happy_path(void **state) {
     g_calldata_init_ok = true;  // calldata_init returns sentinel
     // Primary: 1 non-empty calldata
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){
+    g_vg[0].value[0] = (s_parsed_value) {
         .ptr = g_nested_calldata_bytes,
         .size = 8,
         .offset = 0,
@@ -287,7 +287,7 @@ static void test_nested_calldata_with_selector_happy_path(void **state) {
     };
     // Secondary: contract_addr — 1 entry
     g_vg[1].size = 1;
-    g_vg[1].value[0] = (s_parsed_value){
+    g_vg[1].value[0] = (s_parsed_value) {
         .ptr = g_contract_addr,
         .size = ADDRESS_LENGTH,
         .offset = 0,
@@ -301,7 +301,7 @@ static void test_nested_calldata_with_selector_happy_path(void **state) {
     // Provide a non-empty selector value via the static collec — we feed
     // a third collection by chaining via __wrap_value_get's g_vg cursor.
     g_vg[2].size = 1;
-    g_vg[2].value[0] = (s_parsed_value){
+    g_vg[2].value[0] = (s_parsed_value) {
         .ptr = g_nested_calldata_bytes,
         .size = 4,
         .offset = 0,
@@ -317,14 +317,14 @@ static void test_nested_calldata_no_selector_short_payload_rejected(void **state
     // rejects before reaching calldata_init.
     g_vg[0].size = 1;
     static uint8_t too_short[3] = {0x01, 0x02, 0x03};
-    g_vg[0].value[0] = (s_parsed_value){
+    g_vg[0].value[0] = (s_parsed_value) {
         .ptr = too_short,
         .size = 3,
         .offset = 0,
         .length = 3,
     };
     g_vg[1].size = 1;
-    g_vg[1].value[0] = (s_parsed_value){
+    g_vg[1].value[0] = (s_parsed_value) {
         .ptr = g_contract_addr,
         .size = ADDRESS_LENGTH,
         .offset = 0,
@@ -341,14 +341,14 @@ static void test_nested_calldata_init_failure_rejected(void **state) {
     (void) state;
     g_calldata_init_ok = false;  // calldata_init returns NULL
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){
+    g_vg[0].value[0] = (s_parsed_value) {
         .ptr = g_nested_calldata_bytes,
         .size = 8,
         .offset = 0,
         .length = 8,
     };
     g_vg[1].size = 1;
-    g_vg[1].value[0] = (s_parsed_value){
+    g_vg[1].value[0] = (s_parsed_value) {
         .ptr = g_contract_addr,
         .size = ADDRESS_LENGTH,
         .offset = 0,
@@ -367,14 +367,14 @@ static void test_nested_calldata_append_failure_rejected(void **state) {
     g_calldata_append_ok = false;  // append fails after init
 
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){
+    g_vg[0].value[0] = (s_parsed_value) {
         .ptr = g_nested_calldata_bytes,
         .size = 8,
         .offset = 0,
         .length = 8,
     };
     g_vg[1].size = 1;
-    g_vg[1].value[0] = (s_parsed_value){
+    g_vg[1].value[0] = (s_parsed_value) {
         .ptr = g_contract_addr,
         .size = ADDRESS_LENGTH,
         .offset = 0,
@@ -403,35 +403,35 @@ static void test_nested_calldata_with_all_optional_fields(void **state) {
     static uint8_t spender_bytes[ADDRESS_LENGTH] = {[0] = 0x55};
 
     g_vg[0].size = 1;  // calldata
-    g_vg[0].value[0] = (s_parsed_value){
+    g_vg[0].value[0] = (s_parsed_value) {
         .ptr = g_nested_calldata_bytes,
         .size = 8,
         .offset = 0,
         .length = 8,
     };
     g_vg[1].size = 1;  // contract_addr
-    g_vg[1].value[0] = (s_parsed_value){
+    g_vg[1].value[0] = (s_parsed_value) {
         .ptr = g_contract_addr,
         .size = ADDRESS_LENGTH,
         .offset = 0,
         .length = ADDRESS_LENGTH,
     };
     g_vg[2].size = 1;  // chain_id
-    g_vg[2].value[0] = (s_parsed_value){
+    g_vg[2].value[0] = (s_parsed_value) {
         .ptr = chain_id_bytes,
         .size = 8,
         .offset = 0,
         .length = 8,
     };
     g_vg[3].size = 1;  // amount
-    g_vg[3].value[0] = (s_parsed_value){
+    g_vg[3].value[0] = (s_parsed_value) {
         .ptr = amount_bytes,
         .size = INT256_LENGTH,
         .offset = 0,
         .length = INT256_LENGTH,
     };
     g_vg[4].size = 1;  // spender
-    g_vg[4].value[0] = (s_parsed_value){
+    g_vg[4].value[0] = (s_parsed_value) {
         .ptr = spender_bytes,
         .size = ADDRESS_LENGTH,
         .offset = 0,

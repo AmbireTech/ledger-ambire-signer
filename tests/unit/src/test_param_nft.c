@@ -121,12 +121,12 @@ static void test_format_single_collection_single_id(void **state) {
     (void) state;
     static const uint8_t id_bytes[] = {0x2A};  // 42
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_bayc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_bayc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
     g_vg[1].size = 1;
-    g_vg[1].value[0] = (s_parsed_value){.ptr = id_bytes, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[0] = (s_parsed_value) {.ptr = id_bytes, .size = 1, .offset = 0, .length = 1};
 
     will_return(__wrap_get_matching_nft_info, &g_bayc_info);
 
@@ -147,13 +147,13 @@ static void test_format_broadcast_one_collection_many_ids(void **state) {
     static const uint8_t id1[] = {0x01};
     static const uint8_t id2[] = {0x02};
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_bayc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_bayc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
     g_vg[1].size = 2;
-    g_vg[1].value[0] = (s_parsed_value){.ptr = id1, .size = 1, .offset = 0, .length = 1};
-    g_vg[1].value[1] = (s_parsed_value){.ptr = id2, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[0] = (s_parsed_value) {.ptr = id1, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[1] = (s_parsed_value) {.ptr = id2, .size = 1, .offset = 0, .length = 1};
 
     will_return(__wrap_get_matching_nft_info, &g_bayc_info);
     will_return(__wrap_get_matching_nft_info, &g_bayc_info);
@@ -179,17 +179,17 @@ static void test_format_paired_n_collections_n_ids(void **state) {
     static const uint8_t id1[] = {0x07};
     static const uint8_t id2[] = {0x42};
     g_vg[0].size = 2;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_bayc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
-    g_vg[0].value[1] = (s_parsed_value){.ptr = g_punks_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_bayc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
+    g_vg[0].value[1] = (s_parsed_value) {.ptr = g_punks_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
     g_vg[1].size = 2;
-    g_vg[1].value[0] = (s_parsed_value){.ptr = id1, .size = 1, .offset = 0, .length = 1};
-    g_vg[1].value[1] = (s_parsed_value){.ptr = id2, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[0] = (s_parsed_value) {.ptr = id1, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[1] = (s_parsed_value) {.ptr = id2, .size = 1, .offset = 0, .length = 1};
 
     will_return(__wrap_get_matching_nft_info, &g_bayc_info);
     will_return(__wrap_get_matching_nft_info, &g_punks_info);
@@ -222,18 +222,18 @@ static void test_format_mismatched_sizes_rejected(void **state) {
     static const uint8_t id2[] = {2};
     static const uint8_t id3[] = {3};
     g_vg[0].size = 2;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_bayc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
-    g_vg[0].value[1] = (s_parsed_value){.ptr = g_punks_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_bayc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
+    g_vg[0].value[1] = (s_parsed_value) {.ptr = g_punks_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
     g_vg[1].size = 3;
-    g_vg[1].value[0] = (s_parsed_value){.ptr = id1, .size = 1, .offset = 0, .length = 1};
-    g_vg[1].value[1] = (s_parsed_value){.ptr = id2, .size = 1, .offset = 0, .length = 1};
-    g_vg[1].value[2] = (s_parsed_value){.ptr = id3, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[0] = (s_parsed_value) {.ptr = id1, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[1] = (s_parsed_value) {.ptr = id2, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[2] = (s_parsed_value) {.ptr = id3, .size = 1, .offset = 0, .length = 1};
 
     s_param_nft param = {0};
     assert_false(format_param_nft(&param, "NFT"));
@@ -245,7 +245,7 @@ static void test_format_empty_collections_rejected(void **state) {
     static const uint8_t id1[] = {1};
     g_vg[0].size = 0;
     g_vg[1].size = 1;
-    g_vg[1].value[0] = (s_parsed_value){.ptr = id1, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[0] = (s_parsed_value) {.ptr = id1, .size = 1, .offset = 0, .length = 1};
 
     s_param_nft param = {0};
     assert_false(format_param_nft(&param, "NFT"));
@@ -255,12 +255,12 @@ static void test_format_unknown_nft_rejected(void **state) {
     (void) state;
     static const uint8_t id1[] = {1};
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_bayc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_bayc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
     g_vg[1].size = 1;
-    g_vg[1].value[0] = (s_parsed_value){.ptr = id1, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[0] = (s_parsed_value) {.ptr = id1, .size = 1, .offset = 0, .length = 1};
 
     will_return(__wrap_get_matching_nft_info, NULL);
     // No add_to_field_table expected.
@@ -279,10 +279,10 @@ static void test_format_value_get_collections_failure_rejected(void **state) {
 static void test_format_value_get_ids_failure_rejected(void **state) {
     (void) state;
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_bayc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_bayc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
     g_vg_ret[1] = false;  // value_get on ids fails
 
     s_param_nft param = {0};
@@ -300,12 +300,12 @@ static void test_format_add_to_field_table_failure_propagates(void **state) {
     (void) state;
     static const uint8_t id1[] = {1};
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_bayc_addr,
-                                        .size = ADDRESS_LENGTH,
-                                        .offset = 0,
-                                        .length = ADDRESS_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_bayc_addr,
+                                         .size = ADDRESS_LENGTH,
+                                         .offset = 0,
+                                         .length = ADDRESS_LENGTH};
     g_vg[1].size = 1;
-    g_vg[1].value[0] = (s_parsed_value){.ptr = id1, .size = 1, .offset = 0, .length = 1};
+    g_vg[1].value[0] = (s_parsed_value) {.ptr = id1, .size = 1, .offset = 0, .length = 1};
 
     will_return(__wrap_get_matching_nft_info, &g_bayc_info);
 

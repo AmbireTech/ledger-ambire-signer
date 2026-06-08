@@ -796,8 +796,7 @@ bool path_exists_in_backup(const char *path, size_t length) {
             }
             offset += 2;
         } else if (offset < length) {
-            for (i = 0; ((offset + i) < length) && (path[offset + i] != '.'); ++i)
-                ;
+            for (i = 0; ((offset + i) < length) && (path[offset + i] != '.'); ++i);
             typename = field_ptr->type_name;
             if ((struct_ptr = get_structn(typename, strlen(typename))) == NULL) {
                 return false;

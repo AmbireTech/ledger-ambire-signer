@@ -84,10 +84,10 @@ static int reset(void **state) {
 // Helper: build a single-value collection from a BE byte buffer.
 static void set_single_value(const uint8_t *bytes, size_t len) {
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = bytes,
-                                        .size = (uint16_t) len,
-                                        .offset = 0,
-                                        .length = (uint16_t) len};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = bytes,
+                                         .size = (uint16_t) len,
+                                         .offset = 0,
+                                         .length = (uint16_t) len};
 }
 
 // =============================================================================
@@ -201,8 +201,8 @@ static void test_format_add_to_field_table_failure_propagates(void **state) {
     static const uint8_t a[] = {0x1E};  // 30s
     static const uint8_t b[] = {0x3C};  // 60s → "01m"
     g_vg[0].size = 2;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = a, .size = 1, .offset = 0, .length = 1};
-    g_vg[0].value[1] = (s_parsed_value){.ptr = b, .size = 1, .offset = 0, .length = 1};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = a, .size = 1, .offset = 0, .length = 1};
+    g_vg[0].value[1] = (s_parsed_value) {.ptr = b, .size = 1, .offset = 0, .length = 1};
 
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DURATION);
     expect_string(__wrap_add_to_field_table, key, "Period");
