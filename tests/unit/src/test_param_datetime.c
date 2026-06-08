@@ -88,7 +88,7 @@ static void test_format_unix_timestamp_rendered_as_utc(void **state) {
     // 2024-01-01 00:00:00 UTC = 1704067200 = 0x6592_0080 (big-endian)
     static uint8_t ts[] = {0x65, 0x92, 0x00, 0x80};
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = ts, .size = 4, .offset = 0, .length = 4};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = ts, .size = 4, .offset = 0, .length = 4};
 
     // Per time_format_to_utc(), hour 0 renders as "12 AM"
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DATETIME);
@@ -107,7 +107,7 @@ static void test_format_unix_maxint_renders_unlimited(void **state) {
     // 4-byte all-0xFF triggers the "Unlimited" sentinel branch.
     static uint8_t maxint4[] = {0xFF, 0xFF, 0xFF, 0xFF};
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = maxint4, .size = 4, .offset = 0, .length = 4};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = maxint4, .size = 4, .offset = 0, .length = 4};
 
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DATETIME);
     expect_string(__wrap_add_to_field_table, key, "Until");
@@ -131,7 +131,7 @@ static void test_format_blockheight_rendered_decimal(void **state) {
     // 19_000_000 = 0x0121_EAC0
     static uint8_t height[] = {0x01, 0x21, 0xEA, 0xC0};
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = height, .size = 4, .offset = 0, .length = 4};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = height, .size = 4, .offset = 0, .length = 4};
 
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DATETIME);
     expect_string(__wrap_add_to_field_table, key, "Block");
@@ -152,8 +152,8 @@ static void test_format_multiple_blockheights_iterates(void **state) {
     static uint8_t b1[] = {0x00, 0x0A};  // 10
     static uint8_t b2[] = {0x00, 0x14};  // 20
     g_vg[0].size = 2;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = b1, .size = 2, .offset = 0, .length = 2};
-    g_vg[0].value[1] = (s_parsed_value){.ptr = b2, .size = 2, .offset = 0, .length = 2};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = b1, .size = 2, .offset = 0, .length = 2};
+    g_vg[0].value[1] = (s_parsed_value) {.ptr = b2, .size = 2, .offset = 0, .length = 2};
 
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DATETIME);
     expect_string(__wrap_add_to_field_table, key, "Block");
@@ -183,8 +183,8 @@ static void test_format_add_to_field_table_failure_propagates(void **state) {
     static uint8_t b1[] = {0x00, 0x01};
     static uint8_t b2[] = {0x00, 0x02};
     g_vg[0].size = 2;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = b1, .size = 2, .offset = 0, .length = 2};
-    g_vg[0].value[1] = (s_parsed_value){.ptr = b2, .size = 2, .offset = 0, .length = 2};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = b1, .size = 2, .offset = 0, .length = 2};
+    g_vg[0].value[1] = (s_parsed_value) {.ptr = b2, .size = 2, .offset = 0, .length = 2};
 
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DATETIME);
     expect_string(__wrap_add_to_field_table, key, "Block");

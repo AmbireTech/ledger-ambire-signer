@@ -120,10 +120,10 @@ static void test_format_single_value_ok(void **state) {
     (void) state;
 
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_one_eth,
-                                        .size = INT256_LENGTH,
-                                        .offset = 0,
-                                        .length = INT256_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_one_eth,
+                                         .size = INT256_LENGTH,
+                                         .offset = 0,
+                                         .length = INT256_LENGTH};
 
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_AMOUNT);
     expect_string(__wrap_add_to_field_table, key, "Amount");
@@ -138,14 +138,14 @@ static void test_format_multiple_values_iterates(void **state) {
     (void) state;
 
     g_vg[0].size = 2;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_one_eth,
-                                        .size = INT256_LENGTH,
-                                        .offset = 0,
-                                        .length = INT256_LENGTH};
-    g_vg[0].value[1] = (s_parsed_value){.ptr = g_two_eth,
-                                        .size = INT256_LENGTH,
-                                        .offset = 0,
-                                        .length = INT256_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_one_eth,
+                                         .size = INT256_LENGTH,
+                                         .offset = 0,
+                                         .length = INT256_LENGTH};
+    g_vg[0].value[1] = (s_parsed_value) {.ptr = g_two_eth,
+                                         .size = INT256_LENGTH,
+                                         .offset = 0,
+                                         .length = INT256_LENGTH};
 
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_AMOUNT);
     expect_string(__wrap_add_to_field_table, key, "Amount");
@@ -173,10 +173,10 @@ static void test_format_value_get_failure_returns_false(void **state) {
 static void test_format_tx_info_null_returns_false(void **state) {
     (void) state;
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_one_eth,
-                                        .size = INT256_LENGTH,
-                                        .offset = 0,
-                                        .length = INT256_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_one_eth,
+                                         .size = INT256_LENGTH,
+                                         .offset = 0,
+                                         .length = INT256_LENGTH};
     g_tx_info_ret = NULL;  // no current tx → cannot resolve ticker
 
     s_param_amount param = {0};
@@ -186,14 +186,14 @@ static void test_format_tx_info_null_returns_false(void **state) {
 static void test_format_add_to_field_table_failure_propagates(void **state) {
     (void) state;
     g_vg[0].size = 2;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = g_one_eth,
-                                        .size = INT256_LENGTH,
-                                        .offset = 0,
-                                        .length = INT256_LENGTH};
-    g_vg[0].value[1] = (s_parsed_value){.ptr = g_two_eth,
-                                        .size = INT256_LENGTH,
-                                        .offset = 0,
-                                        .length = INT256_LENGTH};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = g_one_eth,
+                                         .size = INT256_LENGTH,
+                                         .offset = 0,
+                                         .length = INT256_LENGTH};
+    g_vg[0].value[1] = (s_parsed_value) {.ptr = g_two_eth,
+                                         .size = INT256_LENGTH,
+                                         .offset = 0,
+                                         .length = INT256_LENGTH};
 
     // First entry accepted, second rejected — loop must break and return false.
     expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_AMOUNT);

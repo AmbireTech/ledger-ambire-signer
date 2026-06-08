@@ -142,7 +142,7 @@ static void test_format_known_enum_resolves(void **state) {
     (void) state;
     static const uint8_t v[] = {0x05};  // enum value = 5
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = v, .size = 1, .offset = 0, .length = 1};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = v, .size = 1, .offset = 0, .length = 1};
 
     static const s_enum_value_entry entry = {.name = "BUY", .value = 5, .id = 7};
     g_enum_ret = &entry;
@@ -174,7 +174,7 @@ static void test_format_takes_last_byte_of_wide_value(void **state) {
     };
     g_vg[0].size = 1;
     g_vg[0].value[0] =
-        (s_parsed_value){.ptr = v, .size = INT256_LENGTH, .offset = 0, .length = INT256_LENGTH};
+        (s_parsed_value) {.ptr = v, .size = INT256_LENGTH, .offset = 0, .length = INT256_LENGTH};
 
     static const s_enum_value_entry entry = {.name = "SELL", .value = 9, .id = 7};
     g_enum_ret = &entry;
@@ -211,7 +211,7 @@ static void test_format_tx_info_null_returns_false(void **state) {
     (void) state;
     static const uint8_t v[] = {0x01};
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = v, .size = 1, .offset = 0, .length = 1};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = v, .size = 1, .offset = 0, .length = 1};
     g_tx_info_ret = NULL;
 
     s_param_enum param = {0};
@@ -221,7 +221,7 @@ static void test_format_tx_info_null_returns_false(void **state) {
 static void test_format_empty_value_rejected(void **state) {
     (void) state;
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = NULL, .size = 0, .offset = 0, .length = 0};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = NULL, .size = 0, .offset = 0, .length = 0};
 
     s_param_enum param = {0};
     assert_false(format_param_enum(&param, "Action"));
@@ -231,7 +231,7 @@ static void test_format_selector_missing_rejects(void **state) {
     (void) state;
     static const uint8_t v[] = {0x01};
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = v, .size = 1, .offset = 0, .length = 1};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = v, .size = 1, .offset = 0, .length = 1};
     g_selector_ret = NULL;
 
     s_param_enum param = {0};
@@ -242,7 +242,7 @@ static void test_format_unknown_enum_rejects(void **state) {
     (void) state;
     static const uint8_t v[] = {0xAA};  // some unregistered value
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = v, .size = 1, .offset = 0, .length = 1};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = v, .size = 1, .offset = 0, .length = 1};
     g_enum_ret = NULL;  // not found
 
     expect_value(__wrap_get_matching_enum, *chain_id, 1);
@@ -259,7 +259,7 @@ static void test_format_add_to_field_table_failure_propagates(void **state) {
     (void) state;
     static const uint8_t v[] = {0x01};
     g_vg[0].size = 1;
-    g_vg[0].value[0] = (s_parsed_value){.ptr = v, .size = 1, .offset = 0, .length = 1};
+    g_vg[0].value[0] = (s_parsed_value) {.ptr = v, .size = 1, .offset = 0, .length = 1};
 
     static const s_enum_value_entry entry = {.name = "OPEN", .value = 1};
     g_enum_ret = &entry;

@@ -81,10 +81,10 @@ e_tlv_apdu_ret tlv_from_apdu(bool first_chunk,
         buffer_t buf;
         if (g_tlv.payload != NULL) {
             // Multi-chunk case: use allocated buffer
-            buf = (buffer_t){.ptr = g_tlv.payload, .size = g_tlv.size, .offset = 0};
+            buf = (buffer_t) {.ptr = g_tlv.payload, .size = g_tlv.size, .offset = 0};
         } else {
             // Single-chunk case: use APDU data directly
-            buf = (buffer_t){.ptr = (uint8_t *) &payload[offset], .size = g_tlv.size, .offset = 0};
+            buf = (buffer_t) {.ptr = (uint8_t *) &payload[offset], .size = g_tlv.size, .offset = 0};
         }
         ret = (*handler)(&buf);
         reset_state();

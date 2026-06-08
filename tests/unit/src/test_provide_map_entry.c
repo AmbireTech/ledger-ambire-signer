@@ -163,10 +163,10 @@ static void test_map_entry_parse_valid(void **state) {
 
     assert_int_equal(ctx.entry.chain_id, 1);
     assert_memory_equal(ctx.entry.contract_addr, s_contract_addr, ADDRESS_LENGTH);
-    assert_memory_equal(ctx.entry.selector, ((uint8_t[]){SELECTOR_BYTES}), SELECTOR_SIZE);
+    assert_memory_equal(ctx.entry.selector, ((uint8_t[]) {SELECTOR_BYTES}), SELECTOR_SIZE);
     assert_int_equal(ctx.entry.id, 2);
     assert_int_equal(ctx.entry.key_size, 3);
-    assert_memory_equal(ctx.entry.key, ((uint8_t[]){KEY_BYTES}), 3);
+    assert_memory_equal(ctx.entry.key, ((uint8_t[]) {KEY_BYTES}), 3);
     assert_int_equal(ctx.entry.value_size, 5);
     assert_memory_equal(ctx.entry.value, "Hello", 5);
 }
