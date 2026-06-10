@@ -59,7 +59,9 @@ static void check_offset_or_length(ethPluginProvideParameter_t *msg,
             check = BLS12381_G2_COMPRESSED_SIGNATURE_LENGTH;
             break;
         default:
-            break;
+            context->valid = 0;
+            msg->result = ETH_PLUGIN_RESULT_ERROR;
+            return;
     }
     uint32_t index = U4BE(msg->parameter, PARAMETER_LENGTH - 4);
     if (index != check) {
@@ -68,6 +70,8 @@ static void check_offset_or_length(ethPluginProvideParameter_t *msg,
                check,
                index);
         context->valid = 0;
+        msg->result = ETH_PLUGIN_RESULT_ERROR;
+        return;
     }
     msg->result = ETH_PLUGIN_RESULT_OK;
 }
@@ -178,7 +182,7 @@ void eth2_plugin_call(eth_plugin_msg_t message, void *parameters) {
                 msg->uiType = ETH_UI_TYPE_GENERIC;
                 msg->result = ETH_PLUGIN_RESULT_OK;
             } else {
-                msg->result = ETH_PLUGIN_RESULT_FALLBACK;
+                msg->result = ETH_PLUGIN_RESULT_ERROR;
             }
         } break;
 
