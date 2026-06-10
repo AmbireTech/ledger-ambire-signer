@@ -99,9 +99,9 @@ ${BOLOS_SDK}/fuzzing/local_run.sh --j=4 --build=1 --BOLOS_SDK=${BOLOS_SDK} \
 | `--fuzzer`             | `PATH`              | **Required**. Path to the fuzzer binary                              |
 | `--compute-coverage`   | `bool`              | **Optional**. Whether to compute coverage after fuzzing (default: 0) |
 | `--run-fuzzer`         | `bool`              | **Optional**. Whether to run or not the fuzzer (default: 0)          |
-| `--run-crash`          | `FILENAME`          | **Optional**. Run the on a specific crash input file (default: 0) |
-| `--sanitizer`          | `address or memory` | **Optional**. Compile with sanitizer (default: address)       |
-| `--j`                  | `int`               | **Optional**. N-parallel jobs for build and fuzzing (default: 1) |
+| `--run-crash`          | `FILENAME`          | **Optional**. Run the on a specific crash input file (default: 0)    |
+| `--sanitizer`          | `address or memory` | **Optional**. Compile with sanitizer (default: address)              |
+| `--j`                  | `int`               | **Optional**. N-parallel jobs for build and fuzzing (default: 1)     |
 | `--help`               |                     | **Optional**. Display help message                                   |
 
 ### Visualizing code coverage

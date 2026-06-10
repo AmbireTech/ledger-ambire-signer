@@ -18,10 +18,12 @@
 #include "tx_ctx.h"
 #include "token_info.h"
 #include "nft_info.h"
+#include "common_ui.h"
 
 static bool *index_allocated = NULL;
 
 static void review_choice(bool confirm) {
+    ui_gcs_cleanup();
     if (confirm) {
         io_seproxyhal_touch_tx_ok();
 #ifndef FUZZ
