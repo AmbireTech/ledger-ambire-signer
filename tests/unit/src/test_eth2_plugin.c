@@ -24,7 +24,7 @@
  *  - parameter 8 happy path leaves valid=1, mismatch flips it,
  *  - eth2WithdrawalIndex > INDEX_MAX (2^16) is rejected as a
  *    derivation-path-attack guard,
- *  - FINALIZE: valid=1 -> OK + 2 screens, valid=0 -> FALLBACK,
+ *  - FINALIZE: valid=1 -> OK + 2 screens, valid=0 -> ERROR,
  *  - QUERY_CONTRACT_ID writes "ETH2"/"Deposit",
  *  - QUERY_CONTRACT_UI screen 0 is the amount (using
  *    g_chain_config->ticker), screen 1 is "0x" + 96 hex chars
@@ -279,7 +279,7 @@ static void test_finalize_valid_returns_two_screens(void **state) {
     assert_int_equal(msg.uiType, ETH_UI_TYPE_GENERIC);
 }
 
-static void test_finalize_invalid_falls_back(void **state) {
+static void test_finalize_invalid_returns_error(void **state) {
     (void) state;
     eth2_deposit_parameters_t ctx = {.valid = 0};
     txContent_t tx = {0};
@@ -287,7 +287,7 @@ static void test_finalize_invalid_falls_back(void **state) {
     msg.pluginContext = (uint8_t *) &ctx;
     msg.txContent = &tx;
     eth2_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_FALLBACK);
+    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
 static void test_query_contract_id_eth2_deposit(void **state) {
@@ -479,7 +479,7 @@ int main(void) {
         cmocka_unit_test_setup(test_withdrawal_credentials_mismatch_flips_valid, reset),
         cmocka_unit_test_setup(test_withdrawal_index_above_max_rejected, reset),
         cmocka_unit_test_setup(test_finalize_valid_returns_two_screens, reset),
-        cmocka_unit_test_setup(test_finalize_invalid_falls_back, reset),
+        cmocka_unit_test_setup(test_finalize_invalid_returns_error, reset),
         cmocka_unit_test_setup(test_query_contract_id_eth2_deposit, reset),
         cmocka_unit_test_setup(test_ui_amount_screen_uses_chain_ticker, reset),
         cmocka_unit_test_setup(test_ui_validator_screen_renders_pubkey_hex, reset),
