@@ -195,29 +195,6 @@ void get_asset_info_on_network(bool is_fee,
 }
 
 /**
- * Local implementation of strcasecmp, workaround for the segfaulting base implementation
- * on return value. Remove once strcasecmp is fixed.
- *
- * @param str1 First string to compare
- * @param str2 Second string to compare
- * @return 0 if strings are equal (case-insensitive), difference otherwise
- */
-static int strcasecmp_workaround(const char *str1, const char *str2) {
-    unsigned char c1, c2;
-
-    LEDGER_ASSERT(str1 != NULL, "strcasecmp_workaround: str1 is NULL");
-    LEDGER_ASSERT(str2 != NULL, "strcasecmp_workaround: str2 is NULL");
-    do {
-        c1 = *str1++;
-        c2 = *str2++;
-        if (toupper(c1) != toupper(c2)) {
-            return toupper(c1) - toupper(c2);
-        }
-    } while (c1 != '\0');
-    return 0;
-}
-
-/**
  * Verify that the destination address matches the previously validated one
  *
  * @param destination Destination address to verify
@@ -228,7 +205,7 @@ bool swap_check_destination(const char *destination) {
         return false;
     }
     // Ensure the values are the same that the ones that have been previously validated
-    if (strcasecmp_workaround(strings.common.toAddress, destination) != 0) {
+    if (strcasecmp(strings.common.toAddress, destination) != 0) {
         PRINTF("Error comparing destination addresses\n");
         send_swap_error_with_string(APDU_RESPONSE_MODE_CHECK_FAILED,
                                     SWAP_EC_ERROR_WRONG_DESTINATION,
