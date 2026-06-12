@@ -11,6 +11,11 @@ tests/unit/build/
 tests/unit/coverage/
 tests/unit/coverage.*
 
+# Ragger functional coverage (pytest --coverage; output location depends on the cwd)
+coverage*.info
+coverage*_html/
+.ragger_coverage/
+
 # Python
 venv/
 *.pyc
