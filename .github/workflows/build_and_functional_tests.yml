@@ -74,3 +74,16 @@ jobs:
     with:
       flags: "memory_profiling"
       run_for_devices: '["nanox"]'
+
+  ragger_coverage:
+    name: Functional tests coverage using the reusable workflow
+    # Builds the app with debug symbols (dbg_use_test_keys) and runs the ragger
+    # tests with coverage tracing; uploads the lcov file + HTML report as the
+    # 'coverage-<device>' artifact(s) and to codecov under the 'functionaltests' flag.
+    uses: LedgerHQ/ledger-app-workflows/.github/workflows/reusable_ragger_coverage.yml@v1
+    with:
+      run_for_devices: '["flex"]'
+      flags: "dbg_use_test_keys"
+      coverage_exclude: "ethereum-plugin-sdk"
+    secrets:
+      codecov_token: ${{ secrets.CODECOV_TOKEN }}
