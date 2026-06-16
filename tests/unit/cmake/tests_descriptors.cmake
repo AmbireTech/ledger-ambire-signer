@@ -212,13 +212,11 @@ add_eth_unit_test(test_cmd_get_tx_simulation
     ${PLUGIN_DIR}/common_utils.c
   INCLUDES
     ${APP_DIR}/features/provide_tx_simulation
+    ${BOLOS_SDK}/lib_tlv/use_cases
   DEFS
     HAVE_LEDGER_PKI
   WRAPS
-    check_signature_with_pubkey
-    finalize_hash
-    hash_nbytes
-    os_pki_get_info
+    tlv_use_case_transaction_check
     get_public_key
     get_tx_chain_id
   COMPILE_OPTIONS "SHELL:-include os_pic.h"
