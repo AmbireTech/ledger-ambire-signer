@@ -162,6 +162,11 @@ ENABLE_NBGL_QRCODE = 1
 #DISABLE_DEBUG_THROW = 1
 
 ########################################
+#            Stack protector           #
+########################################
+ENABLE_STACK_PROTECTOR = 1
+
+########################################
 #        Main app configuration        #
 ########################################
 ENABLE_PKI_LIBRARY = 1
