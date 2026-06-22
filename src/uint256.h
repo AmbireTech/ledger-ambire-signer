@@ -28,6 +28,7 @@ typedef struct uint256_t {
 } uint256_t;
 
 void readu256BE(const uint8_t *buffer, uint256_t *target);
+void writeu256BE(const uint256_t *number, uint8_t *buffer);
 bool zero256(const uint256_t *number);
 void copy256(uint256_t *target, const uint256_t *number);
 void clear256(uint256_t *target);

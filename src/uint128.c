@@ -33,6 +33,12 @@ void readu128BE(const uint8_t *buffer, uint128_t *target) {
     LOWER_P(target) = read_u64_be(buffer + 8, 0);
 }
 
+void writeu128BE(const uint128_t *number, uint8_t *buffer) {
+    // Most significant 64-bit word first, matching readu128BE.
+    write_u64_be(buffer, 0, UPPER_P(number));
+    write_u64_be(buffer + 8, 0, LOWER_P(number));
+}
+
 bool zero128(const uint128_t *number) {
     return ((LOWER_P(number) == 0) && (UPPER_P(number) == 0));
 }

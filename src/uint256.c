@@ -33,6 +33,11 @@ void readu256BE(const uint8_t *buffer, uint256_t *target) {
     readu128BE(buffer + 16, &LOWER_P(target));
 }
 
+void writeu256BE(const uint256_t *number, uint8_t *buffer) {
+    writeu128BE(&UPPER_P(number), buffer);
+    writeu128BE(&LOWER_P(number), buffer + 16);
+}
+
 bool zero256(const uint256_t *number) {
     return (zero128(&LOWER_P(number)) && zero128(&UPPER_P(number)));
 }

@@ -27,6 +27,7 @@ typedef struct uint128_t {
 } uint128_t;
 
 void readu128BE(const uint8_t *buffer, uint128_t *target);
+void writeu128BE(const uint128_t *number, uint8_t *buffer);
 bool zero128(const uint128_t *number);
 void copy128(uint128_t *target, const uint128_t *number);
 void clear128(uint128_t *target);
