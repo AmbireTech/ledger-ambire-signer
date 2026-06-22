@@ -47,6 +47,7 @@
 #include "cmd_get_tx_simulation.h"
 #include "cmd_get_gating.h"
 #include "cmd_proxy_info.h"
+#include "cmd_token_multiplier.h"
 #include "commands_7702.h"
 #include "sign_message.h"
 #include "ui_utils.h"
@@ -315,6 +316,10 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
 
         case INS_PROVIDE_MAP_ENTRY:
             sw = handle_map_entry(cmd->p1, cmd->p2, cmd->lc, cmd->data);
+            break;
+
+        case INS_PROVIDE_TOKEN_MULTIPLIER:
+            sw = handle_token_multiplier(cmd->p1, cmd->p2, cmd->lc, cmd->data);
             break;
 
         default:

@@ -1,6 +1,7 @@
 #include "manage_asset_info.h"
 #include "token_info.h"
 #include "nft_info.h"
+#include "multiplier_info.h"
 
 _Static_assert((offsetof(s_token_info, address) == offsetof(tokenDefinition_t, address)) &&
                    (sizeof(((s_token_info *) NULL)->address) ==
@@ -38,4 +39,5 @@ extraInfo_t *get_matching_asset_info(const uint64_t *chain_id, const uint8_t *ad
 void forget_known_assets(void) {
     clear_token_infos();
     clear_nft_infos();
+    clear_token_multipliers();
 }

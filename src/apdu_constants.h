@@ -37,6 +37,7 @@
 #define INS_PROVIDE_SAFE_ACCOUNT            0x36
 #define INS_PROVIDE_GATING                  0x38
 #define INS_PROVIDE_MAP_ENTRY               0x3A
+#define INS_PROVIDE_TOKEN_MULTIPLIER        0x3C
 
 #define INS_STR(x)                                                             \
     (x == INS_GET_PUBLIC_KEY                    ? "GET_PUBLIC_KEY"             \
@@ -66,6 +67,7 @@
      : x == INS_PROVIDE_SAFE_ACCOUNT            ? "PROVIDE_SAFE_ACCOUNT"       \
      : x == INS_PROVIDE_GATING                  ? "PROVIDE_GATING"             \
      : x == INS_PROVIDE_MAP_ENTRY               ? "PROVIDE_MAP_ENTRY"          \
+     : x == INS_PROVIDE_TOKEN_MULTIPLIER        ? "PROVIDE_TOKEN_MULTIPLIER"   \
                                                 : "Unknown")
 #define P1_CONFIRM              0x01
 #define P1_NON_CONFIRM          0x00
