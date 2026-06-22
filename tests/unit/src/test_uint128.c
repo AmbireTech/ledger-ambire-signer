@@ -84,6 +84,47 @@ static void test_readu128BE_reads_big_endian(void **state) {
     assert_int_equal(LOWER(n), 0xFEDCBA9876543210ULL);
 }
 
+static void test_writeu128BE_writes_big_endian(void **state) {
+    (void) state;
+    uint128_t n;
+    UPPER(n) = 0x0123456789ABCDEFULL;
+    LOWER(n) = 0xFEDCBA9876543210ULL;
+
+    uint8_t expected[16] = {0x01,
+                            0x23,
+                            0x45,
+                            0x67,
+                            0x89,
+                            0xAB,
+                            0xCD,
+                            0xEF,
+                            0xFE,
+                            0xDC,
+                            0xBA,
+                            0x98,
+                            0x76,
+                            0x54,
+                            0x32,
+                            0x10};
+    uint8_t buf[16];
+    writeu128BE(&n, buf);
+    assert_memory_equal(buf, expected, sizeof(expected));
+}
+
+static void test_writeu128BE_round_trips_with_read(void **state) {
+    (void) state;
+    // writeu128BE must be the exact inverse of readu128BE.
+    uint8_t in[16];
+    for (size_t i = 0; i < 16; i++) {
+        in[i] = (uint8_t) (0x5A ^ (i * 11));
+    }
+    uint128_t n;
+    readu128BE(in, &n);
+    uint8_t out[16];
+    writeu128BE(&n, out);
+    assert_memory_equal(out, in, sizeof(in));
+}
+
 // =============================================================================
 // Comparison
 // =============================================================================
@@ -542,6 +583,8 @@ int main(void) {
         cmocka_unit_test(test_zero128_detects_zero_and_nonzero),
         cmocka_unit_test(test_copy128_preserves_both_halves),
         cmocka_unit_test(test_readu128BE_reads_big_endian),
+        cmocka_unit_test(test_writeu128BE_writes_big_endian),
+        cmocka_unit_test(test_writeu128BE_round_trips_with_read),
         cmocka_unit_test(test_equal128),
         cmocka_unit_test(test_gt128_and_gte128),
         cmocka_unit_test(test_shiftl128_boundaries),

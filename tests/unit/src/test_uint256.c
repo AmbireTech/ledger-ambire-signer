@@ -113,6 +113,36 @@ static void test_readu256BE_reads_big_endian(void **state) {
     assert_int_equal(LOWER(LOWER(n)), 0x191A1B1C1D1E1F20ULL);
 }
 
+static void test_writeu256BE_writes_big_endian(void **state) {
+    (void) state;
+    // Most significant 64-bit limb first.
+    uint256_t n;
+    UPPER(UPPER(n)) = 0x0102030405060708ULL;
+    LOWER(UPPER(n)) = 0x090A0B0C0D0E0F10ULL;
+    UPPER(LOWER(n)) = 0x1112131415161718ULL;
+    LOWER(LOWER(n)) = 0x191A1B1C1D1E1F20ULL;
+
+    uint8_t buf[32];
+    writeu256BE(&n, buf);
+    for (size_t i = 0; i < 32; i++) {
+        assert_int_equal(buf[i], (uint8_t) (i + 1));
+    }
+}
+
+static void test_writeu256BE_round_trips_with_read(void **state) {
+    (void) state;
+    // writeu256BE must be the exact inverse of readu256BE.
+    uint8_t in[32];
+    for (size_t i = 0; i < 32; i++) {
+        in[i] = (uint8_t) (0xA0 ^ (i * 7));
+    }
+    uint256_t n;
+    readu256BE(in, &n);
+    uint8_t out[32];
+    writeu256BE(&n, out);
+    assert_memory_equal(out, in, sizeof(in));
+}
+
 // =============================================================================
 // Comparison
 // =============================================================================
@@ -557,6 +587,8 @@ int main(void) {
         cmocka_unit_test(test_zero256_detects_zero_and_nonzero),
         cmocka_unit_test(test_copy256_preserves_all_four_limbs),
         cmocka_unit_test(test_readu256BE_reads_big_endian),
+        cmocka_unit_test(test_writeu256BE_writes_big_endian),
+        cmocka_unit_test(test_writeu256BE_round_trips_with_read),
         cmocka_unit_test(test_equal256_and_ordering),
         cmocka_unit_test(test_shiftl256_boundaries),
         cmocka_unit_test(test_shiftr256_boundaries),

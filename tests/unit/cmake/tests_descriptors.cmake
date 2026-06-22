@@ -152,6 +152,22 @@ add_eth_unit_test(test_proxy_info
   COMPILE_OPTIONS "SHELL:-include os_pic.h"
 )
 
+add_eth_unit_test(test_token_multiplier
+  APP_SOURCES
+    ${APP_DIR}/features/provide_token_multiplier/multiplier_info.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  SDK_SOURCES
+    ${BOLOS_SDK}/lib_lists/lists.c
+  INCLUDES
+    ${APP_DIR}/features/provide_token_multiplier
+  WRAPS
+    cx_math_mult_no_throw
+  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+)
+
 add_eth_unit_test(test_trusted_name
   APP_SOURCES
     ${APP_DIR}/features/provide_trusted_name/trusted_name.c
