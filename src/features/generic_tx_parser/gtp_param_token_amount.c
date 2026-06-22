@@ -8,6 +8,7 @@
 #include "tx_ctx.h"
 #include "tlv_utils.h"
 #include "shared_context.h"
+#include "multiplier_info.h"
 
 #define PARAM_TOKEN_AMOUNT_TAGS(X)                                           \
     X(0x00, TAG_VERSION, handle_version, ENFORCE_UNIQUE_TAG)                 \
@@ -125,7 +126,18 @@ static bool process_token_amount(const s_param_token_amount *param,
             snprintf(buf, buf_size, "Unlimited %s", ticker);
         }
     } else {
-        if (!amountToString(value->ptr, value->length, decimals, ticker, buf, buf_size)) {
+        // ERC-8056: if a signed UI multiplier was provided for this token, scale
+        // the displayed amount (raw stays on-chain). The threshold check above
+        // intentionally keeps comparing the raw value.
+        const uint8_t *amount_ptr = value->ptr;
+        uint8_t amount_len = value->length;
+        uint8_t scaled[INT256_LENGTH];
+        if ((token_info != NULL) &&
+            scale_amount_by_multiplier(&chain_id, addr_buf, value->ptr, value->length, scaled)) {
+            amount_ptr = scaled;
+            amount_len = sizeof(scaled);
+        }
+        if (!amountToString(amount_ptr, amount_len, decimals, ticker, buf, buf_size)) {
             return false;
         }
     }

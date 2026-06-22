@@ -12,6 +12,7 @@
 #include "eth_swap_utils.h"
 #include "erc20_plugin.h"
 #include "network.h"
+#include "multiplier_info.h"
 
 typedef enum { ERC20_TRANSFER = 0, ERC20_APPROVE } erc20Selector_t;
 static const uint8_t ERC20_TRANSFER_SELECTOR[SELECTOR_SIZE] = {0xa9, 0x05, 0x9c, 0xbb};
@@ -28,6 +29,10 @@ typedef struct erc20_parameters_t {
     uint8_t amount[INT256_LENGTH];
     char ticker[MAX_TICKER_LEN];
     uint8_t decimals;
+    // ERC-8056: contract + chain of the token, captured at FINALIZE so the
+    // review screen can apply the signed UI multiplier to the displayed amount.
+    uint8_t contract_address[ADDRESS_LENGTH];
+    uint64_t chain_id;
     char contract_name[MAX_CONTRACT_NAME_LEN];
     // data not part of the ABI (usually for tracking purposes)
     char extra_data[MAX_EXTRA_DATA_CHUNKS * CALLDATA_CHUNK_SIZE];
@@ -144,6 +149,8 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
                 break;
             }
             msg->tokenLookup1 = msg->txContent->destination;
+            memcpy(context->contract_address, msg->tokenLookup1, ADDRESS_LENGTH);
+            context->chain_id = get_tx_chain_id();
             msg->numScreens = 2;
             if (context->extra_data_len > 0) {
                 msg->numScreens += 1;
@@ -237,8 +244,21 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
                         strlcpy(msg->msg, "Unlimited ", msg->msgLength);
                         strlcat(msg->msg, context->ticker, msg->msgLength);
                     } else {
-                        if (!amountToString(context->amount,
-                                            sizeof(context->amount),
+                        // ERC-8056: scale the displayed amount by the signed UI
+                        // multiplier when one was provided for this token.
+                        const uint8_t *amount_ptr = context->amount;
+                        uint8_t amount_len = sizeof(context->amount);
+                        uint8_t scaled[INT256_LENGTH];
+                        if (scale_amount_by_multiplier(&context->chain_id,
+                                                       context->contract_address,
+                                                       context->amount,
+                                                       sizeof(context->amount),
+                                                       scaled)) {
+                            amount_ptr = scaled;
+                            amount_len = sizeof(scaled);
+                        }
+                        if (!amountToString(amount_ptr,
+                                            amount_len,
                                             context->decimals,
                                             context->ticker,
                                             msg->msg,
