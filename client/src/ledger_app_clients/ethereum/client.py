@@ -22,6 +22,7 @@ from .signing_partners import (
     TX_SIMU_PARTNER,
     SAFE_PARTNER,
     GATING_PARTNER,
+    TOKEN_MULTIPLIER,
 )
 from .response_parser import pk_addr
 from .tx_simu import TxSimu
@@ -530,6 +531,17 @@ class EthAppClient:
         self.send_pki_certificate(TRUSTED_NAME_PARTNER)
 
         chunks = self._cmd_builder.provide_proxy_info(payload)
+        for chunk in chunks[:-1]:
+            self._exchange(chunk)
+        return self._exchange(chunks[-1])
+
+    def provide_token_multiplier(
+        self, payload: bytes, partner: SigningPartner = TOKEN_MULTIPLIER
+    ) -> RAPDU:
+        # Send ledgerPKI certificate
+        self.send_pki_certificate(partner)
+
+        chunks = self._cmd_builder.provide_token_multiplier(payload)
         for chunk in chunks[:-1]:
             self._exchange(chunk)
         return self._exchange(chunks[-1])
