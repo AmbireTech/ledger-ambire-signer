@@ -51,6 +51,11 @@
 #include "sign_message.h"
 #include "ui_utils.h"
 #include "network_info.h"
+#ifdef HAVE_ADDRESS_BOOK
+#include "handle_contacts.h"
+#ifdef HAVE_ADDRESS_BOOK_LEDGER_ACCOUNT
+#endif  // HAVE_ADDRESS_BOOK_LEDGER_ACCOUNT
+#endif  // HAVE_ADDRESS_BOOK
 #include "cmd_safe_account.h"
 #include "tx_ctx.h"
 #include "enum_value.h"
@@ -113,6 +118,9 @@ void reset_app_context(void) {
 
 void app_quit(void) {
     network_info_cleanup(NULL);
+#ifdef HAVE_ADDRESS_BOOK
+    address_book_contact_cleanup();
+#endif  // HAVE_ADDRESS_BOOK
     reset_app_context();
     app_exit();
 }
