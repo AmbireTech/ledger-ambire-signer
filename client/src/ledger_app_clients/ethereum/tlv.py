@@ -14,7 +14,6 @@ class FieldTag(IntEnum):
     GROUP_HANDLE = 0xf6
     CHALLENGE = 0x12
     DER_SIGNATURE = 0x15
-    DERIVATION_PATH = 0x21
     ADDRESS = 0x22
     CHAIN_ID = 0x23
     TICKER = 0x24
@@ -24,6 +23,7 @@ class FieldTag(IntEnum):
     BLOCKCHAIN_FAMILY = 0x51
     NETWORK_NAME = 0x52
     NETWORK_ICON_HASH = 0x53
+    DERIVATION_PATH = 0x69
     HMAC_PROOF = 0x29
     HMAC_REST = 0xf7
     TX_CHECKS_NORMALIZED_RISK = 0x80
