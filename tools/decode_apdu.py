@@ -2,6 +2,7 @@
 """Decode APDU replay file to extract transaction details."""
 
 from pathlib import Path
+from enum import IntEnum
 import argparse
 import logging
 import sys
@@ -15,7 +16,13 @@ from eth_abi import decode
 from generate_selector_cache import gen_selector_cache
 
 from client.command_builder import InsType, P1Type, P2Type
-from client.tlv import FieldTag as TLVFieldTag
+from ragger.tlv import (
+    LedgerCommonFieldTag,
+    CoinInfoFieldTag,
+    TxSimulationFieldTag,
+    LesMultisigFieldTag,
+    EvmFunctionFieldTag,
+)
 from client.gcs import TxInfoTag as TagTransactionInfo, FieldTag as TagTransactionField
 from client.enum_value import Tag as TagEnumValue
 from client.eip712.struct import EIP712FieldType as StructFieldType, EIP712TypeDescMask as StructTypeDescMask
@@ -903,10 +910,24 @@ def decode_enum_value_tlv() -> None:
 def decode_tlv() -> None:
     """Decode TLV-encoded payload"""
 
+    # Legacy "envelope" payloads mix tags from several Trust-Services
+    # namespaces (Common / CoinInfo / TxSimulation / LesMultisig / EvmFunction).
+    # Build a single IntEnum that aggregates them so decode_generic_tlv() can
+    # look up names from a flat tag space.
+    merged_members: dict = {}
+    for src_enum in (LedgerCommonFieldTag,
+                     CoinInfoFieldTag,
+                     TxSimulationFieldTag,
+                     LesMultisigFieldTag,
+                     EvmFunctionFieldTag):
+        for member in src_enum:
+            merged_members.setdefault(member.name, int(member))
+    TLVFieldTag = IntEnum("TLVFieldTag", merged_members)
+
     string_tags = [
         TLVFieldTag.TICKER,
         TLVFieldTag.NETWORK_NAME,
-        TLVFieldTag.MESSAGE,
+        TLVFieldTag.PROVIDER_MESSAGE,
         TLVFieldTag.TINY_URL,
     ]
     skip_tags = [
@@ -925,7 +946,7 @@ def decode_tlv() -> None:
         TLVFieldTag.SIGNERS_COUNT,
     ]
     selector_tags = [
-        TLVFieldTag.SELECTOR,
+        TLVFieldTag.EVM_FUNCTION_SELECTOR,
     ]
     decode_generic_tlv(TLVFieldTag, string_tags, number_tags, selector_tags, skip_tags)
 
