@@ -8,12 +8,27 @@ from pathlib import Path
 from typing import Optional
 
 from bip_utils import Bip39SeedGenerator, Bip32Slip10Secp256k1
+from web3 import Web3
+
 from ragger.error import ExceptionRAPDU
 from ragger.navigator.navigation_scenario import NavigateWithScenario
 from ragger.bip import pack_derivation_path
 from ragger.bip.seed import SPECULOS_MNEMONIC
 from ragger.navigator import NavInsID
-from web3 import Web3
+from ragger.tlv import BlockchainFamily, LedgerStructType
+from ragger.address_book import (
+    RegisterIdentity,
+    EditContactName,
+    EditIdentifier,
+    EditScope,
+    RegisterLedgerAccount,
+    EditLedgerAccount,
+    ProvideContact,
+    ProvideLedgerAccountContact,
+    GROUP_HANDLE_LENGTH,
+    GID_SIZE,
+    HMAC_PROOF_LENGTH,
+)
 
 from test_eip712 import eip712_calldata_common, eip712_json_path, eip712_new_common, set_wallet_addr
 from test_gcs import compute_inst_hash
@@ -28,26 +43,17 @@ from client.utils import get_selector_from_data, CoinType
 from client.trusted_name import TrustedName, TrustedNameType, TrustedNameSource
 import client.response_parser as ResponseParser
 from client.status_word import StatusWord
-from client.address_book import (
-    RegisterIdentity,
-    EditContactName,
-    EditIdentifier,
-    EditScope,
-    RegisterLedgerAccount,
-    EditLedgerAccount,
-    ProvideContact,
-    ProvideLedgerAccountContact,
-    AddressBookResponseType,
-    DEFAULT_BIP32_PATH,
-    DEFAULT_CONTACT_NAME,
-    DEFAULT_ADDRESS,
-    DEFAULT_ACCOUNT_NAME,
-    DEFAULT_SCOPE,
-    DEFAULT_CHAIN_ID,
-    GROUP_HANDLE_LENGTH,
-    GID_SIZE,
-    HMAC_PROOF_LENGTH,
-)
+
+
+# Ethereum binding + default test values passed explicitly to the generic
+# ragger.address_book sub-commands (no Ethereum-specific shell anymore).
+FAMILY = BlockchainFamily.ETHEREUM
+DEFAULT_BIP32_PATH = "m/44'/60'/0'/0/0"
+DEFAULT_CONTACT_NAME = "Alice"
+DEFAULT_CHAIN_ID = 1  # Ethereum Mainnet
+DEFAULT_SCOPE = "Eth Address 1"
+DEFAULT_ADDRESS = bytes.fromhex("6b175474e89094c44da98b954eedeac495271d0f")
+DEFAULT_ACCOUNT_NAME = "ETH main address"
 
 
 # =============================================================================
@@ -151,7 +157,7 @@ def compute_hmac_rest(bip32_path: str,
     scope_bytes = scope.encode('utf-8')
     msg = (gid +
            bytes([len(scope_bytes)]) + scope_bytes +
-           bytes([len(address)])  + address  +
+           bytes([len(address)]) + address +
            bytes([BLOCKCHAIN_FAMILY_ETHEREUM]))
     msg += chain_id.to_bytes(8, 'big')
     return hmac_module.new(key, msg, hashlib.sha256).digest()
@@ -178,7 +184,7 @@ def compute_hmac_proof_ledger_account(bip32_path: str,
 # =============================================================================
 
 def _check_response_generic(app_client: EthAppClient,
-                            expected_type: AddressBookResponseType,
+                            expected_type: LedgerStructType,
                             bip32_path: str = DEFAULT_BIP32_PATH,
                             # Identity-specific params
                             gid: Optional[bytes] = None,
@@ -209,7 +215,7 @@ def _check_response_generic(app_client: EthAppClient,
     # -------------------------------------------------------------------------
     # REGISTER_IDENTITY: type(1) | group_handle(64) | hmac_name(32) | hmac_rest(32)
     # -------------------------------------------------------------------------
-    if expected_type == AddressBookResponseType.TYPE_REGISTER_IDENTITY:
+    if expected_type == LedgerStructType.TYPE_REGISTER_IDENTITY:
         expected_len = 1 + GROUP_HANDLE_LENGTH + HMAC_PROOF_LENGTH + HMAC_PROOF_LENGTH
         assert len(data) == expected_len, \
             f"Expected {expected_len} bytes for REGISTER_IDENTITY, got {len(data)}"
@@ -250,7 +256,7 @@ def _check_response_generic(app_client: EthAppClient,
 
     device_hmac = data[1:1 + HMAC_PROOF_LENGTH]
 
-    if expected_type == AddressBookResponseType.TYPE_EDIT_CONTACT_NAME:
+    if expected_type == LedgerStructType.TYPE_EDIT_CONTACT_NAME:
         assert gid is not None and contact_name is not None, \
             "gid and contact_name required for EDIT_CONTACT_NAME"
         expected_hmac = compute_hmac_name(bip32_path, gid, contact_name)
@@ -260,8 +266,8 @@ def _check_response_generic(app_client: EthAppClient,
             f"  expected: {expected_hmac.hex()}"
         )
 
-    elif expected_type in (AddressBookResponseType.TYPE_EDIT_IDENTIFIER,
-                           AddressBookResponseType.TYPE_EDIT_SCOPE):
+    elif expected_type in (LedgerStructType.TYPE_EDIT_IDENTIFIER,
+                           LedgerStructType.TYPE_EDIT_SCOPE):
         assert all(p is not None for p in [gid, scope, address]), \
             "gid, scope, and address required for HMAC_REST"
         expected_hmac = compute_hmac_rest(bip32_path, gid, scope, address, chain_id)
@@ -271,8 +277,8 @@ def _check_response_generic(app_client: EthAppClient,
             f"  expected: {expected_hmac.hex()}"
         )
 
-    elif expected_type in (AddressBookResponseType.TYPE_REGISTER_LEDGER_ACCOUNT,
-                           AddressBookResponseType.TYPE_EDIT_LEDGER_ACCOUNT):
+    elif expected_type in (LedgerStructType.TYPE_REGISTER_LEDGER_ACCOUNT,
+                           LedgerStructType.TYPE_EDIT_LEDGER_ACCOUNT):
         assert contact_name is not None, "contact_name required for Ledger Account HMAC"
         expected_hmac = compute_hmac_proof_ledger_account(bip32_path, contact_name, chain_id)
         assert device_hmac == expected_hmac, (
@@ -297,7 +303,7 @@ def check_identity_response(app_client: EthAppClient,
     """
     group_handle, hmac_name, hmac_rest = _check_response_generic(
         app_client,
-        AddressBookResponseType.TYPE_REGISTER_IDENTITY,
+        LedgerStructType.TYPE_REGISTER_IDENTITY,
         bip32_path,
         contact_name=contact_name,
         scope=scope,
@@ -315,7 +321,7 @@ def check_ledger_account_response(app_client: EthAppClient,
     """Verify the Register Ledger Account response and return the HMAC proof."""
     hmac_proof, _, _ = _check_response_generic(
         app_client,
-        AddressBookResponseType.TYPE_REGISTER_LEDGER_ACCOUNT,
+        LedgerStructType.TYPE_REGISTER_LEDGER_ACCOUNT,
         bip32_path,
         contact_name=contact_name,
         chain_id=chain_id,
@@ -331,10 +337,10 @@ def check_edit_contact_name_response(app_client: EthAppClient,
     """Verify the Edit Contact Name response and return the new HMAC_NAME."""
     hmac_name, _, _ = _check_response_generic(
         app_client,
-        AddressBookResponseType.TYPE_EDIT_CONTACT_NAME,
+        LedgerStructType.TYPE_EDIT_CONTACT_NAME,
         bip32_path,
-        gid=group_handle[:GID_SIZE],
-        contact_name=contact_name,
+        group_handle[:GID_SIZE],
+        contact_name,
     )
     print("✓ Edit Contact Name: HMAC_NAME verified")
     return hmac_name
@@ -349,9 +355,9 @@ def check_edit_identifier_response(app_client: EthAppClient,
     """Verify the Edit Identifier response and return the new HMAC_REST."""
     hmac_rest, _, _ = _check_response_generic(
         app_client,
-        AddressBookResponseType.TYPE_EDIT_IDENTIFIER,
+        LedgerStructType.TYPE_EDIT_IDENTIFIER,
         bip32_path,
-        gid=group_handle[:GID_SIZE],
+        group_handle[:GID_SIZE],
         scope=scope,
         address=address,
         chain_id=chain_id,
@@ -369,9 +375,9 @@ def check_edit_scope_response(app_client: EthAppClient,
     """Verify the Edit Scope response and return the new HMAC_REST."""
     hmac_rest, _, _ = _check_response_generic(
         app_client,
-        AddressBookResponseType.TYPE_EDIT_SCOPE,
+        LedgerStructType.TYPE_EDIT_SCOPE,
         bip32_path,
-        gid=group_handle[:GID_SIZE],
+        group_handle[:GID_SIZE],
         scope=scope,
         address=address,
         chain_id=chain_id,
@@ -387,7 +393,7 @@ def check_edit_ledger_account_response(app_client: EthAppClient,
     """Verify the Edit Ledger Account response and return the new HMAC proof."""
     hmac_proof, _, _ = _check_response_generic(
         app_client,
-        AddressBookResponseType.TYPE_EDIT_LEDGER_ACCOUNT,
+        LedgerStructType.TYPE_EDIT_LEDGER_ACCOUNT,
         bip32_path,
         contact_name=contact_name,
         chain_id=chain_id,
@@ -430,9 +436,12 @@ def _common_register_identity(scenario_navigator: NavigateWithScenario,
         group_handle (64B) must be passed to all subsequent Edit operations.
     """
     apdu = RegisterIdentity(
-        address,
-        contact_name,
+        identifier=address,
+        contact_name=contact_name,
         scope=scope,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID,
         group_handle=group_handle,
         hmac_proof=hmac_proof,
     )
@@ -440,7 +449,7 @@ def _common_register_identity(scenario_navigator: NavigateWithScenario,
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=do_compare, custom_screen_text="Confirm")
 
-    return check_identity_response(app_client, contact_name, scope, address=address)
+    return check_identity_response(app_client, contact_name, scope, address)
 
 
 def _common_register_ledger_account(scenario_navigator: NavigateWithScenario,
@@ -461,7 +470,9 @@ def _common_register_ledger_account(scenario_navigator: NavigateWithScenario,
         HMAC proof
     """
     apdu = RegisterLedgerAccount(contact_name=contact_name,
-                                                     derivation_path=derivation_path)
+                                 derivation_path=derivation_path,
+                                 blockchain_family=FAMILY,
+                                 chain_id=DEFAULT_CHAIN_ID)
 
     instructions = []
     if scenario_navigator.backend.device.is_nano:
@@ -489,8 +500,7 @@ def _common_register_ledger_account(scenario_navigator: NavigateWithScenario,
     # Ensure we're back on the home screen to ensure the dynamic allocation are freed
     scenario_navigator.backend.wait_for_home_screen()
 
-    return check_ledger_account_response(app_client, contact_name=contact_name,
-                                         bip32_path=derivation_path)
+    return check_ledger_account_response(app_client, contact_name, derivation_path)
 
 
 # =============================================================================
@@ -515,8 +525,13 @@ def test_address_book_identity_register_reject(scenario_navigator: NavigateWithS
     app_client = EthAppClient(backend)
 
     apdu = RegisterIdentity(
-        DEFAULT_ADDRESS, DEFAULT_CONTACT_NAME, scope=DEFAULT_SCOPE,
-    )
+        identifier=DEFAULT_ADDRESS,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     text = "Cancel" if scenario_navigator.backend.device.is_nano else "Confirm"
     try:
         with app_client.provide_address_book(apdu):
@@ -537,11 +552,7 @@ def test_address_book_identity_register_long_name(scenario_navigator: NavigateWi
     backend    = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
-    _common_register_identity(
-        scenario_navigator, app_client,
-        contact_name=LONG_CONTACT_NAME,
-        scope=LONG_SCOPE,
-    )
+    _common_register_identity(scenario_navigator, app_client, LONG_CONTACT_NAME, LONG_SCOPE)
 
 
 # =============================================================================
@@ -568,7 +579,18 @@ def test_address_book_identity_edit_identifier(scenario_navigator: NavigateWithS
     )
 
     # Step 2: Edit Identifier (address_old → address_new)
-    apdu = EditIdentifier(new_address, hmac_name_old, hmac_rest_old, group_handle)
+    apdu = EditIdentifier(
+        old_identifier=DEFAULT_ADDRESS,
+        new_identifier=new_address,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        hmac_proof=hmac_name_old,
+        hmac_rest=hmac_rest_old,
+        group_handle=group_handle,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(custom_screen_text="Confirm")
     check_edit_identifier_response(app_client, new_address, group_handle)
@@ -599,7 +621,13 @@ def test_address_book_identity_edit_contact_name(scenario_navigator: NavigateWit
     )
 
     # Step 2: Edit Contact Name (Alice → Bob)
-    apdu = EditContactName(DEFAULT_CONTACT_NAME, new_name, hmac_name_old, group_handle)
+    apdu = EditContactName(
+        old_contact_name=DEFAULT_CONTACT_NAME,
+        new_contact_name=new_name,
+        hmac_proof=hmac_name_old,
+        group_handle=group_handle,
+        derivation_path=DEFAULT_BIP32_PATH)
+
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(custom_screen_text="Confirm")
     check_edit_contact_name_response(app_client, new_name, group_handle)
@@ -625,8 +653,12 @@ def test_address_book_identity_edit_contact_name_reject(
     )
 
     # Step 2: Edit Contact Name → user rejects
-    apdu = EditContactName(DEFAULT_CONTACT_NAME, new_name,
-                                               hmac_name_old, group_handle)
+    apdu = EditContactName(
+        old_contact_name=DEFAULT_CONTACT_NAME,
+        new_contact_name=new_name,
+        hmac_proof=hmac_name_old,
+        group_handle=group_handle,
+        derivation_path=DEFAULT_BIP32_PATH)
 
     text = "Cancel" if scenario_navigator.backend.device.is_nano else "Confirm"
     try:
@@ -664,8 +696,17 @@ def test_address_book_identity_edit_scope(scenario_navigator: NavigateWithScenar
 
     # Step 2: Edit Scope
     apdu = EditScope(
-        DEFAULT_SCOPE, new_scope, hmac_name_old, hmac_rest_old, group_handle
-    )
+        old_scope=DEFAULT_SCOPE,
+        new_scope=new_scope,
+        identifier=DEFAULT_ADDRESS,
+        contact_name=DEFAULT_CONTACT_NAME,
+        derivation_path=DEFAULT_BIP32_PATH,
+        hmac_proof=hmac_name_old,
+        hmac_rest=hmac_rest_old,
+        group_handle=group_handle,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(custom_screen_text="Confirm")
     check_edit_scope_response(app_client, new_scope, group_handle)
@@ -689,7 +730,11 @@ def test_address_book_ledger_account_register_reject(
     backend    = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
-    apdu = RegisterLedgerAccount()
+    apdu = RegisterLedgerAccount(
+        contact_name=DEFAULT_ACCOUNT_NAME,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
 
     if scenario_navigator.backend.device.is_nano:
         instructions = [
@@ -740,7 +785,14 @@ def test_address_book_ledger_account_edit(scenario_navigator: NavigateWithScenar
     )
 
     # Step 2: Edit Ledger Account
-    apdu = EditLedgerAccount(new_name, hmac_proof_old)
+    apdu = EditLedgerAccount(
+        old_account_name=DEFAULT_ACCOUNT_NAME,
+        new_account_name=new_name,
+        derivation_path=DEFAULT_BIP32_PATH,
+        hmac_proof=hmac_proof_old,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(custom_screen_text="Confirm")
     # Wait for the home screen so the review UI cleanup (finalize_ui_ledger_account)
@@ -768,7 +820,13 @@ def test_address_book_ledger_account_edit_reject(
     )
 
     # Step 2: Edit Ledger Account → user rejects
-    apdu = EditLedgerAccount(new_name, hmac_proof_old)
+    apdu = EditLedgerAccount(
+        old_account_name=DEFAULT_ACCOUNT_NAME,
+        new_account_name=new_name,
+        derivation_path=DEFAULT_BIP32_PATH,
+        hmac_proof=hmac_proof_old,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
 
     text = "Cancel" if scenario_navigator.backend.device.is_nano else "Confirm"
     try:
@@ -810,7 +868,14 @@ def test_address_book_ledger_account_edit_invalid_hmac(
     # Step 2: Edit with a corrupted proof (simulates a different seed) — the
     # device must reject before displaying any consent UI.
     corrupted_proof = bytes(b ^ 0xff for b in hmac_proof_old)
-    apdu = EditLedgerAccount(new_name, corrupted_proof)
+    apdu = EditLedgerAccount(
+        old_account_name=DEFAULT_ACCOUNT_NAME,
+        new_account_name=new_name,
+        derivation_path=DEFAULT_BIP32_PATH,
+        hmac_proof=corrupted_proof,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     try:
         response = app_client.provide_address_book(apdu, False)
         assert_sw(response.status, StatusWord.SWO_SECURITY_CONDITION_NOT_SATISFIED)
@@ -844,11 +909,16 @@ def test_address_book_simple_tx(scenario_navigator: NavigateWithScenario) -> Non
 
     # Step 2: Provide Contact (synchronous, no UI)
     apdu = ProvideContact(
-        DEFAULT_ADDRESS,
-        group_handle,
-        hmac_name,
-        hmac_rest,
-    )
+        identifier=DEFAULT_ADDRESS,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0, \
@@ -892,13 +962,16 @@ def test_address_book_simple_tx_long_name(scenario_navigator: NavigateWithScenar
 
     # Step 2: Provide Contact (synchronous, no UI)
     apdu = ProvideContact(
-        DEFAULT_ADDRESS,
-        group_handle,
-        hmac_name,
-        hmac_rest,
+        identifier=DEFAULT_ADDRESS,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest,
         contact_name=LONG_CONTACT_NAME,
         scope=LONG_SCOPE,
-    )
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0, \
@@ -936,7 +1009,17 @@ def test_address_book_simple_tx_reject(scenario_navigator: NavigateWithScenario)
     )
 
     # Step 2: Provide Contact (synchronous, no UI)
-    apdu = ProvideContact(DEFAULT_ADDRESS, group_handle, hmac_name, hmac_rest)
+    apdu = ProvideContact(
+        identifier=DEFAULT_ADDRESS,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0
@@ -986,12 +1069,16 @@ def test_address_book_simple_tx_chain_id_mismatch(
 
     # Step 2: Provide Contact for chain_id=1 (synchronous, no UI)
     apdu = ProvideContact(
-        DEFAULT_ADDRESS,
-        group_handle,
-        hmac_name,
-        hmac_rest,
-        chain_id=DEFAULT_CHAIN_ID,
-    )
+        identifier=DEFAULT_ADDRESS,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0
@@ -1044,25 +1131,36 @@ def test_address_book_multi_address(scenario_navigator: NavigateWithScenario) ->
         scope=SECONDARY_SCOPE,
         do_compare=False,
         group_handle=group_handle,
-        hmac_proof=hmac_name_alice,
-    )
+        hmac_proof=hmac_name_alice)
+
     # The device echoes back the same group_handle and hmac_name
     assert group_handle_echo == group_handle
     assert hmac_name_echo == hmac_name_alice
 
     # Step 3: Rename Alice → Bob; hmac_name_alice is now invalid for Provide Contact
-    apdu = EditContactName(DEFAULT_CONTACT_NAME, new_name,
-                                               hmac_name_alice, group_handle)
+    apdu = EditContactName(
+        old_contact_name=DEFAULT_CONTACT_NAME,
+        new_contact_name=new_name,
+        hmac_proof=hmac_name_alice,
+        group_handle=group_handle,
+        derivation_path=DEFAULT_BIP32_PATH)
+
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
     hmac_name_bob = check_edit_contact_name_response(app_client, new_name, group_handle)
 
     # Step 4: Provide Contact for SECONDARY_ADDRESS with the new name
     apdu = ProvideContact(
-        SECONDARY_ADDRESS, group_handle, hmac_name_bob, hmac_rest_2,
+        identifier=SECONDARY_ADDRESS,
+        group_handle=group_handle,
+        hmac_name=hmac_name_bob,
+        hmac_rest=hmac_rest_2,
         contact_name=new_name,
         scope=SECONDARY_SCOPE,
-    )
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
 
@@ -1083,9 +1181,16 @@ def test_address_book_multi_address(scenario_navigator: NavigateWithScenario) ->
 
     # Step 6: Provide Contact for DEFAULT_ADDRESS with the new name (contacts cleared after sign)
     apdu = ProvideContact(
-        DEFAULT_ADDRESS, group_handle, hmac_name_bob, hmac_rest_1,
+        identifier=DEFAULT_ADDRESS,
+        group_handle=group_handle,
+        hmac_name=hmac_name_bob,
+        hmac_rest=hmac_rest_1,
         contact_name=new_name,
-    )
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
 
@@ -1126,10 +1231,12 @@ def test_address_book_simple_tx_ledger_account(scenario_navigator: NavigateWithS
 
     # Step 2: Provide Contact for the From account
     apdu = ProvideLedgerAccountContact(
-        hmac_proof_from,
+        hmac_proof=hmac_proof_from,
         contact_name=DEFAULT_ACCOUNT_NAME,
         derivation_path=DEFAULT_BIP32_PATH,
-    )
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0, \
@@ -1137,11 +1244,11 @@ def test_address_book_simple_tx_ledger_account(scenario_navigator: NavigateWithS
 
     # Step 3: Register the recipient (To) account
     hmac_proof_to = _common_register_ledger_account(
-        scenario_navigator, app_client,
-        do_compare=False,
-        derivation_path=LEDGER_ACCOUNT_BIP32_PATH,
-        contact_name=SECONDARY_ACCOUNT_NAME,
-    )
+        scenario_navigator,
+        app_client,
+        False,
+        LEDGER_ACCOUNT_BIP32_PATH,
+        SECONDARY_ACCOUNT_NAME)
 
     # Step 4: Derive the recipient address
     with app_client.get_public_addr(bip32_path=LEDGER_ACCOUNT_BIP32_PATH, display=False):
@@ -1150,10 +1257,12 @@ def test_address_book_simple_tx_ledger_account(scenario_navigator: NavigateWithS
 
     # Step 5: Provide Contact for the To account
     apdu = ProvideLedgerAccountContact(
-        hmac_proof_to,
+        hmac_proof=hmac_proof_to,
         contact_name=SECONDARY_ACCOUNT_NAME,
         derivation_path=LEDGER_ACCOUNT_BIP32_PATH,
-    )
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0, \
@@ -1205,7 +1314,17 @@ def test_address_book_eip712_calldata_empty_send(scenario_navigator: NavigateWit
     )
 
     # Step 2: Provide Contact (synchronous, no UI)
-    apdu = ProvideContact(callee_addr, group_handle, hmac_name, hmac_rest)
+    apdu = ProvideContact(
+        identifier=callee_addr,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0
@@ -1238,7 +1357,17 @@ def test_address_book_eip712_typed_field(scenario_navigator: NavigateWithScenari
     )
 
     # Step 2: Provide Contact (synchronous, no UI)
-    apdu = ProvideContact(contact_addr, group_handle, hmac_name, hmac_rest)
+    apdu = ProvideContact(
+        identifier=contact_addr,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0
@@ -1313,7 +1442,17 @@ def test_address_book_gcs_empty_tx(scenario_navigator: NavigateWithScenario) -> 
     )
 
     # Step 2: Provide Contact (synchronous, no UI)
-    apdu = ProvideContact(callee_addr, group_handle, hmac_name, hmac_rest)
+    apdu = ProvideContact(
+        identifier=callee_addr,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0
@@ -1390,7 +1529,17 @@ def test_address_book_gcs_trusted_name_field(scenario_navigator: NavigateWithSce
     )
 
     # Step 2: Provide Contact (synchronous, no UI)
-    apdu = ProvideContact(recipient_addr, group_handle, hmac_name, hmac_rest)
+    apdu = ProvideContact(
+        identifier=recipient_addr,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0
@@ -1476,7 +1625,17 @@ def test_address_book_gcs_combined_ab_and_tn(scenario_navigator: NavigateWithSce
         address=recipient_addr,
         do_compare=False,
     )
-    apdu = ProvideContact(recipient_addr, group_handle, hmac_name, hmac_rest)
+    apdu = ProvideContact(
+        identifier=recipient_addr,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
 
@@ -1567,18 +1726,34 @@ def test_address_book_simple_tx_after_edit_identifier(
     )
 
     # Step 2: Edit Identifier (DEFAULT_ADDRESS → new_address)
-    apdu = EditIdentifier(new_address, hmac_name, hmac_rest_old, group_handle)
+    apdu = EditIdentifier(
+        old_identifier=DEFAULT_ADDRESS,
+        new_identifier=new_address,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        hmac_proof=hmac_name,
+        hmac_rest=hmac_rest_old,
+        group_handle=group_handle,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
     hmac_rest_new = check_edit_identifier_response(app_client, new_address, group_handle)
 
     # Step 3: Provide Contact with the new address and new HMAC_REST
     apdu = ProvideContact(
-        new_address,
-        group_handle,
-        hmac_name,
-        hmac_rest_new,
-    )
+        identifier=new_address,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest_new,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0
@@ -1619,20 +1794,33 @@ def test_address_book_simple_tx_after_edit_scope(
 
     # Step 2: Edit Scope (DEFAULT_SCOPE → new_scope)
     apdu = EditScope(
-        DEFAULT_SCOPE, new_scope, hmac_name, hmac_rest_old, group_handle,
-    )
+        old_scope=DEFAULT_SCOPE,
+        new_scope=new_scope,
+        identifier=DEFAULT_ADDRESS,
+        contact_name=DEFAULT_CONTACT_NAME,
+        derivation_path=DEFAULT_BIP32_PATH,
+        hmac_proof=hmac_name,
+        hmac_rest=hmac_rest_old,
+        group_handle=group_handle,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
     hmac_rest_new = check_edit_scope_response(app_client, new_scope, group_handle)
 
     # Step 3: Provide Contact with the new scope and new HMAC_REST
     apdu = ProvideContact(
-        DEFAULT_ADDRESS,
-        group_handle,
-        hmac_name,
-        hmac_rest_new,
+        identifier=DEFAULT_ADDRESS,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=hmac_rest_new,
+        contact_name=DEFAULT_CONTACT_NAME,
         scope=new_scope,
-    )
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0
@@ -1672,16 +1860,26 @@ def test_address_book_simple_tx_ledger_account_rename(
     )
 
     # Step 2: Edit Ledger Account (rename DEFAULT_ACCOUNT_NAME → new_name)
-    apdu = EditLedgerAccount(new_name, hmac_proof_old)
+    apdu = EditLedgerAccount(
+        old_account_name=DEFAULT_ACCOUNT_NAME,
+        new_account_name=new_name,
+        derivation_path=DEFAULT_BIP32_PATH,
+        hmac_proof=hmac_proof_old,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
     hmac_proof_new = check_edit_ledger_account_response(app_client, new_name)
 
     # Step 3: Provide Ledger Account Contact with the new name
     apdu = ProvideLedgerAccountContact(
-        hmac_proof_new,
+        hmac_proof=hmac_proof_new,
         contact_name=new_name,
-    )
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
     assert len(response.data) == 0
@@ -1734,13 +1932,28 @@ def test_address_book_cache_invalidation_after_edit_contact_name(
     )
 
     # Step 2: Provide Contact → cache entry for DEFAULT_ADDRESS / "Alice"
-    apdu = ProvideContact(DEFAULT_ADDRESS, group_handle, hmac_name_old, hmac_rest)
+    apdu = ProvideContact(
+        identifier=DEFAULT_ADDRESS,
+        group_handle=group_handle,
+        hmac_name=hmac_name_old,
+        hmac_rest=hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
 
     # Step 3: Edit Contact Name → on_edit_contact_name_applied() updates "Alice" → new_name
-    apdu = EditContactName(DEFAULT_CONTACT_NAME, new_name,
-                                               hmac_name_old, group_handle)
+    apdu = EditContactName(
+        old_contact_name=DEFAULT_CONTACT_NAME,
+        new_contact_name=new_name,
+        hmac_proof=hmac_name_old,
+        group_handle=group_handle,
+        derivation_path=DEFAULT_BIP32_PATH)
+
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
     check_edit_contact_name_response(app_client, new_name, group_handle)
@@ -1784,12 +1997,25 @@ def test_address_book_cache_invalidation_after_ledger_account_rename(
     )
 
     # Step 2: Provide Ledger Account Contact → cache entry for DEFAULT_ACCOUNT_NAME
-    apdu = ProvideLedgerAccountContact(hmac_proof_old)
+    apdu = ProvideLedgerAccountContact(
+        hmac_proof=hmac_proof_old,
+        contact_name=DEFAULT_ACCOUNT_NAME,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     response = app_client.provide_address_book(apdu, False)
     assert_sw(response.status, StatusWord.SWO_SUCCESS)
 
     # Step 3: Rename → on_edit_ledger_account_applied() updates name in place
-    apdu = EditLedgerAccount(new_name, hmac_proof_old)
+    apdu = EditLedgerAccount(
+        old_account_name=DEFAULT_ACCOUNT_NAME,
+        new_account_name=new_name,
+        derivation_path=DEFAULT_BIP32_PATH,
+        hmac_proof=hmac_proof_old,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
     check_edit_ledger_account_response(app_client, new_name)
@@ -1836,8 +2062,16 @@ def test_address_book_provide_contact_invalid_hmac(
     # Step 2: Provide Contact with corrupted HMAC_NAME — device must reject
     corrupted_hmac_name = bytes(b ^ 0xff for b in hmac_name)
     apdu = ProvideContact(
-        DEFAULT_ADDRESS, group_handle, corrupted_hmac_name, hmac_rest,
-    )
+        identifier=DEFAULT_ADDRESS,
+        group_handle=group_handle,
+        hmac_name=corrupted_hmac_name,
+        hmac_rest=hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     try:
         response = app_client.provide_address_book(apdu, False)
         assert_sw(response.status, StatusWord.SWO_SECURITY_CONDITION_NOT_SATISFIED)
@@ -1847,8 +2081,16 @@ def test_address_book_provide_contact_invalid_hmac(
     # Step 3: Provide Contact with valid HMAC_NAME but corrupted HMAC_REST
     corrupted_hmac_rest = bytes(b ^ 0xff for b in hmac_rest)
     apdu = ProvideContact(
-        DEFAULT_ADDRESS, group_handle, hmac_name, corrupted_hmac_rest,
-    )
+        identifier=DEFAULT_ADDRESS,
+        group_handle=group_handle,
+        hmac_name=hmac_name,
+        hmac_rest=corrupted_hmac_rest,
+        contact_name=DEFAULT_CONTACT_NAME,
+        scope=DEFAULT_SCOPE,
+        derivation_path=DEFAULT_BIP32_PATH,
+        blockchain_family=FAMILY,
+        chain_id=DEFAULT_CHAIN_ID)
+
     try:
         response = app_client.provide_address_book(apdu, False)
         assert_sw(response.status, StatusWord.SWO_SECURITY_CONDITION_NOT_SATISFIED)
