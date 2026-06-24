@@ -1,6 +1,7 @@
 from typing import Optional
 
-from .tlv import TlvSerializable, FieldTag
+from ragger.tlv import TlvSerializable, LedgerCommonFieldTag, TxSimulationFieldTag
+
 from .signing_partners import TX_SIMU_PARTNER
 from .utils import TxType
 
@@ -40,21 +41,25 @@ class TxSimu(TlvSerializable):
         assert self.from_addr is not None, "From address is required"
         assert self.tx_hash is not None, "Transaction hash is required"
         # Construct the TLV payload
-        payload: bytes = self.serialize_field(FieldTag.STRUCT_TYPE, 9)
-        payload += self.serialize_field(FieldTag.STRUCT_VERSION, 1)
-        payload += self.serialize_field(FieldTag.TX_TYPE, self.simu_type)
-        payload += self.serialize_field(FieldTag.ADDRESS, self.from_addr)
-        payload += self.serialize_field(FieldTag.TX_HASH, self.tx_hash)
-        payload += self.serialize_field(FieldTag.TX_CHECKS_NORMALIZED_RISK, self.risk)
-        payload += self.serialize_field(FieldTag.TX_CHECKS_NORMALIZED_CATEGORY, self.category)
-        payload += self.serialize_field(FieldTag.TINY_URL, self.tiny_url.encode('utf-8'))
+        payload: bytes = self.serialize_field(LedgerCommonFieldTag.STRUCTURE_TYPE, 9)
+        payload += self.serialize_field(LedgerCommonFieldTag.VERSION, 1)
+        payload += self.serialize_field(TxSimulationFieldTag.SIMULATION_TYPE, self.simu_type)
+        payload += self.serialize_field(LedgerCommonFieldTag.ADDRESS, self.from_addr)
+        payload += self.serialize_field(LedgerCommonFieldTag.TX_HASH, self.tx_hash)
+        payload += self.serialize_field(TxSimulationFieldTag.NORMALIZED_RISK, self.risk)
+        payload += self.serialize_field(TxSimulationFieldTag.NORMALIZED_CATEGORY, self.category)
+        payload += self.serialize_field(TxSimulationFieldTag.TINY_URL,
+                                        self.tiny_url.encode('utf-8'))
         if self.chain_id:
-            payload += self.serialize_field(FieldTag.CHAIN_ID, self.chain_id.to_bytes(8, 'big'))
+            payload += self.serialize_field(LedgerCommonFieldTag.CHAIN_ID,
+                                            self.chain_id.to_bytes(8, 'big'))
         if self.domain_hash:
-            payload += self.serialize_field(FieldTag.DOMAIN_HASH, self.domain_hash)
+            payload += self.serialize_field(LedgerCommonFieldTag.DOMAIN_HASH, self.domain_hash)
         if self.provider_message:
-            payload += self.serialize_field(FieldTag.MESSAGE, self.provider_message.encode('utf-8'))
+            payload += self.serialize_field(TxSimulationFieldTag.PROVIDER_MESSAGE,
+                                            self.provider_message.encode('utf-8'))
 
         # Append the data Signature
-        payload += self.serialize_field(FieldTag.DER_SIGNATURE, TX_SIMU_PARTNER.sign(payload))
+        payload += self.serialize_field(LedgerCommonFieldTag.DER_SIGNATURE,
+                                        TX_SIMU_PARTNER.sign(payload))
         return payload

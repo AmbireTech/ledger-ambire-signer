@@ -1,5 +1,5 @@
 from enum import IntEnum
-from .tlv import TlvSerializable
+from ragger.tlv import TlvSerializable
 
 
 class FieldTag(IntEnum):

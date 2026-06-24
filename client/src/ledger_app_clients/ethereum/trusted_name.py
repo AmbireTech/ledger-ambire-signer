@@ -4,7 +4,7 @@ from enum import IntEnum
 from ragger.bip import pack_derivation_path
 
 from .signing_partners import TRUSTED_NAME_PARTNER, CAL_TRUSTED_NAME_PARTNER
-from .tlv import TlvSerializable
+from ragger.tlv import TlvSerializable
 
 
 class TrustedNameType(IntEnum):

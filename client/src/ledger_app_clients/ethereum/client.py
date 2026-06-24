@@ -31,7 +31,7 @@ from .safe import SafeAccount, AccountType
 from .gating import Gating
 from .trusted_name import TrustedName, TrustedNameSource
 from .token_info import TokenInfo
-from .address_book import AddressBookCommand
+from ragger.address_book import AddressBookCommand
 
 
 class EIP712CalldataParamPresence(IntEnum):
@@ -525,7 +525,9 @@ class EthAppClient:
     def provide_address_book(self,
                              command: AddressBookCommand,
                              async_mode: bool = True) -> RAPDU:
-        chunks = self._cmd_builder.provide_address_book(command.subcommand, command.serialize())
+        # The sub-command builds its own APDUs (TLV payload + chunked framing);
+        # the client only has to exchange them.
+        chunks = command.get_chunks()
         # Intermediate chunks are always synchronous (device responds 9000).
         for chunk in chunks[:-1]:
             self._exchange(chunk)
