@@ -1,6 +1,6 @@
 from enum import IntEnum
 from typing import Optional
-from .tlv import TlvSerializable
+from ragger.tlv import TlvSerializable
 from .signing_partners import TRUSTED_NAME_PARTNER
 
 

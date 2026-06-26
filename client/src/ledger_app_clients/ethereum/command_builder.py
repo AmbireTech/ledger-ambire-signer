@@ -80,12 +80,6 @@ class P2Type(IntEnum):
 class CommandBuilder:
     _CLA: int = 0xE0
 
-    # Address Book uses its own CLA/INS (distinct from the Ethereum app's).
-    _AB_CLA: int = 0xB0
-    _AB_INS: int = 0x10
-    _AB_P2_FIRST_CHUNK: int = 0x00
-    _AB_P2_NEXT_CHUNK: int = 0x80
-
     def _intToBytes(self, i: int) -> bytes:
         if i == 0:
             return b"\x00"
@@ -437,22 +431,6 @@ class CommandBuilder:
             payload = payload[0xff:]
             p1 = 0
         return chunks
-
-    def provide_address_book(self, subcommand: int, tlv_payload: bytes) -> list[bytes]:
-        """Encapsulate an Address Book TLV payload into one or more APDUs.
-
-        The Address Book uses its own CLA/INS. P1 selects the sub-command and
-        P2 carries the chunking flag (0x00 first chunk, 0x80 continuation).
-        Every sub-command uses the same chunked transport: the payload is
-        prefixed with its 2-byte big-endian total length and split over
-        255-byte chunks (a payload fitting in one chunk still carries the
-        prefix). The firmware reassembles it in reassemble_chunks().
-        """
-        return self.common_tlv_serialize(self._AB_INS,
-                                         tlv_payload,
-                                         p1l=[subcommand],
-                                         p2l=[self._AB_P2_FIRST_CHUNK, self._AB_P2_NEXT_CHUNK],
-                                         cla=self._AB_CLA)
 
     def get_public_addr(self,
                         display: bool,

@@ -2,7 +2,7 @@ from typing import Optional
 from enum import IntEnum
 import struct
 
-from .tlv import TlvSerializable
+from ragger.tlv import TlvSerializable
 from .signing_partners import CALLDATA_PARTNER
 from .trusted_name import TrustedNameType, TrustedNameSource
 

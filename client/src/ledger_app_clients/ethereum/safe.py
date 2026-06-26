@@ -1,6 +1,8 @@
 from enum import IntEnum
 from typing import List, Optional
-from .tlv import TlvSerializable, FieldTag
+
+from ragger.tlv import TlvSerializable, LedgerCommonFieldTag, LesMultisigFieldTag
+
 from .signing_partners import SAFE_PARTNER
 
 
@@ -55,20 +57,20 @@ class SafeAccount(TlvSerializable):
             assert self.lesm_role is not None, "LESM role is required for SAFE accounts"
         # Construct the TLV payload
         struct_type = 0x27 if self.account_type == AccountType.SAFE else 0x0A
-        payload: bytes = self.serialize_field(FieldTag.STRUCT_TYPE, struct_type)
-        payload += self.serialize_field(FieldTag.STRUCT_VERSION, 1)
-        payload += self.serialize_field(FieldTag.CHALLENGE, self.challenge)
+        payload: bytes = self.serialize_field(LedgerCommonFieldTag.STRUCTURE_TYPE, struct_type)
+        payload += self.serialize_field(LedgerCommonFieldTag.VERSION, 1)
+        payload += self.serialize_field(LedgerCommonFieldTag.CHALLENGE, self.challenge)
         for addr in self.address:
-            payload += self.serialize_field(FieldTag.ADDRESS, addr)
+            payload += self.serialize_field(LedgerCommonFieldTag.ADDRESS, addr)
         if self.account_type == AccountType.SAFE:
             if self.lesm_role is not None:
-                payload += self.serialize_field(FieldTag.LESM_ROLE, self.lesm_role)
-            payload += self.serialize_field(FieldTag.THRESHOLD, self.threshold)
-            payload += self.serialize_field(FieldTag.SIGNERS_COUNT, self.signer_counts)
+                payload += self.serialize_field(LesMultisigFieldTag.ROLE, self.lesm_role)
+            payload += self.serialize_field(LesMultisigFieldTag.THRESHOLD, self.threshold)
+            payload += self.serialize_field(LesMultisigFieldTag.SIGNERS_COUNT, self.signer_counts)
 
         # Append the data Signature
         sig = self.signature
         if sig is None:
             sig = SAFE_PARTNER.sign(payload)
-        payload += self.serialize_field(FieldTag.DER_SIGNATURE, sig)
+        payload += self.serialize_field(LedgerCommonFieldTag.DER_SIGNATURE, sig)
         return payload
