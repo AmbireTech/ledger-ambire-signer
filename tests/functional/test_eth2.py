@@ -21,7 +21,7 @@ def test_eth2_deposit(scenario_navigator: NavigateWithScenario) -> None:
     with app_client.get_eth2_public_addr(display=False):
         pass
     with Path(f"{ABIS_FOLDER}/beacon_deposit.abi.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )

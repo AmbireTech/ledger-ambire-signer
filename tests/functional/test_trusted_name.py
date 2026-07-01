@@ -79,7 +79,7 @@ def test_trusted_name_v1_verbose(
         TrustedName(1, ADDR, NAME, challenge=challenge, coin_type=CoinType.ETH)
     )
 
-    moves = []
+    moves: list[NavIns | NavInsID] = []
     if device.is_nano:
         moves += [NavInsID.RIGHT_CLICK] * 3
         moves += [NavInsID.BOTH_CLICK] + [NavInsID.RIGHT_CLICK] + [NavInsID.BOTH_CLICK]

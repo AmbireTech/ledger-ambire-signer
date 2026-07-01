@@ -1,5 +1,5 @@
 import json
-from typing import List
+from typing import List, Optional
 from client.gcs import PathTuple, PathRef, PathArray, PathLeaf, PathLeafType
 
 
@@ -120,7 +120,9 @@ def get_path(abi_filename: str, function_name: str, param_name: str) -> List:
     )
 
 
-def build_path(param: dict, tuple_index: int, parent_path: List = None) -> List:
+def build_path(
+    param: dict, tuple_index: int, parent_path: Optional[List] = None
+) -> List:
     """
     Build the path components for a parameter.
 
@@ -199,7 +201,10 @@ def get_nested_path(
 
 
 def get_path_in_array(
-    abi_filename: str, function_name: str, array_param: str, element_index: int = None
+    abi_filename: str,
+    function_name: str,
+    array_param: str,
+    element_index: Optional[int] = None,
 ) -> List:
     """
     Get the DataPath for an element inside an array parameter.
@@ -272,7 +277,7 @@ def get_path_in_tuple(
             for field_idx, component in enumerate(param["components"]):
                 if component.get("name") == field_name:
                     # Add path to the specific field
-                    field_path = [PathTuple(field_idx)]
+                    field_path: List = [PathTuple(field_idx)]
 
                     # Add final leaf based on field type
                     if is_dynamic_type(component["type"], component):

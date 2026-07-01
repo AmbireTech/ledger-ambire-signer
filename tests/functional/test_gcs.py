@@ -1,6 +1,6 @@
 # pylint: disable=too-many-lines
 # Large test file containing multiple GCS (Generic Clear Signing) integration tests
-from typing import Optional
+from typing import Any, Optional
 import json
 import hashlib
 from pathlib import Path
@@ -697,7 +697,7 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/safe_l2_setup_1.4.1.abi.json", encoding="utf-8") as f:
-        safe_l2_setup = Web3().eth.contract(
+        safe_l2_setup = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("BD89A1CE4DDe368FFAB0eC35506eEcE0b1fFdc54"),
         )
@@ -705,7 +705,7 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
         "setupToL2", [bytes.fromhex("29fcB43b46531BcA003ddC8FCB67FFE91900C762")]
     )
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
-        safe = Web3().eth.contract(
+        safe = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("41675C099F32341bf84BFc5382aF534df5C7461a"),
         )
@@ -728,7 +728,7 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
     with open(
         f"{ABIS_FOLDER}/safe_proxy_factory_1.4.1.abi.json", encoding="utf-8"
     ) as f:
-        safe_proxy_factory = Web3().eth.contract(
+        safe_proxy_factory = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"),
         )
@@ -981,7 +981,7 @@ def test_gcs_nested_execTransaction_send(scenario_navigator: NavigateWithScenari
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
@@ -1082,7 +1082,7 @@ def test_gcs_nested_execTransaction_addOwnerWithThreshold(
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
@@ -1360,7 +1360,7 @@ def test_gcs_nested_execTransaction_changeThreshold(
         pass
     _, wallet_addr, _ = ResponseParser.pk_addr(app_client.response().data)
     with Path(f"{ABIS_FOLDER}/safe_1.4.1.abi.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
@@ -1610,14 +1610,14 @@ def test_gcs_nested_no_param(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as f:
-        sub_contract = Web3().eth.contract(
+        sub_contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
         )
     sub_data = sub_contract.encode_abi("totalSupply", [])
 
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
@@ -1714,7 +1714,7 @@ def test_gcs_no_param(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
         )
@@ -1755,7 +1755,7 @@ def test_gcs_trusted_name_token(scenario_navigator: NavigateWithScenario):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
-    tokens = [
+    tokens: list[dict[str, Any]] = [
         {
             "name": "WETH",
             "address": bytes.fromhex("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
@@ -1870,7 +1870,7 @@ def test_gcs_batch(scenario_navigator: NavigateWithScenario):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
-    tokens = [
+    tokens: list[dict[str, Any]] = [
         {
             "ticker": "USDT",
             "address": bytes.fromhex("dac17f958d2ee523a2206206994597c13d831ec7"),
@@ -2048,7 +2048,7 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(backend)
 
     # Define tokens
-    tokens = [
+    tokens: list[dict[str, Any]] = [
         {
             "ticker": "USDC",
             "address": bytes.fromhex("3c499c542cef5e3811e1192ce70d8cc03d5c3359"),
@@ -2094,7 +2094,7 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
     # pylint: disable=line-too-long
     # Encode execTransaction data using batchExecute data
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("60aa01971a2adc1d6b2b59b972fb47b2fec095fc"),
         )
@@ -2429,7 +2429,7 @@ def test_gcs_batch_empty_tx(scenario_navigator: NavigateWithScenario) -> None:
     app_client = EthAppClient(backend)
 
     with Path(f"{ABIS_FOLDER}/batch.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("2cc8475177918e8C4d840150b68815A4b6f0f5f3"),
         )
@@ -2514,7 +2514,7 @@ def test_gcs_batch_complex(scenario_navigator: NavigateWithScenario) -> None:
     with app_client.get_public_addr(bip32_path="m/44'/60'/0'/0/0", display=False):
         pass
     _, wallet_addr, _ = ResponseParser.pk_addr(app_client.response().data)
-    tokens = [
+    tokens: list[dict[str, Any]] = [
         {
             "ticker": "USDT",
             "address": bytes.fromhex("dac17f958d2ee523a2206206994597c13d831ec7"),
@@ -2547,7 +2547,7 @@ def test_gcs_batch_complex(scenario_navigator: NavigateWithScenario) -> None:
     )
 
     with Path(f"{ABIS_FOLDER}/batch.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("2cc8475177918e8C4d840150b68815A4b6f0f5f3"),
         )

@@ -139,7 +139,7 @@ def common_test_nft_reject(
 ERC721_PLUGIN = "ERC721"
 
 with open(f"{ABIS_FOLDER}/erc721.json", encoding="utf-8") as file:
-    contract_erc721 = Web3().eth.contract(abi=json.load(file), address=bytes(20))
+    contract_erc721 = Web3().eth.contract(abi=json.load(file), address=bytes(20))  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
 
 collecs_721 = [
     NFTCollection(
@@ -203,7 +203,7 @@ def test_nft_erc721_reject(scenario_navigator: NavigateWithScenario, test_name: 
 ERC1155_PLUGIN = "ERC1155"
 
 with open(f"{ABIS_FOLDER}/erc1155.json", encoding="utf-8") as file:
-    contract_erc1155 = Web3().eth.contract(abi=json.load(file), address=bytes(20))
+    contract_erc1155 = Web3().eth.contract(abi=json.load(file), address=bytes(20))  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
 
 
 collecs_1155 = [

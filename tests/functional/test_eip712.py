@@ -4,7 +4,7 @@ import fnmatch
 import os
 from pathlib import Path
 import json
-from typing import Optional, Callable
+from typing import Any, Callable, Optional
 from ctypes import c_uint64
 import hashlib
 
@@ -51,7 +51,7 @@ BIP32_PATH = "m/44'/60'/0'/0/0"
 DEVICE_ADDR: Optional[bytes] = None
 
 
-def set_wallet_addr(backend: BackendInterface) -> bytes:
+def set_wallet_addr(backend: BackendInterface) -> None:
     global DEVICE_ADDR
 
     # don't ask again if we already have it
@@ -75,7 +75,7 @@ def eip712_json_path() -> str:
 def input_files() -> list[str]:
     files = []
     for file in os.scandir(eip712_json_path()):
-        if fnmatch.fnmatch(file, "*-data.json"):
+        if fnmatch.fnmatch(file.name, "*-data.json"):
             files.append(file.path)
     return sorted(files)
 
@@ -115,7 +115,7 @@ def eip712_new_common(
     filters: Optional[dict] = None,
     snapshots_dirname: Optional[str] = None,
     nb_warnings: int = 0,
-) -> bytes:
+) -> None:
     app_client = EthAppClient(scenario_navigator.backend)
 
     InputData.process_data(app_client, data, filters)
@@ -198,7 +198,7 @@ def test_eip712_new(
     nb_warnings = 1 if not filters or verbose_raw else 0
     if gating_params is not None:
         app_client = EthAppClient(scenario_navigator.backend)
-        sig_ctx = {}
+        sig_ctx: dict[str, Any] = {}
         InputData.init_signature_context(
             sig_ctx, data["types"], data["domain"], filters or {}
         )
@@ -706,7 +706,7 @@ def test_eip712_advanced_trusted_name(
 
     app_client = EthAppClient(scenario_navigator.backend)
 
-    data = {
+    data: dict[str, Any] = {
         "types": {
             "EIP712Domain": [
                 {"name": "name", "type": "string"},
@@ -837,6 +837,7 @@ def gcs_handler(app_client: EthAppClient, json_data: dict) -> None:
         "Token transfer",
         contract_name="USDC",
     )
+    assert tx_info.contract_name is not None
     app_client.provide_token_metadata(
         tx_info.contract_name, tx_info.contract_addr, 6, tx_info.chain_id
     )
@@ -853,7 +854,7 @@ def gcs_handler_batch(app_client: EthAppClient, json_data: dict) -> None:
         data = json.load(file)
 
     # Define tokens
-    tokens = [
+    tokens: list[dict[str, Any]] = [
         {
             "ticker": "USDC",
             "address": bytes.fromhex("3c499c542cef5e3811e1192ce70d8cc03d5c3359"),

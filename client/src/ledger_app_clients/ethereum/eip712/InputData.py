@@ -272,7 +272,7 @@ def send_filter(path: str, discarded: bool) -> Optional[Callable]:
     return ret
 
 
-def send_struct_impl_field(value, field):
+def send_struct_impl_field(value, field) -> None:
     assert not isinstance(value, list)
     assert field["enum"] != EIP712FieldType.CUSTOM
 

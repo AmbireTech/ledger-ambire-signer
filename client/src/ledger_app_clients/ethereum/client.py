@@ -1,5 +1,6 @@
+from contextlib import AbstractContextManager
 from enum import IntEnum
-from typing import Optional
+from typing import Literal, Optional, overload
 import rlp
 from web3 import Web3
 from eth_utils import keccak
@@ -63,8 +64,10 @@ class EthAppClient:
             partner.get_certificate_payload(self._backend.device.type)
         )
 
-    def response(self) -> Optional[RAPDU]:
-        return self._backend.last_async_response
+    def response(self) -> RAPDU:
+        response = self._backend.last_async_response
+        assert response is not None, "No asynchronous response available"
+        return response
 
     def send_raw(self, cla: int, ins: int, p1: int, p2: int, payload: bytes):
         header = bytearray()
@@ -569,9 +572,21 @@ class EthAppClient:
             self._exchange(chunk)
         return self._exchange(chunks[-1])
 
+    @overload
+    def provide_address_book(
+        self, command: AddressBookCommand, async_mode: Literal[True] = ...
+    ) -> AbstractContextManager[Optional[bool]]:
+        pass
+
+    @overload
+    def provide_address_book(
+        self, command: AddressBookCommand, async_mode: Literal[False]
+    ) -> RAPDU:
+        pass
+
     def provide_address_book(
         self, command: AddressBookCommand, async_mode: bool = True
-    ) -> RAPDU:
+    ):
         # The sub-command builds its own APDUs (TLV payload + chunked framing);
         # the client only has to exchange them.
         chunks = command.get_chunks()

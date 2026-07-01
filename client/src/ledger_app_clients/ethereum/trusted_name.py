@@ -55,7 +55,7 @@ class TrustedName(TlvSerializable):
     name: str
     chain_id: int | None
     address: bytes
-    challenge: bytes | None
+    challenge: int | None
     nft_id: int | None
     owner: bytes | None
     owner_deriv_path: str | None
@@ -68,7 +68,7 @@ class TrustedName(TlvSerializable):
         name: str,
         coin_type: int | None = None,
         not_valid_after: tuple[int, int, int] | None = None,
-        challenge: bytes | None = None,
+        challenge: int | None = None,
         tn_type: TrustedNameType | None = None,
         tn_source: TrustedNameSource | None = None,
         chain_id: int | None = None,

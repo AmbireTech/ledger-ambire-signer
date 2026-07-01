@@ -15,11 +15,14 @@ from client.tx_simu import TxSimu
 BIP32_PATH = "m/44'/60'/0'/0/0"
 
 
-def handle_simulation(app_client: EthAppClient, msg: str, simu_params: TxSimu) -> None:
+def handle_simulation(
+    app_client: EthAppClient, msg: str | bytes, simu_params: TxSimu
+) -> None:
+    msg_bytes = msg.encode("utf-8") if isinstance(msg, str) else msg
     msg_to_sign = (
         b"\x19Ethereum Signed Message:\n"
-        + str(len(msg)).encode("utf-8")
-        + msg.encode("utf-8")
+        + str(len(msg_bytes)).encode("utf-8")
+        + msg_bytes
     )
     if not simu_params.tx_hash:
         simu_params.tx_hash = keccak.new(digest_bits=256, data=msg_to_sign).digest()
@@ -60,7 +63,7 @@ def common(
                     screen_change_after_last_instruction=False,
                 )
 
-            if simu_params and "tx_hash" in simu_params:
+            if simu_params and simu_params.tx_hash is not None:
                 navigator.navigate_until_text_and_compare(
                     NavInsID.SWIPE_CENTER_TO_LEFT,
                     [NavInsID.USE_CASE_CHOICE_CONFIRM],
@@ -72,12 +75,12 @@ def common(
                 scenario_navigator.review_approve(test_name=test_name)
 
     except ExceptionRAPDU as err:
-        if simu_params and "tx_hash" in simu_params:
+        if simu_params and simu_params.tx_hash is not None:
             assert err.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
         else:
             assert False, f"Unexpected exception: {err}"
 
-    if simu_params is None or "tx_hash" not in simu_params:
+    if simu_params is None or simu_params.tx_hash is None:
         # verify signature
         vrs = ResponseParser.signature(app_client.response().data)
         addr = recover_message(msg, vrs)

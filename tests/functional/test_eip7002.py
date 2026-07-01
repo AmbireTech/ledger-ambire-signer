@@ -20,7 +20,7 @@ def get_request_data(validator_pk: bytes, amount: float) -> bytes:
     assert len(validator_pk) == PUBKEY_LENGTH
     data += validator_pk
     data += struct.pack(">Q", int(amount * pow(10, 9)))
-    return data
+    return bytes(data)
 
 
 def common(scenario_navigator: NavigateWithScenario, data: bytes) -> None:

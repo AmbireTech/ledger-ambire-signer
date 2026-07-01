@@ -17,6 +17,7 @@ from ragger.bip.seed import SPECULOS_MNEMONIC
 from ragger.navigator import NavInsID
 from ragger.tlv import BlockchainFamily, LedgerStructType
 from ragger.address_book import (
+    AddressBookCommand,
     RegisterIdentity,
     EditContactName,
     EditIdentifier,
@@ -187,12 +188,12 @@ def compute_hmac_proof_ledger_account(
     """
     key = derive_hmac_key_ledger_account(bip32_path)
     name_bytes = contact_name.encode("utf-8")
-    chain_id = chain_id.to_bytes(8, "big")
+    chain_id_bytes = chain_id.to_bytes(8, "big")
     msg = (
         bytes([len(name_bytes)])
         + name_bytes
         + bytes([BLOCKCHAIN_FAMILY_ETHEREUM])
-        + chain_id
+        + chain_id_bytes
     )
     return hmac_module.new(key, msg, hashlib.sha256).digest()
 
@@ -300,7 +301,7 @@ def _check_response_generic(
         LedgerStructType.TYPE_EDIT_IDENTIFIER,
         LedgerStructType.TYPE_EDIT_SCOPE,
     ):
-        assert all(p is not None for p in [gid, scope, address]), (
+        assert gid is not None and scope is not None and address is not None, (
             "gid, scope, and address required for HMAC_REST"
         )
         expected_hmac = compute_hmac_rest(bip32_path, gid, scope, address, chain_id)
@@ -1274,7 +1275,7 @@ def test_address_book_multi_address(scenario_navigator: NavigateWithScenario) ->
     assert hmac_name_echo == hmac_name_alice
 
     # Step 3: Rename Alice → Bob; hmac_name_alice is now invalid for Provide Contact
-    apdu = EditContactName(
+    apdu: AddressBookCommand = EditContactName(
         old_contact_name=DEFAULT_CONTACT_NAME,
         new_contact_name=new_name,
         hmac_proof=hmac_name_alice,
@@ -1622,7 +1623,7 @@ def test_address_book_gcs_empty_tx(scenario_navigator: NavigateWithScenario) -> 
 
     # Step 3: Sign GCS batch — "To" shows contact name
     with Path(f"{ABIS_FOLDER}/batch.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("2cc8475177918e8C4d840150b68815A4b6f0f5f3"),
         )
@@ -1720,7 +1721,7 @@ def test_address_book_gcs_trusted_name_field(
 
     # Step 3: Sign GCS ERC-20 transfer — "To" field shows contact name
     with Path(f"{ABIS_FOLDER}/erc20.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(abi=json.load(f), address=token_addr)
+        contract = Web3().eth.contract(abi=json.load(f), address=token_addr)  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
 
     data = contract.encode_abi("transfer", [recipient_addr, int(1.1 * pow(10, 6))])
     tx_params = {
@@ -1830,7 +1831,7 @@ def test_address_book_gcs_combined_ab_and_tn(
 
     # Step 3: Sign GCS ERC-20 transfer — "To" field shows combined Address Book+ENS view
     with Path(f"{ABIS_FOLDER}/erc20.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(abi=json.load(f), address=token_addr)
+        contract = Web3().eth.contract(abi=json.load(f), address=token_addr)  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
 
     data = contract.encode_abi("transfer", [recipient_addr, int(1.1 * pow(10, 6))])
     tx_params = {
@@ -1915,7 +1916,7 @@ def test_address_book_simple_tx_after_edit_identifier(
     )
 
     # Step 2: Edit Identifier (DEFAULT_ADDRESS → new_address)
-    apdu = EditIdentifier(
+    apdu: AddressBookCommand = EditIdentifier(
         old_identifier=DEFAULT_ADDRESS,
         new_identifier=new_address,
         contact_name=DEFAULT_CONTACT_NAME,
@@ -1990,7 +1991,7 @@ def test_address_book_simple_tx_after_edit_scope(
     )
 
     # Step 2: Edit Scope (DEFAULT_SCOPE → new_scope)
-    apdu = EditScope(
+    apdu: AddressBookCommand = EditScope(
         old_scope=DEFAULT_SCOPE,
         new_scope=new_scope,
         identifier=DEFAULT_ADDRESS,
@@ -2063,7 +2064,7 @@ def test_address_book_simple_tx_ledger_account_rename(
     )
 
     # Step 2: Edit Ledger Account (rename DEFAULT_ACCOUNT_NAME → new_name)
-    apdu = EditLedgerAccount(
+    apdu: AddressBookCommand = EditLedgerAccount(
         old_account_name=DEFAULT_ACCOUNT_NAME,
         new_account_name=new_name,
         derivation_path=DEFAULT_BIP32_PATH,
@@ -2142,7 +2143,7 @@ def test_address_book_cache_invalidation_after_edit_contact_name(
     )
 
     # Step 2: Provide Contact → cache entry for DEFAULT_ADDRESS / "Alice"
-    apdu = ProvideContact(
+    apdu: AddressBookCommand = ProvideContact(
         identifier=DEFAULT_ADDRESS,
         group_handle=group_handle,
         hmac_name=hmac_name_old,
@@ -2213,7 +2214,7 @@ def test_address_book_cache_invalidation_after_ledger_account_rename(
     )
 
     # Step 2: Provide Ledger Account Contact → cache entry for DEFAULT_ACCOUNT_NAME
-    apdu = ProvideLedgerAccountContact(
+    apdu: AddressBookCommand = ProvideLedgerAccountContact(
         hmac_proof=hmac_proof_old,
         contact_name=DEFAULT_ACCOUNT_NAME,
         derivation_path=DEFAULT_BIP32_PATH,

@@ -1,5 +1,6 @@
 from pathlib import Path
 from enum import IntEnum
+from typing import Any
 from web3 import Web3
 import pytest
 
@@ -51,7 +52,7 @@ def __get_simu_params(risk: str, simu_type: TxType) -> TxSimu:
     """Common simu parameters for the tests"""
 
     # fmt: off
-    simu_params = {
+    simu_params: dict[str, Any] = {
         "tiny_url": "https://www.ledger.com",
         "simu_type": simu_type
     }
