@@ -23,12 +23,18 @@ from rlp import Serializable
 
 try:
     from Crypto.Hash import keccak
-    def sha3_256(x): return keccak.new(digest_bits=256, data=x).digest()
+
+    def sha3_256(x):
+        return keccak.new(digest_bits=256, data=x).digest()
 except ImportError:
     import sha3 as _sha3
-    def sha3_256(x): return _sha3.sha3_256(x).digest()
+
+    def sha3_256(x):
+        return _sha3.sha3_256(x).digest()
+
 
 address = Binary.fixed_length(20, allow_empty=True)
+
 
 def sha3(seed):
     if isinstance(seed, str):
@@ -38,33 +44,34 @@ def sha3(seed):
 
 class Transaction(Serializable):
     fields = [
-        ('nonce', big_endian_int),
-        ('gasprice', big_endian_int),
-        ('startgas', big_endian_int),
-        ('to', address),
-        ('value', big_endian_int),
-        ('data', binary),
-        ('v', big_endian_int),
-        ('r', big_endian_int),
-        ('s', big_endian_int),
+        ("nonce", big_endian_int),
+        ("gasprice", big_endian_int),
+        ("startgas", big_endian_int),
+        ("to", address),
+        ("value", big_endian_int),
+        ("data", binary),
+        ("v", big_endian_int),
+        ("r", big_endian_int),
+        ("s", big_endian_int),
     ]
 
     def __init__(self, nonce, gasprice, startgas, to, value, data, v=0, r=0, s=0):
-        super().__init__(
-            nonce, gasprice, startgas, to, value, data, v, r, s)
+        super().__init__(nonce, gasprice, startgas, to, value, data, v, r, s)
+
 
 class UnsignedTransaction(Serializable):
     fields = [
-        ('nonce', big_endian_int),
-        ('gasprice', big_endian_int),
-        ('startgas', big_endian_int),
-        ('to', address),
-        ('value', big_endian_int),
-        ('data', binary),
-        ('chainid', big_endian_int),
-        ('dummy1', big_endian_int),
-        ('dummy2', big_endian_int),
+        ("nonce", big_endian_int),
+        ("gasprice", big_endian_int),
+        ("startgas", big_endian_int),
+        ("to", address),
+        ("value", big_endian_int),
+        ("data", binary),
+        ("chainid", big_endian_int),
+        ("dummy1", big_endian_int),
+        ("dummy2", big_endian_int),
     ]
+
 
 def unsigned_tx_from_tx(tx):
     return UnsignedTransaction(

@@ -31,14 +31,16 @@ class ProxyInfo(TlvSerializable):
     delegation_type: DelegationType
     signature: Optional[bytes]
 
-    def __init__(self,
-                 challenge: int,
-                 address: bytes,
-                 chain_id: int,
-                 impl_address: bytes,
-                 delegation_type: DelegationType = DelegationType.PROXY,
-                 selector: Optional[bytes] = None,
-                 signature: Optional[bytes] = None):
+    def __init__(
+        self,
+        challenge: int,
+        address: bytes,
+        chain_id: int,
+        impl_address: bytes,
+        delegation_type: DelegationType = DelegationType.PROXY,
+        selector: Optional[bytes] = None,
+        signature: Optional[bytes] = None,
+    ):
         self.challenge = challenge
         self.address = address
         self.chain_id = chain_id

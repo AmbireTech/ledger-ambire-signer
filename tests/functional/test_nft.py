@@ -51,14 +51,16 @@ class Action:
         self.fn_args = fn_args
 
 
-def common_test_nft(scenario_navigator: NavigateWithScenario,
-                    test_name: str,
-                    collec: NFTCollection,
-                    action: Action,
-                    reject: bool,
-                    plugin_name: str,
-                    simu_params: Optional[TxSimu] = None,
-                    gating_params: Optional[Gating] = None):
+def common_test_nft(
+    scenario_navigator: NavigateWithScenario,
+    test_name: str,
+    collec: NFTCollection,
+    action: Action,
+    reject: bool,
+    plugin_name: str,
+    simu_params: Optional[TxSimu] = None,
+    gating_params: Optional[Gating] = None,
+):
     global DEVICE_ADDR
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
@@ -89,17 +91,18 @@ def common_test_nft(scenario_navigator: NavigateWithScenario,
     # Send Network information (name, ticker, icon)
     name, ticker, icon = get_network_config(backend.device.type, collec.chain_id)
     if name and ticker:
-        app_client.provide_network_information(DynamicNetwork(name, ticker, collec.chain_id, icon))
+        app_client.provide_network_information(
+            DynamicNetwork(name, ticker, collec.chain_id, icon)
+        )
 
     if DEVICE_ADDR is None:  # to only have to request it once
         with app_client.get_public_addr(display=False):
             pass
         _, DEVICE_ADDR, _ = ResponseParser.pk_addr(app_client.response().data)
 
-    app_client.set_plugin(plugin_name,
-                          collec.addr,
-                          get_selector_from_data(data),
-                          collec.chain_id)
+    app_client.set_plugin(
+        plugin_name, collec.addr, get_selector_from_data(data), collec.chain_id
+    )
 
     app_client.provide_nft_metadata(collec.name, collec.addr, collec.chain_id)
 
@@ -118,18 +121,17 @@ def common_test_nft(scenario_navigator: NavigateWithScenario,
     assert addr == DEVICE_ADDR
 
 
-def common_test_nft_reject(test_fn: Callable,
-                           scenario_navigator: NavigateWithScenario,
-                           test_name: str,
-                           collec: NFTCollection,
-                           action: Action):
+def common_test_nft_reject(
+    test_fn: Callable,
+    scenario_navigator: NavigateWithScenario,
+    test_name: str,
+    collec: NFTCollection,
+    action: Action,
+):
     with pytest.raises(ExceptionRAPDU) as e:
-        test_fn(scenario_navigator,
-                test_name,
-                collec,
-                action,
-                True)
+        test_fn(scenario_navigator, test_name, collec, action, True)
     assert e.value.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
+
 
 # ERC-721
 
@@ -137,24 +139,27 @@ def common_test_nft_reject(test_fn: Callable,
 ERC721_PLUGIN = "ERC721"
 
 with open(f"{ABIS_FOLDER}/erc721.json", encoding="utf-8") as file:
-    contract_erc721 = Web3().eth.contract(
-        abi=json.load(file),
-        address=bytes(20)
-    )
+    contract_erc721 = Web3().eth.contract(abi=json.load(file), address=bytes(20))
 
 collecs_721 = [
-    NFTCollection(bytes.fromhex("bc4ca0eda7647a8ab7c2061c2e118a18a936f13d"),
-                  "Bored Ape Yacht Club",
-                  1,
-                  contract_erc721),
-    NFTCollection(bytes.fromhex("670fd103b1a08628e9557cd66b87ded841115190"),
-                  "y00ts",
-                  137,
-                  contract_erc721),
-    NFTCollection(bytes.fromhex("2909cf13e458a576cdd9aab6bd6617051a92dacf"),
-                  "goerlirocks",
-                  5,
-                  contract_erc721),
+    NFTCollection(
+        bytes.fromhex("bc4ca0eda7647a8ab7c2061c2e118a18a936f13d"),
+        "Bored Ape Yacht Club",
+        1,
+        contract_erc721,
+    ),
+    NFTCollection(
+        bytes.fromhex("670fd103b1a08628e9557cd66b87ded841115190"),
+        "y00ts",
+        137,
+        contract_erc721,
+    ),
+    NFTCollection(
+        bytes.fromhex("2909cf13e458a576cdd9aab6bd6617051a92dacf"),
+        "goerlirocks",
+        5,
+        contract_erc721,
+    ),
 ]
 actions_721 = [
     Action("safeTransferFrom", [FROM, TO, NFTS[0][0], DATA]),
@@ -175,25 +180,22 @@ def action_721_fixture(request) -> Action:
     return request.param
 
 
-def test_nft_erc721(scenario_navigator: NavigateWithScenario,
-                    test_name: str,
-                    collec_721: NFTCollection,
-                    action_721: Action,
-                    reject: bool = False):
-    common_test_nft(scenario_navigator,
-                    test_name,
-                    collec_721,
-                    action_721,
-                    reject,
-                    ERC721_PLUGIN)
+def test_nft_erc721(
+    scenario_navigator: NavigateWithScenario,
+    test_name: str,
+    collec_721: NFTCollection,
+    action_721: Action,
+    reject: bool = False,
+):
+    common_test_nft(
+        scenario_navigator, test_name, collec_721, action_721, reject, ERC721_PLUGIN
+    )
 
 
 def test_nft_erc721_reject(scenario_navigator: NavigateWithScenario, test_name: str):
-    common_test_nft_reject(test_nft_erc721,
-                           scenario_navigator,
-                           test_name,
-                           collecs_721[0],
-                           actions_721[0])
+    common_test_nft_reject(
+        test_nft_erc721, scenario_navigator, test_name, collecs_721[0], actions_721[0]
+    )
 
 
 # ERC-1155
@@ -201,36 +203,41 @@ def test_nft_erc721_reject(scenario_navigator: NavigateWithScenario, test_name: 
 ERC1155_PLUGIN = "ERC1155"
 
 with open(f"{ABIS_FOLDER}/erc1155.json", encoding="utf-8") as file:
-    contract_erc1155 = Web3().eth.contract(
-        abi=json.load(file),
-        address=bytes(20)
-    )
+    contract_erc1155 = Web3().eth.contract(abi=json.load(file), address=bytes(20))
 
 
 collecs_1155 = [
-    NFTCollection(bytes.fromhex("495f947276749ce646f68ac8c248420045cb7b5e"),
-                  "OpenSea Shared Storefront",
-                  1,
-                  contract_erc1155),
-    NFTCollection(bytes.fromhex("2953399124f0cbb46d2cbacd8a89cf0599974963"),
-                  "OpenSea Collections",
-                  137,
-                  contract_erc1155),
-    NFTCollection(bytes.fromhex("f4910c763ed4e47a585e2d34baa9a4b611ae448c"),
-                  "OpenSea Collections",
-                  5,
-                  contract_erc1155),
+    NFTCollection(
+        bytes.fromhex("495f947276749ce646f68ac8c248420045cb7b5e"),
+        "OpenSea Shared Storefront",
+        1,
+        contract_erc1155,
+    ),
+    NFTCollection(
+        bytes.fromhex("2953399124f0cbb46d2cbacd8a89cf0599974963"),
+        "OpenSea Collections",
+        137,
+        contract_erc1155,
+    ),
+    NFTCollection(
+        bytes.fromhex("f4910c763ed4e47a585e2d34baa9a4b611ae448c"),
+        "OpenSea Collections",
+        5,
+        contract_erc1155,
+    ),
 ]
 actions_1155 = [
     Action("safeTransferFrom", [FROM, TO, NFTS[0][0], NFTS[0][1], DATA]),
-    Action("safeBatchTransferFrom",
-           [
-               FROM,
-               TO,
-               list(map(lambda nft: nft[0], NFTS)),
-               list(map(lambda nft: nft[1], NFTS)),
-               DATA
-           ]),
+    Action(
+        "safeBatchTransferFrom",
+        [
+            FROM,
+            TO,
+            list(map(lambda nft: nft[0], NFTS)),
+            list(map(lambda nft: nft[1], NFTS)),
+            DATA,
+        ],
+    ),
     Action("setApprovalForAll", [TO, False]),
 ]
 
@@ -245,22 +252,23 @@ def action_1155_fixture(request) -> Action:
     return request.param
 
 
-def test_nft_erc1155(scenario_navigator: NavigateWithScenario,
-                     test_name: str,
-                     collec_1155: NFTCollection,
-                     action_1155: Action,
-                     reject: bool = False):
-    common_test_nft(scenario_navigator,
-                    test_name,
-                    collec_1155,
-                    action_1155,
-                    reject,
-                    ERC1155_PLUGIN)
+def test_nft_erc1155(
+    scenario_navigator: NavigateWithScenario,
+    test_name: str,
+    collec_1155: NFTCollection,
+    action_1155: Action,
+    reject: bool = False,
+):
+    common_test_nft(
+        scenario_navigator, test_name, collec_1155, action_1155, reject, ERC1155_PLUGIN
+    )
 
 
 def test_nft_erc1155_reject(scenario_navigator: NavigateWithScenario, test_name: str):
-    common_test_nft_reject(test_nft_erc1155,
-                           scenario_navigator,
-                           test_name,
-                           collecs_1155[0],
-                           actions_1155[0])
+    common_test_nft_reject(
+        test_nft_erc1155,
+        scenario_navigator,
+        test_name,
+        collecs_1155[0],
+        actions_1155[0],
+    )

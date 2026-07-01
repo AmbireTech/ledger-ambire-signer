@@ -42,7 +42,9 @@ def get_header() -> str:
 
 def gen_icons_array_inc(networks: list[Network], path: str) -> bool:
     with open(path + ".h", "w") as out:
-        print(get_header() + """\
+        print(
+            get_header()
+            + """\
 #ifndef NETWORK_ICONS_GENERATED_H_
 #define NETWORK_ICONS_GENERATED_H_
 
@@ -57,18 +59,26 @@ typedef struct {
 extern const network_icon_t g_network_icons[%u];
 
 #endif // NETWORK_ICONS_GENERATED_H_ \
-""" % (len(networks)), file=out)
+"""
+            % (len(networks)),
+            file=out,
+        )
     return True
 
 
 def gen_icons_array_src(networks: list[Network], path: str) -> bool:
     with open(path + ".c", "w") as out:
-        print(get_header() + """\
+        print(
+            get_header()
+            + """\
 #include "glyphs.h"
 #include "%s.h"
 
 const network_icon_t g_network_icons[%u] = {\
-""" % (os.path.basename(path), len(networks)), file=out)
+"""
+            % (os.path.basename(path), len(networks)),
+            file=out,
+        )
 
         for net in networks:
             glyph_name = get_network_glyph_name(net, path)
@@ -76,11 +86,12 @@ const network_icon_t g_network_icons[%u] = {\
             if os.path.isfile(glyph_file):
                 if os.path.islink(glyph_file):
                     glyph_name = Path(os.path.realpath(glyph_file)).stem
-                print(" "*4, end="", file=out)
-                print("{.chain_id = %u, .icon = &C_%s}, // %s" % (net.chain_id,
-                                                                  glyph_name,
-                                                                  net.name),
-                      file=out)
+                print(" " * 4, end="", file=out)
+                print(
+                    "{.chain_id = %u, .icon = &C_%s}, // %s"
+                    % (net.chain_id, glyph_name, net.name),
+                    file=out,
+                )
 
         print("};", file=out)
     return True
@@ -88,8 +99,9 @@ const network_icon_t g_network_icons[%u] = {\
 
 def gen_icons_array(networks: list[Network], path: str) -> bool:
     path += "/net_icons.gen"
-    if not gen_icons_array_inc(networks, path) or \
-       not gen_icons_array_src(networks, path):
+    if not gen_icons_array_inc(networks, path) or not gen_icons_array_src(
+        networks, path
+    ):
         return False
     return True
 
@@ -107,18 +119,16 @@ def main(output_dir: str) -> int:
         for line in f.readlines():
             line = line.strip()
             if line.startswith("{") and line.endswith("},"):
-                m = re.search(expr,
-                              line)
-                assert(m.lastindex == 3)
-                networks.append(Network(int(m.group(1)),
-                                        m.group(2),
-                                        m.group(3)))
+                m = re.search(expr, line)
+                assert m.lastindex == 3
+                networks.append(Network(int(m.group(1)), m.group(2), m.group(3)))
 
     networks.sort(key=lambda x: x.chain_id)
 
-    if not gen_icons_array(list(filter(partial(network_icon_exists, path=output_dir),
-                                       networks)),
-                           output_dir):
+    if not gen_icons_array(
+        list(filter(partial(network_icon_exists, path=output_dir), networks)),
+        output_dir,
+    ):
         return 1
     return 0
 

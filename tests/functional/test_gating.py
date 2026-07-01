@@ -20,14 +20,19 @@ def test_gating_blind_signing(scenario_navigator: NavigateWithScenario) -> None:
         "ledger.com/ledger-multisig",
         1,
     )
-    blind_sign(scenario_navigator.navigator,
-               scenario_navigator,
-               scenario_navigator.test_name,
-               False,
-               0.0,
-               gating_params=descriptor)
+    blind_sign(
+        scenario_navigator.navigator,
+        scenario_navigator,
+        scenario_navigator.test_name,
+        False,
+        0.0,
+        gating_params=descriptor,
+    )
 
-def test_gating_blind_signing_with_proxy(scenario_navigator: NavigateWithScenario) -> None:
+
+def test_gating_blind_signing_with_proxy(
+    scenario_navigator: NavigateWithScenario,
+) -> None:
     """Test the Gating descriptor APDU with a blind signing transaction behind a proxy"""
 
     descriptor = Gating(
@@ -38,13 +43,16 @@ def test_gating_blind_signing_with_proxy(scenario_navigator: NavigateWithScenari
         1,
     )
 
-    blind_sign(scenario_navigator.navigator,
-               scenario_navigator,
-               scenario_navigator.test_name,
-               False,
-               0.0,
-               gating_params=descriptor,
-               with_proxy=True)
+    blind_sign(
+        scenario_navigator.navigator,
+        scenario_navigator,
+        scenario_navigator.test_name,
+        False,
+        0.0,
+        gating_params=descriptor,
+        with_proxy=True,
+    )
+
 
 def test_gating_eip712(scenario_navigator: NavigateWithScenario) -> None:
     """Test the Gating descriptor APDU with a EIP712 transaction"""

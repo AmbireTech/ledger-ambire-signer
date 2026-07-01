@@ -6,16 +6,16 @@ from client.gcs import PathTuple, PathRef, PathArray, PathLeaf, PathLeafType
 def is_dynamic_type(param_type: str, param: dict) -> bool:
     """Check if a parameter type is dynamic (needs offset/reference)."""
     # Dynamic arrays
-    if param_type.endswith('[]'):
+    if param_type.endswith("[]"):
         return True
 
     # Dynamic bytes and string
-    if param_type in ['string', 'bytes']:
+    if param_type in ["string", "bytes"]:
         return True
 
     # Tuples containing dynamic types
-    if 'components' in param:
-        return any(is_dynamic_type(c['type'], c) for c in param['components'])
+    if "components" in param:
+        return any(is_dynamic_type(c["type"], c) for c in param["components"])
 
     return False
 
@@ -31,18 +31,23 @@ def get_function_params(abi_filename: str, function_name: str) -> List[str]:
     Returns:
         List of parameter names
     """
-    with open(abi_filename, 'r', encoding='utf-8') as f:
+    with open(abi_filename, "r", encoding="utf-8") as f:
         abi = json.load(f)
 
     # Find the function in ABI
     for item in abi:
-        if item.get('type') == 'function' and item.get('name') == function_name:
-            return [p.get('name', f'param_{i}') for i, p in enumerate(item.get('inputs', []))]
+        if item.get("type") == "function" and item.get("name") == function_name:
+            return [
+                p.get("name", f"param_{i}")
+                for i, p in enumerate(item.get("inputs", []))
+            ]
 
     raise ValueError(f"Function '{function_name}' not found in ABI")
 
 
-def get_tuple_fields(abi_filename: str, function_name: str, tuple_param: str) -> List[str]:
+def get_tuple_fields(
+    abi_filename: str, function_name: str, tuple_param: str
+) -> List[str]:
     """
     Get list of field names inside a tuple parameter.
 
@@ -54,18 +59,21 @@ def get_tuple_fields(abi_filename: str, function_name: str, tuple_param: str) ->
     Returns:
         List of field names in the tuple
     """
-    with open(abi_filename, 'r', encoding='utf-8') as f:
+    with open(abi_filename, "r", encoding="utf-8") as f:
         abi = json.load(f)
 
     # Find the function
     for item in abi:
-        if item.get('type') == 'function' and item.get('name') == function_name:
+        if item.get("type") == "function" and item.get("name") == function_name:
             # Find the tuple parameter
-            for param in item.get('inputs', []):
-                if param.get('name') == tuple_param:
-                    if 'components' not in param:
+            for param in item.get("inputs", []):
+                if param.get("name") == tuple_param:
+                    if "components" not in param:
                         raise ValueError(f"Parameter '{tuple_param}' is not a tuple")
-                    return [c.get('name', f'field_{i}') for i, c in enumerate(param['components'])]
+                    return [
+                        c.get("name", f"field_{i}")
+                        for i, c in enumerate(param["components"])
+                    ]
 
             raise ValueError(f"Tuple parameter '{tuple_param}' not found")
 
@@ -84,13 +92,13 @@ def get_path(abi_filename: str, function_name: str, param_name: str) -> List:
     Returns:
         List of DataPath components [PathTuple, PathRef, etc.]
     """
-    with open(abi_filename, 'r', encoding='utf-8') as f:
+    with open(abi_filename, "r", encoding="utf-8") as f:
         abi = json.load(f)
 
     # Find the function in ABI
     function_abi = None
     for item in abi:
-        if item.get('type') == 'function' and item.get('name') == function_name:
+        if item.get("type") == "function" and item.get("name") == function_name:
             function_abi = item
             break
 
@@ -98,12 +106,14 @@ def get_path(abi_filename: str, function_name: str, param_name: str) -> List:
         raise ValueError(f"Function '{function_name}' not found in ABI")
 
     # Find the parameter
-    for idx, param in enumerate(function_abi['inputs']):
-        if param.get('name') == param_name:
+    for idx, param in enumerate(function_abi["inputs"]):
+        if param.get("name") == param_name:
             return build_path(param, idx)
 
     # If not found, list available parameters for debugging
-    available = [p.get('name', f'param_{i}') for i, p in enumerate(function_abi['inputs'])]
+    available = [
+        p.get("name", f"param_{i}") for i, p in enumerate(function_abi["inputs"])
+    ]
     raise ValueError(
         f"Parameter '{param_name}' not found in function '{function_name}'. "
         f"Available parameters: {', '.join(available)}"
@@ -120,28 +130,28 @@ def build_path(param: dict, tuple_index: int, parent_path: List = None) -> List:
         parent_path = []
 
     path = parent_path + [PathTuple(tuple_index)]
-    param_type = param['type']
+    param_type = param["type"]
 
     # Check if the parameter is dynamic
     if is_dynamic_type(param_type, param):
         path.append(PathRef())
 
         # Handle arrays
-        if '[]' in param_type:
+        if "[]" in param_type:
             path.append(PathArray(1))  # Default weight=1
 
             # Determine the element type (remove the [])
-            element_type = param_type.rstrip('[]')
+            element_type = param_type.rstrip("[]")
 
             # Check if array elements are dynamic
             # For primitive types like uint256[], the elements are static
-            if element_type in ['string', 'bytes'] or 'tuple' in element_type:
+            if element_type in ["string", "bytes"] or "tuple" in element_type:
                 # Elements themselves are dynamic
                 path.append(PathLeaf(PathLeafType.DYNAMIC))
             else:
                 # Elements are static (uint256, address, etc.)
                 path.append(PathLeaf(PathLeafType.STATIC))
-        elif param_type in ['string', 'bytes']:
+        elif param_type in ["string", "bytes"]:
             # Dynamic bytes/string
             path.append(PathLeaf(PathLeafType.DYNAMIC))
         else:
@@ -154,12 +164,14 @@ def build_path(param: dict, tuple_index: int, parent_path: List = None) -> List:
     return path
 
 
-def get_nested_path(parent_abi: str,
-                    parent_function: str,
-                    parent_param: str,
-                    nested_abi: str,
-                    nested_function: str,
-                    nested_param: str) -> List:
+def get_nested_path(
+    parent_abi: str,
+    parent_function: str,
+    parent_param: str,
+    nested_abi: str,
+    nested_function: str,
+    nested_param: str,
+) -> List:
     """
     Get the DataPath for a nested parameter inside a calldata field.
 
@@ -186,10 +198,9 @@ def get_nested_path(parent_abi: str,
     return parent_path_clean + nested_path
 
 
-def get_path_in_array(abi_filename: str,
-                      function_name: str,
-                      array_param: str,
-                      element_index: int = None) -> List:
+def get_path_in_array(
+    abi_filename: str, function_name: str, array_param: str, element_index: int = None
+) -> List:
     """
     Get the DataPath for an element inside an array parameter.
 
@@ -217,10 +228,9 @@ def get_path_in_array(abi_filename: str,
     return path
 
 
-def get_path_in_tuple(abi_filename: str,
-                      function_name: str,
-                      tuple_param: str,
-                      field_name: str) -> List:
+def get_path_in_tuple(
+    abi_filename: str, function_name: str, tuple_param: str, field_name: str
+) -> List:
     """
     Get the DataPath for a field inside a tuple parameter.
 
@@ -233,13 +243,13 @@ def get_path_in_tuple(abi_filename: str,
     Returns:
         List of DataPath components
     """
-    with open(abi_filename, 'r', encoding='utf-8') as f:
+    with open(abi_filename, "r", encoding="utf-8") as f:
         abi = json.load(f)
 
     # Find the function
     function_abi = None
     for item in abi:
-        if item.get('type') == 'function' and item.get('name') == function_name:
+        if item.get("type") == "function" and item.get("name") == function_name:
             function_abi = item
             break
 
@@ -247,9 +257,9 @@ def get_path_in_tuple(abi_filename: str,
         raise ValueError(f"Function '{function_name}' not found")
 
     # Find the tuple parameter
-    for idx, param in enumerate(function_abi['inputs']):
-        if param.get('name') == tuple_param:
-            if 'components' not in param:
+    for idx, param in enumerate(function_abi["inputs"]):
+        if param.get("name") == tuple_param:
+            if "components" not in param:
                 raise ValueError(f"Parameter '{tuple_param}' is not a tuple")
 
             # Build path to the tuple parameter itself
@@ -259,13 +269,13 @@ def get_path_in_tuple(abi_filename: str,
             base_path = [p for p in base_path if not isinstance(p, PathLeaf)]
 
             # Find the field in the tuple components
-            for field_idx, component in enumerate(param['components']):
-                if component.get('name') == field_name:
+            for field_idx, component in enumerate(param["components"]):
+                if component.get("name") == field_name:
                     # Add path to the specific field
                     field_path = [PathTuple(field_idx)]
 
                     # Add final leaf based on field type
-                    if is_dynamic_type(component['type'], component):
+                    if is_dynamic_type(component["type"], component):
                         field_path.extend([PathRef(), PathLeaf(PathLeafType.DYNAMIC)])
                     else:
                         field_path.append(PathLeaf(PathLeafType.STATIC))
@@ -273,7 +283,9 @@ def get_path_in_tuple(abi_filename: str,
                     return base_path + field_path
 
             # List available fields for debugging
-            available = [c.get('name', f'field_{i}') for i, c in enumerate(param['components'])]
+            available = [
+                c.get("name", f"field_{i}") for i, c in enumerate(param["components"])
+            ]
             raise ValueError(
                 f"Field '{field_name}' not found in tuple '{tuple_param}'. "
                 f"Available fields: {', '.join(available)}"
@@ -297,7 +309,9 @@ def get_all_paths(abi_filename: str, function_name: str) -> dict[str, List]:
     return {param: get_path(abi_filename, function_name, param) for param in params}
 
 
-def get_all_tuple_paths(abi_filename: str, function_name: str, tuple_param: str) -> dict[str, List]:
+def get_all_tuple_paths(
+    abi_filename: str, function_name: str, tuple_param: str
+) -> dict[str, List]:
     """
     Get a dictionary mapping tuple field names to their DataPath components.
 
@@ -310,10 +324,15 @@ def get_all_tuple_paths(abi_filename: str, function_name: str, tuple_param: str)
         Dictionary with field names as keys and path lists as values
     """
     fields = get_tuple_fields(abi_filename, function_name, tuple_param)
-    return {field: get_path_in_tuple(abi_filename, function_name, tuple_param, field) for field in fields}
+    return {
+        field: get_path_in_tuple(abi_filename, function_name, tuple_param, field)
+        for field in fields
+    }
 
 
-def get_all_tuple_array_paths(abi_filename: str, function_name: str, array_param: str) -> dict[str, List]:
+def get_all_tuple_array_paths(
+    abi_filename: str, function_name: str, array_param: str
+) -> dict[str, List]:
     """
     Get paths for fields inside a tuple that is in an array.
 
@@ -330,13 +349,13 @@ def get_all_tuple_array_paths(abi_filename: str, function_name: str, array_param
     Returns:
         Dictionary with field names as keys and complete path lists as values
     """
-    with open(abi_filename, 'r', encoding='utf-8') as f:
+    with open(abi_filename, "r", encoding="utf-8") as f:
         abi = json.load(f)
 
     # Find the function
     function_abi = None
     for item in abi:
-        if item.get('type') == 'function' and item.get('name') == function_name:
+        if item.get("type") == "function" and item.get("name") == function_name:
             function_abi = item
             break
 
@@ -344,32 +363,34 @@ def get_all_tuple_array_paths(abi_filename: str, function_name: str, array_param
         raise ValueError(f"Function '{function_name}' not found")
 
     # Find the array parameter
-    for idx, param in enumerate(function_abi['inputs']):
-        if param.get('name') == array_param:
-            if not param['type'].endswith('[]'):
+    for idx, param in enumerate(function_abi["inputs"]):
+        if param.get("name") == array_param:
+            if not param["type"].endswith("[]"):
                 raise ValueError(f"Parameter '{array_param}' is not an array")
 
-            if 'components' not in param:
-                raise ValueError(f"Array parameter '{array_param}' does not contain tuples")
+            if "components" not in param:
+                raise ValueError(
+                    f"Array parameter '{array_param}' does not contain tuples"
+                )
 
             # Build base path to the array
             base_path = [PathTuple(idx), PathRef(), PathArray(1)]
 
             # If the tuple itself is dynamic, add another PathRef
             # (this happens when the tuple contains dynamic types)
-            if is_dynamic_type(param['type'].rstrip('[]'), param):
+            if is_dynamic_type(param["type"].rstrip("[]"), param):
                 base_path.append(PathRef())
 
             # Get paths for each field in the tuple
             result = {}
-            for field_idx, component in enumerate(param['components']):
-                field_name = component.get('name', f'field_{field_idx}')
+            for field_idx, component in enumerate(param["components"]):
+                field_name = component.get("name", f"field_{field_idx}")
 
                 # Add the tuple field index
                 field_path = base_path + [PathTuple(field_idx)]
 
                 # Add final leaf based on field type
-                if is_dynamic_type(component['type'], component):
+                if is_dynamic_type(component["type"], component):
                     field_path.extend([PathRef(), PathLeaf(PathLeafType.DYNAMIC)])
                 else:
                     field_path.append(PathLeaf(PathLeafType.STATIC))
@@ -416,8 +437,12 @@ if __name__ == "__main__":
     print("\n# Example 2: Nested calldata")
     print("# Safe execTransaction -> addOwnerWithThreshold -> owner")
     ex_path = get_nested_path(
-        "abis/safe_1.4.1.abi.json", "execTransaction", "data",
-        "abis/safe_1.4.1.abi.json", "addOwnerWithThreshold", "owner"
+        "abis/safe_1.4.1.abi.json",
+        "execTransaction",
+        "data",
+        "abis/safe_1.4.1.abi.json",
+        "addOwnerWithThreshold",
+        "owner",
     )
     print_path(ex_path)
 

@@ -98,7 +98,9 @@ class TrustedName(TlvSerializable):
         if self.coin_type is not None:
             payload += self.serialize_field(Tag.COIN_TYPE, self.coin_type)
         if self.not_valid_after is not None:
-            payload += self.serialize_field(Tag.NOT_VALID_AFTER, struct.pack("BBB", *self.not_valid_after))
+            payload += self.serialize_field(
+                Tag.NOT_VALID_AFTER, struct.pack("BBB", *self.not_valid_after)
+            )
         if self.tn_type is not None:
             payload += self.serialize_field(Tag.TYPE, self.tn_type)
         if self.tn_source is not None:
@@ -114,7 +116,9 @@ class TrustedName(TlvSerializable):
         if self.owner is not None:
             payload += self.serialize_field(Tag.OWNER, self.owner)
         if self.owner_deriv_path is not None:
-            payload += self.serialize_field(Tag.OWNER_DERIV_PATH, pack_derivation_path(self.owner_deriv_path))
+            payload += self.serialize_field(
+                Tag.OWNER_DERIV_PATH, pack_derivation_path(self.owner_deriv_path)
+            )
         sig = self.signature
         if self.tn_source == TrustedNameSource.CAL:
             key_id = 9

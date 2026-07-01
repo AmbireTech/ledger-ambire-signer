@@ -27,14 +27,16 @@ class TokenInfo(TlvSerializable):
     tuid: EthTUID
     signature: bytes | None
 
-    def __init__(self,
-                 version: int,
-                 application_name: str,
-                 ticker: str,
-                 decimals: int,
-                 tuid: EthTUID,
-                 coin_type: int = 60,
-                 signature: bytes | None = None) -> None:
+    def __init__(
+        self,
+        version: int,
+        application_name: str,
+        ticker: str,
+        decimals: int,
+        tuid: EthTUID,
+        coin_type: int = 60,
+        signature: bytes | None = None,
+    ) -> None:
         self.version = version
         self.coin_type = coin_type
         self.application_name = application_name

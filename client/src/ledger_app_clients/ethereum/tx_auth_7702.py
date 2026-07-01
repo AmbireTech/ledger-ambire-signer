@@ -22,10 +22,7 @@ class TxAuth7702(TlvSerializable):
     nonce: int
     chain_id: int
 
-    def __init__(self,
-                 delegate: bytes,
-                 nonce: int,
-                 chain_id: int) -> None:
+    def __init__(self, delegate: bytes, nonce: int, chain_id: int) -> None:
         # chain_id is required and must be an int. Pass
         # TxAuth7702.CHAIN_ID_ALL (0) to explicitly request an
         # all-chains authorization; do not pass None.

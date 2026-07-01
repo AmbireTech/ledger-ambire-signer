@@ -17,6 +17,7 @@
 *  limitations under the License.
 ********************************************************************************
 """
+
 from ledgerblue.comm import getDongle
 from Crypto.Hash import keccak
 from eth_keys import KeyAPI
@@ -28,15 +29,16 @@ import binascii
 CHAIN_ID = 0
 
 # Magic define
-SIGN_MAGIC = b'\x19\x01'
+SIGN_MAGIC = b"\x19\x01"
+
 
 def parse_bip32_path(path):
     if len(path) == 0:
         return b""
     result = b""
-    elements = path.split('/')
+    elements = path.split("/")
     for pathElement in elements:
-        element = pathElement.split('\'')
+        element = pathElement.split("'")
         if len(element) == 1:
             result = result + struct.pack(">I", int(element[0]))
         else:
@@ -45,9 +47,9 @@ def parse_bip32_path(path):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--path', help="BIP 32 path to sign with")
-parser.add_argument('--domainHash', help="Domain Hash (hex)", required=True)
-parser.add_argument('--messageHash', help='Message Hash (hex)', required=True)
+parser.add_argument("--path", help="BIP 32 path to sign with")
+parser.add_argument("--domainHash", help="Domain Hash (hex)", required=True)
+parser.add_argument("--messageHash", help="Message Hash (hex)", required=True)
 args = parser.parse_args()
 
 if args.path is None:
@@ -69,26 +71,26 @@ result = dongle.exchange(bytes(apdu))
 v = int(result[0])
 
 # Compute parity
-if (CHAIN_ID*2 + 35) + 1 > 255:
-    ecc_parity = v - ((CHAIN_ID*2 + 35) % 256)
+if (CHAIN_ID * 2 + 35) + 1 > 255:
+    ecc_parity = v - ((CHAIN_ID * 2 + 35) % 256)
 else:
     ecc_parity = (v + 1) % 2
 
 v = "%02X" % ecc_parity
-r = binascii.hexlify(result[1:1 + 32]).decode()
-s = binascii.hexlify(result[1 + 32: 1 + 32 + 32]).decode()
+r = binascii.hexlify(result[1 : 1 + 32]).decode()
+s = binascii.hexlify(result[1 + 32 : 1 + 32 + 32]).decode()
 msg_to_sign = SIGN_MAGIC + domainHash + messageHash
 hash = keccak.new(digest_bits=256, data=msg_to_sign).digest()
 
 signature = KeyAPI.Signature(vrs=(int(v, 16), int(r, 16), int(s, 16)))
 pubkey = KeyAPI.PublicKey.recover_from_msg_hash(hash, signature)
 
-print("[INFO] Hash is: 0x", binascii.hexlify(hash).decode(), sep='');
-print('{')
-print('  "address": "', pubkey.to_address(), '",', sep='')
-print('  "domain hash": "', binascii.hexlify(domainHash).decode(),'",', sep='')
-print('  "message hash": "', binascii.hexlify(messageHash).decode(),'",', sep='')
-print('  "sig": "', signature, '",', sep = '')
+print("[INFO] Hash is: 0x", binascii.hexlify(hash).decode(), sep="")
+print("{")
+print('  "address": "', pubkey.to_address(), '",', sep="")
+print('  "domain hash": "', binascii.hexlify(domainHash).decode(), '",', sep="")
+print('  "message hash": "', binascii.hexlify(messageHash).decode(), '",', sep="")
+print('  "sig": "', signature, '",', sep="")
 print('  "version": "3"')
 print('  "signed": "ledger"')
-print('}')
+print("}")

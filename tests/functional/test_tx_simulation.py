@@ -34,10 +34,9 @@ def config_fixture(request) -> str:
     return request.param
 
 
-def __common_setting_handling(device: Device,
-                              navigator: Navigator,
-                              app_client: EthAppClient,
-                              expected: bool) -> None:
+def __common_setting_handling(
+    device: Device, navigator: Navigator, app_client: EthAppClient, expected: bool
+) -> None:
     """Common setting handling for the tests"""
 
     response = app_client.get_app_configuration()
@@ -51,10 +50,12 @@ def __common_setting_handling(device: Device,
 def __get_simu_params(risk: str, simu_type: TxType) -> TxSimu:
     """Common simu parameters for the tests"""
 
+    # fmt: off
     simu_params = {
         "tiny_url": "https://www.ledger.com",
         "simu_type": simu_type
     }
+    # fmt: on
 
     if risk == "benign":
         simu_params["risk"] = 0
@@ -73,16 +74,18 @@ def __get_simu_params(risk: str, simu_type: TxType) -> TxSimu:
 
 def __handle_simulation(app_client: EthAppClient, simu_params: TxSimu) -> None:
     if not simu_params.tx_hash:
-        simu_params.tx_hash = bytes.fromhex("deadbeaf"*8)
+        simu_params.tx_hash = bytes.fromhex("deadbeaf" * 8)
     response = app_client.provide_tx_simulation(simu_params)
     assert response.status == StatusWord.SWO_SUCCESS
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_opt_in(backend: BackendInterface,
-                              navigator: Navigator,
-                              test_name: str,
-                              default_screenshot_path: Path) -> None:
+def test_tx_simulation_opt_in(
+    backend: BackendInterface,
+    navigator: Navigator,
+    test_name: str,
+    default_screenshot_path: Path,
+) -> None:
     """Test the TX Simulation Opt-In feature."""
 
     app_client = EthAppClient(backend)
@@ -92,9 +95,9 @@ def test_tx_simulation_opt_in(backend: BackendInterface,
     assert response.data[0] & TxCheckFlags.TX_CHECKS_OPT_IN == 0
 
     with app_client.opt_in_tx_simulation():
-        navigator.navigate_and_compare(default_screenshot_path,
-                                       test_name,
-                                       [NavInsID.USE_CASE_CHOICE_CONFIRM])
+        navigator.navigate_and_compare(
+            default_screenshot_path, test_name, [NavInsID.USE_CASE_CHOICE_CONFIRM]
+        )
 
     response = app_client.get_app_configuration()
     assert response.status == StatusWord.SWO_SUCCESS
@@ -103,9 +106,11 @@ def test_tx_simulation_opt_in(backend: BackendInterface,
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_disabled(backend: BackendInterface, navigator: Navigator) -> None:
+def test_tx_simulation_disabled(
+    backend: BackendInterface, navigator: Navigator
+) -> None:
     """Test the TX Simulation APDU with the TRANSACTION_CHECKS setting disabled.
-        It should return an error
+    It should return an error
     """
 
     app_client = EthAppClient(backend)
@@ -138,7 +143,9 @@ def test_tx_simulation_enabled(backend: BackendInterface, navigator: Navigator) 
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_sign(scenario_navigator: NavigateWithScenario, config: str) -> None:
+def test_tx_simulation_sign(
+    scenario_navigator: NavigateWithScenario, config: str
+) -> None:
     """Test the TX Simulation APDU with a simple transaction"""
 
     backend = scenario_navigator.backend
@@ -149,11 +156,11 @@ def test_tx_simulation_sign(scenario_navigator: NavigateWithScenario, config: st
 
     tx_params: dict = {
         "nonce": 21,
-        "gasPrice": Web3.to_wei(13, 'gwei'),
+        "gasPrice": Web3.to_wei(13, "gwei"),
         "gas": 21000,
         "to": bytes.fromhex("5a321744667052affa8386ed49e00ef223cbffc3"),
         "value": Web3.to_wei(1.22, "ether"),
-        "chainId": 5
+        "chainId": 5,
     }
     if config != "issue":
         simu_params = __get_simu_params(config, TxType.TRANSACTION)
@@ -162,16 +169,18 @@ def test_tx_simulation_sign(scenario_navigator: NavigateWithScenario, config: st
         simu_params.tx_hash = tx_hash
         __handle_simulation(app_client, simu_params)
 
-    sign_tx_common(scenario_navigator,
-                   tx_params,
-                   scenario_navigator.test_name + f"_{config}",
-                   with_simu=config not in ("benign", "issue"))
+    sign_tx_common(
+        scenario_navigator,
+        tx_params,
+        scenario_navigator.test_name + f"_{config}",
+        with_simu=config not in ("benign", "issue"),
+    )
 
 
 @pytest.mark.skip_nano
 def test_tx_simulation_no_simu(scenario_navigator: NavigateWithScenario) -> None:
     """Test the TX Transaction APDU without TX Simulation APDU
-        but with the TRANSACTION_CHECKS setting enabled"""
+    but with the TRANSACTION_CHECKS setting enabled"""
 
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
@@ -181,17 +190,16 @@ def test_tx_simulation_no_simu(scenario_navigator: NavigateWithScenario) -> None
 
     tx_params: dict = {
         "nonce": 21,
-        "gasPrice": Web3.to_wei(13, 'gwei'),
+        "gasPrice": Web3.to_wei(13, "gwei"),
         "gas": 21000,
         "to": bytes.fromhex("5a321744667052affa8386ed49e00ef223cbffc3"),
         "value": Web3.to_wei(1.22, "ether"),
-        "chainId": 5
+        "chainId": 5,
     }
 
-    sign_tx_common(scenario_navigator,
-                   tx_params,
-                   scenario_navigator.test_name,
-                   with_simu=False)
+    sign_tx_common(
+        scenario_navigator, tx_params, scenario_navigator.test_name, with_simu=False
+    )
 
 
 @pytest.mark.skip_nano
@@ -206,17 +214,21 @@ def test_tx_simulation_nft(scenario_navigator: NavigateWithScenario) -> None:
 
     simu_params = __get_simu_params("warning", TxType.TRANSACTION)
 
-    common_test_nft(scenario_navigator,
-                    scenario_navigator.test_name,
-                    collecs_721[0],
-                    actions_721[0],
-                    False,
-                    ERC721_PLUGIN,
-                    simu_params)
+    common_test_nft(
+        scenario_navigator,
+        scenario_navigator.test_name,
+        collecs_721[0],
+        actions_721[0],
+        False,
+        ERC721_PLUGIN,
+        simu_params,
+    )
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_blind_sign(scenario_navigator: NavigateWithScenario, config: str) -> None:
+def test_tx_simulation_blind_sign(
+    scenario_navigator: NavigateWithScenario, config: str
+) -> None:
     """Test the TX Simulation APDU with a Blind Sign transaction"""
 
     backend = scenario_navigator.backend
@@ -231,12 +243,14 @@ def test_tx_simulation_blind_sign(scenario_navigator: NavigateWithScenario, conf
     else:
         simu_params = None
 
-    blind_sign(navigator,
-               scenario_navigator,
-               scenario_navigator.test_name + f"_{config}",
-               False,
-               0.0,
-               simu_params)
+    blind_sign(
+        navigator,
+        scenario_navigator,
+        scenario_navigator.test_name + f"_{config}",
+        False,
+        0.0,
+        simu_params,
+    )
 
 
 @pytest.mark.skip_nano
@@ -245,7 +259,12 @@ def test_tx_simulation_eip712(scenario_navigator: NavigateWithScenario) -> None:
 
     app_client = EthAppClient(scenario_navigator.backend)
 
-    __common_setting_handling(scenario_navigator.backend.device, scenario_navigator.navigator, app_client, True)
+    __common_setting_handling(
+        scenario_navigator.backend.device,
+        scenario_navigator.navigator,
+        app_client,
+        True,
+    )
 
     simu_params = __get_simu_params("threat", TxType.TYPED_DATA)
 
@@ -258,7 +277,12 @@ def test_tx_simulation_eip712_v0(scenario_navigator: NavigateWithScenario) -> No
 
     app_client = EthAppClient(scenario_navigator.backend)
 
-    __common_setting_handling(scenario_navigator.backend.device, scenario_navigator.navigator, app_client, True)
+    __common_setting_handling(
+        scenario_navigator.backend.device,
+        scenario_navigator.navigator,
+        app_client,
+        True,
+    )
 
     simu_params = __get_simu_params("threat", TxType.TYPED_DATA)
 
@@ -266,8 +290,9 @@ def test_tx_simulation_eip712_v0(scenario_navigator: NavigateWithScenario) -> No
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_gcs(navigator: Navigator,
-                           scenario_navigator: NavigateWithScenario) -> None:
+def test_tx_simulation_gcs(
+    navigator: Navigator, scenario_navigator: NavigateWithScenario
+) -> None:
     """Test the TX Simulation APDU with a Message Streaming based on EIP712"""
 
     backend = scenario_navigator.backend
@@ -282,8 +307,9 @@ def test_tx_simulation_gcs(navigator: Navigator,
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_provider_max_bounds(backend: BackendInterface,
-                                           navigator: Navigator) -> None:
+def test_tx_simulation_provider_max_bounds(
+    backend: BackendInterface, navigator: Navigator
+) -> None:
     """
     Test that a 25-character provider_message (spec maximum) is accepted.
     Test that a 30-character tiny_url (spec maximum) is accepted.

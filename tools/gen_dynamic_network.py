@@ -8,7 +8,7 @@ import subprocess
 import argparse
 
 # Retrieve the SDK path from the environment variable
-sdk_path = os.getenv('BOLOS_SDK')
+sdk_path = os.getenv("BOLOS_SDK")
 if sdk_path:
     # Import the library dynamically
     sys.path.append(f"{sdk_path}/lib_nbgl/tools")
@@ -25,9 +25,11 @@ logger = logging.getLogger(__name__)
 #          Parameters
 # ===============================================================================
 def init_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate hex string for network icon, in NBGL format.")
+    parser = argparse.ArgumentParser(
+        description="Generate hex string for network icon, in NBGL format."
+    )
     parser.add_argument("--icon", "-i", required=True, help="Input icon to process.")
-    parser.add_argument("--verbose", "-v", action='store_true', help="Verbose mode")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose mode")
     return parser
 
 
@@ -51,7 +53,9 @@ def set_logging(verbose: bool = False) -> None:
 def check_glyph(file: str) -> bool:
     extension = os.path.splitext(file)[1][1:]
     if extension not in ["gif", "bmp", "png"]:
-        logger.error(f"Glyph extension should be '.gif', '.bmp', or '.png', not '.{extension}'")
+        logger.error(
+            f"Glyph extension should be '.gif', '.bmp', or '.png', not '.{extension}'"
+        )
         return False
 
     try:
@@ -66,8 +70,8 @@ def check_glyph(file: str) -> bool:
 
     x = re.search(r"Colors: (.*)", content)
     if x is None:
-            logger.error("Glyph should have the colors defined")
-            return False
+        logger.error("Glyph should have the colors defined")
+        return False
     nb_colors = int(x.group(1))
     if "Type: Bilevel" in content:
         logger.debug("Monochrome image type")
@@ -92,7 +96,9 @@ def check_glyph(file: str) -> bool:
         logger.debug("Grayscale image type")
 
         if nb_colors > 16:
-            logger.error(f"4bpp glyphs can't have more than 16 colors, {nb_colors} found")
+            logger.error(
+                f"4bpp glyphs can't have more than 16 colors, {nb_colors} found"
+            )
             return False
 
         if not any(depth in content for depth in ["Depth: 8-bit", "Depth: 8/8-bit"]):
