@@ -5,7 +5,6 @@ int fuzzEIP712(const uint8_t *data, size_t size) {
     size_t len = 0;
     uint8_t p1;
     uint8_t p2;
-    unsigned int flags;
 
     if (size < 2) goto eip712_end;
     p2 = *(data++);
@@ -21,7 +20,7 @@ int fuzzEIP712(const uint8_t *data, size_t size) {
     len = *(data++);
     size -= 3;
     if (size < len) goto eip712_end;
-    handle_eip712_filtering(p1, p2, data, len, &flags);
+    handle_eip712_filtering(p1, p2, data, len);
     size -= len;
 
     if (size < 3) goto eip712_end;
@@ -30,14 +29,14 @@ int fuzzEIP712(const uint8_t *data, size_t size) {
     len = *(data++);
     size -= 3;
     if (size < len) goto eip712_end;
-    handle_eip712_struct_impl(p1, p2, data, len, &flags);
+    handle_eip712_struct_impl(p1, p2, data, len);
     size -= len;
 
     if (size < 1) goto eip712_end;
     len = *(data++);
     size -= 1;
     if (size < len) goto eip712_end;
-    handle_eip712_sign(data, len, &flags);
+    handle_eip712_sign(data, len);
 
 eip712_end:
     eip712_context_deinit();
