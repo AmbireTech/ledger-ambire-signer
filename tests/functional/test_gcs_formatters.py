@@ -19,10 +19,23 @@ from client.client import EthAppClient, SignMode
 from client.status_word import StatusWord
 from client.utils import get_selector_from_data
 from client.gcs import (
-    Field, ParamRaw, Value, TypeFamily, DataPath, ParamTrustedName,
-    ParamDatetime, DatetimeType, ParamTokenAmount,
-    ContainerPath, TxInfo, ParamNetwork, VisibleType,
-    TrustedNameValueType, MapRef, ParamGroup, GroupIterationType
+    Field,
+    ParamRaw,
+    Value,
+    TypeFamily,
+    DataPath,
+    ParamTrustedName,
+    ParamDatetime,
+    DatetimeType,
+    ParamTokenAmount,
+    ContainerPath,
+    TxInfo,
+    ParamNetwork,
+    VisibleType,
+    TrustedNameValueType,
+    MapRef,
+    ParamGroup,
+    GroupIterationType,
 )
 from client.map_entry import MapEntry
 from client.dynamic_networks import DynamicNetwork
@@ -45,13 +58,18 @@ def test_gcs_map_entry(scenario_navigator: NavigateWithScenario):
         contract = Web3().eth.contract(abi=json.load(file), address=None)
     eventId = 175676
     # pylint: disable=line-too-long
-    data = contract.encode_abi("mintToken", [
-        eventId,
-        7163978,
-        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
-        1730621615,
-        bytes.fromhex("8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c")
-    ])
+    data = contract.encode_abi(
+        "mintToken",
+        [
+            eventId,
+            7163978,
+            bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+            1730621615,
+            bytes.fromhex(
+                "8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c"
+            ),
+        ],
+    )
     # pylint: enable=line-too-long
     tx_params = {
         "nonce": 235,
@@ -60,7 +78,7 @@ def test_gcs_map_entry(scenario_navigator: NavigateWithScenario):
         "gas": 44001,
         "to": bytes.fromhex("0bb4D3e88243F4A057Db77341e6916B0e449b158"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
@@ -77,43 +95,43 @@ def test_gcs_map_entry(scenario_navigator: NavigateWithScenario):
     )
 
     fields = [
-            Field(
+        Field(
+            1,
+            "Event name",
+            ParamRaw(
                 1,
-                "Event name",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.STRING,
-                        map_ref=MapRef(version=1, id=0, key=event_id_key_value),
-                    )
-                )
+                    TypeFamily.STRING,
+                    map_ref=MapRef(version=1, id=0, key=event_id_key_value),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Token ID",
+            ParamRaw(
                 1,
-                "Token ID",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(1, param_paths["tokenId"]),
-                    )
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["tokenId"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Receiver",
+            ParamRaw(
                 1,
-                "Receiver",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(1, param_paths["receiver"]),
-                    )
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["receiver"]),
+                ),
             ),
+        ),
     ]
 
     inst_hash = compute_inst_hash(fields)
@@ -129,18 +147,22 @@ def test_gcs_map_entry(scenario_navigator: NavigateWithScenario):
         creator_legal_name="Proof of Attendance Protocol",
         creator_url="poap.xyz",
         contract_name="PoapBridge",
-        deploy_date=1646305200
+        deploy_date=1646305200,
     )
 
-    app_client.provide_map_entry(MapEntry(
-        version=1,
-        chain_id=tx_params["chainId"],
-        contract_addr=tx_params["to"],
-        selector=get_selector_from_data(tx_params["data"]),
-        id=0,
-        key=eventId.to_bytes(32, "big"),  # 32-byte big-endian (ABI uint256 encoding)
-        value=b"EthCC Paris",
-    ).serialize())
+    app_client.provide_map_entry(
+        MapEntry(
+            version=1,
+            chain_id=tx_params["chainId"],
+            contract_addr=tx_params["to"],
+            selector=get_selector_from_data(tx_params["data"]),
+            id=0,
+            key=eventId.to_bytes(
+                32, "big"
+            ),  # 32-byte big-endian (ABI uint256 encoding)
+            value=b"EthCC Paris",
+        ).serialize()
+    )
 
     app_client.provide_transaction_info(tx_info.serialize())
 
@@ -159,13 +181,18 @@ def test_gcs_map_entry_chain_id_key(scenario_navigator: NavigateWithScenario):
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
     # pylint: disable=line-too-long
-    data = contract.encode_abi("mintToken", [
-        175676,
-        7163978,
-        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
-        1730621615,
-        bytes.fromhex("8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c")
-    ])
+    data = contract.encode_abi(
+        "mintToken",
+        [
+            175676,
+            7163978,
+            bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+            1730621615,
+            bytes.fromhex(
+                "8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c"
+            ),
+        ],
+    )
     # pylint: enable=line-too-long
     tx_params = {
         "nonce": 235,
@@ -174,7 +201,7 @@ def test_gcs_map_entry_chain_id_key(scenario_navigator: NavigateWithScenario):
         "gas": 44001,
         "to": bytes.fromhex("0bb4D3e88243F4A057Db77341e6916B0e449b158"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
@@ -201,8 +228,8 @@ def test_gcs_map_entry_chain_id_key(scenario_navigator: NavigateWithScenario):
                     1,
                     TypeFamily.STRING,
                     map_ref=MapRef(version=1, id=1, key=chain_id_key_value),
-                )
-            )
+                ),
+            ),
         ),
         Field(
             1,
@@ -214,8 +241,8 @@ def test_gcs_map_entry_chain_id_key(scenario_navigator: NavigateWithScenario):
                     TypeFamily.UINT,
                     type_size=32,
                     data_path=DataPath(1, param_paths["tokenId"]),
-                )
-            )
+                ),
+            ),
         ),
     ]
 
@@ -232,19 +259,21 @@ def test_gcs_map_entry_chain_id_key(scenario_navigator: NavigateWithScenario):
         creator_legal_name="Proof of Attendance Protocol",
         creator_url="poap.xyz",
         contract_name="PoapBridge",
-        deploy_date=1646305200
+        deploy_date=1646305200,
     )
 
     # MAP_ENTRY key is the 8-byte big-endian encoding of chain_id=1
-    app_client.provide_map_entry(MapEntry(
-        version=1,
-        chain_id=tx_params["chainId"],
-        contract_addr=tx_params["to"],
-        selector=get_selector_from_data(tx_params["data"]),
-        id=1,
-        key=tx_params["chainId"].to_bytes(8, "big"),
-        value=b"Ethereum",
-    ).serialize())
+    app_client.provide_map_entry(
+        MapEntry(
+            version=1,
+            chain_id=tx_params["chainId"],
+            contract_addr=tx_params["to"],
+            selector=get_selector_from_data(tx_params["data"]),
+            id=1,
+            key=tx_params["chainId"].to_bytes(8, "big"),
+            value=b"Ethereum",
+        ).serialize()
+    )
 
     app_client.provide_transaction_info(tx_info.serialize())
 
@@ -271,13 +300,18 @@ def test_gcs_group_sequential(scenario_navigator: NavigateWithScenario):
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
     # pylint: disable=line-too-long
-    data = contract.encode_abi("mintToken", [
-        175676,
-        7163978,
-        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
-        1730621615,
-        bytes.fromhex("8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c")
-    ])
+    data = contract.encode_abi(
+        "mintToken",
+        [
+            175676,
+            7163978,
+            bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+            1730621615,
+            bytes.fromhex(
+                "8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c"
+            ),
+        ],
+    )
     # pylint: enable=line-too-long
     tx_params = {
         "nonce": 235,
@@ -287,7 +321,7 @@ def test_gcs_group_sequential(scenario_navigator: NavigateWithScenario):
         # PoapBridge
         "to": bytes.fromhex("0bb4D3e88243F4A057Db77341e6916B0e449b158"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
@@ -313,8 +347,8 @@ def test_gcs_group_sequential(scenario_navigator: NavigateWithScenario):
                             TypeFamily.UINT,
                             type_size=32,
                             data_path=DataPath(1, param_paths["eventId"]),
-                        )
-                    )
+                        ),
+                    ),
                 ),
                 Field(
                     1,
@@ -326,11 +360,11 @@ def test_gcs_group_sequential(scenario_navigator: NavigateWithScenario):
                             TypeFamily.UINT,
                             type_size=32,
                             data_path=DataPath(1, param_paths["tokenId"]),
-                        )
-                    )
+                        ),
+                    ),
                 ),
-            ]
-        )
+            ],
+        ),
     )
 
     receiver_field = Field(
@@ -342,8 +376,8 @@ def test_gcs_group_sequential(scenario_navigator: NavigateWithScenario):
                 1,
                 TypeFamily.ADDRESS,
                 data_path=DataPath(1, param_paths["receiver"]),
-            )
-        )
+            ),
+        ),
     )
 
     fields = [group_field, receiver_field]
@@ -361,7 +395,7 @@ def test_gcs_group_sequential(scenario_navigator: NavigateWithScenario):
         creator_legal_name="Proof of Attendance Protocol",
         creator_url="poap.xyz",
         contract_name="PoapBridge",
-        deploy_date=1646305200
+        deploy_date=1646305200,
     )
 
     app_client.provide_transaction_info(tx_info.serialize())
@@ -391,13 +425,16 @@ def test_gcs_group_sequential_arrays(scenario_navigator: NavigateWithScenario):
     with open(f"{ABIS_FOLDER}/erc1155.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
 
-    data = contract.encode_abi("safeBatchTransferFrom", [
-        bytes.fromhex("1111111111111111111111111111111111111111"),
-        bytes.fromhex("d8da6bf26964af9d7eed9e03e53415d37aa96045"),
-        [1, 2],
-        [100, 200],
-        b"",
-    ])
+    data = contract.encode_abi(
+        "safeBatchTransferFrom",
+        [
+            bytes.fromhex("1111111111111111111111111111111111111111"),
+            bytes.fromhex("d8da6bf26964af9d7eed9e03e53415d37aa96045"),
+            [1, 2],
+            [100, 200],
+            b"",
+        ],
+    )
     tx_params = {
         "nonce": 10,
         "maxFeePerGas": Web3.to_wei(50, "gwei"),
@@ -433,8 +470,8 @@ def test_gcs_group_sequential_arrays(scenario_navigator: NavigateWithScenario):
                             TypeFamily.UINT,
                             type_size=32,
                             data_path=DataPath(1, param_paths["_ids"]),
-                        )
-                    )
+                        ),
+                    ),
                 ),
                 Field(
                     1,
@@ -446,11 +483,11 @@ def test_gcs_group_sequential_arrays(scenario_navigator: NavigateWithScenario):
                             TypeFamily.UINT,
                             type_size=32,
                             data_path=DataPath(1, param_paths["_values"]),
-                        )
+                        ),
                     ),
                 ),
-            ]
-        )
+            ],
+        ),
     )
 
     to_field = Field(
@@ -462,8 +499,8 @@ def test_gcs_group_sequential_arrays(scenario_navigator: NavigateWithScenario):
                 1,
                 TypeFamily.ADDRESS,
                 data_path=DataPath(1, param_paths["_to"]),
-            )
-        )
+            ),
+        ),
     )
 
     fields = [to_field, token_data_group]
@@ -481,7 +518,7 @@ def test_gcs_group_sequential_arrays(scenario_navigator: NavigateWithScenario):
         creator_legal_name="OpenSea Inc.",
         creator_url="opensea.io",
         contract_name="ERC1155",
-        deploy_date=1646305200
+        deploy_date=1646305200,
     )
 
     app_client.provide_transaction_info(tx_info.serialize())
@@ -506,13 +543,16 @@ def test_gcs_separator(scenario_navigator: NavigateWithScenario):
     with open(f"{ABIS_FOLDER}/erc1155.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
 
-    data = contract.encode_abi("safeBatchTransferFrom", [
-        bytes.fromhex("1111111111111111111111111111111111111111"),
-        bytes.fromhex("d8da6bf26964af9d7eed9e03e53415d37aa96045"),
-        [1, 2],
-        [100, 200],
-        b"",
-    ])
+    data = contract.encode_abi(
+        "safeBatchTransferFrom",
+        [
+            bytes.fromhex("1111111111111111111111111111111111111111"),
+            bytes.fromhex("d8da6bf26964af9d7eed9e03e53415d37aa96045"),
+            [1, 2],
+            [100, 200],
+            b"",
+        ],
+    )
     tx_params = {
         "nonce": 11,
         "maxFeePerGas": Web3.to_wei(50, "gwei"),
@@ -539,8 +579,8 @@ def test_gcs_separator(scenario_navigator: NavigateWithScenario):
                     1,
                     TypeFamily.ADDRESS,
                     data_path=DataPath(1, param_paths["_to"]),
-                )
-            )
+                ),
+            ),
         ),
         Field(
             1,
@@ -552,7 +592,7 @@ def test_gcs_separator(scenario_navigator: NavigateWithScenario):
                     TypeFamily.UINT,
                     type_size=32,
                     data_path=DataPath(1, param_paths["_ids"]),
-                )
+                ),
             ),
             separator="Token {index}",
         ),
@@ -571,7 +611,7 @@ def test_gcs_separator(scenario_navigator: NavigateWithScenario):
         creator_legal_name="OpenSea Inc.",
         creator_url="opensea.io",
         contract_name="ERC1155",
-        deploy_date=1646305200
+        deploy_date=1646305200,
     )
 
     app_client.provide_transaction_info(tx_info.serialize())
@@ -584,24 +624,27 @@ def test_gcs_separator(scenario_navigator: NavigateWithScenario):
 
 
 @pytest.mark.parametrize(
-    "test_config", ["chain_id", "network"],
+    "test_config",
+    ["chain_id", "network"],
 )
 def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: str):
     app_client = EthAppClient(scenario_navigator.backend)
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
     # pylint: disable=line-too-long
-    data = contract.encode_abi("mintToken", [
-        175676,
-        7163978,
-        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
-        1730621615,
-        bytes.fromhex("8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c")
-    ])
+    data = contract.encode_abi(
+        "mintToken",
+        [
+            175676,
+            7163978,
+            bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+            1730621615,
+            bytes.fromhex(
+                "8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c"
+            ),
+        ],
+    )
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -610,7 +653,7 @@ def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: st
         # PoapBridge
         "to": bytes.fromhex("0bb4D3e88243F4A057Db77341e6916B0e449b158"),
         "data": data,
-        "chainId": 5 if test_config == "network" else 1
+        "chainId": 5 if test_config == "network" else 1,
     }
     # pylint: enable=line-too-long
 
@@ -619,54 +662,45 @@ def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: st
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/poap.abi.json", "mintToken")
     fields = [
-            Field(
+        Field(
+            1,
+            "Token ID",
+            ParamRaw(
                 1,
-                "Token ID",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["tokenId"]
-                        ),
-                    )
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["tokenId"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Receiver",
+            ParamRaw(
                 1,
-                "Receiver",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["receiver"]
-                        ),
-                    )
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["receiver"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Expiration time",
+            ParamDatetime(
                 1,
-                "Expiration time",
-                ParamDatetime(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["expirationTime"]
-                        ),
-                    ),
-                    DatetimeType.DT_UNIX
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["expirationTime"]),
+                ),
+                DatetimeType.DT_UNIX,
             ),
+        ),
     ]
     if test_config == "chain_id":
         fields += [
@@ -679,10 +713,10 @@ def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: st
                         1,
                         TypeFamily.UINT,
                         container_path=ContainerPath.CHAIN_ID,
-                    )
-                )
+                    ),
+                ),
             ),
-    ]
+        ]
     else:
         fields += [
             Field(
@@ -694,10 +728,10 @@ def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: st
                         1,
                         TypeFamily.UINT,
                         container_path=ContainerPath.CHAIN_ID,
-                    )
-                )
+                    ),
+                ),
             ),
-    ]
+        ]
 
     # compute instructions hash
     inst_hash = compute_inst_hash(fields)
@@ -713,14 +747,18 @@ def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: st
         creator_legal_name="Proof of Attendance Protocol",
         creator_url="poap.xyz",
         contract_name="PoapBridge",
-        deploy_date=1646305200
+        deploy_date=1646305200,
     )
 
     if test_config == "network":
         # Send Network information (name, ticker, icon)
-        name, ticker, icon = get_network_config(scenario_navigator.backend.device.type, tx_params["chainId"])
+        name, ticker, icon = get_network_config(
+            scenario_navigator.backend.device.type, tx_params["chainId"]
+        )
         if name and ticker:
-            app_client.provide_network_information(DynamicNetwork(name, ticker, tx_params["chainId"], icon))
+            app_client.provide_network_information(
+                DynamicNetwork(name, ticker, tx_params["chainId"], icon)
+            )
 
     app_client.provide_transaction_info(tx_info.serialize())
 
@@ -728,36 +766,59 @@ def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: st
         app_client.provide_transaction_field_desc(field.serialize())
 
     with app_client.sign(mode=SignMode.START_FLOW):
-        scenario_navigator.review_approve(test_name=scenario_navigator.test_name + f"_{test_config}")
+        scenario_navigator.review_approve(
+            test_name=scenario_navigator.test_name + f"_{test_config}"
+        )
 
 
 @pytest.mark.parametrize(
-    "test_config, visible, constraints", [
-        ("if_not_0", VisibleType.IF_NOT_IN, [bytes.fromhex("0000000000000000000000000000000000000000")]),
-        ("if_not_addr", VisibleType.IF_NOT_IN, [bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D")]),
-        ("must_be_addr", VisibleType.MUST_BE, [bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D")]),
-        ("must_be_0", VisibleType.MUST_BE, [bytes.fromhex("00"), bytes.fromhex("01"), bytes.fromhex("02")]),
+    "test_config, visible, constraints",
+    [
+        (
+            "if_not_0",
+            VisibleType.IF_NOT_IN,
+            [bytes.fromhex("0000000000000000000000000000000000000000")],
+        ),
+        (
+            "if_not_addr",
+            VisibleType.IF_NOT_IN,
+            [bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D")],
+        ),
+        (
+            "must_be_addr",
+            VisibleType.MUST_BE,
+            [bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D")],
+        ),
+        (
+            "must_be_0",
+            VisibleType.MUST_BE,
+            [bytes.fromhex("00"), bytes.fromhex("01"), bytes.fromhex("02")],
+        ),
     ],
 )
-def test_gcs_constraints(scenario_navigator: NavigateWithScenario,
-                         test_config: str,
-                         visible: VisibleType,
-                         constraints: list[bytes]):
+def test_gcs_constraints(
+    scenario_navigator: NavigateWithScenario,
+    test_config: str,
+    visible: VisibleType,
+    constraints: list[bytes],
+):
     app_client = EthAppClient(scenario_navigator.backend)
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
     # pylint: disable=line-too-long
-    data = contract.encode_abi("mintToken", [
-        175676,
-        7163978,
-        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
-        1730621615,
-        bytes.fromhex("8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c")
-    ])
+    data = contract.encode_abi(
+        "mintToken",
+        [
+            175676,
+            7163978,
+            bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+            1730621615,
+            bytes.fromhex(
+                "8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c"
+            ),
+        ],
+    )
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -766,7 +827,7 @@ def test_gcs_constraints(scenario_navigator: NavigateWithScenario,
         # PoapBridge
         "to": bytes.fromhex("0bb4D3e88243F4A057Db77341e6916B0e449b158"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
     # pylint: enable=line-too-long
 
@@ -775,127 +836,109 @@ def test_gcs_constraints(scenario_navigator: NavigateWithScenario,
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/poap.abi.json", "mintToken")
     fields = [
-            Field(
+        Field(
+            1,
+            "Token ID",
+            ParamRaw(
                 1,
-                "Token ID",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["tokenId"]
-                        ),
-                    )
-                )
-            ),
-            Field(
-                1,
-                "Receiver",
-                ParamTrustedName(
-                    1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["receiver"]
-                        ),
-                    ),
-                    [
-                        TrustedNameType.ACCOUNT,
-                        TrustedNameType.WALLET,
-                    ],
-                    [
-                        TrustedNameSource.UD,
-                        TrustedNameSource.ENS,
-                        TrustedNameSource.FN,
-                    ],
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["tokenId"]),
                 ),
-                visible,
-                constraints
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Receiver",
+            ParamTrustedName(
                 1,
-                "Receiver uint",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["receiver"]
-                        ),
-                    ),
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["receiver"]),
                 ),
-                visible,
-                constraints
+                [
+                    TrustedNameType.ACCOUNT,
+                    TrustedNameType.WALLET,
+                ],
+                [
+                    TrustedNameSource.UD,
+                    TrustedNameSource.ENS,
+                    TrustedNameSource.FN,
+                ],
             ),
-            Field(
+            visible,
+            constraints,
+        ),
+        Field(
+            1,
+            "Receiver uint",
+            ParamRaw(
                 1,
-                "Receiver addr",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["receiver"]
-                        ),
-                    ),
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["receiver"]),
                 ),
-                visible,
-                constraints
             ),
-            Field(
-                # Same receiver re-rendered as a signed integer so the INT
-                # constraint path (MUST_BE / IF_NOT_IN on TF_INT) is actually
-                # exercised end-to-end. The data_path returns the full 32-byte
-                # calldata chunk, so type_size must be 32 (format_signed_int_be
-                # rejects length > type_size). The high byte is the zero
-                # padding of the address slot, so the value is a positive
-                # int256 and the address-shaped constraints match by canonical
-                # decimal-string equality.
+            visible,
+            constraints,
+        ),
+        Field(
+            1,
+            "Receiver addr",
+            ParamRaw(
                 1,
-                "Receiver int",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.INT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["receiver"]
-                        ),
-                    ),
+                    TypeFamily.ADDRESS,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["receiver"]),
                 ),
-                visible,
-                constraints
             ),
-            Field(
+            visible,
+            constraints,
+        ),
+        Field(
+            # Same receiver re-rendered as a signed integer so the INT
+            # constraint path (MUST_BE / IF_NOT_IN on TF_INT) is actually
+            # exercised end-to-end. The data_path returns the full 32-byte
+            # calldata chunk, so type_size must be 32 (format_signed_int_be
+            # rejects length > type_size). The high byte is the zero
+            # padding of the address slot, so the value is a positive
+            # int256 and the address-shaped constraints match by canonical
+            # decimal-string equality.
+            1,
+            "Receiver int",
+            ParamRaw(
                 1,
-                "Expiration time",
-                ParamDatetime(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["expirationTime"]
-                        ),
-                    ),
-                    DatetimeType.DT_UNIX
-                )
+                    TypeFamily.INT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["receiver"]),
+                ),
             ),
+            visible,
+            constraints,
+        ),
+        Field(
+            1,
+            "Expiration time",
+            ParamDatetime(
+                1,
+                Value(
+                    1,
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["expirationTime"]),
+                ),
+                DatetimeType.DT_UNIX,
+            ),
+        ),
     ]
 
     # compute instructions hash
@@ -912,7 +955,7 @@ def test_gcs_constraints(scenario_navigator: NavigateWithScenario,
         creator_legal_name="Proof of Attendance Protocol",
         creator_url="poap.xyz",
         contract_name="PoapBridge",
-        deploy_date=1646305200
+        deploy_date=1646305200,
     )
 
     app_client.provide_transaction_info(tx_info.serialize())
@@ -927,11 +970,15 @@ def test_gcs_constraints(scenario_navigator: NavigateWithScenario,
             app_client.provide_transaction_field_desc(field.serialize())
 
         with app_client.sign(mode=SignMode.START_FLOW):
-            scenario_navigator.review_approve(test_name=scenario_navigator.test_name + f"_{test_config}")
+            scenario_navigator.review_approve(
+                test_name=scenario_navigator.test_name + f"_{test_config}"
+            )
 
 
 @pytest.mark.parametrize("test_config", ["named", "raw"])
-def test_gcs_interoperable_address(scenario_navigator: NavigateWithScenario, test_config: str):
+def test_gcs_interoperable_address(
+    scenario_navigator: NavigateWithScenario, test_config: str
+):
     app_client = EthAppClient(scenario_navigator.backend)
 
     # EIP-7930 binary encoding for Ethereum mainnet (chain_id=1):
@@ -943,13 +990,16 @@ def test_gcs_interoperable_address(scenario_navigator: NavigateWithScenario, tes
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
     # pylint: disable=line-too-long
-    data = contract.encode_abi("mintToken", [
-        175676,
-        7163978,
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        1730621615,
-        eip7930_bytes,  # signature field carries the EIP-7930 interoperable address
-    ])
+    data = contract.encode_abi(
+        "mintToken",
+        [
+            175676,
+            7163978,
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            1730621615,
+            eip7930_bytes,  # signature field carries the EIP-7930 interoperable address
+        ],
+    )
     # pylint: enable=line-too-long
     tx_params = {
         "nonce": 235,
@@ -1001,20 +1051,26 @@ def test_gcs_interoperable_address(scenario_navigator: NavigateWithScenario, tes
 
     if test_config == "named":
         challenge = ResponseParser.challenge(app_client.get_challenge().data)
-        app_client.provide_trusted_name(TrustedName(2,
-                                                    interop_addr,
-                                                    "ledger.eth",
-                                                    tn_type=TrustedNameType.ACCOUNT,
-                                                    tn_source=TrustedNameSource.ENS,
-                                                    chain_id=interop_chain_id,
-                                                    challenge=challenge))
+        app_client.provide_trusted_name(
+            TrustedName(
+                2,
+                interop_addr,
+                "ledger.eth",
+                tn_type=TrustedNameType.ACCOUNT,
+                tn_source=TrustedNameSource.ENS,
+                chain_id=interop_chain_id,
+                challenge=challenge,
+            )
+        )
 
     app_client.provide_transaction_info(tx_info.serialize())
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
 
     with app_client.sign(mode=SignMode.START_FLOW):
-        scenario_navigator.review_approve(test_name=scenario_navigator.test_name + f"_{test_config}")
+        scenario_navigator.review_approve(
+            test_name=scenario_navigator.test_name + f"_{test_config}"
+        )
 
 
 def test_gcs_iteration_broadcast(scenario_navigator: NavigateWithScenario):
@@ -1034,17 +1090,20 @@ def test_gcs_iteration_broadcast(scenario_navigator: NavigateWithScenario):
     recipient0 = bytes.fromhex("1111111111111111111111111111111111111111")
     recipient1 = bytes.fromhex("2222222222222222222222222222222222222222")
     usdc_decimals = 6
-    amount0 = int(100 * 10**usdc_decimals)   # 100 USDC
-    amount1 = int(250 * 10**usdc_decimals)   # 250 USDC
+    amount0 = int(100 * 10**usdc_decimals)  # 100 USDC
+    amount1 = int(250 * 10**usdc_decimals)  # 250 USDC
 
     with open(f"{ABIS_FOLDER}/broadcast.json", encoding="utf-8") as f:
         contract = Web3().eth.contract(abi=json.load(f), address=None)
 
-    data = contract.encode_abi("batchTransferSameToken", [
-        usdc_address,
-        [recipient0, recipient1],
-        [amount0, amount1],
-    ])
+    data = contract.encode_abi(
+        "batchTransferSameToken",
+        [
+            usdc_address,
+            [recipient0, recipient1],
+            [amount0, amount1],
+        ],
+    )
 
     tx_params = {
         "nonce": 1,
@@ -1059,7 +1118,9 @@ def test_gcs_iteration_broadcast(scenario_navigator: NavigateWithScenario):
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
 
-    param_paths = get_all_paths(f"{ABIS_FOLDER}/broadcast.json", "batchTransferSameToken")
+    param_paths = get_all_paths(
+        f"{ABIS_FOLDER}/broadcast.json", "batchTransferSameToken"
+    )
 
     # value → amounts[] (2 elements), token → token (1 element — broadcast)
     fields = [
@@ -1079,7 +1140,7 @@ def test_gcs_iteration_broadcast(scenario_navigator: NavigateWithScenario):
                     TypeFamily.ADDRESS,
                     data_path=DataPath(1, param_paths["token"]),
                 ),
-            )
+            ),
         ),
     ]
 
@@ -1100,7 +1161,9 @@ def test_gcs_iteration_broadcast(scenario_navigator: NavigateWithScenario):
     )
 
     app_client.provide_transaction_info(tx_info.serialize())
-    app_client.provide_token_metadata("USDC", usdc_address, usdc_decimals, tx_params["chainId"])
+    app_client.provide_token_metadata(
+        "USDC", usdc_address, usdc_decimals, tx_params["chainId"]
+    )
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
@@ -1124,13 +1187,16 @@ def test_gcs_raw_bytes_oversize_rejected(scenario_navigator: NavigateWithScenari
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
-    data = contract.encode_abi("mintToken", [
-        175676,
-        7163978,
-        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
-        1730621615,
-        oversize_signature,
-    ])
+    data = contract.encode_abi(
+        "mintToken",
+        [
+            175676,
+            7163978,
+            bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+            1730621615,
+            oversize_signature,
+        ],
+    )
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),

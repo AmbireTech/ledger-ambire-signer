@@ -23,23 +23,28 @@ from client.settings import SettingID, get_settings_moves
         ("multiple1", [SettingID.BLIND_SIGNING, SettingID.DEBUG_DATA]),
         ("multiple2", [SettingID.BLIND_SIGNING, SettingID.VERBOSE_EIP712]),
         ("multiple3", [SettingID.BLIND_SIGNING, SettingID.TRANSACTION_CHECKS]),
-    ]
+    ],
 )
-def test_settings(device: Device,
-                  navigator: Navigator,
-                  test_name: str,
-                  default_screenshot_path: Path,
-                  name: str,
-                  setting: List[SettingID]):
+def test_settings(
+    device: Device,
+    navigator: Navigator,
+    test_name: str,
+    default_screenshot_path: Path,
+    name: str,
+    setting: List[SettingID],
+):
     """Check the settings"""
 
     if device.is_nano and SettingID.TRANSACTION_CHECKS in setting:
         pytest.skip("Skipping TX_CHECK on Nano")
 
     moves = get_settings_moves(device, setting)
-    navigator.navigate_and_compare(default_screenshot_path,
-                                   f"{test_name}/{name}",
-                                   moves, screen_change_before_first_instruction=False)
+    navigator.navigate_and_compare(
+        default_screenshot_path,
+        f"{test_name}/{name}",
+        moves,
+        screen_change_before_first_instruction=False,
+    )
 
 
 def test_check_version(backend: BackendInterface, app_version: tuple[int, int, int]):

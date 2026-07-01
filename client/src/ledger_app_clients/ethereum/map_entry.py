@@ -12,7 +12,7 @@ class Tag(IntEnum):
     ID = 0x04
     KEY = 0x05
     VALUE = 0x06
-    SIGNATURE = 0xff
+    SIGNATURE = 0xFF
 
 
 class MapEntry(TlvSerializable):
@@ -25,15 +25,17 @@ class MapEntry(TlvSerializable):
     value: bytes
     signature: Optional[bytes] = None
 
-    def __init__(self,
-                 version: int,
-                 chain_id: int,
-                 contract_addr: bytes,
-                 selector: bytes,
-                 id: int,
-                 key: bytes,
-                 value: bytes,
-                 signature: Optional[bytes] = None):
+    def __init__(
+        self,
+        version: int,
+        chain_id: int,
+        contract_addr: bytes,
+        selector: bytes,
+        id: int,
+        key: bytes,
+        value: bytes,
+        signature: Optional[bytes] = None,
+    ):
         self.version = version
         self.chain_id = chain_id
         self.contract_addr = contract_addr

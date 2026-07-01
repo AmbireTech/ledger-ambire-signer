@@ -25,7 +25,10 @@ from ragger.tlv import (
 )
 from client.gcs import TxInfoTag as TagTransactionInfo, FieldTag as TagTransactionField
 from client.enum_value import Tag as TagEnumValue
-from client.eip712.struct import EIP712FieldType as StructFieldType, EIP712TypeDescMask as StructTypeDescMask
+from client.eip712.struct import (
+    EIP712FieldType as StructFieldType,
+    EIP712TypeDescMask as StructTypeDescMask,
+)
 
 
 APP_CLA: int = 0xE0
@@ -51,7 +54,7 @@ transaction = {
 
 tlv_info = {
     "Struct": {},  # Temporary TLV payload data and remaining length
-    "TLV": {},     # Decoded TLV fields
+    "TLV": {},  # Decoded TLV fields
 }
 
 
@@ -59,9 +62,11 @@ tlv_info = {
 #          Parameters
 # ===============================================================================
 def init_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Decode APDU replay file to extract transaction details.")
+    parser = argparse.ArgumentParser(
+        description="Decode APDU replay file to extract transaction details."
+    )
     parser.add_argument("--input", "-i", required=True, help="Input apdu replay file.")
-    parser.add_argument("--verbose", "-v", action='store_true', help="Verbose mode")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose mode")
     parser.add_argument(
         "--online-selectors",
         action="store_true",
@@ -153,15 +158,19 @@ def decode_function_selector(selector: str) -> str:
 
     logger.debug(f"Selector {selector} not in cache, querying API...")
     try:
-        url = f"https://www.4byte.directory/api/v1/signatures/?hex_signature=0x{selector}"
+        url = (
+            f"https://www.4byte.directory/api/v1/signatures/?hex_signature=0x{selector}"
+        )
         response = requests.get(url, timeout=5)
         if response.status_code == 200:
             data = response.json()
-            if data.get('results'):
-                signature = data['results'][0]['text_signature']
+            if data.get("results"):
+                signature = data["results"][0]["text_signature"]
                 logger.debug(f"Found selector {selector} online: {signature}")
                 return signature
-        logger.debug(f"Failed to retrieve selector {selector} online ({response.status_code})")
+        logger.debug(
+            f"Failed to retrieve selector {selector} online ({response.status_code})"
+        )
     except Exception as e:
         logger.error(f"Failed to query API for selector {selector}: {e}")
 
@@ -196,7 +205,7 @@ def der_decode(data: bytes, offset: int = 0) -> tuple[int, int]:
             raise ValueError("Invalid DER encoding: not enough bytes for length")
 
         # Read the actual value from the following bytes
-        value = int.from_bytes(data[offset + 1:offset + 1 + num_length_bytes], 'big')
+        value = int.from_bytes(data[offset + 1 : offset + 1 + num_length_bytes], "big")
         new_offset = offset + 1 + num_length_bytes
     else:
         # Single byte value
@@ -221,7 +230,7 @@ def parse_function_signature(signature: str) -> tuple:
 
     Returns: ('function_name', ['param_type1', 'param_type2', ...])
     """
-    match = re.match(r'(\w+)\((.*)\)', signature)
+    match = re.match(r"(\w+)\((.*)\)", signature)
     if not match:
         return None, []
 
@@ -237,13 +246,13 @@ def parse_function_signature(signature: str) -> tuple:
     current_param = ""
 
     for char in params_str:
-        if char == '(' or char == '[':
+        if char == "(" or char == "[":
             depth += 1
             current_param += char
-        elif char == ')' or char == ']':
+        elif char == ")" or char == "]":
             depth -= 1
             current_param += char
-        elif char == ',' and depth == 0:
+        elif char == "," and depth == 0:
             params.append(current_param.strip())
             current_param = ""
         else:
@@ -269,7 +278,7 @@ def format_decoded_value(param_type: str, value, indent: int = 0) -> str:
     prefix = "  " * indent
 
     # Handle arrays (including tuple arrays)
-    if param_type.endswith('[]'):
+    if param_type.endswith("[]"):
         if not value:
             return "[]"
 
@@ -285,7 +294,7 @@ def format_decoded_value(param_type: str, value, indent: int = 0) -> str:
         return result
 
     # Handle tuples
-    if param_type.startswith('(') and param_type.endswith(')'):
+    if param_type.startswith("(") and param_type.endswith(")"):
         # Extract tuple component types
         inner = param_type[1:-1]  # Remove parentheses
         component_types = []
@@ -293,13 +302,13 @@ def format_decoded_value(param_type: str, value, indent: int = 0) -> str:
         current = ""
 
         for char in inner:
-            if char in '([':
+            if char in "([":
                 depth += 1
                 current += char
-            elif char in ')]':
+            elif char in ")]":
                 depth -= 1
                 current += char
-            elif char == ',' and depth == 0:
+            elif char == "," and depth == 0:
                 component_types.append(current.strip())
                 current = ""
             else:
@@ -314,13 +323,17 @@ def format_decoded_value(param_type: str, value, indent: int = 0) -> str:
 
         result = f"{prefix}\n"
         for i, (comp_type, comp_value) in enumerate(zip(component_types, value)):
-            type_name = comp_type.split('[')[0]  # Get base type name
-            if comp_type.startswith('bytes') and isinstance(comp_value, bytes) and len(comp_value.hex()) > MAX_BYTES_LEN:
+            type_name = comp_type.split("[")[0]  # Get base type name
+            if (
+                comp_type.startswith("bytes")
+                and isinstance(comp_value, bytes)
+                and len(comp_value.hex()) > MAX_BYTES_LEN
+            ):
                 result += f"{prefix}  {type_name}[{len(comp_value)}]: "
             else:
                 result += f"{prefix}  {type_name}: "
             # Format the component value
-            if comp_type.startswith('(') or comp_type.endswith('[]'):
+            if comp_type.startswith("(") or comp_type.endswith("[]"):
                 result += "\n" + format_decoded_value(comp_type, comp_value, indent + 2)
             else:
                 formatted = format_decoded_value(comp_type, comp_value, 0)
@@ -331,15 +344,15 @@ def format_decoded_value(param_type: str, value, indent: int = 0) -> str:
         return result
 
     # Handle basic types
-    if param_type == 'address':
+    if param_type == "address":
         if isinstance(value, bytes):
             return f"{prefix}0x{value.hex()}"
         return f"{prefix}{value}"
-    if param_type.startswith('bytes'):
+    if param_type.startswith("bytes"):
         if isinstance(value, bytes):
             return f"{prefix}0x{value.hex()}"
         return f"{prefix}{value}"
-    if param_type.startswith('uint') or param_type.startswith('int'):
+    if param_type.startswith("uint") or param_type.startswith("int"):
         return f"{prefix}{int(value)}"
     if isinstance(value, bytes):
         return f"{prefix}0x{value.hex()}"
@@ -353,18 +366,19 @@ def decode_function_data(selector: str, data: bytes) -> dict:
         Dictionary mapping parameter names to decoded values
     """
 
-    if not selector or selector.startswith("Unknown") or \
-        selector == "Invalid selector":
+    if not selector or selector.startswith("Unknown") or selector == "Invalid selector":
         logger.debug("Cannot decode function data: invalid or unknown selector")
         return {}
 
     try:
         # Extract function signature and parameter types
-        selector_decoded = selector.split(' - ')[1]
+        selector_decoded = selector.split(" - ")[1]
         function_name, param_types = parse_function_signature(selector_decoded)
 
         if not param_types:
-            logger.debug(f"Function {function_name} has no parameters to decode")  # Améliorer le message
+            logger.debug(
+                f"Function {function_name} has no parameters to decode"
+            )  # Améliorer le message
             return {}
 
         # Decode the data
@@ -374,24 +388,31 @@ def decode_function_data(selector: str, data: bytes) -> dict:
         result = {}
         for i, (param_type, value) in enumerate(zip(param_types, decoded_params)):
             # Create descriptive parameter name
-            if param_type.startswith('(') and param_type.endswith('[]'):
+            if param_type.startswith("(") and param_type.endswith("[]"):
                 param_name = f"param_{i} (array of structs)"
-            elif param_type.startswith('('):
+            elif param_type.startswith("("):
                 param_name = f"param_{i} (struct)"
             elif param_type == "bytes":
                 # Try to extract the included function selector if present
                 if isinstance(value, bytes) and len(value) >= 4:
                     inner_selector = value[:4].hex()
                     inner_signature = decode_function_selector(inner_selector)
-                    if inner_signature.startswith("Unknown") or inner_signature == "Invalid selector":
+                    if (
+                        inner_signature.startswith("Unknown")
+                        or inner_signature == "Invalid selector"
+                    ):
                         param_name = f"param_{i} (bytes)"
                     else:
-                        param_name = f"param_{i} (bytes, 0x{inner_selector} - {inner_signature})"
+                        param_name = (
+                            f"param_{i} (bytes, 0x{inner_selector} - {inner_signature})"
+                        )
                         value = value[4:]  # Remove inner selector for decoding
                         # Decode inner function data
                         inner_selector = f"0x{inner_selector} - {inner_signature}"
                         decoded_params = decode_function_data(inner_selector, value)
-                        format_decoded_params(decoded_params, f"'param_{i}' Function Parameters (bytes)")
+                        format_decoded_params(
+                            decoded_params, f"'param_{i}' Function Parameters (bytes)"
+                        )
                 else:
                     param_name = f"param_{i} ({param_type})"
             else:
@@ -416,16 +437,16 @@ def format_decoded_params(params: dict, title: str) -> None:
 
     for param_name, value in params.items():
         # For nested structures (arrays, tuples), log directly without prefix
-        if isinstance(value, str) and ('\n' in value or value.strip().startswith('[')):
+        if isinstance(value, str) and ("\n" in value or value.strip().startswith("[")):
             logger.info(f"{param_name}:")
             # Split and log each line separately
-            for line in value.split('\n'):
+            for line in value.split("\n"):
                 if line.strip():
                     logger.info(line)
         elif isinstance(value, str):
             length = len(value.replace("0x", ""))
             if value.startswith("0x"):
-                length = (length // 2)  # Hex string length adjustment without '0x'
+                length = length // 2  # Hex string length adjustment without '0x'
             if param_name != "selector" and length > MAX_BYTES_LEN:
                 logger.info(f"{param_name}[{length}]: {value[:MAX_BYTES_LEN]}...")
                 logger.debug(f"{param_name}[{length}]: {value}")
@@ -532,20 +553,28 @@ def decode_rlp_transaction(rlp_bytes: bytes) -> None:
         "selector": f"0x{selector} - {selector_decoded}",
         "data": decoded_tx[7][4:] if nb_field > 7 and decoded_tx[7] else bytes(),
         "access_list": decoded_tx[8].hex() if nb_field > 8 and decoded_tx[8] else "",
-        "signature_y_parity": decoded_tx[9].hex() if nb_field > 9 and decoded_tx[9] else "",
-        "signature_r_parity": decoded_tx[10].hex() if nb_field > 10 and decoded_tx[10] else "",
-        "signature_s_parity": decoded_tx[11].hex() if nb_field > 11 and decoded_tx[11] else "",
+        "signature_y_parity": decoded_tx[9].hex()
+        if nb_field > 9 and decoded_tx[9]
+        else "",
+        "signature_r_parity": decoded_tx[10].hex()
+        if nb_field > 10 and decoded_tx[10]
+        else "",
+        "signature_s_parity": decoded_tx[11].hex()
+        if nb_field > 11 and decoded_tx[11]
+        else "",
     }
 
 
 # ===============================================================================
 #          Generic TLV decoding
 # ===============================================================================
-def decode_generic_tlv(tag_enum_class: type,
-                       string_tags: list = None,
-                       number_tags: list = None,
-                       selector_tags: list = None,
-                       skip_tags: list = None) -> None:
+def decode_generic_tlv(
+    tag_enum_class: type,
+    string_tags: list = None,
+    number_tags: list = None,
+    selector_tags: list = None,
+    skip_tags: list = None,
+) -> None:
     """Decode TLV-encoded structure with generic tag handling.
 
     Args:
@@ -578,7 +607,7 @@ def decode_generic_tlv(tag_enum_class: type,
             length, offset = der_decode(tlv_hex, offset)
 
             # Extract value
-            value = tlv_hex[offset:offset + length]
+            value = tlv_hex[offset : offset + length]
             offset += length
 
             # Skip tags that should not be displayed
@@ -591,11 +620,13 @@ def decode_generic_tlv(tag_enum_class: type,
                 decoded_value = f"0x{val_int:x} -> {val_int}"
             elif tag in string_tags:
                 try:
-                    decoded_value = value.decode('utf-8')
+                    decoded_value = value.decode("utf-8")
                 except UnicodeDecodeError:
                     decoded_value = f"0x{value.hex()}"
             elif tag in selector_tags:
-                decoded_value = f"0x{value.hex()} - {decode_function_selector(value.hex())}"
+                decoded_value = (
+                    f"0x{value.hex()} - {decode_function_selector(value.hex())}"
+                )
             else:
                 decoded_value = f"0x{value.hex()}"
 
@@ -619,7 +650,7 @@ def decode_sign_apdu(apdu: bytes) -> None:
     p1 = to_int(apdu[2])
     p2 = to_int(apdu[3])
     lc = int(apdu[4])
-    data = apdu[5:5 + lc]
+    data = apdu[5 : 5 + lc]
 
     if p2 == P2Type.SIGN_STORE:
         if p1 == P1Type.SIGN_FIRST_CHUNK:
@@ -643,7 +674,9 @@ def decode_sign_apdu(apdu: bytes) -> None:
 
         # Log transaction fields
         logger.info(f"BIP32 path: {transaction['BIP32 path']}")
-        logger.info(f"RLP transaction[{len(transaction['RLP transaction'])}]: 0x{transaction['RLP transaction'].hex()[:MAX_BYTES_LEN]}...")
+        logger.info(
+            f"RLP transaction[{len(transaction['RLP transaction'])}]: 0x{transaction['RLP transaction'].hex()[:MAX_BYTES_LEN]}..."
+        )
         format_decoded_params(transaction["TX params"], "Transaction Params")
 
         # Print 32-bytes length chunks of RLP transaction
@@ -653,10 +686,14 @@ def decode_sign_apdu(apdu: bytes) -> None:
         logger.debug("=" * 60)
         for i in range(0, len(rlp_tx), 32):
             chunk_index = i // 32
-            logger.debug(f"Chunk {chunk_index:3d} [{i:4d}-{i+31:4d}]: {rlp_tx[i:i+32].hex()}")
+            logger.debug(
+                f"Chunk {chunk_index:3d} [{i:4d}-{i + 31:4d}]: {rlp_tx[i : i + 32].hex()}"
+            )
 
         # Decode function parameters if available
-        decoded_params = decode_function_data(transaction["TX params"]["selector"], transaction["TX params"]["data"])
+        decoded_params = decode_function_data(
+            transaction["TX params"]["selector"], transaction["TX params"]["data"]
+        )
         format_decoded_params(decoded_params, "Function Parameters")
 
 
@@ -671,7 +708,7 @@ def decode_eip712_struct_def_apdu(apdu: bytes) -> None:
 
     p2 = to_int(apdu[3])
     lc = int(apdu[4])
-    data = apdu[5:5 + lc]
+    data = apdu[5 : 5 + lc]
 
     print_title("EIP712 STRUCT FIELD")
     if p2 == P2Type.STRUCT_NAME:
@@ -686,7 +723,7 @@ def decode_eip712_struct_def_apdu(apdu: bytes) -> None:
             # Custom type name
             size = to_int(data[0])
             data = data[1:]
-            name = data[:size].decode('utf-8')
+            name = data[:size].decode("utf-8")
             logger.info(f"  Field Name: {name}")
             data = data[size:]
 
@@ -716,7 +753,7 @@ def decode_eip712_struct_impl_apdu(apdu: bytes) -> None:
 
     p2 = to_int(apdu[3])
     lc = int(apdu[4])
-    data = apdu[5:5 + lc]
+    data = apdu[5 : 5 + lc]
 
     print_title("EIP712 STRUCT IMPLEMENTATION")
     if p2 == P2Type.STRUCT_NAME:
@@ -751,7 +788,7 @@ def decode_eip712_filtering_apdu(apdu: bytes) -> None:
 
     p2 = to_int(apdu[3])
     lc = int(apdu[4])
-    data = apdu[5:5 + lc]
+    data = apdu[5 : 5 + lc]
 
     print_title("EIP712 FILTERING")
     if p2 == P2Type.FILTERING_DISCARDED_PATH:
@@ -769,14 +806,18 @@ def decode_eip712_filtering_apdu(apdu: bytes) -> None:
         filters = to_int(data[0])
         logger.info(f"  FILTERS COUNT: {filters}")
 
-    elif p2 in (P2Type.FILTERING_CALLDATA_SPENDER,
-                P2Type.FILTERING_CALLDATA_AMOUNT,
-                P2Type.FILTERING_CALLDATA_SELECTOR,
-                P2Type.FILTERING_CALLDATA_CHAIN_ID,
-                P2Type.FILTERING_CALLDATA_CALLEE,
-                P2Type.FILTERING_CALLDATA_VALUE,
-                P2Type.FILTERING_AMOUNT_JOIN_TOKEN):
-        logger.info(f"  CALLDATA {P2Type(p2).name.split('_')[-1]} index: {to_int(data[0])}")
+    elif p2 in (
+        P2Type.FILTERING_CALLDATA_SPENDER,
+        P2Type.FILTERING_CALLDATA_AMOUNT,
+        P2Type.FILTERING_CALLDATA_SELECTOR,
+        P2Type.FILTERING_CALLDATA_CHAIN_ID,
+        P2Type.FILTERING_CALLDATA_CALLEE,
+        P2Type.FILTERING_CALLDATA_VALUE,
+        P2Type.FILTERING_AMOUNT_JOIN_TOKEN,
+    ):
+        logger.info(
+            f"  CALLDATA {P2Type(p2).name.split('_')[-1]} index: {to_int(data[0])}"
+        )
 
     elif p2 == P2Type.FILTERING_CALLDATA_INFO:
         logger.info(f"  CALLDATA INFO index: {to_int(data[0])}")
@@ -800,11 +841,17 @@ def decode_eip712_filtering_apdu(apdu: bytes) -> None:
             data = data[size:]
             logger.info(f"  CALLDATA TRUSTED {elt}[{size}]: {value.hex()}")
 
-    elif p2 in (P2Type.FILTERING_DATETIME, P2Type.FILTERING_RAW, P2Type.FILTERING_AMOUNT_JOIN_VALUE):
+    elif p2 in (
+        P2Type.FILTERING_DATETIME,
+        P2Type.FILTERING_RAW,
+        P2Type.FILTERING_AMOUNT_JOIN_VALUE,
+    ):
         size = data[0]
         data = data[1:]
         value = data[:size]
-        logger.info(f"  CALLDATA {P2Type(p2).name.split('_')[-1]} Name: {value.decode('utf-8')}")
+        logger.info(
+            f"  CALLDATA {P2Type(p2).name.split('_')[-1]} Name: {value.decode('utf-8')}"
+        )
         if p2 == P2Type.FILTERING_AMOUNT_JOIN_VALUE:
             data = data[size:]
             logger.info(f"  CALLDATA VALUE TOKEN INDEX: {to_int(data[0])}")
@@ -822,7 +869,7 @@ def decode_sign_eip712_apdu(apdu: bytes) -> None:
 
     p2 = to_int(apdu[3])
     lc = int(apdu[4])
-    data = apdu[5:5 + lc]
+    data = apdu[5 : 5 + lc]
 
     print_title("EIP712 SIGNING")
     # Extract derivation path
@@ -868,7 +915,9 @@ def decode_struct_information_tlv() -> None:
     selector_tags = [
         TagTransactionInfo.SELECTOR,
     ]
-    decode_generic_tlv(TagTransactionInfo, string_tags, number_tags, selector_tags, skip_tags)
+    decode_generic_tlv(
+        TagTransactionInfo, string_tags, number_tags, selector_tags, skip_tags
+    )
 
 
 # ===============================================================================
@@ -915,11 +964,13 @@ def decode_tlv() -> None:
     # Build a single IntEnum that aggregates them so decode_generic_tlv() can
     # look up names from a flat tag space.
     merged_members: dict = {}
-    for src_enum in (LedgerCommonFieldTag,
-                     CoinInfoFieldTag,
-                     TxSimulationFieldTag,
-                     LesMultisigFieldTag,
-                     EvmFunctionFieldTag):
+    for src_enum in (
+        LedgerCommonFieldTag,
+        CoinInfoFieldTag,
+        TxSimulationFieldTag,
+        LesMultisigFieldTag,
+        EvmFunctionFieldTag,
+    ):
         for member in src_enum:
             merged_members.setdefault(member.name, int(member))
     TLVFieldTag = IntEnum("TLVFieldTag", merged_members)
@@ -965,7 +1016,7 @@ def decode_tlv_apdu(apdu: bytes, tlv_parser: Callable, title: str) -> None:
 
     p1 = to_int(apdu[2])
     lc = int(apdu[4])
-    data = apdu[5:5 + lc]
+    data = apdu[5 : 5 + lc]
 
     tlv_info["TLV"].clear()
 
@@ -973,7 +1024,7 @@ def decode_tlv_apdu(apdu: bytes, tlv_parser: Callable, title: str) -> None:
         # Extract derivation path
         tlv_info["Struct"]["Length"] = to_int(data[0:2])
         tlv_info["Struct"]["Data"] = data[2:]  # Skip length
-        tlv_info["Struct"]["Length"] -= (lc - 2)  # Adjust remaining length
+        tlv_info["Struct"]["Length"] -= lc - 2  # Adjust remaining length
     else:
         tlv_info["Struct"]["Data"] += data
         tlv_info["Struct"]["Length"] -= lc  # Adjust remaining length
@@ -991,7 +1042,7 @@ def decode_tlv_apdu(apdu: bytes, tlv_parser: Callable, title: str) -> None:
 def decode_erc20_token_apdu(apdu: bytes) -> None:
     """Decode APDU for providing ERC20 token information."""
     lc = int(apdu[4])
-    data = apdu[5:5 + lc]
+    data = apdu[5 : 5 + lc]
 
     # Simulte a TLV for logging purpose
     tlv_info["TLV"].clear()
@@ -999,7 +1050,7 @@ def decode_erc20_token_apdu(apdu: bytes) -> None:
     # Ticker length
     ticker_length = int(data[0])
     data = data[1:]
-    tlv_info["TLV"]["Ticker"] = data[:ticker_length].decode('utf-8')
+    tlv_info["TLV"]["Ticker"] = data[:ticker_length].decode("utf-8")
     data = data[ticker_length:]
     # Address
     tlv_info["TLV"]["Address"] = f"0x{data[:20].hex()}"
@@ -1080,7 +1131,7 @@ def main() -> None:
     logger.debug(f"Loaded {len(LOCAL_SELECTORS)} function selectors from cache")
 
     try:
-        with open(args.input, encoding='utf-8') as f:
+        with open(args.input, encoding="utf-8") as f:
             for line in f.readlines():
                 # Parse APDU line
                 apdu_bytes = parse_apdu_line(line)
@@ -1090,7 +1141,9 @@ def main() -> None:
                     continue
 
                 if to_int(apdu_bytes[0]) != APP_CLA:
-                    logger.debug(f"Skipping non-Ethereum APDU (CLA={apdu_bytes[0]:02x})")
+                    logger.debug(
+                        f"Skipping non-Ethereum APDU (CLA={apdu_bytes[0]:02x})"
+                    )
                     continue
 
                 # Extract INS byte
@@ -1102,11 +1155,19 @@ def main() -> None:
                 elif ins == InsType.PROVIDE_ERC20_TOKEN_INFORMATION:
                     decode_erc20_token_apdu(apdu_bytes)
                 elif ins == InsType.PROVIDE_TRANSACTION_INFO:
-                    decode_tlv_apdu(apdu_bytes, decode_struct_information_tlv, "Transaction Info Struct")
+                    decode_tlv_apdu(
+                        apdu_bytes,
+                        decode_struct_information_tlv,
+                        "Transaction Info Struct",
+                    )
                 elif ins == InsType.PROVIDE_TRANSACTION_FIELD_DESC:
-                    decode_tlv_apdu(apdu_bytes, decode_struct_field_tlv, "Transaction Field Struct")
+                    decode_tlv_apdu(
+                        apdu_bytes, decode_struct_field_tlv, "Transaction Field Struct"
+                    )
                 elif ins == InsType.PROVIDE_ENUM_VALUE:
-                    decode_tlv_apdu(apdu_bytes, decode_enum_value_tlv, "Enum Value Struct")
+                    decode_tlv_apdu(
+                        apdu_bytes, decode_enum_value_tlv, "Enum Value Struct"
+                    )
                 elif ins == InsType.PROVIDE_PROXY_INFO:
                     decode_tlv_apdu(apdu_bytes, decode_tlv, "Proxy Info Struct")
                 elif ins == InsType.PROVIDE_NETWORK_INFORMATION:
@@ -1120,7 +1181,9 @@ def main() -> None:
                 elif ins == InsType.EIP712_SIGN:
                     decode_sign_eip712_apdu(apdu_bytes)
                 else:
-                    logger.info(f"*** Skipping INS type: {ins:02x} -> {InsType(ins).name}")
+                    logger.info(
+                        f"*** Skipping INS type: {ins:02x} -> {InsType(ins).name}"
+                    )
     except FileNotFoundError:
         logger.error(f"Failed to open file: {args.input}")
         return 1

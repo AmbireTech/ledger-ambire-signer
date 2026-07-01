@@ -25,10 +25,9 @@ TOKEN_CHAIN_ID = 1
 def test_provide_erc20_token(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(scenario_navigator.backend)
 
-    response = app_client.provide_token_metadata(TOKEN_TICKER,
-                                                 TOKEN_ADDR,
-                                                 TOKEN_DECIMALS,
-                                                 TOKEN_CHAIN_ID)
+    response = app_client.provide_token_metadata(
+        TOKEN_TICKER, TOKEN_ADDR, TOKEN_DECIMALS, TOKEN_CHAIN_ID
+    )
     assert response.status == StatusWord.SWO_SUCCESS
     sign_dummy_tx(scenario_navigator)
 
@@ -37,30 +36,34 @@ def test_provide_erc20_token_error(backend: BackendInterface):
     app_client = EthAppClient(backend)
 
     with pytest.raises(ExceptionRAPDU) as err:
-        app_client.provide_token_metadata(TOKEN_TICKER,
-                                          TOKEN_ADDR,
-                                          TOKEN_DECIMALS,
-                                          TOKEN_CHAIN_ID,
-                                          bytes.fromhex("010203"))
+        app_client.provide_token_metadata(
+            TOKEN_TICKER,
+            TOKEN_ADDR,
+            TOKEN_DECIMALS,
+            TOKEN_CHAIN_ID,
+            bytes.fromhex("010203"),
+        )
 
     assert err.value.status == StatusWord.SWO_INCORRECT_DATA
 
 
-def common_transfer(scenario_navigator: NavigateWithScenario,
-                    amount: float,
-                    extra_data: Optional[bytes] = None,
-                    func: Callable = common_tx):
+def common_transfer(
+    scenario_navigator: NavigateWithScenario,
+    amount: float,
+    extra_data: Optional[bytes] = None,
+    func: Callable = common_tx,
+):
     app_client = EthAppClient(scenario_navigator.backend)
 
     with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
-    data = contract.encode_abi("transfer", [
-        bytes.fromhex("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
-        int(amount * pow(10, TOKEN_DECIMALS)),
-    ])
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    data = contract.encode_abi(
+        "transfer",
+        [
+            bytes.fromhex("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            int(amount * pow(10, TOKEN_DECIMALS)),
+        ],
+    )
 
     if extra_data is not None:
         data += extra_data.hex()
@@ -75,25 +78,29 @@ def common_transfer(scenario_navigator: NavigateWithScenario,
         "value": Web3.to_wei(0, "ether"),
         "data": data,
     }
-    app_client.provide_token_metadata(TOKEN_TICKER, TOKEN_ADDR, TOKEN_DECIMALS, TOKEN_CHAIN_ID)
+    app_client.provide_token_metadata(
+        TOKEN_TICKER, TOKEN_ADDR, TOKEN_DECIMALS, TOKEN_CHAIN_ID
+    )
     func(scenario_navigator, tx_params, scenario_navigator.test_name)
 
 
-def common_approve(scenario_navigator: NavigateWithScenario,
-                   amount: float,
-                   extra_data: Optional[bytes] = None,
-                   func: Callable = common_tx):
+def common_approve(
+    scenario_navigator: NavigateWithScenario,
+    amount: float,
+    extra_data: Optional[bytes] = None,
+    func: Callable = common_tx,
+):
     app_client = EthAppClient(scenario_navigator.backend)
 
     with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
-    data = contract.encode_abi("approve", [
-        bytes.fromhex("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
-        int(amount * pow(10, TOKEN_DECIMALS)),
-    ])
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    data = contract.encode_abi(
+        "approve",
+        [
+            bytes.fromhex("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            int(amount * pow(10, TOKEN_DECIMALS)),
+        ],
+    )
 
     if extra_data is not None:
         data += extra_data.hex()
@@ -108,7 +115,9 @@ def common_approve(scenario_navigator: NavigateWithScenario,
         "value": Web3.to_wei(0, "ether"),
         "data": data,
     }
-    app_client.provide_token_metadata(TOKEN_TICKER, TOKEN_ADDR, TOKEN_DECIMALS, TOKEN_CHAIN_ID)
+    app_client.provide_token_metadata(
+        TOKEN_TICKER, TOKEN_ADDR, TOKEN_DECIMALS, TOKEN_CHAIN_ID
+    )
     func(scenario_navigator, tx_params, scenario_navigator.test_name)
 
 
@@ -128,9 +137,7 @@ def test_approve_erc20(scenario_navigator: NavigateWithScenario):
 
 
 def test_transfer_erc20_extra_data(scenario_navigator: NavigateWithScenario):
-    common_transfer(scenario_navigator,
-                    5,
-                    "cpis_1RnzUSEXxObdZZOcn8gPzPPS".encode())
+    common_transfer(scenario_navigator, 5, "cpis_1RnzUSEXxObdZZOcn8gPzPPS".encode())
 
 
 def test_transfer_erc20_extra_data_nonascii(scenario_navigator: NavigateWithScenario):
@@ -138,7 +145,9 @@ def test_transfer_erc20_extra_data_nonascii(scenario_navigator: NavigateWithScen
 
 
 def test_transfer_erc20_extra_data_toolong(scenario_navigator: NavigateWithScenario):
-    def check_error(scenario_navigator: NavigateWithScenario, tx_params: dict, _test_name: str):
+    def check_error(
+        scenario_navigator: NavigateWithScenario, tx_params: dict, _test_name: str
+    ):
         app_client = EthAppClient(scenario_navigator.backend)
 
         with pytest.raises(ExceptionRAPDU) as err:
@@ -147,39 +156,50 @@ def test_transfer_erc20_extra_data_toolong(scenario_navigator: NavigateWithScena
         assert err.value.status == StatusWord.SWO_INCORRECT_DATA
 
     # pylint: disable=line-too-long
-    common_transfer(scenario_navigator, 10, "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.".encode(), func=check_error)
+    common_transfer(
+        scenario_navigator,
+        10,
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.".encode(),
+        func=check_error,
+    )
     # pylint: enable=line-too-long
 
 
-def test_transfer_erc20_extra_data_nonascii_truncated(scenario_navigator: NavigateWithScenario):
+def test_transfer_erc20_extra_data_nonascii_truncated(
+    scenario_navigator: NavigateWithScenario,
+):
     # pylint: disable=line-too-long
-    common_transfer(scenario_navigator, 10,
-                    bytes.fromhex("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"))
+    common_transfer(
+        scenario_navigator,
+        10,
+        bytes.fromhex(
+            "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+        ),
+    )
     # pylint: enable=line-too-long
 
 
 def test_approve_erc20_extra_data(scenario_navigator: NavigateWithScenario):
-    common_approve(scenario_navigator,
-                   5,
-                   "cpis_1RnzUSEXxObdZZOcn8gPzPPS".encode())
+    common_approve(scenario_navigator, 5, "cpis_1RnzUSEXxObdZZOcn8gPzPPS".encode())
 
 
 def test_approve_erc20_extra_data_nonascii(scenario_navigator: NavigateWithScenario):
     common_approve(scenario_navigator, 10, bytes.fromhex("deadcafe0042"))
+
 
 def test_token_info_v2(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(scenario_navigator.backend)
     amount = 5
 
     with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
-    data = contract.encode_abi("approve", [
-        bytes.fromhex("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
-        int(amount * pow(10, TOKEN_DECIMALS)),
-    ])
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    data = contract.encode_abi(
+        "approve",
+        [
+            bytes.fromhex("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+            int(amount * pow(10, TOKEN_DECIMALS)),
+        ],
+    )
 
     tx_params = {
         "chainId": TOKEN_CHAIN_ID,
@@ -191,39 +211,47 @@ def test_token_info_v2(scenario_navigator: NavigateWithScenario):
         "value": Web3.to_wei(0, "ether"),
         "data": data,
     }
-    app_client.provide_token_info(TokenInfo(
-        1,
-        "Ethereum",
-        TOKEN_TICKER,
-        TOKEN_DECIMALS,
-        tuid=EthTUID(TOKEN_CHAIN_ID, TOKEN_ADDR),
-    ))
+    app_client.provide_token_info(
+        TokenInfo(
+            1,
+            "Ethereum",
+            TOKEN_TICKER,
+            TOKEN_DECIMALS,
+            tuid=EthTUID(TOKEN_CHAIN_ID, TOKEN_ADDR),
+        )
+    )
     # use the same snapshots as the legacy test to make sure there are no visible differences
     common_tx(scenario_navigator, tx_params, "test_approve_erc20")
+
 
 def test_token_info_v2_wrong_coin_type(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(scenario_navigator.backend)
 
     with pytest.raises(ExceptionRAPDU) as e:
-        app_client.provide_token_info(TokenInfo(
-            1,
-            APPNAME,
-            TOKEN_TICKER,
-            TOKEN_DECIMALS,
-            tuid=EthTUID(TOKEN_CHAIN_ID, TOKEN_ADDR),
-            coin_type=501,
-        ))
+        app_client.provide_token_info(
+            TokenInfo(
+                1,
+                APPNAME,
+                TOKEN_TICKER,
+                TOKEN_DECIMALS,
+                tuid=EthTUID(TOKEN_CHAIN_ID, TOKEN_ADDR),
+                coin_type=501,
+            )
+        )
     assert e.value.status == StatusWord.SWO_INCORRECT_DATA
+
 
 def test_token_info_v2_unknown_chain_id(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(scenario_navigator.backend)
 
     with pytest.raises(ExceptionRAPDU) as e:
-        app_client.provide_token_info(TokenInfo(
-            1,
-            APPNAME,
-            TOKEN_TICKER,
-            TOKEN_DECIMALS,
-            tuid=EthTUID(2, TOKEN_ADDR),
-        ))
+        app_client.provide_token_info(
+            TokenInfo(
+                1,
+                APPNAME,
+                TOKEN_TICKER,
+                TOKEN_DECIMALS,
+                tuid=EthTUID(2, TOKEN_ADDR),
+            )
+        )
     assert e.value.status == StatusWord.SWO_INCORRECT_DATA

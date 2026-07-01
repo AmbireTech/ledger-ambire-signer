@@ -15,24 +15,32 @@ BEACON_DEPOSIT_CONTRACT_ADDR = bytes.fromhex("00000000219ab540356cBB839Cbe05303d
 BLS_WITHDRAWAL_PREFIX = 0x00
 BIP32_PATH = "m/44'/60'/0'/0/0"
 
+
 def test_eth2_deposit(scenario_navigator: NavigateWithScenario) -> None:
     app_client = EthAppClient(scenario_navigator.backend)
     with app_client.get_eth2_public_addr(display=False):
         pass
     with Path(f"{ABIS_FOLDER}/beacon_deposit.abi.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
     # https://github.com/ethereum/consensus-specs/blob/master/specs/phase0/validator.md#withdrawal-credentials
     credentials = bytearray(hashlib.sha256(app_client.response().data).digest())
     credentials[0] = BLS_WITHDRAWAL_PREFIX
-    data = contract.encode_abi("deposit", [
-        bytes.fromhex("a377e13e3b146513c0c9dd5231ced86a21597e5b83fa83ac8c27c4620f180c151d3e709107d73257fa451c58149e4065"),
-        credentials,
-        bytes.fromhex("00") * 96,
-        bytes.fromhex("4f1f479ababcef72faa5f9acf66faec651d143bc76f3880d0a25b72557bfd70a"),
-    ])
+    data = contract.encode_abi(
+        "deposit",
+        [
+            bytes.fromhex(
+                "a377e13e3b146513c0c9dd5231ced86a21597e5b83fa83ac8c27c4620f180c151d3e709107d73257fa451c58149e4065"
+            ),
+            credentials,
+            bytes.fromhex("00") * 96,
+            bytes.fromhex(
+                "4f1f479ababcef72faa5f9acf66faec651d143bc76f3880d0a25b72557bfd70a"
+            ),
+        ],
+    )
     tx_params = {
         "chainId": 1,
         "nonce": 27,

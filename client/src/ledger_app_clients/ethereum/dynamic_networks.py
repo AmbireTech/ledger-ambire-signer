@@ -12,11 +12,9 @@ class DynamicNetwork(TlvSerializable):
     chain_id: int
     icon: Optional[bytes]
 
-    def __init__(self,
-                 name: str,
-                 ticker: str,
-                 chain_id: int,
-                 icon: Optional[bytes] = None) -> None:
+    def __init__(
+        self, name: str, ticker: str, chain_id: int, icon: Optional[bytes] = None
+    ) -> None:
         self.name = name
         self.ticker = ticker
         self.chain_id = chain_id
@@ -28,13 +26,19 @@ class DynamicNetwork(TlvSerializable):
         payload += self.serialize_field(LedgerCommonFieldTag.VERSION, 1)
         payload += self.serialize_field(CoinInfoFieldTag.BLOCKCHAIN_FAMILY, 1)
         payload += self.serialize_field(LedgerCommonFieldTag.CHAIN_ID, self.chain_id)
-        payload += self.serialize_field(CoinInfoFieldTag.NETWORK_NAME, self.name.encode('utf-8'))
-        payload += self.serialize_field(LedgerCommonFieldTag.TICKER, self.ticker.encode('utf-8'))
+        payload += self.serialize_field(
+            CoinInfoFieldTag.NETWORK_NAME, self.name.encode("utf-8")
+        )
+        payload += self.serialize_field(
+            LedgerCommonFieldTag.TICKER, self.ticker.encode("utf-8")
+        )
         if self.icon:
             # Network Icon
-            payload += self.serialize_field(CoinInfoFieldTag.NETWORK_ICON_HASH,
-                                            sha256(self.icon).digest())
+            payload += self.serialize_field(
+                CoinInfoFieldTag.NETWORK_ICON_HASH, sha256(self.icon).digest()
+            )
         # Append the data Signature
-        payload += self.serialize_field(LedgerCommonFieldTag.DER_SIGNATURE,
-                                        NETWORK_PARTNER.sign(payload))
+        payload += self.serialize_field(
+            LedgerCommonFieldTag.DER_SIGNATURE, NETWORK_PARTNER.sign(payload)
+        )
         return payload

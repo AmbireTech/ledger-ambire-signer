@@ -15,18 +15,27 @@ from client.tx_simu import TxSimu
 BIP32_PATH = "m/44'/60'/0'/0/0"
 
 
-def handle_simulation(app_client: EthAppClient, msg: str, simu_params: TxSimu) -> None:
-    msg_to_sign = b"\x19Ethereum Signed Message:\n" + str(len(msg)).encode("utf-8") + msg.encode("utf-8")
+def handle_simulation(
+    app_client: EthAppClient, msg: str | bytes, simu_params: TxSimu
+) -> None:
+    msg_bytes = msg.encode("utf-8") if isinstance(msg, str) else msg
+    msg_to_sign = (
+        b"\x19Ethereum Signed Message:\n"
+        + str(len(msg_bytes)).encode("utf-8")
+        + msg_bytes
+    )
     if not simu_params.tx_hash:
         simu_params.tx_hash = keccak.new(digest_bits=256, data=msg_to_sign).digest()
     response = app_client.provide_tx_simulation(simu_params)
     assert response.status == StatusWord.SWO_SUCCESS
 
 
-def common(scenario_navigator: NavigateWithScenario,
-           test_name: str,
-           msg: str | bytes,
-           simu_params: Optional[TxSimu] = None):
+def common(
+    scenario_navigator: NavigateWithScenario,
+    test_name: str,
+    msg: str | bytes,
+    simu_params: Optional[TxSimu] = None,
+):
 
     backend = scenario_navigator.backend
     navigator = scenario_navigator.navigator
@@ -42,51 +51,63 @@ def common(scenario_navigator: NavigateWithScenario,
         handle_simulation(app_client, msg, simu_params)
 
     if isinstance(msg, str):
-        msg = msg.encode('ascii')
+        msg = msg.encode("ascii")
 
     try:
         with app_client.personal_sign(BIP32_PATH, msg):
             if simu_params is not None:
-                navigator.navigate_and_compare(screenshot_path,
-                                               f"{test_name}/warning",
-                                               [NavInsID.USE_CASE_CHOICE_REJECT],
-                                               screen_change_after_last_instruction=False)
+                navigator.navigate_and_compare(
+                    screenshot_path,
+                    f"{test_name}/warning",
+                    [NavInsID.USE_CASE_CHOICE_REJECT],
+                    screen_change_after_last_instruction=False,
+                )
 
-            if simu_params and "tx_hash" in simu_params:
-                navigator.navigate_until_text_and_compare(NavInsID.SWIPE_CENTER_TO_LEFT,
-                                                          [NavInsID.USE_CASE_CHOICE_CONFIRM],
-                                                          "Transaction Check",
-                                                          screenshot_path,
-                                                          test_name)
+            if simu_params and simu_params.tx_hash is not None:
+                navigator.navigate_until_text_and_compare(
+                    NavInsID.SWIPE_CENTER_TO_LEFT,
+                    [NavInsID.USE_CASE_CHOICE_CONFIRM],
+                    "Transaction Check",
+                    screenshot_path,
+                    test_name,
+                )
             else:
                 scenario_navigator.review_approve(test_name=test_name)
 
     except ExceptionRAPDU as err:
-        if simu_params and "tx_hash" in simu_params:
+        if simu_params and simu_params.tx_hash is not None:
             assert err.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
         else:
             assert False, f"Unexpected exception: {err}"
 
-    if simu_params is None or "tx_hash" not in simu_params:
+    if simu_params is None or simu_params.tx_hash is None:
         # verify signature
         vrs = ResponseParser.signature(app_client.response().data)
         addr = recover_message(msg, vrs)
         assert addr == DEVICE_ADDR
 
 
-def test_personal_sign_metamask(scenario_navigator: NavigateWithScenario, test_name: str):
+def test_personal_sign_metamask(
+    scenario_navigator: NavigateWithScenario, test_name: str
+):
 
     msg = "Example `personal_sign` message"
     common(scenario_navigator, test_name, msg)
 
 
-def test_personal_sign_non_ascii(scenario_navigator: NavigateWithScenario, test_name: str):
+def test_personal_sign_non_ascii(
+    scenario_navigator: NavigateWithScenario, test_name: str
+):
 
-    msg = bytes.fromhex("9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658")
+    msg = bytes.fromhex(
+        "9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658"
+    )
     common(scenario_navigator, test_name, msg)
 
 
-def test_personal_sign_opensea(scenario_navigator: NavigateWithScenario, test_name: str):
+def test_personal_sign_opensea(
+    scenario_navigator: NavigateWithScenario, test_name: str
+):
 
     msg = "Welcome to OpenSea!\n\n"
     msg += "Click to sign in and accept the OpenSea Terms of Service: https://opensea.io/tos\n\n"
@@ -103,7 +124,7 @@ def test_personal_sign_reject(scenario_navigator: NavigateWithScenario):
 
     msg = "This is an reject sign"
     try:
-        with app_client.personal_sign(BIP32_PATH, msg.encode('ascii')):
+        with app_client.personal_sign(BIP32_PATH, msg.encode("ascii")):
             scenario_navigator.review_reject()
 
     except ExceptionRAPDU as e:

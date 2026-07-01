@@ -55,7 +55,7 @@ class TrustedName(TlvSerializable):
     name: str
     chain_id: int | None
     address: bytes
-    challenge: bytes | None
+    challenge: int | None
     nft_id: int | None
     owner: bytes | None
     owner_deriv_path: str | None
@@ -68,7 +68,7 @@ class TrustedName(TlvSerializable):
         name: str,
         coin_type: int | None = None,
         not_valid_after: tuple[int, int, int] | None = None,
-        challenge: bytes | None = None,
+        challenge: int | None = None,
         tn_type: TrustedNameType | None = None,
         tn_source: TrustedNameSource | None = None,
         chain_id: int | None = None,
@@ -98,7 +98,9 @@ class TrustedName(TlvSerializable):
         if self.coin_type is not None:
             payload += self.serialize_field(Tag.COIN_TYPE, self.coin_type)
         if self.not_valid_after is not None:
-            payload += self.serialize_field(Tag.NOT_VALID_AFTER, struct.pack("BBB", *self.not_valid_after))
+            payload += self.serialize_field(
+                Tag.NOT_VALID_AFTER, struct.pack("BBB", *self.not_valid_after)
+            )
         if self.tn_type is not None:
             payload += self.serialize_field(Tag.TYPE, self.tn_type)
         if self.tn_source is not None:
@@ -114,7 +116,9 @@ class TrustedName(TlvSerializable):
         if self.owner is not None:
             payload += self.serialize_field(Tag.OWNER, self.owner)
         if self.owner_deriv_path is not None:
-            payload += self.serialize_field(Tag.OWNER_DERIV_PATH, pack_derivation_path(self.owner_deriv_path))
+            payload += self.serialize_field(
+                Tag.OWNER_DERIV_PATH, pack_derivation_path(self.owner_deriv_path)
+            )
         sig = self.signature
         if self.tn_source == TrustedNameSource.CAL:
             key_id = 9

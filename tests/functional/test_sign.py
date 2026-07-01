@@ -38,24 +38,32 @@ def display_hash_fixture(request) -> bool:
     return request.param
 
 
-def common(scenario_navigator: NavigateWithScenario,
-           tx_params: dict,
-           test_name: str = "",
-           path: str = BIP32_PATH,
-           with_simu: bool = False):
+def common(
+    scenario_navigator: NavigateWithScenario,
+    tx_params: dict,
+    test_name: str = "",
+    path: str = BIP32_PATH,
+    with_simu: bool = False,
+):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
     # Send Network information (name, ticker, icon)
     name, ticker, icon = get_network_config(backend.device.type, tx_params["chainId"])
     if name and ticker:
-        app_client.provide_network_information(DynamicNetwork(name, ticker, tx_params["chainId"], icon))
+        app_client.provide_network_information(
+            DynamicNetwork(name, ticker, tx_params["chainId"], icon)
+        )
 
     with app_client.sign(path, tx_params):
         if with_simu:
-            scenario_navigator.review_approve_with_warning(test_name=test_name, do_comparison=test_name != "")
+            scenario_navigator.review_approve_with_warning(
+                test_name=test_name, do_comparison=test_name != ""
+            )
         else:
-            scenario_navigator.review_approve(test_name=test_name, do_comparison=test_name != "")
+            scenario_navigator.review_approve(
+                test_name=test_name, do_comparison=test_name != ""
+            )
 
     # verify signature
     vrs = ResponseParser.signature(app_client.response().data)
@@ -68,9 +76,9 @@ def common(scenario_navigator: NavigateWithScenario,
     assert addr == device_addr
 
 
-def common_reject(scenario_navigator: NavigateWithScenario,
-                  tx_params: dict,
-                  path: str = BIP32_PATH):
+def common_reject(
+    scenario_navigator: NavigateWithScenario, tx_params: dict, path: str = BIP32_PATH
+):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
@@ -84,10 +92,12 @@ def common_reject(scenario_navigator: NavigateWithScenario,
         assert False  # An exception should have been raised
 
 
-def common_fail(backend: BackendInterface,
-                tx_params: dict,
-                expected: StatusWord,
-                path: str = BIP32_PATH):
+def common_fail(
+    backend: BackendInterface,
+    tx_params: dict,
+    expected: StatusWord,
+    path: str = BIP32_PATH,
+):
     app_client = EthAppClient(backend)
 
     try:
@@ -105,15 +115,17 @@ def common_fail(backend: BackendInterface,
 def sign_dummy_tx(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(scenario_navigator.backend)
 
-    with app_client.sign(BIP32_PATH,
-                         {
-                             "nonce": 0,
-                             "gasPrice": Web3.to_wei(0, "gwei"),
-                             "gas": 0,
-                             "to": b'\x00' * 20,
-                             "value": Web3.to_wei(0, "ether"),
-                             "chainId": 1,
-                         }):
+    with app_client.sign(
+        BIP32_PATH,
+        {
+            "nonce": 0,
+            "gasPrice": Web3.to_wei(0, "gwei"),
+            "gas": 0,
+            "to": b"\x00" * 20,
+            "value": Web3.to_wei(0, "ether"),
+            "chainId": 1,
+        },
+    ):
         scenario_navigator.review_approve(do_comparison=False)
 
 
@@ -124,7 +136,7 @@ def test_legacy(scenario_navigator: NavigateWithScenario):
         "gas": GAS_LIMIT,
         "to": ADDR,
         "value": Web3.to_wei(AMOUNT, "ether"),
-        "chainId": CHAIN_ID
+        "chainId": CHAIN_ID,
     }
     common(scenario_navigator, tx_params)
 
@@ -137,7 +149,7 @@ def test_legacy_send_error(backend: BackendInterface):
         "gas": GAS_LIMIT,
         "to": ADDR3,
         "value": 123456789123456789123456789000000000000000001,
-        "chainId": CHAIN_ID
+        "chainId": CHAIN_ID,
     }
     common_fail(backend, tx_params, StatusWord.EXCEPTION_OVERFLOW, path=BIP32_PATH2)
 
@@ -146,11 +158,11 @@ def test_legacy_send_error(backend: BackendInterface):
 def test_sign_legacy_send_bsc(scenario_navigator: NavigateWithScenario, test_name: str):
     tx_params: dict = {
         "nonce": 1,
-        "gasPrice": Web3.to_wei(GAS_PRICE2, 'gwei'),
+        "gasPrice": Web3.to_wei(GAS_PRICE2, "gwei"),
         "gas": GAS_LIMIT,
         "to": ADDR2,
         "value": Web3.to_wei(AMOUNT2, "ether"),
-        "chainId": 56
+        "chainId": 56,
     }
     common(scenario_navigator, tx_params, test_name, BIP32_PATH2)
 
@@ -159,11 +171,11 @@ def test_sign_legacy_send_bsc(scenario_navigator: NavigateWithScenario, test_nam
 def test_sign_legacy_chainid(scenario_navigator: NavigateWithScenario, test_name: str):
     tx_params: dict = {
         "nonce": NONCE2,
-        "gasPrice": Web3.to_wei(GAS_PRICE, 'gwei'),
+        "gasPrice": Web3.to_wei(GAS_PRICE, "gwei"),
         "gas": GAS_LIMIT,
         "to": ADDR2,
         "value": Web3.to_wei(AMOUNT2, "ether"),
-        "chainId": 112233445566
+        "chainId": 112233445566,
     }
     common(scenario_navigator, tx_params, test_name, BIP32_PATH2)
 
@@ -176,53 +188,59 @@ def test_1559(scenario_navigator: NavigateWithScenario):
         "gas": GAS_LIMIT,
         "to": ADDR,
         "value": Web3.to_wei(AMOUNT, "ether"),
-        "chainId": CHAIN_ID
+        "chainId": CHAIN_ID,
     }
     common(scenario_navigator, tx_params)
 
 
-def test_sign_simple(scenario_navigator: NavigateWithScenario, test_name: str, display_hash: bool):
+def test_sign_simple(
+    scenario_navigator: NavigateWithScenario, test_name: str, display_hash: bool
+):
     tx_params: dict = {
         "nonce": NONCE2,
-        "gasPrice": Web3.to_wei(GAS_PRICE, 'gwei'),
+        "gasPrice": Web3.to_wei(GAS_PRICE, "gwei"),
         "gas": GAS_LIMIT,
         "to": ADDR2,
         "value": Web3.to_wei(AMOUNT2, "ether"),
-        "chainId": CHAIN_ID
+        "chainId": CHAIN_ID,
     }
 
     if display_hash:
-        settings_toggle(scenario_navigator.backend.device, scenario_navigator.navigator, [SettingID.DISPLAY_HASH])
+        settings_toggle(
+            scenario_navigator.backend.device,
+            scenario_navigator.navigator,
+            [SettingID.DISPLAY_HASH],
+        )
         test_name += "_display_hash"
     common(scenario_navigator, tx_params, test_name, BIP32_PATH2)
 
 
 def test_sign_limit_nonce(scenario_navigator: NavigateWithScenario, test_name: str):
     tx_params: dict = {
-        "nonce": 2**64-1,
+        "nonce": 2**64 - 1,
         "gasPrice": 10,
         "gas": 50000,
         "to": ADDR2,
         "value": 0x08762,
-        "chainId": CHAIN_ID
+        "chainId": CHAIN_ID,
     }
     common(scenario_navigator, tx_params, test_name, BIP32_PATH2)
 
 
-def test_sign_nonce_display(navigator: Navigator,
-                            scenario_navigator: NavigateWithScenario,
-                            test_name: str):
+def test_sign_nonce_display(
+    navigator: Navigator, scenario_navigator: NavigateWithScenario, test_name: str
+):
 
     device = scenario_navigator.backend.device
     settings_toggle(device, navigator, [SettingID.NONCE])
 
     tx_params: dict = {
         "nonce": NONCE2,
-        "gasPrice": Web3.to_wei(GAS_PRICE, 'gwei'),
+        "gasPrice": Web3.to_wei(GAS_PRICE, "gwei"),
         "gas": GAS_LIMIT,
         "to": ADDR2,
         "value": Web3.to_wei(AMOUNT2, "ether"),
-        "chainId": CHAIN_ID
+        "chainId": CHAIN_ID,
     }
     common(scenario_navigator, tx_params, test_name, BIP32_PATH2)
 
@@ -230,11 +248,11 @@ def test_sign_nonce_display(navigator: Navigator,
 def test_sign_reject(scenario_navigator: NavigateWithScenario):
     tx_params: dict = {
         "nonce": NONCE2,
-        "gasPrice": Web3.to_wei(GAS_PRICE, 'gwei'),
+        "gasPrice": Web3.to_wei(GAS_PRICE, "gwei"),
         "gas": GAS_LIMIT,
         "to": ADDR2,
         "value": Web3.to_wei(AMOUNT2, "ether"),
-        "chainId": CHAIN_ID
+        "chainId": CHAIN_ID,
     }
     common_reject(scenario_navigator, tx_params, BIP32_PATH2)
 
@@ -247,7 +265,7 @@ def test_sign_error_transaction_type(backend: BackendInterface):
         "gas": 50000,
         "to": ADDR2,
         "value": 0x19,
-        "chainId": CHAIN_ID
+        "chainId": CHAIN_ID,
     }
 
     app_client = EthAppClient(backend)
@@ -275,7 +293,7 @@ def test_sign_eip_2930(scenario_navigator: NavigateWithScenario, test_name: str)
                 "address": "0x0000000000000000000000000000000000000001",
                 "storageKeys": [
                     "0x0100000000000000000000000000000000000000000000000000000000000000"
-                ]
+                ],
             }
         ],
     }
@@ -292,11 +310,16 @@ def test_sign_eip_7702(scenario_navigator: NavigateWithScenario, test_name: str)
         "to": bytes.fromhex("1212121212121212121212121212121212121212"),
         "value": Web3.to_wei(0.01, "ether"),
         "authorizationList": [
-            get_authorization_obj(0, 1337, bytes.fromhex("1212121212121212121212121212121212121212"), (
-                0x01,
-                0xa24f35cafc6b408ce32539d4bd89a67edd4d6303fc676dfddf93b98405b7ee5e,
-                0x159456babe656692959ca3d829ca269e8f82387c91e40a33633d190dda7a3c5c,
-            ))
+            get_authorization_obj(
+                0,
+                1337,
+                bytes.fromhex("1212121212121212121212121212121212121212"),
+                (
+                    0x01,
+                    0xA24F35CAFC6B408CE32539D4BD89A67EDD4D6303FC676DFDDF93B98405B7EE5E,
+                    0x159456BABE656692959CA3D829CA269E8F82387C91E40A33633D190DDA7A3C5C,
+                ),
+            )
         ],
     }
     common(scenario_navigator, tx_params, test_name)

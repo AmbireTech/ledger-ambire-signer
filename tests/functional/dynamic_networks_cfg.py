@@ -7,6 +7,7 @@ class IconDict(TypedDict):
     Ticker: str
     Icon: Dict[DeviceType, str]
 
+
 # Icon generation:
 # Use the script tools/gen_dynamic_network.py like:
 # BOLOS_SDK=/opt/ledger-secure-sdk tools/gen_dynamic_network.py -i glyphs/chain_3_64px.gif -v
@@ -53,7 +54,9 @@ DYNAMIC_ICONS: Dict[int, IconDict] = {
 # pylint: enable=line-too-long
 
 
-def get_network_config(dev_type: DeviceType, chain_id: Optional[int] = None) -> tuple[str, str, bytes]:
+def get_network_config(
+    dev_type: DeviceType, chain_id: Optional[int] = None
+) -> tuple[str, str, bytes]:
     if chain_id and chain_id in DYNAMIC_ICONS:
         name = DYNAMIC_ICONS[chain_id]["Name"]
         ticker = DYNAMIC_ICONS[chain_id]["Ticker"]

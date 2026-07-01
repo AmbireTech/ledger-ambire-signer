@@ -9,15 +9,19 @@ from client.utils import recover_transaction
 
 
 PUBKEY_LENGTH = 48
-WITHDRAWAL_REQUEST_PREDEPLOY_ADDR = bytes.fromhex("00000961Ef480Eb55e80D19ad83579A64c007002")
+WITHDRAWAL_REQUEST_PREDEPLOY_ADDR = bytes.fromhex(
+    "00000961Ef480Eb55e80D19ad83579A64c007002"
+)
 BIP32_PATH = "m/44'/60'/0'/0/0"
+
 
 def get_request_data(validator_pk: bytes, amount: float) -> bytes:
     data = bytearray()
     assert len(validator_pk) == PUBKEY_LENGTH
     data += validator_pk
-    data += struct.pack(">Q", int(amount * pow(10,9)))
-    return data
+    data += struct.pack(">Q", int(amount * pow(10, 9)))
+    return bytes(data)
+
 
 def common(scenario_navigator: NavigateWithScenario, data: bytes) -> None:
     app_client = EthAppClient(scenario_navigator.backend)

@@ -20,14 +20,16 @@ class Gating(TlvSerializable):
     selector: Optional[bytes]
     signature: Optional[bytes]
 
-    def __init__(self,
-                 tx_type: TxType,
-                 address: bytes,
-                 intro_message: str,
-                 tiny_url: str,
-                 chain_id: Optional[int] = None,
-                 selector: Optional[bytes] = None,
-                 signature: Optional[bytes] = None) -> None:
+    def __init__(
+        self,
+        tx_type: TxType,
+        address: bytes,
+        intro_message: str,
+        tiny_url: str,
+        chain_id: Optional[int] = None,
+        selector: Optional[bytes] = None,
+        signature: Optional[bytes] = None,
+    ) -> None:
 
         self.tx_type = tx_type
         self.address = address
@@ -51,18 +53,24 @@ class Gating(TlvSerializable):
         # are shared on the wire with the TxSimulation feature (same tag IDs).
         payload: bytes = self.serialize_field(LedgerCommonFieldTag.STRUCTURE_TYPE, 0x0D)
         payload += self.serialize_field(LedgerCommonFieldTag.VERSION, 1)
-        payload += self.serialize_field(TxSimulationFieldTag.SIMULATION_TYPE, self.tx_type)
+        payload += self.serialize_field(
+            TxSimulationFieldTag.SIMULATION_TYPE, self.tx_type
+        )
         payload += self.serialize_field(LedgerCommonFieldTag.ADDRESS, self.address)
         if self.chain_id is not None:
-            payload += self.serialize_field(LedgerCommonFieldTag.CHAIN_ID,
-                                            self.chain_id.to_bytes(8, 'big'))
-        payload += self.serialize_field(TxSimulationFieldTag.PROVIDER_MESSAGE,
-                                        self.intro_message.encode('utf-8'))
-        payload += self.serialize_field(TxSimulationFieldTag.TINY_URL,
-                                        self.tiny_url.encode('utf-8'))
+            payload += self.serialize_field(
+                LedgerCommonFieldTag.CHAIN_ID, self.chain_id.to_bytes(8, "big")
+            )
+        payload += self.serialize_field(
+            TxSimulationFieldTag.PROVIDER_MESSAGE, self.intro_message.encode("utf-8")
+        )
+        payload += self.serialize_field(
+            TxSimulationFieldTag.TINY_URL, self.tiny_url.encode("utf-8")
+        )
         if self.selector:
-            payload += self.serialize_field(EvmFunctionFieldTag.EVM_FUNCTION_SELECTOR,
-                                            self.selector)
+            payload += self.serialize_field(
+                EvmFunctionFieldTag.EVM_FUNCTION_SELECTOR, self.selector
+            )
         # Append the data Signature
         sig = self.signature
         if sig is None:

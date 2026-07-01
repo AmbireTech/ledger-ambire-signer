@@ -4,10 +4,12 @@ from ragger.error import StatusWords as global_SW
 
 
 # Custom error codes specific to Boilerplate app
+# fmt: off
 custom_errors = {
     "EXCEPTION_OVERFLOW": 0x6807,
-    "SW_SWAP_FAIL":       0xC000
+    "SW_SWAP_FAIL":       0xC000,
 }
+# fmt: on
 
 # Build the combined dictionary first
 _errors_dict = {m.name: m.value for m in global_SW}

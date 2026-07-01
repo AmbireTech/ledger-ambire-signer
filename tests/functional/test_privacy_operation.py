@@ -20,7 +20,9 @@ def test_perform_privacy_operation_public(backend: BackendInterface):
 @pytest.mark.skip_on_backend("speculos")
 def test_perform_privacy_operation_secret(backend: BackendInterface):
 
-    pubkey = "5901c19a086d1be4b907ec0325bffa758c3eb78192c3df4afa2afd2736a39963".encode("utf-8")
+    pubkey = "5901c19a086d1be4b907ec0325bffa758c3eb78192c3df4afa2afd2736a39963".encode(
+        "utf-8"
+    )
 
     app_client = EthAppClient(backend)
 

@@ -1,6 +1,6 @@
 # pylint: disable=too-many-lines
 # Large test file containing multiple GCS (Generic Clear Signing) integration tests
-from typing import Optional
+from typing import Any, Optional
 import json
 import hashlib
 from pathlib import Path
@@ -19,9 +19,23 @@ from client.client import EthAppClient, SignMode
 from client.status_word import StatusWord
 from client.utils import get_selector_from_data
 from client.gcs import (
-    Field, ParamType, ParamRaw, Value, TypeFamily, DataPath, ParamTrustedName,
-    ParamNFT, ParamDatetime, DatetimeType, ParamTokenAmount, ParamToken, ParamCalldata,
-    ParamAmount, ParamEnum, ContainerPath, TxInfo
+    Field,
+    ParamType,
+    ParamRaw,
+    Value,
+    TypeFamily,
+    DataPath,
+    ParamTrustedName,
+    ParamNFT,
+    ParamDatetime,
+    DatetimeType,
+    ParamTokenAmount,
+    ParamToken,
+    ParamCalldata,
+    ParamAmount,
+    ParamEnum,
+    ContainerPath,
+    TxInfo,
 )
 from client.enum_value import EnumValue
 from client.tx_simu import TxSimu
@@ -46,23 +60,26 @@ def test_gcs_nft(scenario_navigator: NavigateWithScenario):
     with app_client.get_public_addr(bip32_path="m/44'/60'/0'/0/0", display=False):
         pass
     _, device_addr, _ = ResponseParser.pk_addr(app_client.response().data)
-    data = contract.encode_abi("safeBatchTransferFrom", [
-        bytes.fromhex("1111111111111111111111111111111111111111"),
-        bytes.fromhex("d8da6bf26964af9d7eed9e03e53415d37aa96045"),
+    data = contract.encode_abi(
+        "safeBatchTransferFrom",
         [
-            2,
-            4,
-            8,
-            16,
+            bytes.fromhex("1111111111111111111111111111111111111111"),
+            bytes.fromhex("d8da6bf26964af9d7eed9e03e53415d37aa96045"),
+            [
+                2,
+                4,
+                8,
+                16,
+            ],
+            [
+                1,
+                2,
+                3,
+                4,
+            ],
+            bytes.fromhex("deadbeef1337cafe"),
         ],
-        [
-            1,
-            2,
-            3,
-            4,
-        ],
-        bytes.fromhex("deadbeef1337cafe"),
-    ])
+    )
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -71,108 +88,89 @@ def test_gcs_nft(scenario_navigator: NavigateWithScenario):
         # OpenSea Shared Storefront
         "to": bytes.fromhex("495f947276749ce646f68ac8c248420045cb7b5e"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/erc1155.json", "safeBatchTransferFrom")
     fields = [
-            Field(
+        Field(
+            1,
+            "From",
+            ParamTrustedName(
                 1,
-                "From",
-                ParamTrustedName(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_from"]
-                        ),
-                    ),
-                    [
-                        TrustedNameType.ACCOUNT,
-                    ],
-                    [
-                        TrustedNameSource.UD,
-                        TrustedNameSource.ENS,
-                        TrustedNameSource.FN,
-                    ],
-                    [
-                        bytes.fromhex("0000000000000000000000000000000000000000"),
-                        bytes.fromhex("1111111111111111111111111111111111111111"),
-                        bytes.fromhex("2222222222222222222222222222222222222222"),
-                    ],
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["_from"]),
+                ),
+                [
+                    TrustedNameType.ACCOUNT,
+                ],
+                [
+                    TrustedNameSource.UD,
+                    TrustedNameSource.ENS,
+                    TrustedNameSource.FN,
+                ],
+                [
+                    bytes.fromhex("0000000000000000000000000000000000000000"),
+                    bytes.fromhex("1111111111111111111111111111111111111111"),
+                    bytes.fromhex("2222222222222222222222222222222222222222"),
+                ],
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "To",
+            ParamRaw(
                 1,
-                "To",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_to"]
-                        ),
-                    )
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["_to"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "NFTs",
+            ParamNFT(
                 1,
-                "NFTs",
-                ParamNFT(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                           param_paths["_ids"]
-                        ),
-                    ),
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        container_path=ContainerPath.TO
-                    )
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["_ids"]),
+                ),
+                Value(1, TypeFamily.ADDRESS, container_path=ContainerPath.TO),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Values",
+            ParamRaw(
                 1,
-                "Values",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_values"]
-                        ),
-                    )
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["_values"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Data",
+            ParamRaw(
                 1,
-                "Data",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_data"]
-                        ),
-                    )
-                )
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["_data"]),
+                ),
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -189,14 +187,20 @@ def test_gcs_nft(scenario_navigator: NavigateWithScenario):
 
     app_client.provide_transaction_info(tx_info.serialize())
     challenge = ResponseParser.challenge(app_client.get_challenge().data)
-    app_client.provide_trusted_name(TrustedName(2,
-                                                device_addr,
-                                                "gerard.eth",
-                                                tn_type=TrustedNameType.ACCOUNT,
-                                                tn_source=TrustedNameSource.ENS,
-                                                chain_id=tx_params["chainId"],
-                                                challenge=challenge))
-    app_client.provide_nft_metadata("OpenSea Shared Storefront", tx_params["to"], tx_params["chainId"])
+    app_client.provide_trusted_name(
+        TrustedName(
+            2,
+            device_addr,
+            "gerard.eth",
+            tn_type=TrustedNameType.ACCOUNT,
+            tn_source=TrustedNameSource.ENS,
+            chain_id=tx_params["chainId"],
+            challenge=challenge,
+        )
+    )
+    app_client.provide_nft_metadata(
+        "OpenSea Shared Storefront", tx_params["to"], tx_params["chainId"]
+    )
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
@@ -205,21 +209,27 @@ def test_gcs_nft(scenario_navigator: NavigateWithScenario):
         scenario_navigator.review_approve()
 
 
-def test_gcs_poap(scenario_navigator: NavigateWithScenario,
-                  simu_params: Optional[TxSimu] = None):
+def test_gcs_poap(
+    scenario_navigator: NavigateWithScenario, simu_params: Optional[TxSimu] = None
+):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
     # pylint: disable=line-too-long
-    data = contract.encode_abi("mintToken", [
-        175676,
-        7163978,
-        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
-        1730621615,
-        bytes.fromhex("8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c")
-    ])
+    data = contract.encode_abi(
+        "mintToken",
+        [
+            175676,
+            7163978,
+            bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+            1730621615,
+            bytes.fromhex(
+                "8991da687cff5300959810a08c4ec183bb2a56dc82f5aac2b24f1106c2d983ac6f7a6b28700a236724d814000d0fd8c395fcf9f87c4424432ebf30c9479201d71c"
+            ),
+        ],
+    )
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -228,7 +238,7 @@ def test_gcs_poap(scenario_navigator: NavigateWithScenario,
         # PoapBridge
         "to": bytes.fromhex("0bb4D3e88243F4A057Db77341e6916B0e449b158"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
     # pylint: enable=line-too-long
 
@@ -244,85 +254,70 @@ def test_gcs_poap(scenario_navigator: NavigateWithScenario,
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/poap.abi.json", "mintToken")
     fields = [
-            Field(
+        Field(
+            1,
+            "Event ID",
+            ParamRaw(
                 1,
-                "Event ID",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["eventId"]
-                        ),
-                    )
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["eventId"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Token ID",
+            ParamRaw(
                 1,
-                "Token ID",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["tokenId"]
-                        ),
-                    )
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["tokenId"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Receiver",
+            ParamRaw(
                 1,
-                "Receiver",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["receiver"]
-                        ),
-                    )
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["receiver"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Expiration time",
+            ParamDatetime(
                 1,
-                "Expiration time",
-                ParamDatetime(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["expirationTime"]
-                        ),
-                    ),
-                    DatetimeType.DT_UNIX
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["expirationTime"]),
+                ),
+                DatetimeType.DT_UNIX,
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Signature",
+            ParamRaw(
                 1,
-                "Signature",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["signature"]
-                        ),
-                    )
-                )
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["signature"]),
+                ),
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -339,7 +334,7 @@ def test_gcs_poap(scenario_navigator: NavigateWithScenario,
         creator_legal_name="Proof of Attendance Protocol",
         creator_url="poap.xyz",
         contract_name="PoapBridge",
-        deploy_date=1646305200
+        deploy_date=1646305200,
     )
 
     app_client.provide_transaction_info(tx_info.serialize())
@@ -359,23 +354,23 @@ def test_gcs_1inch(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/1inch.abi.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
-    data = contract.encode_abi("swap", [
-        bytes.fromhex("F313B370D28760b98A2E935E56Be92Feb2c4EC04"),
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    data = contract.encode_abi(
+        "swap",
         [
-            bytes.fromhex("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
-            bytes.fromhex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
             bytes.fromhex("F313B370D28760b98A2E935E56Be92Feb2c4EC04"),
-            bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
-            Web3.to_wei(0.22, "ether"),
-            682119805,
-            0,
+            [
+                bytes.fromhex("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
+                bytes.fromhex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+                bytes.fromhex("F313B370D28760b98A2E935E56Be92Feb2c4EC04"),
+                bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+                Web3.to_wei(0.22, "ether"),
+                682119805,
+                0,
+            ],
+            bytes(),
         ],
-        bytes(),
-    ])
+    )
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -384,83 +379,70 @@ def test_gcs_1inch(scenario_navigator: NavigateWithScenario):
         # Aggregation Router V6
         "to": bytes.fromhex("111111125421cA6dc452d289314280a0f8842A65"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/1inch.abi.json", "swap")
-    param_tuple_paths = get_all_tuple_paths(f"{ABIS_FOLDER}/1inch.abi.json", "swap", "desc")
+    param_tuple_paths = get_all_tuple_paths(
+        f"{ABIS_FOLDER}/1inch.abi.json", "swap", "desc"
+    )
     fields = [
-            Field(
+        Field(
+            1,
+            "Executor",
+            ParamRaw(
                 1,
-                "Executor",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["executor"]
-                        ),
-                    )
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["executor"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Send",
+            ParamTokenAmount(
                 1,
-                "Send",
-                ParamTokenAmount(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_tuple_paths["amount"]
-                        ),
-                    ),
-                    token=Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_tuple_paths["srcToken"]
-                        ),
-                    ),
-                    native_currency=[
-                        bytes.fromhex("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
-                    ],
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_tuple_paths["amount"]),
+                ),
+                token=Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_tuple_paths["srcToken"]),
+                ),
+                native_currency=[
+                    bytes.fromhex("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
+                ],
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Receive",
+            ParamTokenAmount(
                 1,
-                "Receive",
-                ParamTokenAmount(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_tuple_paths["minReturnAmount"]
-                        ),
-                    ),
-                    token=Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_tuple_paths["dstToken"]
-                        ),
-                    ),
-                    native_currency=[
-                        bytes.fromhex("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
-                    ],
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_tuple_paths["minReturnAmount"]),
+                ),
+                token=Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_tuple_paths["dstToken"]),
+                ),
+                native_currency=[
+                    bytes.fromhex("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
+                ],
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -477,12 +459,14 @@ def test_gcs_1inch(scenario_navigator: NavigateWithScenario):
         creator_legal_name="1inch Network",
         creator_url="1inch.io",
         contract_name="Aggregation Router V6",
-        deploy_date=1707724800
+        deploy_date=1707724800,
     )
 
     app_client.provide_transaction_info(tx_info.serialize())
 
-    app_client.provide_token_metadata("USDC", bytes.fromhex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), 6, 1)
+    app_client.provide_token_metadata(
+        "USDC", bytes.fromhex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), 6, 1
+    )
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
@@ -498,13 +482,13 @@ def test_gcs_proxy(scenario_navigator: NavigateWithScenario):
     new_owner = bytes.fromhex("2222222222222222222222222222222222222222")
 
     with open(f"{ABIS_FOLDER}/proxy_implem.abi.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
-    data = contract.encode_abi("transferOwnership", [
-        new_owner,
-    ])
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    data = contract.encode_abi(
+        "transferOwnership",
+        [
+            new_owner,
+        ],
+    )
     tx_params = {
         "nonce": 1,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -513,12 +497,14 @@ def test_gcs_proxy(scenario_navigator: NavigateWithScenario):
         # address of the proxy contract
         "to": bytes.fromhex("39053d51b77dc0d36036fc1fcc8cb819df8ef37a"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
 
-    param_paths = get_all_paths(f"{ABIS_FOLDER}/proxy_implem.abi.json", "transferOwnership")
+    param_paths = get_all_paths(
+        f"{ABIS_FOLDER}/proxy_implem.abi.json", "transferOwnership"
+    )
     fields = [
         Field(
             1,
@@ -528,14 +514,11 @@ def test_gcs_proxy(scenario_navigator: NavigateWithScenario):
                 Value(
                     1,
                     TypeFamily.ADDRESS,
-                    data_path=DataPath(
-                        1,
-                        param_paths["newOwner"]
-                    ),
+                    data_path=DataPath(1, param_paths["newOwner"]),
                 ),
                 [TrustedNameType.CONTRACT],
                 [TrustedNameSource.CAL],
-            )
+            ),
         ),
     ]
 
@@ -580,13 +563,17 @@ def test_gcs_proxy(scenario_navigator: NavigateWithScenario):
 
     app_client.provide_proxy_info(proxy_info.serialize())
 
-    app_client.provide_trusted_name(TrustedName(2,
-                                                impl_contract,
-                                                "some contract",
-                                                tn_type=TrustedNameType.CONTRACT,
-                                                tn_source=TrustedNameSource.CAL,
-                                                chain_id=tx_info.chain_id,
-                                                challenge=ResponseParser.challenge(app_client.get_challenge().data)))
+    app_client.provide_trusted_name(
+        TrustedName(
+            2,
+            impl_contract,
+            "some contract",
+            tn_type=TrustedNameType.CONTRACT,
+            tn_source=TrustedNameSource.CAL,
+            chain_id=tx_info.chain_id,
+            challenge=ResponseParser.challenge(app_client.get_challenge().data),
+        )
+    )
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
@@ -605,14 +592,14 @@ def test_gcs_4226(scenario_navigator: NavigateWithScenario, known_tokens: bool):
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/rSWELL.abi.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
-    data = contract.encode_abi("deposit", [
-        Web3.to_wei(4.20, "ether"),
-        bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
-    ])
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    data = contract.encode_abi(
+        "deposit",
+        [
+            Web3.to_wei(4.20, "ether"),
+            bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+        ],
+    )
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(3, "gwei"),
@@ -620,7 +607,7 @@ def test_gcs_4226(scenario_navigator: NavigateWithScenario, known_tokens: bool):
         "gas": 128872,
         "to": bytes.fromhex("358d94b5b2F147D741088803d932Acb566acB7B6"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
@@ -628,54 +615,48 @@ def test_gcs_4226(scenario_navigator: NavigateWithScenario, known_tokens: bool):
     swell_token_addr = bytes.fromhex("0a6e7ba5042b38349e437ec6db6214aec7b35676")
     param_paths = get_all_paths(f"{ABIS_FOLDER}/rSWELL.abi.json", "deposit")
     fields = [
-            Field(
+        Field(
+            1,
+            "Deposit asset",
+            ParamTokenAmount(
                 1,
-                "Deposit asset",
-                ParamTokenAmount(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["assets"]
-                        ),
-                    ),
-                    token=Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        constant=swell_token_addr,
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["assets"]),
+                ),
+                token=Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    constant=swell_token_addr,
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Receive shares",
+            ParamToken(
                 1,
-                "Receive shares",
-                ParamToken(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        container_path=ContainerPath.TO,
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    container_path=ContainerPath.TO,
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Send shares to",
+            ParamRaw(
                 1,
-                "Send shares to",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["receiver"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["receiver"]),
+                ),
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -692,7 +673,7 @@ def test_gcs_4226(scenario_navigator: NavigateWithScenario, known_tokens: bool):
         creator_legal_name="Swell Network",
         creator_url="www.swellnetwork.io",
         contract_name="rSWELL Token",
-        deploy_date=1726817291
+        deploy_date=1726817291,
     )
 
     app_client.provide_transaction_info(tx_info.serialize())
@@ -716,41 +697,44 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/safe_l2_setup_1.4.1.abi.json", encoding="utf-8") as f:
-        safe_l2_setup = Web3().eth.contract(
+        safe_l2_setup = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
-            address=bytes.fromhex("BD89A1CE4DDe368FFAB0eC35506eEcE0b1fFdc54")
+            address=bytes.fromhex("BD89A1CE4DDe368FFAB0eC35506eEcE0b1fFdc54"),
         )
-    safe_l2_setup_data = safe_l2_setup.encode_abi("setupToL2", [
-        bytes.fromhex("29fcB43b46531BcA003ddC8FCB67FFE91900C762")
-    ])
+    safe_l2_setup_data = safe_l2_setup.encode_abi(
+        "setupToL2", [bytes.fromhex("29fcB43b46531BcA003ddC8FCB67FFE91900C762")]
+    )
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
-        safe = Web3().eth.contract(
+        safe = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
-            address=bytes.fromhex("41675C099F32341bf84BFc5382aF534df5C7461a")
+            address=bytes.fromhex("41675C099F32341bf84BFc5382aF534df5C7461a"),
         )
-    safe_data = safe.encode_abi("setup", [
+    safe_data = safe.encode_abi(
+        "setup",
         [
-            bytes.fromhex("6535d5F76F021FE65E2ac73D086dF4b4Bd7ee5D9"),
-            bytes.fromhex("3fB2C8699C3D0Cedde210F383435C537C86D91B8")
+            [
+                bytes.fromhex("6535d5F76F021FE65E2ac73D086dF4b4Bd7ee5D9"),
+                bytes.fromhex("3fB2C8699C3D0Cedde210F383435C537C86D91B8"),
+            ],
+            2,
+            safe_l2_setup.address,
+            safe_l2_setup_data,
+            bytes.fromhex("fd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99"),
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            0,
+            bytes.fromhex("5afe7A11E7000000000000000000000000000000"),
         ],
-        2,
-        safe_l2_setup.address,
-        safe_l2_setup_data,
-        bytes.fromhex("fd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99"),
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        0,
-        bytes.fromhex("5afe7A11E7000000000000000000000000000000")
-    ])
-    with open(f"{ABIS_FOLDER}/safe_proxy_factory_1.4.1.abi.json", encoding="utf-8") as f:
-        safe_proxy_factory = Web3().eth.contract(
+    )
+    with open(
+        f"{ABIS_FOLDER}/safe_proxy_factory_1.4.1.abi.json", encoding="utf-8"
+    ) as f:
+        safe_proxy_factory = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
-            address=bytes.fromhex("4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67")
+            address=bytes.fromhex("4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"),
         )
-    data = safe_proxy_factory.encode_abi("createProxyWithNonce", [
-        safe.address,
-        safe_data,
-        0
-    ])
+    data = safe_proxy_factory.encode_abi(
+        "createProxyWithNonce", [safe.address, safe_data, 0]
+    )
     tx_params = {
         "nonce": 75,
         "maxFeePerGas": Web3.to_wei(4.2, "gwei"),
@@ -758,68 +742,58 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
         "gas": 291314,
         "to": safe_proxy_factory.address,
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
 
-    param_paths = get_all_paths(f"{ABIS_FOLDER}/safe_proxy_factory_1.4.1.abi.json", "createProxyWithNonce")
+    param_paths = get_all_paths(
+        f"{ABIS_FOLDER}/safe_proxy_factory_1.4.1.abi.json", "createProxyWithNonce"
+    )
     fields = [
-            Field(
+        Field(
+            1,
+            "_singleton",
+            ParamRaw(
                 1,
-                "_singleton",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_singleton"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["_singleton"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "initializer",
+            ParamCalldata(
                 1,
-                "initializer",
-                ParamCalldata(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["initializer"]
-                        ),
-                    ),
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_singleton"]
-                        ),
-                    ),
-                )
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["initializer"]),
+                ),
+                Value(
+                    1,
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["_singleton"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "saltNonce",
+            ParamRaw(
                 1,
-                "saltNonce",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["saltNonce"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["saltNonce"]),
+                ),
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -841,136 +815,109 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", "setup")
     sub_fields = [
-            Field(
+        Field(
+            1,
+            "_owners",
+            ParamRaw(
                 1,
-                "_owners",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_owners"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["_owners"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "_threshold",
+            ParamRaw(
                 1,
-                "_threshold",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_threshold"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["_threshold"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "to",
+            ParamRaw(
                 1,
-                "to",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["to"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["to"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "data",
+            ParamCalldata(
                 1,
-                "data",
-                ParamCalldata(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["data"]
-                        ),
-                    ),
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["to"]
-                        ),
-                    ),
-                )
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["data"]),
+                ),
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["to"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "fallbackHandler",
+            ParamRaw(
                 1,
-                "fallbackHandler",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["fallbackHandler"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["fallbackHandler"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "paymentToken",
+            ParamRaw(
                 1,
-                "paymentToken",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["paymentToken"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["paymentToken"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "payment",
+            ParamRaw(
                 1,
-                "payment",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["payment"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["payment"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "paymentReceiver",
+            ParamRaw(
                 1,
-                "paymentReceiver",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["paymentReceiver"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["paymentReceiver"]),
+                ),
             ),
+        ),
     ]
     # compute instructions hash
     sub_inst_hash = compute_inst_hash(sub_fields)
@@ -983,23 +930,22 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
         "setup",
     )
 
-    param_paths = get_all_paths(f"{ABIS_FOLDER}/safe_l2_setup_1.4.1.abi.json", "setupToL2")
+    param_paths = get_all_paths(
+        f"{ABIS_FOLDER}/safe_l2_setup_1.4.1.abi.json", "setupToL2"
+    )
     sub_sub_fields = [
-            Field(
+        Field(
+            1,
+            "l2Singleton",
+            ParamRaw(
                 1,
-                "l2Singleton",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["l2Singleton"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["l2Singleton"]),
+                ),
             ),
+        ),
     ]
     # compute instructions hash
     sub_sub_inst_hash = compute_inst_hash(sub_sub_fields)
@@ -1021,7 +967,9 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
                 if sub_field.param.type == ParamType.CALLDATA:
                     app_client.provide_transaction_info(sub_sub_tx_info.serialize())
                     for sub_sub_field in sub_sub_fields:
-                        app_client.provide_transaction_field_desc(sub_sub_field.serialize())
+                        app_client.provide_transaction_field_desc(
+                            sub_sub_field.serialize()
+                        )
 
     with app_client.sign(mode=SignMode.START_FLOW):
         scenario_navigator.review_approve()
@@ -1033,23 +981,28 @@ def test_gcs_nested_execTransaction_send(scenario_navigator: NavigateWithScenari
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
-            address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99")
+            address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
     # pylint: disable=line-too-long
-    data = contract.encode_abi("execTransaction", [
-        contract.address,
-        Web3.to_wei(0.0042, "ether"),
-        bytes(),
-        0,
-        0,
-        0,
-        0,
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        bytes.fromhex("a974345670d8e06c52eeb7bfe59b1ed0fc879223ff0938c859c3852110c8c58016ec4bf0c68e84d3a40e3ac519f0a0db6954e7c4107fc6985de7dc683603f62a1b"),
-    ])
+    data = contract.encode_abi(
+        "execTransaction",
+        [
+            contract.address,
+            Web3.to_wei(0.0042, "ether"),
+            bytes(),
+            0,
+            0,
+            0,
+            0,
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            bytes.fromhex(
+                "a974345670d8e06c52eeb7bfe59b1ed0fc879223ff0938c859c3852110c8c58016ec4bf0c68e84d3a40e3ac519f0a0db6954e7c4107fc6985de7dc683603f62a1b"
+            ),
+        ],
+    )
     # pylint: enable=line-too-long
 
     tx_params = {
@@ -1059,7 +1012,7 @@ def test_gcs_nested_execTransaction_send(scenario_navigator: NavigateWithScenari
         "gas": 95118,
         "to": bytes.fromhex("C1897a9Acbdd54028dA5f7b76B5833A91553AaF6"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
@@ -1075,34 +1028,25 @@ def test_gcs_nested_execTransaction_send(scenario_navigator: NavigateWithScenari
                 Value(
                     1,
                     TypeFamily.BYTES,
-                    data_path=DataPath(
-                        1,
-                        param_paths["data"]
-                    ),
+                    data_path=DataPath(1, param_paths["data"]),
                 ),
                 Value(
                     1,
                     TypeFamily.ADDRESS,
-                    data_path=DataPath(
-                        1,
-                        param_paths["to"]
-                    ),
+                    data_path=DataPath(1, param_paths["to"]),
                 ),
                 amount=Value(
                     1,
                     TypeFamily.UINT,
                     type_size=32,
-                    data_path=DataPath(
-                        1,
-                        param_paths["value"]
-                    ),
+                    data_path=DataPath(1, param_paths["value"]),
                 ),
                 spender=Value(
                     1,
                     TypeFamily.ADDRESS,
                     container_path=ContainerPath.TO,
                 ),
-            )
+            ),
         ),
     ]
 
@@ -1131,32 +1075,39 @@ def test_gcs_nested_execTransaction_send(scenario_navigator: NavigateWithScenari
 
 
 # https://etherscan.io/tx/0xbeafe22c9e3ddcf85b06f65a56cc3ea8f5b02c323cc433c93c103ad3526db88d
-def test_gcs_nested_execTransaction_addOwnerWithThreshold(scenario_navigator: NavigateWithScenario):
+def test_gcs_nested_execTransaction_addOwnerWithThreshold(
+    scenario_navigator: NavigateWithScenario,
+):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
-            address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99")
+            address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
-    sub_data = contract.encode_abi("addOwnerWithThreshold", [
-        bytes.fromhex("FD6765Ad4eE64668701356a16aB28B123B3A4170"),
-        2
-    ])
+    sub_data = contract.encode_abi(
+        "addOwnerWithThreshold",
+        [bytes.fromhex("FD6765Ad4eE64668701356a16aB28B123B3A4170"), 2],
+    )
     # pylint: disable=line-too-long
-    data = contract.encode_abi("execTransaction", [
-        contract.address,
-        Web3.to_wei(0, "ether"),
-        sub_data,
-        1, # operation
-        0,
-        0,
-        0,
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        bytes.fromhex("c14660c23f715fc85c01326c7fa7f05ddeb71147fc7bad912eace6ee55c24a314f814262b3c8ca64fc77377ce6e65b20bdc902c34931888c433e23ab0069843d1bf3d2dfb18fd6bd807002bffec3326755c928e325981f30e1518e999b348a5f011446931b8bd9fbb152cdc00d945b7cd030c14e48c7826d31f9c09a1376f694de1b"),
-    ])
+    data = contract.encode_abi(
+        "execTransaction",
+        [
+            contract.address,
+            Web3.to_wei(0, "ether"),
+            sub_data,
+            1,  # operation
+            0,
+            0,
+            0,
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            bytes.fromhex(
+                "c14660c23f715fc85c01326c7fa7f05ddeb71147fc7bad912eace6ee55c24a314f814262b3c8ca64fc77377ce6e65b20bdc902c34931888c433e23ab0069843d1bf3d2dfb18fd6bd807002bffec3326755c928e325981f30e1518e999b348a5f011446931b8bd9fbb152cdc00d945b7cd030c14e48c7826d31f9c09a1376f694de1b"
+            ),
+        ],
+    )
     # pylint: enable=line-too-long
 
     tx_params = {
@@ -1166,7 +1117,7 @@ def test_gcs_nested_execTransaction_addOwnerWithThreshold(scenario_navigator: Na
         "gas": 168740,
         "to": contract.address,
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
@@ -1174,170 +1125,140 @@ def test_gcs_nested_execTransaction_addOwnerWithThreshold(scenario_navigator: Na
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", "execTransaction")
     fields = [
-            Field(
+        Field(
+            1,
+            "to",
+            ParamRaw(
                 1,
-                "to",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["to"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["to"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "value",
+            ParamAmount(
                 1,
-                "value",
-                ParamAmount(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["value"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["value"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "data",
+            ParamCalldata(
                 1,
-                "data",
-                ParamCalldata(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["data"]
-                        ),
-                    ),
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["to"]
-                        ),
-                    ),
-                )
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["data"]),
+                ),
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["to"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Operation type",
+            ParamEnum(
                 1,
-                "Operation type",
-                ParamEnum(
+                0,
+                Value(
                     1,
-                    0,
-                    Value(
+                    TypeFamily.UINT,
+                    type_size=1,
+                    data_path=DataPath(
                         1,
-                        TypeFamily.UINT,
-                        type_size=1,
-                        data_path=DataPath(
-                            1,
-                            param_paths["operation"],
-                        ),
+                        param_paths["operation"],
                     ),
                 ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "safeTxGas",
+            ParamRaw(
                 1,
-                "safeTxGas",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["safeTxGas"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["safeTxGas"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "dataGas",
+            ParamRaw(
                 1,
-                "dataGas",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["baseGas"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["baseGas"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "gasPrice",
+            ParamRaw(
                 1,
-                "gasPrice",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["gasPrice"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["gasPrice"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "gasToken",
+            ParamRaw(
                 1,
-                "gasToken",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["gasToken"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["gasToken"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "refundReceiver",
+            ParamRaw(
                 1,
-                "refundReceiver",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["refundReceiver"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["refundReceiver"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "signatures",
+            ParamRaw(
                 1,
-                "signatures",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["signatures"]
-                        ),
-                    ),
-                )
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["signatures"]),
+                ),
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -1357,39 +1278,35 @@ def test_gcs_nested_execTransaction_addOwnerWithThreshold(scenario_navigator: Na
 
     app_client.provide_transaction_info(tx_info.serialize())
 
-    param_paths = get_all_paths(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", "addOwnerWithThreshold")
+    param_paths = get_all_paths(
+        f"{ABIS_FOLDER}/safe_1.4.1.abi.json", "addOwnerWithThreshold"
+    )
     sub_fields = [
-            Field(
+        Field(
+            1,
+            "owner",
+            ParamRaw(
                 1,
-                "owner",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["owner"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["owner"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "_threshold",
+            ParamRaw(
                 1,
-                "_threshold",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_threshold"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["_threshold"]),
+                ),
             ),
+        ),
     ]
     # compute instructions hash
     sub_inst_hash = compute_inst_hash(sub_fields)
@@ -1409,13 +1326,17 @@ def test_gcs_nested_execTransaction_addOwnerWithThreshold(scenario_navigator: Na
         (2, "Unknown"),
     ]
     for enum_val in enum_values:
-        app_client.provide_enum_value(EnumValue(1,
-                                                tx_info.chain_id,
-                                                tx_info.contract_addr,
-                                                tx_info.selector,
-                                                0,
-                                                enum_val[0],
-                                                enum_val[1]).serialize())
+        app_client.provide_enum_value(
+            EnumValue(
+                1,
+                tx_info.chain_id,
+                tx_info.contract_addr,
+                tx_info.selector,
+                0,
+                enum_val[0],
+                enum_val[1],
+            ).serialize()
+        )
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
@@ -1429,7 +1350,9 @@ def test_gcs_nested_execTransaction_addOwnerWithThreshold(scenario_navigator: Na
 
 
 # https://etherscan.io/tx/0x5047fedc98f46d2afd94d0a2813ddf0c8fe777ec0739ffd327586a91e1e5a89a
-def test_gcs_nested_execTransaction_changeThreshold(scenario_navigator: NavigateWithScenario):
+def test_gcs_nested_execTransaction_changeThreshold(
+    scenario_navigator: NavigateWithScenario,
+):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
@@ -1437,26 +1360,29 @@ def test_gcs_nested_execTransaction_changeThreshold(scenario_navigator: Navigate
         pass
     _, wallet_addr, _ = ResponseParser.pk_addr(app_client.response().data)
     with Path(f"{ABIS_FOLDER}/safe_1.4.1.abi.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
-            address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99")
+            address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
-    sub_data = contract.encode_abi("changeThreshold", [
-        3
-    ])
+    sub_data = contract.encode_abi("changeThreshold", [3])
     # pylint: disable=line-too-long
-    data = contract.encode_abi("execTransaction", [
-        contract.address,
-        Web3.to_wei(0, "ether"),
-        sub_data,
-        0,
-        0,
-        0,
-        0,
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        bytes.fromhex("d3a6ddfb9dffe883d609129d9e87dda928a4a9b9d5d2f4a93879d03ccb0d32b12df7dcf9acd9c5f73443c82b0e01183794436a381148cf2fb928f7df776a01701b2fc9ebbc15bfdae0f5ef1b6f4ad1389d31f1dc137e51e7a184e255fd0ed065911ad684bd97ee43892013b4eebdaec528020ed657b92b90562f4df5a18540e4b91b"),
-    ])
+    data = contract.encode_abi(
+        "execTransaction",
+        [
+            contract.address,
+            Web3.to_wei(0, "ether"),
+            sub_data,
+            0,
+            0,
+            0,
+            0,
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            bytes.fromhex(
+                "d3a6ddfb9dffe883d609129d9e87dda928a4a9b9d5d2f4a93879d03ccb0d32b12df7dcf9acd9c5f73443c82b0e01183794436a381148cf2fb928f7df776a01701b2fc9ebbc15bfdae0f5ef1b6f4ad1389d31f1dc137e51e7a184e255fd0ed065911ad684bd97ee43892013b4eebdaec528020ed657b92b90562f4df5a18540e4b91b"
+            ),
+        ],
+    )
     # pylint: enable=line-too-long
 
     tx_params = {
@@ -1466,7 +1392,7 @@ def test_gcs_nested_execTransaction_changeThreshold(scenario_navigator: Navigate
         "gas": 98318,
         "to": contract.address,
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
 
     derivation_path = "m/44'/60'/0'/0/0"
@@ -1475,171 +1401,138 @@ def test_gcs_nested_execTransaction_changeThreshold(scenario_navigator: Navigate
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", "execTransaction")
     fields = [
-            Field(
+        Field(
+            1,
+            "to",
+            ParamTrustedName(
                 1,
-                "to",
-                ParamTrustedName(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["to"]
-                        ),
-                    ),
-                    [TrustedNameType.ACCOUNT],
-                    [TrustedNameSource.MULTISIG_ADDRESS_BOOK],
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["to"]),
+                ),
+                [TrustedNameType.ACCOUNT],
+                [TrustedNameSource.MULTISIG_ADDRESS_BOOK],
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "value",
+            ParamAmount(
                 1,
-                "value",
-                ParamAmount(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["value"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["value"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "data",
+            ParamCalldata(
                 1,
-                "data",
-                ParamCalldata(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["data"]
-                        ),
-                    ),
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["to"]
-                        ),
-                    ),
-                )
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["data"]),
+                ),
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["to"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "operation",
+            ParamRaw(
                 1,
-                "operation",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=1,
-                        data_path=DataPath(
-                            1,
-                            param_paths["operation"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=1,
+                    data_path=DataPath(1, param_paths["operation"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "safeTxGas",
+            ParamRaw(
                 1,
-                "safeTxGas",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["safeTxGas"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["safeTxGas"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "dataGas",
+            ParamRaw(
                 1,
-                "dataGas",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["baseGas"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["baseGas"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "gasPrice",
+            ParamRaw(
                 1,
-                "gasPrice",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["gasPrice"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["gasPrice"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "gasToken",
+            ParamRaw(
                 1,
-                "gasToken",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["gasToken"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["gasToken"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "refundReceiver",
+            ParamRaw(
                 1,
-                "refundReceiver",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["refundReceiver"]
-                        ),
-                    ),
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["refundReceiver"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "signatures",
+            ParamRaw(
                 1,
-                "signatures",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["signatures"]
-                        ),
-                    ),
-                )
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["signatures"]),
+                ),
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -1661,22 +1554,19 @@ def test_gcs_nested_execTransaction_changeThreshold(scenario_navigator: Navigate
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", "changeThreshold")
     sub_fields = [
-            Field(
+        Field(
+            1,
+            "newThreshold",
+            ParamRaw(
                 1,
-                "newThreshold",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        type_size=32,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_threshold"]
-                        ),
-                    ),
-                )
+                    TypeFamily.UINT,
+                    type_size=32,
+                    data_path=DataPath(1, param_paths["_threshold"]),
+                ),
             ),
+        ),
     ]
     # compute instructions hash
     sub_inst_hash = compute_inst_hash(sub_fields)
@@ -1690,15 +1580,19 @@ def test_gcs_nested_execTransaction_changeThreshold(scenario_navigator: Navigate
         "change threshold",
     )
 
-    app_client.provide_trusted_name(TrustedName(2,
-                                                contract.address,
-                                                "My Safe",
-                                                tn_type=TrustedNameType.ACCOUNT,
-                                                tn_source=TrustedNameSource.MULTISIG_ADDRESS_BOOK,
-                                                chain_id=tx_info.chain_id,
-                                                challenge=ResponseParser.challenge(app_client.get_challenge().data),
-                                                owner=wallet_addr,
-                                                owner_deriv_path=derivation_path))
+    app_client.provide_trusted_name(
+        TrustedName(
+            2,
+            contract.address,
+            "My Safe",
+            tn_type=TrustedNameType.ACCOUNT,
+            tn_source=TrustedNameSource.MULTISIG_ADDRESS_BOOK,
+            chain_id=tx_info.chain_id,
+            challenge=ResponseParser.challenge(app_client.get_challenge().data),
+            owner=wallet_addr,
+            owner_deriv_path=derivation_path,
+        )
+    )
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
@@ -1716,29 +1610,32 @@ def test_gcs_nested_no_param(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as f:
-        sub_contract = Web3().eth.contract(
+        sub_contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
-            address=bytes.fromhex("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
+            address=bytes.fromhex("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
         )
     sub_data = sub_contract.encode_abi("totalSupply", [])
 
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
-            address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99")
+            address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
-    data = contract.encode_abi("execTransaction", [
-        sub_contract.address,
-        Web3.to_wei(0, "ether"),
-        sub_data,
-        0,
-        0,
-        0,
-        0,
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        bytes(),
-    ])
+    data = contract.encode_abi(
+        "execTransaction",
+        [
+            sub_contract.address,
+            Web3.to_wei(0, "ether"),
+            sub_data,
+            0,
+            0,
+            0,
+            0,
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            bytes(),
+        ],
+    )
 
     tx_params = {
         "nonce": 79,
@@ -1747,7 +1644,7 @@ def test_gcs_nested_no_param(scenario_navigator: NavigateWithScenario):
         "gas": 5118,
         "to": contract.address,
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
@@ -1763,20 +1660,14 @@ def test_gcs_nested_no_param(scenario_navigator: NavigateWithScenario):
                 Value(
                     1,
                     TypeFamily.BYTES,
-                    data_path=DataPath(
-                        1,
-                        param_paths["data"]
-                    ),
+                    data_path=DataPath(1, param_paths["data"]),
                 ),
                 Value(
                     1,
                     TypeFamily.ADDRESS,
-                    data_path=DataPath(
-                        1,
-                        param_paths["to"]
-                    ),
+                    data_path=DataPath(1, param_paths["to"]),
                 ),
-            )
+            ),
         ),
     ]
 
@@ -1823,9 +1714,9 @@ def test_gcs_no_param(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
-            address=bytes.fromhex("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
+            address=bytes.fromhex("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
         )
     data = contract.encode_abi("totalSupply", [])
 
@@ -1836,7 +1727,7 @@ def test_gcs_no_param(scenario_navigator: NavigateWithScenario):
         "gas": 5118,
         "to": contract.address,
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
@@ -1864,7 +1755,7 @@ def test_gcs_trusted_name_token(scenario_navigator: NavigateWithScenario):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
-    tokens = [
+    tokens: list[dict[str, Any]] = [
         {
             "name": "WETH",
             "address": bytes.fromhex("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
@@ -1876,23 +1767,23 @@ def test_gcs_trusted_name_token(scenario_navigator: NavigateWithScenario):
     ]
 
     with open(f"{ABIS_FOLDER}/1inch.abi.json", encoding="utf-8") as file:
-        contract = Web3().eth.contract(
-            abi=json.load(file),
-            address=None
-        )
-    data = contract.encode_abi("swap", [
-        bytes.fromhex("F313B370D28760b98A2E935E56Be92Feb2c4EC04"),
+        contract = Web3().eth.contract(abi=json.load(file), address=None)
+    data = contract.encode_abi(
+        "swap",
         [
-            tokens[0]["address"],
-            tokens[1]["address"],
             bytes.fromhex("F313B370D28760b98A2E935E56Be92Feb2c4EC04"),
-            bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
-            Web3.to_wei(0.22, "ether"),
-            682119805,
-            0,
+            [
+                tokens[0]["address"],
+                tokens[1]["address"],
+                bytes.fromhex("F313B370D28760b98A2E935E56Be92Feb2c4EC04"),
+                bytes.fromhex("Dad77910DbDFdE764fC21FCD4E74D71bBACA6D8D"),
+                Web3.to_wei(0.22, "ether"),
+                682119805,
+                0,
+            ],
+            bytes(),
         ],
-        bytes(),
-    ])
+    )
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -1901,47 +1792,41 @@ def test_gcs_trusted_name_token(scenario_navigator: NavigateWithScenario):
         # Aggregation Router V6
         "to": bytes.fromhex("111111125421cA6dc452d289314280a0f8842A65"),
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
 
     param_paths = get_all_tuple_paths(f"{ABIS_FOLDER}/1inch.abi.json", "swap", "desc")
     fields = [
-            Field(
+        Field(
+            1,
+            "Send token",
+            ParamTrustedName(
                 1,
-                "Send token",
-                ParamTrustedName(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["srcToken"]
-                        ),
-                    ),
-                    [TrustedNameType.TOKEN],
-                    [TrustedNameSource.CAL],
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["srcToken"]),
+                ),
+                [TrustedNameType.TOKEN],
+                [TrustedNameSource.CAL],
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Receive token",
+            ParamTrustedName(
                 1,
-                "Receive token",
-                ParamTrustedName(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["dstToken"]
-                        ),
-                    ),
-                    [TrustedNameType.TOKEN],
-                    [TrustedNameSource.CAL],
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["dstToken"]),
+                ),
+                [TrustedNameType.TOKEN],
+                [TrustedNameSource.CAL],
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -1957,20 +1842,24 @@ def test_gcs_trusted_name_token(scenario_navigator: NavigateWithScenario):
         creator_legal_name="1inch Network",
         creator_url="1inch.io",
         contract_name="Aggregation Router V6",
-        deploy_date=1707724800
+        deploy_date=1707724800,
     )
 
     app_client.provide_transaction_info(tx_info.serialize())
 
     for i, field in enumerate(fields):
         challenge = ResponseParser.challenge(app_client.get_challenge().data)
-        app_client.provide_trusted_name(TrustedName(2,
-                                                    tokens[i]["address"],
-                                                    tokens[i]["name"],
-                                                    tn_type=TrustedNameType.TOKEN,
-                                                    tn_source=TrustedNameSource.CAL,
-                                                    chain_id=tx_params["chainId"],
-                                                    challenge=challenge))
+        app_client.provide_trusted_name(
+            TrustedName(
+                2,
+                tokens[i]["address"],
+                tokens[i]["name"],
+                tn_type=TrustedNameType.TOKEN,
+                tn_source=TrustedNameSource.CAL,
+                chain_id=tx_params["chainId"],
+                challenge=challenge,
+            )
+        )
         app_client.provide_transaction_field_desc(field.serialize())
 
     with app_client.sign(mode=SignMode.START_FLOW):
@@ -1981,7 +1870,7 @@ def test_gcs_batch(scenario_navigator: NavigateWithScenario):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
-    tokens = [
+    tokens: list[dict[str, Any]] = [
         {
             "ticker": "USDT",
             "address": bytes.fromhex("dac17f958d2ee523a2206206994597c13d831ec7"),
@@ -1994,37 +1883,34 @@ def test_gcs_batch(scenario_navigator: NavigateWithScenario):
         },
     ]
     with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
-            abi=json.load(f),
-            address=None
-        )
-    data0 = contract.encode_abi("transfer", [
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        int(500 * pow(10, tokens[0]["decimals"])),
-    ])
-    data1 = contract.encode_abi("transfer", [
-        bytes.fromhex("1111111111111111111111111111111111111111"),
-        int(0.25 * pow(10, tokens[1]["decimals"])),
-    ])
+        contract = Web3().eth.contract(abi=json.load(f), address=None)
+    data0 = contract.encode_abi(
+        "transfer",
+        [
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            int(500 * pow(10, tokens[0]["decimals"])),
+        ],
+    )
+    data1 = contract.encode_abi(
+        "transfer",
+        [
+            bytes.fromhex("1111111111111111111111111111111111111111"),
+            int(0.25 * pow(10, tokens[1]["decimals"])),
+        ],
+    )
 
     with open(f"{ABIS_FOLDER}/batch.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
-            abi=json.load(f),
-            address=tokens[1]["address"]
-        )
+        contract = Web3().eth.contract(abi=json.load(f), address=tokens[1]["address"])
 
-    data = contract.encode_abi("batchExecute", [[
-        (
-            tokens[0]["address"],
-            Web3.to_wei(0, "ether"),
-            data0
-        ),
-        (
-            tokens[1]["address"],
-            Web3.to_wei(0, "ether"),
-            data1
-        ),
-    ]])
+    data = contract.encode_abi(
+        "batchExecute",
+        [
+            [
+                (tokens[0]["address"], Web3.to_wei(0, "ether"), data0),
+                (tokens[1]["address"], Web3.to_wei(0, "ether"), data1),
+            ]
+        ],
+    )
 
     tx_params = {
         "nonce": 79,
@@ -2033,7 +1919,7 @@ def test_gcs_batch(scenario_navigator: NavigateWithScenario):
         "gas": 5118,
         "to": contract.address,
         "data": data,
-        "chainId": 1
+        "chainId": 1,
     }
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
@@ -2041,77 +1927,64 @@ def test_gcs_batch(scenario_navigator: NavigateWithScenario):
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/erc20.json", "transfer")
     sub_fields = [
-            Field(
+        Field(
+            1,
+            "To",
+            ParamRaw(
                 1,
-                "To",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_to"]
-                        ),
-                    )
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["_to"]),
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Amount",
+            ParamTokenAmount(
                 1,
-                "Amount",
-                ParamTokenAmount(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        32,
-                        DataPath(
-                            1,
-                            param_paths["_value"]
-                        ),
-                    ),
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        container_path=ContainerPath.TO,
-                    ),
-                )
+                    TypeFamily.UINT,
+                    32,
+                    DataPath(1, param_paths["_value"]),
+                ),
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    container_path=ContainerPath.TO,
+                ),
             ),
+        ),
     ]
 
-    param_paths = get_all_tuple_array_paths(f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls")
+    param_paths = get_all_tuple_array_paths(
+        f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls"
+    )
     fields = [
-            Field(
+        Field(
+            1,
+            "Destination",
+            ParamCalldata(
                 1,
-                "Destination",
-                ParamCalldata(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["data"]
-                        ),
-                    ),
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["to"]
-                        ),
-                    ),
-                    amount=Value(
-                        1,
-                        TypeFamily.UINT,
-                        data_path=DataPath(
-                            1,
-                            param_paths["value"]
-                        ),
-                    ),
-                )
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["data"]),
+                ),
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["to"]),
+                ),
+                amount=Value(
+                    1,
+                    TypeFamily.UINT,
+                    data_path=DataPath(1, param_paths["value"]),
+                ),
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -2150,16 +2023,18 @@ def test_gcs_batch(scenario_navigator: NavigateWithScenario):
             get_selector_from_data(data1),
             sub_inst_hash,
             "Transfer token",
-        )
+        ),
     ]
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
         for idx, sub_info in enumerate(sub_tx_info):
-            app_client.provide_token_metadata(tokens[idx]["ticker"],
-                                              tokens[idx]["address"],
-                                              tokens[idx]["decimals"],
-                                              tx_params["chainId"])
+            app_client.provide_token_metadata(
+                tokens[idx]["ticker"],
+                tokens[idx]["address"],
+                tokens[idx]["decimals"],
+                tx_params["chainId"],
+            )
             app_client.provide_transaction_info(sub_info.serialize())
             for sub_field in sub_fields:
                 app_client.provide_transaction_field_desc(sub_field.serialize())
@@ -2173,7 +2048,7 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
     app_client = EthAppClient(backend)
 
     # Define tokens
-    tokens = [
+    tokens: list[dict[str, Any]] = [
         {
             "ticker": "USDC",
             "address": bytes.fromhex("3c499c542cef5e3811e1192ce70d8cc03d5c3359"),
@@ -2187,58 +2062,58 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
     ]
     # Encode token transfer data
     with open(f"{ABIS_FOLDER}/erc20.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
-            abi=json.load(f),
-            address=None
-        )
-    tokenData0 = contract.encode_abi("transfer", [
-        bytes.fromhex("B8C8EB8EFC68796E766F6AB320DB8C165C064949"),
-        int(0.004 * pow(10, tokens[0]["decimals"])),
-    ])
-    tokenData1 = contract.encode_abi("transfer", [
-        bytes.fromhex("4DDA64E1EC1A2C00D0766F25877F6A3BC77F717E"),
-        int(0.008 * pow(10, tokens[1]["decimals"])),
-    ])
+        contract = Web3().eth.contract(abi=json.load(f), address=None)
+    tokenData0 = contract.encode_abi(
+        "transfer",
+        [
+            bytes.fromhex("B8C8EB8EFC68796E766F6AB320DB8C165C064949"),
+            int(0.004 * pow(10, tokens[0]["decimals"])),
+        ],
+    )
+    tokenData1 = contract.encode_abi(
+        "transfer",
+        [
+            bytes.fromhex("4DDA64E1EC1A2C00D0766F25877F6A3BC77F717E"),
+            int(0.008 * pow(10, tokens[1]["decimals"])),
+        ],
+    )
 
     # Encode batchExecute data using token transfer data
     with open(f"{ABIS_FOLDER}/batch.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
-            abi=json.load(f),
-            address=tokens[1]["address"]
-        )
-    batchData = contract.encode_abi("batchExecute", [[
-        (
-            tokens[0]["address"],
-            Web3.to_wei(0, "ether"),
-            tokenData0
-        ),
-        (
-            tokens[1]["address"],
-            Web3.to_wei(0, "ether"),
-            tokenData1
-        ),
-    ]])
+        contract = Web3().eth.contract(abi=json.load(f), address=tokens[1]["address"])
+    batchData = contract.encode_abi(
+        "batchExecute",
+        [
+            [
+                (tokens[0]["address"], Web3.to_wei(0, "ether"), tokenData0),
+                (tokens[1]["address"], Web3.to_wei(0, "ether"), tokenData1),
+            ]
+        ],
+    )
 
     # pylint: disable=line-too-long
     # Encode execTransaction data using batchExecute data
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
-            address=bytes.fromhex("60aa01971a2adc1d6b2b59b972fb47b2fec095fc")
+            address=bytes.fromhex("60aa01971a2adc1d6b2b59b972fb47b2fec095fc"),
         )
     execDataSignature = "93a3e6ff4d0798d51ba53f5d8287326adbe3e22dd0dc28bdbfab825be357ce8c76a13b8128f5d91530af675925220ede099e0f0a51af3a65760060d4b37db9281c"
-    execTxData = contract.encode_abi("execTransaction", [
-        contract.address,
-        0,
-        batchData,
-        1,
-        0,
-        0,
-        0,
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        bytes.fromhex("0000000000000000000000000000000000000000"),
-        bytes.fromhex(execDataSignature),
-    ])
+    execTxData = contract.encode_abi(
+        "execTransaction",
+        [
+            contract.address,
+            0,
+            batchData,
+            1,
+            0,
+            0,
+            0,
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            bytes.fromhex("0000000000000000000000000000000000000000"),
+            bytes.fromhex(execDataSignature),
+        ],
+    )
     # pylint: enable=line-too-long
 
     # Define top level transaction parameters
@@ -2249,7 +2124,7 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
         "gas": 109012,
         "to": bytes.fromhex("19a4d6928cd3b32Fa4Eb3962bfF1Abca91EB7C52"),
         "data": execTxData,
-        "chainId": 137
+        "chainId": 137,
     }
 
     # Store transaction parameters on the device
@@ -2272,7 +2147,7 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
                 ),
                 [TrustedNameType.CONTRACT],
                 [TrustedNameSource.CAL],
-            )
+            ),
         ),
         Field(
             1,
@@ -2286,7 +2161,7 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
                 ),
                 [TrustedNameType.ACCOUNT],
                 [TrustedNameSource.ENS, TrustedNameSource.UD, TrustedNameSource.FN],
-            )
+            ),
         ),
         Field(
             1,
@@ -2296,34 +2171,25 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
                 Value(
                     1,
                     TypeFamily.BYTES,
-                    data_path=DataPath(
-                        1,
-                        param_paths["data"]
-                    ),
+                    data_path=DataPath(1, param_paths["data"]),
                 ),
                 Value(
                     1,
                     TypeFamily.ADDRESS,
-                    data_path=DataPath(
-                        1,
-                        param_paths["to"]
-                    ),
+                    data_path=DataPath(1, param_paths["to"]),
                 ),
                 amount=Value(
                     1,
                     TypeFamily.UINT,
                     type_size=32,
-                    data_path=DataPath(
-                        1,
-                        param_paths["value"]
-                    ),
+                    data_path=DataPath(1, param_paths["value"]),
                 ),
                 spender=Value(
                     1,
                     TypeFamily.ADDRESS,
                     container_path=ContainerPath.TO,
                 ),
-            )
+            ),
         ),
         Field(
             1,
@@ -2334,12 +2200,9 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
                     1,
                     TypeFamily.UINT,
                     type_size=32,
-                    data_path=DataPath(
-                        1,
-                        param_paths["safeTxGas"]
-                    ),
+                    data_path=DataPath(1, param_paths["safeTxGas"]),
                 ),
-            )
+            ),
         ),
         Field(
             1,
@@ -2350,21 +2213,15 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
                     1,
                     TypeFamily.UINT,
                     type_size=32,
-                    data_path=DataPath(
-                        1,
-                        param_paths["baseGas"]
-                    ),
+                    data_path=DataPath(1, param_paths["baseGas"]),
                 ),
                 Value(
                     1,
                     TypeFamily.ADDRESS,
-                    data_path=DataPath(
-                        1,
-                        param_paths["gasPrice"]
-                    ),
+                    data_path=DataPath(1, param_paths["gasPrice"]),
                 ),
-                [bytes.fromhex("0000000000000000000000000000000000000000")]
-            )
+                [bytes.fromhex("0000000000000000000000000000000000000000")],
+            ),
         ),
         Field(
             1,
@@ -2374,14 +2231,20 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
                 Value(
                     1,
                     TypeFamily.ADDRESS,
-                    data_path=DataPath(
-                        1,
-                        param_paths["refundReceiver"]
-                    ),
+                    data_path=DataPath(1, param_paths["refundReceiver"]),
                 ),
-                [TrustedNameType.ACCOUNT, TrustedNameType.CONTRACT, TrustedNameType.TOKEN],
-                [TrustedNameSource.CAL, TrustedNameSource.ENS, TrustedNameSource.UD, TrustedNameSource.FN],
-            )
+                [
+                    TrustedNameType.ACCOUNT,
+                    TrustedNameType.CONTRACT,
+                    TrustedNameType.TOKEN,
+                ],
+                [
+                    TrustedNameSource.CAL,
+                    TrustedNameSource.ENS,
+                    TrustedNameSource.UD,
+                    TrustedNameSource.FN,
+                ],
+            ),
         ),
     ]
     # compute instructions hash
@@ -2402,40 +2265,33 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
     )
 
     print(f"{'~' * 20} DEBUG L1 {'~' * 20}")
-    param_paths = get_all_tuple_array_paths(f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls")
+    param_paths = get_all_tuple_array_paths(
+        f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls"
+    )
     # Intermediate execTransaction transaction fields definition
     L1_fields = [
-            Field(
+        Field(
+            1,
+            "Transaction",
+            ParamCalldata(
                 1,
-                "Transaction",
-                ParamCalldata(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["data"]
-                        ),
-                    ),
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["to"]
-                        ),
-                    ),
-                    amount=Value(
-                        1,
-                        TypeFamily.UINT,
-                        data_path=DataPath(
-                            1,
-                            param_paths["value"]
-                        ),
-                    ),
-                )
+                    TypeFamily.BYTES,
+                    data_path=DataPath(1, param_paths["data"]),
+                ),
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["to"]),
+                ),
+                amount=Value(
+                    1,
+                    TypeFamily.UINT,
+                    data_path=DataPath(1, param_paths["value"]),
+                ),
             ),
+        ),
     ]
     # compute instructions hash
     L1_hash = compute_inst_hash(L1_fields)
@@ -2460,42 +2316,36 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
     param_paths = get_all_paths(f"{ABIS_FOLDER}/erc20.json", "transfer")
     # Lower batchExecute transaction fields definition
     L2_fields = [
-            Field(
+        Field(
+            1,
+            "Amount",
+            ParamTokenAmount(
                 1,
-                "Amount",
-                ParamTokenAmount(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.UINT,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_value"]
-                        ),
-                        type_size=32,
-                    ),
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        container_path=ContainerPath.TO,
-                    ),
-                )
+                    TypeFamily.UINT,
+                    data_path=DataPath(1, param_paths["_value"]),
+                    type_size=32,
+                ),
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    container_path=ContainerPath.TO,
+                ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "To",
+            ParamRaw(
                 1,
-                "To",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_to"]
-                        ),
-                    )
-                )
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(1, param_paths["_to"]),
+                ),
             ),
+        ),
     ]
     # compute instructions hash
     L2_hash = compute_inst_hash(L2_fields)
@@ -2519,7 +2369,7 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
             L2_hash,
             "Send",
             contract_name="USD_Coin",
-        )
+        ),
     ]
 
     proxy_info = ProxyInfo(
@@ -2535,7 +2385,9 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
     # Send Network information (name, ticker, icon)
     name, ticker, icon = get_network_config(backend.device.type, tx_params["chainId"])
     if name and ticker:
-        app_client.provide_network_information(DynamicNetwork(name, ticker, tx_params["chainId"], icon))
+        app_client.provide_network_information(
+            DynamicNetwork(name, ticker, tx_params["chainId"], icon)
+        )
 
     # Send top level transaction info
     app_client.provide_transaction_info(L0_tx_info.serialize())
@@ -2557,10 +2409,12 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
                 for idx, i2 in enumerate(L2_tx_info):
                     # Send lower batchExecute info description
                     app_client.provide_transaction_info(i2.serialize())
-                    app_client.provide_token_metadata(tokens[idx]["ticker"],
-                                                      tokens[idx]["address"],
-                                                      tokens[idx]["decimals"],
-                                                      tx_params["chainId"])
+                    app_client.provide_token_metadata(
+                        tokens[idx]["ticker"],
+                        tokens[idx]["address"],
+                        tokens[idx]["decimals"],
+                        tx_params["chainId"],
+                    )
                     for f2 in L2_fields:
                         # Send lower batchExecute fields description
                         app_client.provide_transaction_field_desc(f2.serialize())
@@ -2575,18 +2429,23 @@ def test_gcs_batch_empty_tx(scenario_navigator: NavigateWithScenario) -> None:
     app_client = EthAppClient(backend)
 
     with Path(f"{ABIS_FOLDER}/batch.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("2cc8475177918e8C4d840150b68815A4b6f0f5f3"),
         )
 
-    data = contract.encode_abi("batchExecute", [[
-        (
-            bytes.fromhex("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
-            Web3.to_wei(0.0, "ether"),
-            b"",
-        ),
-    ]])
+    data = contract.encode_abi(
+        "batchExecute",
+        [
+            [
+                (
+                    bytes.fromhex("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+                    Web3.to_wei(0.0, "ether"),
+                    b"",
+                ),
+            ]
+        ],
+    )
     tx_params = {
         "nonce": 79,
         "maxFeePerGas": Web3.to_wei(4.8, "gwei"),
@@ -2598,31 +2457,33 @@ def test_gcs_batch_empty_tx(scenario_navigator: NavigateWithScenario) -> None:
     }
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
-    param_paths = get_all_tuple_array_paths(f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls")
+    param_paths = get_all_tuple_array_paths(
+        f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls"
+    )
     fields = [
-            Field(
+        Field(
+            1,
+            "Destination",
+            ParamCalldata(
                 1,
-                "Destination",
-                ParamCalldata(
+                Value(
                     1,
-                    Value(
+                    TypeFamily.BYTES,
+                    data_path=DataPath(
                         1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["data"],
-                        ),
+                        param_paths["data"],
                     ),
-                    Value(
+                ),
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(
                         1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["to"],
-                        ),
+                        param_paths["to"],
                     ),
                 ),
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -2653,7 +2514,7 @@ def test_gcs_batch_complex(scenario_navigator: NavigateWithScenario) -> None:
     with app_client.get_public_addr(bip32_path="m/44'/60'/0'/0/0", display=False):
         pass
     _, wallet_addr, _ = ResponseParser.pk_addr(app_client.response().data)
-    tokens = [
+    tokens: list[dict[str, Any]] = [
         {
             "ticker": "USDT",
             "address": bytes.fromhex("dac17f958d2ee523a2206206994597c13d831ec7"),
@@ -2670,48 +2531,59 @@ def test_gcs_batch_complex(scenario_navigator: NavigateWithScenario) -> None:
             abi=json.load(f),
             address=None,
         )
-    data0 = contract.encode_abi("transfer", [
-        bytes.fromhex("1111111111111111111111111111111111111111"),
-        int(1.1 * pow(10, tokens[0]["decimals"])),
-    ])
-    data1 = contract.encode_abi("transfer", [
-        bytes.fromhex("3333333333333333333333333333333333333333"),
-        int(3.3 * pow(10, tokens[1]["decimals"])),
-    ])
+    data0 = contract.encode_abi(
+        "transfer",
+        [
+            bytes.fromhex("1111111111111111111111111111111111111111"),
+            int(1.1 * pow(10, tokens[0]["decimals"])),
+        ],
+    )
+    data1 = contract.encode_abi(
+        "transfer",
+        [
+            bytes.fromhex("3333333333333333333333333333333333333333"),
+            int(3.3 * pow(10, tokens[1]["decimals"])),
+        ],
+    )
 
     with Path(f"{ABIS_FOLDER}/batch.json").open(encoding="utf-8") as f:
-        contract = Web3().eth.contract(
+        contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("2cc8475177918e8C4d840150b68815A4b6f0f5f3"),
         )
 
-    data = contract.encode_abi("batchExecute", [[
-        (
-            bytes.fromhex("0000000000000000000000000000000000000000"),
-            Web3.to_wei(0.0, "ether"),
-            b"",
-        ),
-        (
-            tokens[0]["address"],
-            Web3.to_wei(0, "ether"),
-            data0,
-        ),
-        (
-            bytes.fromhex("2222222222222222222222222222222222222222"),
-            Web3.to_wei(2.2, "ether"),
-            b"",
-        ),
-        (
-            tokens[1]["address"],
-            Web3.to_wei(0, "ether"),
-            data1,
-        ),
-        (
-            bytes.fromhex("4444444444444444444444444444444444444444"),
-            Web3.to_wei(4.4, "ether"),
-            b"",
-        ),
-    ]])
+    data = contract.encode_abi(
+        "batchExecute",
+        [
+            [
+                (
+                    bytes.fromhex("0000000000000000000000000000000000000000"),
+                    Web3.to_wei(0.0, "ether"),
+                    b"",
+                ),
+                (
+                    tokens[0]["address"],
+                    Web3.to_wei(0, "ether"),
+                    data0,
+                ),
+                (
+                    bytes.fromhex("2222222222222222222222222222222222222222"),
+                    Web3.to_wei(2.2, "ether"),
+                    b"",
+                ),
+                (
+                    tokens[1]["address"],
+                    Web3.to_wei(0, "ether"),
+                    data1,
+                ),
+                (
+                    bytes.fromhex("4444444444444444444444444444444444444444"),
+                    Web3.to_wei(4.4, "ether"),
+                    b"",
+                ),
+            ]
+        ],
+    )
 
     tx_params = {
         "nonce": 79,
@@ -2729,77 +2601,79 @@ def test_gcs_batch_complex(scenario_navigator: NavigateWithScenario) -> None:
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/erc20.json", "transfer")
     sub_fields = [
-            Field(
+        Field(
+            1,
+            "To",
+            ParamRaw(
                 1,
-                "To",
-                ParamRaw(
+                Value(
                     1,
-                    Value(
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(
                         1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["_to"],
-                        ),
+                        param_paths["_to"],
                     ),
                 ),
             ),
-            Field(
+        ),
+        Field(
+            1,
+            "Amount",
+            ParamTokenAmount(
                 1,
-                "Amount",
-                ParamTokenAmount(
+                Value(
                     1,
-                    Value(
+                    TypeFamily.UINT,
+                    32,
+                    DataPath(
                         1,
-                        TypeFamily.UINT,
-                        32,
-                        DataPath(
-                            1,
-                            param_paths["_value"],
-                        ),
-                    ),
-                    Value(
-                        1,
-                        TypeFamily.ADDRESS,
-                        container_path=ContainerPath.TO,
+                        param_paths["_value"],
                     ),
                 ),
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    container_path=ContainerPath.TO,
+                ),
             ),
+        ),
     ]
 
-    param_paths = get_all_tuple_array_paths(f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls")
+    param_paths = get_all_tuple_array_paths(
+        f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls"
+    )
     fields = [
-            Field(
+        Field(
+            1,
+            "Destination",
+            ParamCalldata(
                 1,
-                "Destination",
-                ParamCalldata(
+                Value(
                     1,
-                    Value(
+                    TypeFamily.BYTES,
+                    data_path=DataPath(
                         1,
-                        TypeFamily.BYTES,
-                        data_path=DataPath(
-                            1,
-                            param_paths["data"],
-                        ),
+                        param_paths["data"],
                     ),
-                    Value(
+                ),
+                Value(
+                    1,
+                    TypeFamily.ADDRESS,
+                    data_path=DataPath(
                         1,
-                        TypeFamily.ADDRESS,
-                        data_path=DataPath(
-                            1,
-                            param_paths["to"],
-                        ),
+                        param_paths["to"],
                     ),
-                    amount=Value(
+                ),
+                amount=Value(
+                    1,
+                    TypeFamily.UINT,
+                    data_path=DataPath(
                         1,
-                        TypeFamily.UINT,
-                        data_path=DataPath(
-                            1,
-                            param_paths["value"],
-                        ),
+                        param_paths["value"],
                     ),
                 ),
             ),
+        ),
     ]
 
     # compute instructions hash
@@ -2818,23 +2692,31 @@ def test_gcs_batch_complex(scenario_navigator: NavigateWithScenario) -> None:
 
     app_client.provide_transaction_info(tx_info.serialize())
 
-    app_client.provide_trusted_name(TrustedName(2,
-                                                b"\x00" * 20,
-                                                "null.eth",
-                                                tn_type=TrustedNameType.ACCOUNT,
-                                                tn_source=TrustedNameSource.ENS,
-                                                chain_id=tx_params["chainId"],
-                                                challenge=ResponseParser.challenge(app_client.get_challenge().data)))
+    app_client.provide_trusted_name(
+        TrustedName(
+            2,
+            b"\x00" * 20,
+            "null.eth",
+            tn_type=TrustedNameType.ACCOUNT,
+            tn_source=TrustedNameSource.ENS,
+            chain_id=tx_params["chainId"],
+            challenge=ResponseParser.challenge(app_client.get_challenge().data),
+        )
+    )
 
-    app_client.provide_trusted_name(TrustedName(2,
-                                                b"\x44" * 20,
-                                                "FOUR",
-                                                tn_type=TrustedNameType.ACCOUNT,
-                                                tn_source=TrustedNameSource.MULTISIG_ADDRESS_BOOK,
-                                                chain_id=tx_params["chainId"],
-                                                challenge=ResponseParser.challenge(app_client.get_challenge().data),
-                                                owner=wallet_addr,
-                                                owner_deriv_path=derivation_path))
+    app_client.provide_trusted_name(
+        TrustedName(
+            2,
+            b"\x44" * 20,
+            "FOUR",
+            tn_type=TrustedNameType.ACCOUNT,
+            tn_source=TrustedNameSource.MULTISIG_ADDRESS_BOOK,
+            chain_id=tx_params["chainId"],
+            challenge=ResponseParser.challenge(app_client.get_challenge().data),
+            owner=wallet_addr,
+            owner_deriv_path=derivation_path,
+        )
+    )
 
     # compute instructions hash
     sub_inst_hash = compute_inst_hash(sub_fields)
@@ -2861,10 +2743,12 @@ def test_gcs_batch_complex(scenario_navigator: NavigateWithScenario) -> None:
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
         for idx, sub_info in enumerate(sub_tx_info):
-            app_client.provide_token_metadata(tokens[idx]["ticker"],
-                                              tokens[idx]["address"],
-                                              tokens[idx]["decimals"],
-                                              tx_params["chainId"])
+            app_client.provide_token_metadata(
+                tokens[idx]["ticker"],
+                tokens[idx]["address"],
+                tokens[idx]["decimals"],
+                tx_params["chainId"],
+            )
             app_client.provide_transaction_info(sub_info.serialize())
             for sub_field in sub_fields:
                 app_client.provide_transaction_field_desc(sub_field.serialize())
