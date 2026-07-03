@@ -1,6 +1,6 @@
 import json
-from typing import List, Optional
-from client.gcs import PathTuple, PathRef, PathArray, PathLeaf, PathLeafType
+
+from client.gcs import PathArray, PathLeaf, PathLeafType, PathRef, PathTuple
 
 
 def is_dynamic_type(param_type: str, param: dict) -> bool:
@@ -20,7 +20,7 @@ def is_dynamic_type(param_type: str, param: dict) -> bool:
     return False
 
 
-def get_function_params(abi_filename: str, function_name: str) -> List[str]:
+def get_function_params(abi_filename: str, function_name: str) -> list[str]:
     """
     Get list of parameter names for a function.
 
@@ -31,23 +31,18 @@ def get_function_params(abi_filename: str, function_name: str) -> List[str]:
     Returns:
         List of parameter names
     """
-    with open(abi_filename, "r", encoding="utf-8") as f:
+    with open(abi_filename, encoding="utf-8") as f:
         abi = json.load(f)
 
     # Find the function in ABI
     for item in abi:
         if item.get("type") == "function" and item.get("name") == function_name:
-            return [
-                p.get("name", f"param_{i}")
-                for i, p in enumerate(item.get("inputs", []))
-            ]
+            return [p.get("name", f"param_{i}") for i, p in enumerate(item.get("inputs", []))]
 
     raise ValueError(f"Function '{function_name}' not found in ABI")
 
 
-def get_tuple_fields(
-    abi_filename: str, function_name: str, tuple_param: str
-) -> List[str]:
+def get_tuple_fields(abi_filename: str, function_name: str, tuple_param: str) -> list[str]:
     """
     Get list of field names inside a tuple parameter.
 
@@ -59,7 +54,7 @@ def get_tuple_fields(
     Returns:
         List of field names in the tuple
     """
-    with open(abi_filename, "r", encoding="utf-8") as f:
+    with open(abi_filename, encoding="utf-8") as f:
         abi = json.load(f)
 
     # Find the function
@@ -70,17 +65,14 @@ def get_tuple_fields(
                 if param.get("name") == tuple_param:
                     if "components" not in param:
                         raise ValueError(f"Parameter '{tuple_param}' is not a tuple")
-                    return [
-                        c.get("name", f"field_{i}")
-                        for i, c in enumerate(param["components"])
-                    ]
+                    return [c.get("name", f"field_{i}") for i, c in enumerate(param["components"])]
 
             raise ValueError(f"Tuple parameter '{tuple_param}' not found")
 
     raise ValueError(f"Function '{function_name}' not found in ABI")
 
 
-def get_path(abi_filename: str, function_name: str, param_name: str) -> List:
+def get_path(abi_filename: str, function_name: str, param_name: str) -> list:
     """
     Get the DataPath components for a specific parameter.
 
@@ -92,7 +84,7 @@ def get_path(abi_filename: str, function_name: str, param_name: str) -> List:
     Returns:
         List of DataPath components [PathTuple, PathRef, etc.]
     """
-    with open(abi_filename, "r", encoding="utf-8") as f:
+    with open(abi_filename, encoding="utf-8") as f:
         abi = json.load(f)
 
     # Find the function in ABI
@@ -111,18 +103,13 @@ def get_path(abi_filename: str, function_name: str, param_name: str) -> List:
             return build_path(param, idx)
 
     # If not found, list available parameters for debugging
-    available = [
-        p.get("name", f"param_{i}") for i, p in enumerate(function_abi["inputs"])
-    ]
+    available = [p.get("name", f"param_{i}") for i, p in enumerate(function_abi["inputs"])]
     raise ValueError(
-        f"Parameter '{param_name}' not found in function '{function_name}'. "
-        f"Available parameters: {', '.join(available)}"
+        f"Parameter '{param_name}' not found in function '{function_name}'. Available parameters: {', '.join(available)}"
     )
 
 
-def build_path(
-    param: dict, tuple_index: int, parent_path: Optional[List] = None
-) -> List:
+def build_path(param: dict, tuple_index: int, parent_path: list | None = None) -> list:
     """
     Build the path components for a parameter.
 
@@ -131,7 +118,7 @@ def build_path(
     if parent_path is None:
         parent_path = []
 
-    path = parent_path + [PathTuple(tuple_index)]
+    path = [*parent_path, PathTuple(tuple_index)]
     param_type = param["type"]
 
     # Check if the parameter is dynamic
@@ -173,7 +160,7 @@ def get_nested_path(
     nested_abi: str,
     nested_function: str,
     nested_param: str,
-) -> List:
+) -> list:
     """
     Get the DataPath for a nested parameter inside a calldata field.
 
@@ -204,8 +191,8 @@ def get_path_in_array(
     abi_filename: str,
     function_name: str,
     array_param: str,
-    element_index: Optional[int] = None,
-) -> List:
+    element_index: int | None = None,
+) -> list:
     """
     Get the DataPath for an element inside an array parameter.
 
@@ -233,9 +220,7 @@ def get_path_in_array(
     return path
 
 
-def get_path_in_tuple(
-    abi_filename: str, function_name: str, tuple_param: str, field_name: str
-) -> List:
+def get_path_in_tuple(abi_filename: str, function_name: str, tuple_param: str, field_name: str) -> list:
     """
     Get the DataPath for a field inside a tuple parameter.
 
@@ -248,7 +233,7 @@ def get_path_in_tuple(
     Returns:
         List of DataPath components
     """
-    with open(abi_filename, "r", encoding="utf-8") as f:
+    with open(abi_filename, encoding="utf-8") as f:
         abi = json.load(f)
 
     # Find the function
@@ -277,7 +262,7 @@ def get_path_in_tuple(
             for field_idx, component in enumerate(param["components"]):
                 if component.get("name") == field_name:
                     # Add path to the specific field
-                    field_path: List = [PathTuple(field_idx)]
+                    field_path: list = [PathTuple(field_idx)]
 
                     # Add final leaf based on field type
                     if is_dynamic_type(component["type"], component):
@@ -288,18 +273,13 @@ def get_path_in_tuple(
                     return base_path + field_path
 
             # List available fields for debugging
-            available = [
-                c.get("name", f"field_{i}") for i, c in enumerate(param["components"])
-            ]
-            raise ValueError(
-                f"Field '{field_name}' not found in tuple '{tuple_param}'. "
-                f"Available fields: {', '.join(available)}"
-            )
+            available = [c.get("name", f"field_{i}") for i, c in enumerate(param["components"])]
+            raise ValueError(f"Field '{field_name}' not found in tuple '{tuple_param}'. Available fields: {', '.join(available)}")
 
     raise ValueError(f"Tuple parameter '{tuple_param}' not found")
 
 
-def get_all_paths(abi_filename: str, function_name: str) -> dict[str, List]:
+def get_all_paths(abi_filename: str, function_name: str) -> dict[str, list]:
     """
     Get a dictionary mapping parameter names to their DataPath components.
 
@@ -314,9 +294,7 @@ def get_all_paths(abi_filename: str, function_name: str) -> dict[str, List]:
     return {param: get_path(abi_filename, function_name, param) for param in params}
 
 
-def get_all_tuple_paths(
-    abi_filename: str, function_name: str, tuple_param: str
-) -> dict[str, List]:
+def get_all_tuple_paths(abi_filename: str, function_name: str, tuple_param: str) -> dict[str, list]:
     """
     Get a dictionary mapping tuple field names to their DataPath components.
 
@@ -329,15 +307,10 @@ def get_all_tuple_paths(
         Dictionary with field names as keys and path lists as values
     """
     fields = get_tuple_fields(abi_filename, function_name, tuple_param)
-    return {
-        field: get_path_in_tuple(abi_filename, function_name, tuple_param, field)
-        for field in fields
-    }
+    return {field: get_path_in_tuple(abi_filename, function_name, tuple_param, field) for field in fields}
 
 
-def get_all_tuple_array_paths(
-    abi_filename: str, function_name: str, array_param: str
-) -> dict[str, List]:
+def get_all_tuple_array_paths(abi_filename: str, function_name: str, array_param: str) -> dict[str, list]:
     """
     Get paths for fields inside a tuple that is in an array.
 
@@ -354,7 +327,7 @@ def get_all_tuple_array_paths(
     Returns:
         Dictionary with field names as keys and complete path lists as values
     """
-    with open(abi_filename, "r", encoding="utf-8") as f:
+    with open(abi_filename, encoding="utf-8") as f:
         abi = json.load(f)
 
     # Find the function
@@ -374,9 +347,7 @@ def get_all_tuple_array_paths(
                 raise ValueError(f"Parameter '{array_param}' is not an array")
 
             if "components" not in param:
-                raise ValueError(
-                    f"Array parameter '{array_param}' does not contain tuples"
-                )
+                raise ValueError(f"Array parameter '{array_param}' does not contain tuples")
 
             # Build base path to the array
             base_path = [PathTuple(idx), PathRef(), PathArray(1)]
@@ -392,7 +363,7 @@ def get_all_tuple_array_paths(
                 field_name = component.get("name", f"field_{field_idx}")
 
                 # Add the tuple field index
-                field_path = base_path + [PathTuple(field_idx)]
+                field_path = [*base_path, PathTuple(field_idx)]
 
                 # Add final leaf based on field type
                 if is_dynamic_type(component["type"], component):
@@ -408,7 +379,7 @@ def get_all_tuple_array_paths(
 
 
 # Helper to print the path in a readable format
-def print_path(path: List) -> None:
+def print_path(path: list) -> None:
     """Convert path components to readable string."""
     components = []
     for p in path:
@@ -424,7 +395,7 @@ def print_path(path: List) -> None:
     print(result)
 
 
-def print_all_paths(param_paths: dict[str, List]) -> None:
+def print_all_paths(param_paths: dict[str, list]) -> None:
     """Print all the paths in a readable format."""
     for param_name, path in param_paths.items():
         print(f"path for {param_name}:")

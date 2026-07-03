@@ -1,54 +1,49 @@
-# pylint: disable=too-many-lines
 # Large test file containing multiple test cases for EIP-712 signing
 import fnmatch
-import os
-from pathlib import Path
-import json
-from typing import Any, Callable, Optional
-from ctypes import c_uint64
 import hashlib
-
-import pytest
-from eth_account.messages import encode_typed_data
-from constants import ABIS_FOLDER
-from test_gcs import compute_inst_hash
-from fields_utils import get_all_tuple_array_paths, get_all_paths
-
-import web3
-
-from ragger.backend import BackendInterface
-from ragger.navigator import NavigateWithScenario
-from ragger.error import ExceptionRAPDU
+import json
+import os
+from collections.abc import Callable
+from ctypes import c_uint64
+from pathlib import Path
+from typing import Any
 
 import client.response_parser as ResponseParser
-from client.utils import recover_message, get_selector_from_data
-from client.client import EthAppClient, EIP712CalldataParamPresence
-from client.status_word import StatusWord
+import pytest
+import web3
+from client.client import EIP712CalldataParamPresence, EthAppClient
 from client.eip712 import InputData
-from client.settings import SettingID, settings_toggle
-from client.tx_simu import TxSimu
-from client.proxy_info import ProxyInfo
 from client.gating import Gating
-from client.trusted_name import TrustedName, TrustedNameType, TrustedNameSource
-
 from client.gcs import (
-    Field,
-    ParamRaw,
-    Value,
-    TypeFamily,
-    DataPath,
-    PathTuple,
-    ParamTokenAmount,
-    ParamCalldata,
     ContainerPath,
+    DataPath,
+    Field,
+    ParamCalldata,
+    ParamRaw,
+    ParamTokenAmount,
     PathLeaf,
     PathLeafType,
+    PathTuple,
     TxInfo,
+    TypeFamily,
+    Value,
 )
-
+from client.proxy_info import ProxyInfo
+from client.settings import SettingID, settings_toggle
+from client.status_word import StatusWord
+from client.trusted_name import TrustedName, TrustedNameSource, TrustedNameType
+from client.tx_simu import TxSimu
+from client.utils import get_selector_from_data, recover_message
+from constants import ABIS_FOLDER
+from eth_account.messages import encode_typed_data
+from fields_utils import get_all_paths, get_all_tuple_array_paths
+from ragger.backend import BackendInterface
+from ragger.error import ExceptionRAPDU
+from ragger.navigator import NavigateWithScenario
+from test_gcs import compute_inst_hash
 
 BIP32_PATH = "m/44'/60'/0'/0/0"
-DEVICE_ADDR: Optional[bytes] = None
+DEVICE_ADDR: bytes | None = None
 
 
 def set_wallet_addr(backend: BackendInterface) -> None:
@@ -80,9 +75,7 @@ def input_files() -> list[str]:
     return sorted(files)
 
 
-def test_eip712_v0(
-    scenario_navigator: NavigateWithScenario, simu_params: Optional[TxSimu] = None
-):
+def test_eip712_v0(scenario_navigator: NavigateWithScenario, simu_params: TxSimu | None = None):
     app_client = EthAppClient(scenario_navigator.backend)
 
     settings_toggle(
@@ -112,8 +105,8 @@ def test_eip712_v0(
 def eip712_new_common(
     scenario_navigator: NavigateWithScenario,
     data: dict,
-    filters: Optional[dict] = None,
-    snapshots_dirname: Optional[str] = None,
+    filters: dict | None = None,
+    snapshots_dirname: str | None = None,
     nb_warnings: int = 0,
 ) -> None:
     app_client = EthAppClient(scenario_navigator.backend)
@@ -129,9 +122,7 @@ def eip712_new_common(
                 nb_warnings=nb_warnings,
             )
         else:
-            scenario_navigator.review_approve(
-                test_name=snapshots_dirname, do_comparison=do_compare
-            )
+            scenario_navigator.review_approve(test_name=snapshots_dirname, do_comparison=do_compare)
 
     vrs = ResponseParser.signature(app_client.response().data)
     # verify signature
@@ -169,7 +160,7 @@ def test_eip712_new(
     input_file: Path,
     verbose_raw: bool,
     filtering: bool,
-    gating_params: Optional[Gating] = None,
+    gating_params: Gating | None = None,
 ):
     settings_to_toggle: list[SettingID] = []
 
@@ -194,14 +185,12 @@ def test_eip712_new(
     with open(input_file, encoding="utf-8") as file:
         data = json.load(file)
 
-    snapshots_dirname: Optional[str] = None
+    snapshots_dirname: str | None = None
     nb_warnings = 1 if not filters or verbose_raw else 0
     if gating_params is not None:
         app_client = EthAppClient(scenario_navigator.backend)
         sig_ctx: dict[str, Any] = {}
-        InputData.init_signature_context(
-            sig_ctx, data["types"], data["domain"], filters or {}
-        )
+        InputData.init_signature_context(sig_ctx, data["types"], data["domain"], filters or {})
         gating_params.selector = sig_ctx["schema_hash"]
         response = app_client.provide_gating(gating_params)
         assert response and response.status == StatusWord.SWO_SUCCESS
@@ -474,9 +463,7 @@ def data_set_fixture(request) -> DataSet:
     return request.param
 
 
-def test_eip712_advanced_filtering(
-    scenario_navigator: NavigateWithScenario, data_set: DataSet, verbose_raw: bool
-):
+def test_eip712_advanced_filtering(scenario_navigator: NavigateWithScenario, data_set: DataSet, verbose_raw: bool):
     if verbose_raw and data_set.suffix:
         pytest.skip("Skipping Verbose mode for this data sets")
 
@@ -489,14 +476,10 @@ def test_eip712_advanced_filtering(
         )
         snapshots_dirname += "-verbose"
 
-    eip712_new_common(
-        scenario_navigator, data_set.data, data_set.filters, snapshots_dirname
-    )
+    eip712_new_common(scenario_navigator, data_set.data, data_set.filters, snapshots_dirname)
 
 
-def test_eip712_filtering_empty_array(
-    scenario_navigator: NavigateWithScenario, simu_params: Optional[TxSimu] = None
-):
+def test_eip712_filtering_empty_array(scenario_navigator: NavigateWithScenario, simu_params: TxSimu | None = None):
     app_client = EthAppClient(scenario_navigator.backend)
 
     data = {
@@ -607,9 +590,7 @@ def tokens_fixture(request) -> list[dict]:
     return request.param
 
 
-def test_eip712_advanced_missing_token(
-    scenario_navigator: NavigateWithScenario, tokens: list[dict]
-):
+def test_eip712_advanced_missing_token(scenario_navigator: NavigateWithScenario, tokens: list[dict]):
 
     test_name = scenario_navigator.test_name
     for token in tokens:
@@ -779,9 +760,7 @@ def test_eip712_proxy(scenario_navigator: NavigateWithScenario):
     input_file = input_files()[0]
     with open(input_file, encoding="utf-8") as file:
         data = json.load(file)
-    with open(
-        get_filter_file_from_data_file(Path(input_file)), encoding="utf-8"
-    ) as file:
+    with open(get_filter_file_from_data_file(Path(input_file)), encoding="utf-8") as file:
         filters = json.load(file)
     # change its name & set a different address than the one in verifyingContract
     filters["name"] = "Proxy test"
@@ -838,9 +817,7 @@ def gcs_handler(app_client: EthAppClient, json_data: dict) -> None:
         contract_name="USDC",
     )
     assert tx_info.contract_name is not None
-    app_client.provide_token_metadata(
-        tx_info.contract_name, tx_info.contract_addr, 6, tx_info.chain_id
-    )
+    app_client.provide_token_metadata(tx_info.contract_name, tx_info.contract_addr, 6, tx_info.chain_id)
 
     app_client.provide_transaction_info(tx_info.serialize())
 
@@ -886,9 +863,7 @@ def gcs_handler_batch(app_client: EthAppClient, json_data: dict) -> None:
 
     # Encode batchExecute data using token transfer data
     with open(f"{ABIS_FOLDER}/batch.json", encoding="utf-8") as f:
-        contract = web3.Web3().eth.contract(
-            abi=json.load(f), address=tokens[1]["address"]
-        )
+        contract = web3.Web3().eth.contract(abi=json.load(f), address=tokens[1]["address"])
     batchData = contract.encode_abi(
         "batchExecute",
         [
@@ -900,9 +875,7 @@ def gcs_handler_batch(app_client: EthAppClient, json_data: dict) -> None:
     )
 
     # Top level transaction fields definition
-    param_paths = get_all_tuple_array_paths(
-        f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls"
-    )
+    param_paths = get_all_tuple_array_paths(f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls")
     L0_fields = [
         Field(
             1,
@@ -1053,7 +1026,7 @@ def gcs_handler_no_param(app_client: EthAppClient, json_data: dict) -> None:
 def eip712_calldata_common(
     scenario_navigator: NavigateWithScenario,
     filename: str,
-    handler: Optional[Callable] = None,
+    handler: Callable | None = None,
 ):
     with open(f"{eip712_json_path()}/{filename}.json", encoding="utf-8") as file:
         data = json.load(file)
@@ -1119,9 +1092,7 @@ def test_eip712_calldata_empty_send(scenario_navigator: NavigateWithScenario):
 
 
 def test_eip712_calldata_no_param(scenario_navigator: NavigateWithScenario):
-    eip712_calldata_common(
-        scenario_navigator, "safe_calldata_no_param", gcs_handler_no_param
-    )
+    eip712_calldata_common(scenario_navigator, "safe_calldata_no_param", gcs_handler_no_param)
 
 
 def test_eip712_gondi(scenario_navigator: NavigateWithScenario):

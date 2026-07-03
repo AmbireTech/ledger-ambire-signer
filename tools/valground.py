@@ -4,12 +4,11 @@
 
 import sys
 from argparse import (
+    ArgumentDefaultsHelpFormatter,
     ArgumentParser,
     Namespace,
-    ArgumentDefaultsHelpFormatter,
     RawDescriptionHelpFormatter,
 )
-from typing import Optional
 
 
 # ===============================================================================
@@ -26,12 +25,8 @@ class GlobalSummary:
         self.max_size = max(size, self.max_size)
 
     def summary(self):
-        print(
-            f"\n{COLORS['fg_red']}{COLORS['bg_white']}=== Global ==={COLORS['all_reset']}"
-        )
-        print(
-            f"{COLORS['fg_yellow']}Higher Max overtime = {self.max_size} bytes{COLORS['all_reset']}\n"
-        )
+        print(f"\n{COLORS['fg_red']}{COLORS['bg_white']}=== Global ==={COLORS['all_reset']}")
+        print(f"{COLORS['fg_yellow']}Higher Max overtime = {self.max_size} bytes{COLORS['all_reset']}\n")
 
 
 # ===============================================================================
@@ -97,15 +92,11 @@ class Memory:
     def summary(self, quiet: bool = False) -> bool:
         print("")
         if self.test_name:
-            print(
-                f"{COLORS['fg_blue']}{COLORS['bg_white']}{self.test_name}{COLORS['all_reset']}"
-            )
+            print(f"{COLORS['fg_blue']}{COLORS['bg_white']}{self.test_name}{COLORS['all_reset']}")
 
         if len(self.free_errors) == 0:
             if not quiet:
-                print(
-                    f"{COLORS['fg_green']}No memory free errors detected, congrats!{COLORS['all_reset']}"
-                )
+                print(f"{COLORS['fg_green']}No memory free errors detected, congrats!{COLORS['all_reset']}")
         else:
             print(f"{COLORS['fg_red']}Free without malloc, or double free detected:")
             for code_loc in self.free_errors:
@@ -114,31 +105,24 @@ class Memory:
 
         if len(self.allocs) == 0:
             if not quiet:
-                print(
-                    f"{COLORS['fg_green']}No memory leak detected, congrats!{COLORS['all_reset']}"
-                )
+                print(f"{COLORS['fg_green']}No memory leak detected, congrats!{COLORS['all_reset']}")
         else:
             print(f"{COLORS['fg_red']}Memory leaks:")
             for addr, info in self.allocs.items():
-                print(
-                    "- [0x%.08x] %u bytes from %s"
-                    % (addr, info.size, info.code_location)
-                )
+                print(f"- [0x{addr:08x}] {info.size} bytes from {info.code_location}")
             print(f"{COLORS['all_reset']}", end="")
 
         global_summary.update(self.allocd_max)
         if not quiet:
             print("=== Summary ===")
-            print("Total overtime = %u bytes" % (self.allocd_overtime))
+            print(f"Total overtime = {self.allocd_overtime} bytes")
             used_percentage = self.allocd_max / self.size * 100
-            info_str = (
-                f"Max overtime = {self.allocd_max} bytes ({used_percentage:.02f}% full)"
-            )
+            info_str = f"Max overtime = {self.allocd_max} bytes ({used_percentage:.02f}% full)"
             if used_percentage > 90:
                 print(f"{COLORS['fg_yellow']}{info_str}{COLORS['all_reset']}")
             else:
                 print(info_str)
-            print("Allocations = %u" % (self.alloc_count))
+            print(f"Allocations = {self.alloc_count}")
             if len(self.persists) > 0:
                 print(f"{COLORS['fg_yellow']}Persistent memory allocations:")
                 for addr, info in list(self.persists.items()):
@@ -206,12 +190,8 @@ def init_parser() -> Namespace:
         formatter_class=CustomFormatter,
         epilog=epilog,
     )
-    parser.add_argument(
-        "--quiet", "-q", action="store_true", help="Quiet logs to minimum."
-    )
-    parser.add_argument(
-        "--colors", "-c", action="store_true", help="Enable colored output."
-    )
+    parser.add_argument("--quiet", "-q", action="store_true", help="Quiet logs to minimum.")
+    parser.add_argument("--colors", "-c", action="store_true", help="Enable colored output.")
     return parser.parse_args()
 
 
@@ -219,7 +199,7 @@ def init_parser() -> Namespace:
 #          Main entry
 # ===============================================================================
 def main() -> None:
-    mem: Optional[Memory] = None
+    mem: Memory | None = None
 
     # Arguments parsing
     # -----------------
@@ -263,9 +243,7 @@ def main() -> None:
                     if mem is not None:
                         if mem.summary(args.quiet) is False:
                             ret_code = 1
-                    mem = Memory(
-                        int(words[1], base=0), int(words[2], base=0), test_name
-                    )
+                    mem = Memory(int(words[1], base=0), int(words[2], base=0), test_name)
                 elif words[0] in ("alloc", "persist"):
                     mem.alloc(
                         int(words[2], base=0),
@@ -276,7 +254,7 @@ def main() -> None:
                 elif words[0] == "free":
                     mem.free(int(words[1], base=0), words[2])
                 else:
-                    assert False
+                    raise AssertionError("Unknown memory operation")
 
     if mem is None:
         print(f"{COLORS['fg_red']}No memory profiling was found.{COLORS['all_reset']}")

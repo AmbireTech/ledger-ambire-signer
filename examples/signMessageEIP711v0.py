@@ -18,12 +18,13 @@
 ********************************************************************************
 """
 
-from ledgerblue.comm import getDongle
-from Crypto.Hash import keccak
-from eth_keys import KeyAPI
 import argparse
-import struct
 import binascii
+import struct
+
+from eth_keys import KeyAPI
+from eth_utils import keccak
+from ledgerblue.comm import getDongle
 
 # Define here Chain_ID
 CHAIN_ID = 0
@@ -76,11 +77,11 @@ if (CHAIN_ID * 2 + 35) + 1 > 255:
 else:
     ecc_parity = (v + 1) % 2
 
-v = "%02X" % ecc_parity
+v = f"{ecc_parity:02X}"
 r = binascii.hexlify(result[1 : 1 + 32]).decode()
 s = binascii.hexlify(result[1 + 32 : 1 + 32 + 32]).decode()
 msg_to_sign = SIGN_MAGIC + domainHash + messageHash
-hash = keccak.new(digest_bits=256, data=msg_to_sign).digest()
+hash = keccak(msg_to_sign)
 
 signature = KeyAPI.Signature(vrs=(int(v, 16), int(r, 16), int(s, 16)))
 pubkey = KeyAPI.PublicKey.recover_from_msg_hash(hash, signature)

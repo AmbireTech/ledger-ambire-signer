@@ -18,12 +18,13 @@
 ********************************************************************************
 """
 
-from ledgerblue.comm import getDongle
-from decimal import Decimal
 import argparse
-import struct
 import binascii
+import struct
+from decimal import Decimal
+
 from ethBase import UnsignedTransaction
+from ledgerblue.comm import getDongle
 from rlp import encode
 
 # Define here Chain_ID for EIP-155
@@ -51,9 +52,7 @@ def parse_bip32_path(path):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--nonce", help="Nonce associated to the account", type=int, required=True
-)
+parser.add_argument("--nonce", help="Nonce associated to the account", type=int, required=True)
 parser.add_argument("--gasprice", help="Network gas price", type=int, required=True)
 parser.add_argument("--startgas", help="startgas", default="21000", type=int)
 parser.add_argument("--amount", help="Amount to send in ether", required=True)
@@ -102,7 +101,7 @@ encodedTx = encode(tx, UnsignedTransaction)
 # "02ef0306843b9aca008504a817c80082520894b2bb2b958afa2e96dab3f3ce7162b87daea39017872386f26fc1000080c0")
 
 # To test an EIP-2930 transaction, uncomment this line
-# encodedTx = bytearray.fromhex("01f8e60380018402625a0094cccccccccccccccccccccccccccccccccccccccc830186a0a4693c61390000000000000000000000000000000000000000000000000000000000000002f85bf859940000000000000000000000000000000000000102f842a00000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000060a780a09b8adcd2a4abd34b42d56fcd90b949f74ca9696dfe2b427bc39aa280bbf1924ca029af4a471bb2953b4e7933ea95880648552a9345424a1ac760189655ceb1832a")
+# encodedTx = bytearray.fromhex("01f8e60380018402625a0094cccccccccccccccccccccccccccccccccccccccc830186a0a4693c61390000000000000000000000000000000000000000000000000000000000000002f85bf859940000000000000000000000000000000000000102f842a00000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000060a780a09b8adcd2a4abd34b42d56fcd90b949f74ca9696dfe2b427bc39aa280bbf1924ca029af4a471bb2953b4e7933ea95880648552a9345424a1ac760189655ceb1832a")  # noqa: E501
 
 dongle = getDongle(True)
 

@@ -1,10 +1,9 @@
-from ragger.navigator.navigation_scenario import NavigateWithScenario
-from ragger.error import ExceptionRAPDU
-
-from client.client import EthAppClient
-from client.status_word import StatusWord
-from client.safe import SafeAccount, AccountType, LesMultiSigRole
 import client.response_parser as ResponseParser
+from client.client import EthAppClient
+from client.safe import AccountType, LesMultiSigRole, SafeAccount
+from client.status_word import StatusWord
+from ragger.error import ExceptionRAPDU
+from ragger.navigator.navigation_scenario import NavigateWithScenario
 
 
 def common(app_client: EthAppClient) -> int:
@@ -12,9 +11,7 @@ def common(app_client: EthAppClient) -> int:
     return ResponseParser.challenge(challenge.data)
 
 
-def test_safe_descriptor(
-    scenario_navigator: NavigateWithScenario, test_name: str
-) -> None:
+def test_safe_descriptor(scenario_navigator: NavigateWithScenario, test_name: str) -> None:
     """Test the Safe descriptor APDU"""
 
     backend = scenario_navigator.backend
@@ -56,16 +53,12 @@ def test_safe_descriptor(
         # Safe descriptor doesn't start any navigation
         pass
     response = app_client.response()
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Unexpected status: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Unexpected status: {response.status}"
 
     with app_client.provide_safe_account(signer):
         scenario_navigator.address_review_approve(test_name=test_name)
     response = app_client.response()
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Unexpected status: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Unexpected status: {response.status}"
 
 
 def test_signer_descriptor_error(scenario_navigator: NavigateWithScenario) -> None:
@@ -89,4 +82,4 @@ def test_signer_descriptor_error(scenario_navigator: NavigateWithScenario) -> No
     except ExceptionRAPDU as e:
         assert e.status == StatusWord.SWO_COMMAND_NOT_ALLOWED
     else:
-        assert False, "Expected COMMAND_NOT_ALLOWED not raised"
+        raise AssertionError("Expected COMMAND_NOT_ALLOWED not raised")

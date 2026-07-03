@@ -1,45 +1,41 @@
 # GCS formatter-focused tests: param types, iteration behaviour, constraints.
-# pylint: disable=too-many-lines
 # Large test file containing multiple GCS (Generic Clear Signing) integration tests
-import json
 import hashlib
-import pytest
-
-from web3 import Web3
-
-from ragger.error import ExceptionRAPDU
-from ragger.navigator.navigation_scenario import NavigateWithScenario
-
-from dynamic_networks_cfg import get_network_config
-from constants import ABIS_FOLDER
-from fields_utils import get_all_paths
+import json
 
 import client.response_parser as ResponseParser
+import pytest
 from client.client import EthAppClient, SignMode
-from client.status_word import StatusWord
-from client.utils import get_selector_from_data
+from client.dynamic_networks import DynamicNetwork
 from client.gcs import (
-    Field,
-    ParamRaw,
-    Value,
-    TypeFamily,
-    DataPath,
-    ParamTrustedName,
-    ParamDatetime,
-    DatetimeType,
-    ParamTokenAmount,
     ContainerPath,
-    TxInfo,
-    ParamNetwork,
-    VisibleType,
-    TrustedNameValueType,
-    MapRef,
-    ParamGroup,
+    DataPath,
+    DatetimeType,
+    Field,
     GroupIterationType,
+    MapRef,
+    ParamDatetime,
+    ParamGroup,
+    ParamNetwork,
+    ParamRaw,
+    ParamTokenAmount,
+    ParamTrustedName,
+    TrustedNameValueType,
+    TxInfo,
+    TypeFamily,
+    Value,
+    VisibleType,
 )
 from client.map_entry import MapEntry
-from client.dynamic_networks import DynamicNetwork
-from client.trusted_name import TrustedName, TrustedNameType, TrustedNameSource
+from client.status_word import StatusWord
+from client.trusted_name import TrustedName, TrustedNameSource, TrustedNameType
+from client.utils import get_selector_from_data
+from constants import ABIS_FOLDER
+from dynamic_networks_cfg import get_network_config
+from fields_utils import get_all_paths
+from ragger.error import ExceptionRAPDU
+from ragger.navigator.navigation_scenario import NavigateWithScenario
+from web3 import Web3
 
 
 def compute_inst_hash(fields: list[Field]) -> bytes:
@@ -57,7 +53,6 @@ def test_gcs_map_entry(scenario_navigator: NavigateWithScenario):
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
     eventId = 175676
-    # pylint: disable=line-too-long
     data = contract.encode_abi(
         "mintToken",
         [
@@ -70,7 +65,6 @@ def test_gcs_map_entry(scenario_navigator: NavigateWithScenario):
             ),
         ],
     )
-    # pylint: enable=line-too-long
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -157,9 +151,7 @@ def test_gcs_map_entry(scenario_navigator: NavigateWithScenario):
             contract_addr=tx_params["to"],
             selector=get_selector_from_data(tx_params["data"]),
             id=0,
-            key=eventId.to_bytes(
-                32, "big"
-            ),  # 32-byte big-endian (ABI uint256 encoding)
+            key=eventId.to_bytes(32, "big"),  # 32-byte big-endian (ABI uint256 encoding)
             value=b"EthCC Paris",
         ).serialize()
     )
@@ -180,7 +172,6 @@ def test_gcs_map_entry_chain_id_key(scenario_navigator: NavigateWithScenario):
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
-    # pylint: disable=line-too-long
     data = contract.encode_abi(
         "mintToken",
         [
@@ -193,7 +184,6 @@ def test_gcs_map_entry_chain_id_key(scenario_navigator: NavigateWithScenario):
             ),
         ],
     )
-    # pylint: enable=line-too-long
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -299,7 +289,6 @@ def test_gcs_group_sequential(scenario_navigator: NavigateWithScenario):
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
-    # pylint: disable=line-too-long
     data = contract.encode_abi(
         "mintToken",
         [
@@ -312,7 +301,6 @@ def test_gcs_group_sequential(scenario_navigator: NavigateWithScenario):
             ),
         ],
     )
-    # pylint: enable=line-too-long
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -632,7 +620,6 @@ def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: st
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
-    # pylint: disable=line-too-long
     data = contract.encode_abi(
         "mintToken",
         [
@@ -655,7 +642,6 @@ def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: st
         "data": data,
         "chainId": 5 if test_config == "network" else 1,
     }
-    # pylint: enable=line-too-long
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
@@ -752,13 +738,9 @@ def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: st
 
     if test_config == "network":
         # Send Network information (name, ticker, icon)
-        name, ticker, icon = get_network_config(
-            scenario_navigator.backend.device.type, tx_params["chainId"]
-        )
+        name, ticker, icon = get_network_config(scenario_navigator.backend.device.type, tx_params["chainId"])
         if name and ticker:
-            app_client.provide_network_information(
-                DynamicNetwork(name, ticker, tx_params["chainId"], icon)
-            )
+            app_client.provide_network_information(DynamicNetwork(name, ticker, tx_params["chainId"], icon))
 
     app_client.provide_transaction_info(tx_info.serialize())
 
@@ -766,9 +748,7 @@ def test_gcs_formatter(scenario_navigator: NavigateWithScenario, test_config: st
         app_client.provide_transaction_field_desc(field.serialize())
 
     with app_client.sign(mode=SignMode.START_FLOW):
-        scenario_navigator.review_approve(
-            test_name=scenario_navigator.test_name + f"_{test_config}"
-        )
+        scenario_navigator.review_approve(test_name=scenario_navigator.test_name + f"_{test_config}")
 
 
 @pytest.mark.parametrize(
@@ -806,7 +786,6 @@ def test_gcs_constraints(
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
-    # pylint: disable=line-too-long
     data = contract.encode_abi(
         "mintToken",
         [
@@ -829,7 +808,6 @@ def test_gcs_constraints(
         "data": data,
         "chainId": 1,
     }
-    # pylint: enable=line-too-long
 
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
@@ -970,15 +948,11 @@ def test_gcs_constraints(
             app_client.provide_transaction_field_desc(field.serialize())
 
         with app_client.sign(mode=SignMode.START_FLOW):
-            scenario_navigator.review_approve(
-                test_name=scenario_navigator.test_name + f"_{test_config}"
-            )
+            scenario_navigator.review_approve(test_name=scenario_navigator.test_name + f"_{test_config}")
 
 
 @pytest.mark.parametrize("test_config", ["named", "raw"])
-def test_gcs_interoperable_address(
-    scenario_navigator: NavigateWithScenario, test_config: str
-):
+def test_gcs_interoperable_address(scenario_navigator: NavigateWithScenario, test_config: str):
     app_client = EthAppClient(scenario_navigator.backend)
 
     # EIP-7930 binary encoding for Ethereum mainnet (chain_id=1):
@@ -989,7 +963,6 @@ def test_gcs_interoperable_address(
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
-    # pylint: disable=line-too-long
     data = contract.encode_abi(
         "mintToken",
         [
@@ -1000,7 +973,6 @@ def test_gcs_interoperable_address(
             eip7930_bytes,  # signature field carries the EIP-7930 interoperable address
         ],
     )
-    # pylint: enable=line-too-long
     tx_params = {
         "nonce": 235,
         "maxFeePerGas": Web3.to_wei(100, "gwei"),
@@ -1068,9 +1040,7 @@ def test_gcs_interoperable_address(
         app_client.provide_transaction_field_desc(field.serialize())
 
     with app_client.sign(mode=SignMode.START_FLOW):
-        scenario_navigator.review_approve(
-            test_name=scenario_navigator.test_name + f"_{test_config}"
-        )
+        scenario_navigator.review_approve(test_name=scenario_navigator.test_name + f"_{test_config}")
 
 
 def test_gcs_iteration_broadcast(scenario_navigator: NavigateWithScenario):
@@ -1118,9 +1088,7 @@ def test_gcs_iteration_broadcast(scenario_navigator: NavigateWithScenario):
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
 
-    param_paths = get_all_paths(
-        f"{ABIS_FOLDER}/broadcast.json", "batchTransferSameToken"
-    )
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/broadcast.json", "batchTransferSameToken")
 
     # value → amounts[] (2 elements), token → token (1 element — broadcast)
     fields = [
@@ -1161,9 +1129,7 @@ def test_gcs_iteration_broadcast(scenario_navigator: NavigateWithScenario):
     )
 
     app_client.provide_transaction_info(tx_info.serialize())
-    app_client.provide_token_metadata(
-        "USDC", usdc_address, usdc_decimals, tx_params["chainId"]
-    )
+    app_client.provide_token_metadata("USDC", usdc_address, usdc_decimals, tx_params["chainId"])
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())

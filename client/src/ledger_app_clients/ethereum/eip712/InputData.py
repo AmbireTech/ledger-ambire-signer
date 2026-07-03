@@ -1,15 +1,15 @@
+import copy
+import functools
 import hashlib
 import json
 import re
-import copy
-from typing import Any, Optional, Union, Callable
 import struct
-import functools
+from collections.abc import Callable
+from typing import Any
 
-from ..client import EthAppClient, EIP712FieldType
+from ..client import EIP712FieldType, EthAppClient
 from ..signing_partners import CAL_COIN_META_PARTNER
 from ..status_word import StatusWord
-
 
 # global variables
 app_client: EthAppClient = None  # type: ignore[assignment]
@@ -105,21 +105,17 @@ def send_struct_def_field(typename, keyname):
         type_enum = EIP712FieldType.CUSTOM
         typesize = None
 
-    with app_client.eip712_send_struct_def_struct_field(
-        type_enum, typename, typesize, array_lvls, keyname
-    ):
+    with app_client.eip712_send_struct_def_struct_field(type_enum, typename, typesize, array_lvls, keyname):
         pass
 
     response = app_client.response()
     assert response is not None
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending field def {keyname} of type {typename}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending field def {keyname} of type {typename}: {response.status}"
 
     return (typename, type_enum, typesize, array_lvls)
 
 
-def encode_integer(value: Union[str, int], typesize: int) -> bytes:
+def encode_integer(value: str | int, typesize: int) -> bytes:
     # Some are already represented as integers in the JSON, but most as strings
     if isinstance(value, str):
         value = int(value, 0)
@@ -200,13 +196,11 @@ def send_all_filtering_tokens(tokens: list[dict]):
             token["decimals"],
             token["chain_id"],
         )
-        assert response.status == StatusWord.SWO_SUCCESS, (
-            f"Error sending token metadata for {token['ticker']}: {response.status}"
-        )
+        assert response.status == StatusWord.SWO_SUCCESS, f"Error sending token metadata for {token['ticker']}: {response.status}"
 
 
-def send_filter(path: str, discarded: bool) -> Optional[Callable]:
-    ret: Optional[Callable] = None
+def send_filter(path: str, discarded: bool) -> Callable | None:
+    ret: Callable | None = None
     assert path in filtering_paths.keys()
 
     if filtering_paths[path]["type"].startswith("amount_join_"):
@@ -218,9 +212,7 @@ def send_filter(path: str, discarded: bool) -> Optional[Callable]:
         if filtering_paths[path]["type"].endswith("_token"):
             send_filtering_amount_join_token(path, join_id, discarded)
         elif filtering_paths[path]["type"].endswith("_value"):
-            send_filtering_amount_join_value(
-                path, join_id, filtering_paths[path]["name"], discarded
-            )
+            send_filtering_amount_join_value(path, join_id, filtering_paths[path]["name"], discarded)
     elif filtering_paths[path]["type"] == "datetime":
         send_filtering_datetime(path, filtering_paths[path]["name"], discarded)
     elif filtering_paths[path]["type"] == "trusted_name":
@@ -260,14 +252,14 @@ def send_filter(path: str, discarded: bool) -> Optional[Callable]:
         elif filtering_paths[path]["type"].endswith("_spender"):
             send_filtering_calldata_spender(path, calldata_index, discarded)
         else:
-            assert False
+            raise AssertionError("Unknown calldata type")
         calldata["path_count"] -= 1
         if calldata["path_count"] == 0:
             ret = calldata["handler"]
     elif filtering_paths[path]["type"] == "raw":
         send_filtering_raw(path, filtering_paths[path]["name"], discarded)
     else:
-        assert False
+        raise AssertionError("Unknown filtering path type")
 
     return ret
 
@@ -276,7 +268,7 @@ def send_struct_impl_field(value, field) -> None:
     assert not isinstance(value, list)
     assert field["enum"] != EIP712FieldType.CUSTOM
 
-    callback: Optional[Callable] = None
+    callback: Callable | None = None
 
     data = encoding_functions[field["enum"]](value, field["typesize"])
 
@@ -317,9 +309,7 @@ def evaluate_field(structs, data, field, lvls_left, new_level=True):
                 if path.startswith(dpath):
                     response = app_client.eip712_filtering_discarded_path(path)
                     assert response is not None
-                    assert response.status == StatusWord.SWO_SUCCESS, (
-                        f"Error sending discarded path {path}: {response.status}"
-                    )
+                    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending discarded path {path}: {response.status}"
                     send_filter(path, True)
         idx = 0
         for subdata in data:
@@ -328,9 +318,7 @@ def evaluate_field(structs, data, field, lvls_left, new_level=True):
             current_path.pop()
             idx += 1
         if array_lvls[lvls_left - 1] is not None:
-            assert array_lvls[lvls_left - 1] == idx, (
-                f"Mismatch in array size! Got {idx}, expected {array_lvls[lvls_left - 1]}"
-            )
+            assert array_lvls[lvls_left - 1] == idx, f"Mismatch in array size! Got {idx}, expected {array_lvls[lvls_left - 1]}"
     else:
         if field["enum"] == EIP712FieldType.CUSTOM:
             send_struct_impl(structs, data, field["type"])
@@ -342,9 +330,7 @@ def evaluate_field(structs, data, field, lvls_left, new_level=True):
 
 def send_struct_impl(structs, data, structname):
     # Check if it is a struct we don't known
-    assert structname in structs.keys(), (
-        f"Unknown struct {structname} in types definition"
-    )
+    assert structname in structs.keys(), f"Unknown struct {structname} in types definition"
 
     for f in structs[structname]:
         evaluate_field(structs, data[f["name"]], f, len(f["array_lvls"]))
@@ -391,17 +377,13 @@ def send_filtering_amount_join_token(path: str, join_id: int, discarded: bool):
     )
 
 
-def send_filtering_amount_join_value(
-    path: str, join_id: int, display_name: str, discarded: bool
-):
+def send_filtering_amount_join_value(path: str, join_id: int, display_name: str, discarded: bool):
     to_sign = start_signature_payload(sig_ctx, 22)
     to_sign += path.encode()
     to_sign += display_name.encode()
     to_sign.append(join_id)
     sig = CAL_COIN_META_PARTNER.sign(bytes(to_sign))
-    with app_client.eip712_filtering_amount_join_value(
-        join_id, display_name, sig, discarded
-    ):
+    with app_client.eip712_filtering_amount_join_value(join_id, display_name, sig, discarded):
         pass
     response = app_client.response()
     assert response is not None
@@ -419,9 +401,7 @@ def send_filtering_datetime(path: str, display_name: str, discarded: bool):
         pass
     response = app_client.response()
     assert response is not None
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending filtering datetime for {path}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending filtering datetime for {path}: {response.status}"
 
 
 def send_filtering_trusted_name(
@@ -439,15 +419,11 @@ def send_filtering_trusted_name(
     for s in name_source:
         to_sign.append(s)
     sig = CAL_COIN_META_PARTNER.sign(bytes(to_sign))
-    with app_client.eip712_filtering_trusted_name(
-        display_name, name_type, name_source, sig, discarded
-    ):
+    with app_client.eip712_filtering_trusted_name(display_name, name_type, name_source, sig, discarded):
         pass
     response = app_client.response()
     assert response is not None
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending filtering trusted name for {path}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending filtering trusted name for {path}: {response.status}"
 
 
 def send_filtering_calldata_info(
@@ -478,9 +454,7 @@ def send_filtering_calldata_info(
         spender_filter_flag,
         sig,
     )
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending filtering calldata info : {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending filtering calldata info : {response.status}"
 
 
 def send_filtering_calldata_value(path: str, index: int, discarded: bool):
@@ -489,9 +463,7 @@ def send_filtering_calldata_value(path: str, index: int, discarded: bool):
     to_sign.append(index)
     sig = CAL_COIN_META_PARTNER.sign(bytes(to_sign))
     response = app_client.eip712_filtering_calldata_value(index, sig, discarded)
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending filtering calldata value for {path}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending filtering calldata value for {path}: {response.status}"
 
 
 def send_filtering_calldata_callee(path: str, index: int, discarded: bool):
@@ -500,9 +472,7 @@ def send_filtering_calldata_callee(path: str, index: int, discarded: bool):
     to_sign.append(index)
     sig = CAL_COIN_META_PARTNER.sign(bytes(to_sign))
     response = app_client.eip712_filtering_calldata_callee(index, sig, discarded)
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending filtering calldata callee for {path}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending filtering calldata callee for {path}: {response.status}"
 
 
 def send_filtering_calldata_chain_id(path: str, index: int, discarded: bool):
@@ -511,9 +481,7 @@ def send_filtering_calldata_chain_id(path: str, index: int, discarded: bool):
     to_sign.append(index)
     sig = CAL_COIN_META_PARTNER.sign(bytes(to_sign))
     response = app_client.eip712_filtering_calldata_chain_id(index, sig, discarded)
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending filtering calldata callee for {path}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending filtering calldata callee for {path}: {response.status}"
 
 
 def send_filtering_calldata_selector(path: str, index: int, discarded: bool):
@@ -522,9 +490,7 @@ def send_filtering_calldata_selector(path: str, index: int, discarded: bool):
     to_sign.append(index)
     sig = CAL_COIN_META_PARTNER.sign(bytes(to_sign))
     response = app_client.eip712_filtering_calldata_selector(index, sig, discarded)
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending filtering calldata callee for {path}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending filtering calldata callee for {path}: {response.status}"
 
 
 def send_filtering_calldata_amount(path: str, index: int, discarded: bool):
@@ -533,9 +499,7 @@ def send_filtering_calldata_amount(path: str, index: int, discarded: bool):
     to_sign.append(index)
     sig = CAL_COIN_META_PARTNER.sign(bytes(to_sign))
     response = app_client.eip712_filtering_calldata_amount(index, sig, discarded)
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending filtering calldata callee for {path}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending filtering calldata callee for {path}: {response.status}"
 
 
 def send_filtering_calldata_spender(path: str, index: int, discarded: bool):
@@ -544,9 +508,7 @@ def send_filtering_calldata_spender(path: str, index: int, discarded: bool):
     to_sign.append(index)
     sig = CAL_COIN_META_PARTNER.sign(bytes(to_sign))
     response = app_client.eip712_filtering_calldata_spender(index, sig, discarded)
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending filtering calldata callee for {path}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending filtering calldata callee for {path}: {response.status}"
 
 
 # ledgerjs doesn't actually sign anything, and instead uses already pre-computed signatures
@@ -559,9 +521,7 @@ def send_filtering_raw(path: str, display_name: str, discarded: bool):
         pass
     response = app_client.response()
     assert response is not None
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending filtering raw for {path}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending filtering raw for {path}: {response.status}"
 
 
 def prepare_filtering(data_json, filtr_data):
@@ -590,9 +550,7 @@ def prepare_filtering(data_json, filtr_data):
                         calldata["path_count"] += 1
             if "handler" in calldata:
                 if calldata["handler"] is not None:
-                    calldata["handler"] = functools.partial(
-                        calldata["handler"], app_client, data_json
-                    )
+                    calldata["handler"] = functools.partial(calldata["handler"], app_client, data_json)
             else:
                 calldata["handler"] = None
 
@@ -629,9 +587,7 @@ def init_signature_context(sig_ctx, types, domain, filters):
     sig_ctx["schema_hash"] = bytearray.fromhex(schema_hash.hexdigest())
 
 
-def process_data(
-    aclient: EthAppClient, data_json: dict, filters: Optional[dict] = None
-) -> None:
+def process_data(aclient: EthAppClient, data_json: dict, filters: dict | None = None) -> None:
     global app_client
     global current_path
     global filtering_paths
@@ -669,22 +625,16 @@ def process_data(
             pass
         response = app_client.response()
         assert response is not None
-        assert response.status == StatusWord.SWO_SUCCESS, (
-            f"Error sending struct def {key}: {response.status}"
-        )
+        assert response.status == StatusWord.SWO_SUCCESS, f"Error sending struct def {key}: {response.status}"
         for f in types[key]:
-            (f["type"], f["enum"], f["typesize"], f["array_lvls"]) = (
-                send_struct_def_field(f["type"], f["name"])
-            )
+            (f["type"], f["enum"], f["typesize"], f["array_lvls"]) = send_struct_def_field(f["type"], f["name"])
 
     if filters:
         with app_client.eip712_filtering_activate():
             pass
         response = app_client.response()
         assert response is not None
-        assert response.status == StatusWord.SWO_SUCCESS, (
-            f"Error activating filtering: {response.status}"
-        )
+        assert response.status == StatusWord.SWO_SUCCESS, f"Error activating filtering: {response.status}"
         prepare_filtering(data_json, filters)
         send_all_filtering_tokens(filtering_tokens)
 
@@ -696,9 +646,7 @@ def process_data(
         pass
     response = app_client.response()
     assert response is not None
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending domain root struct {domain_typename}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending domain root struct {domain_typename}: {response.status}"
     send_struct_impl(types, domain, domain_typename)
 
     if filters:
@@ -712,7 +660,5 @@ def process_data(
         pass
     response = app_client.response()
     assert response is not None
-    assert response.status == StatusWord.SWO_SUCCESS, (
-        f"Error sending message root struct {message_typename}: {response.status}"
-    )
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error sending message root struct {message_typename}: {response.status}"
     send_struct_impl(types, message, message_typename)

@@ -1,11 +1,9 @@
-from pathlib import Path
-import warnings
 import re
+import warnings
+from pathlib import Path
 
 import pytest
-
 from ragger.conftest import configuration
-
 
 #######################
 # CONFIGURATION START #
@@ -21,7 +19,7 @@ configuration.OPTIONAL.ALLOWED_SETUPS = ["default", "lib_mode"]
 def pytest_configure(config):
     current_setup = config.getoption("--setup")
     if current_setup == "lib_mode":
-        warnings.warn("Main app is started in library mode")
+        warnings.warn("Main app is started in library mode", stacklevel=2)
         configuration.OPTIONAL.MAIN_APP_DIR = "tests/functional/.test_dependencies/"
 
 

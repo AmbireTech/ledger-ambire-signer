@@ -2,14 +2,12 @@ import hashlib
 import json
 from pathlib import Path
 
+import client.response_parser as ResponseParser
+from client.client import EthAppClient
+from client.utils import recover_transaction
+from constants import ABIS_FOLDER
 from ragger.navigator.navigation_scenario import NavigateWithScenario
 from web3 import Web3
-
-from constants import ABIS_FOLDER
-from client.client import EthAppClient
-import client.response_parser as ResponseParser
-from client.utils import recover_transaction
-
 
 BEACON_DEPOSIT_CONTRACT_ADDR = bytes.fromhex("00000000219ab540356cBB839Cbe05303d7705Fa")
 BLS_WITHDRAWAL_PREFIX = 0x00
@@ -31,14 +29,10 @@ def test_eth2_deposit(scenario_navigator: NavigateWithScenario) -> None:
     data = contract.encode_abi(
         "deposit",
         [
-            bytes.fromhex(
-                "a377e13e3b146513c0c9dd5231ced86a21597e5b83fa83ac8c27c4620f180c151d3e709107d73257fa451c58149e4065"
-            ),
+            bytes.fromhex("a377e13e3b146513c0c9dd5231ced86a21597e5b83fa83ac8c27c4620f180c151d3e709107d73257fa451c58149e4065"),
             credentials,
             bytes.fromhex("00") * 96,
-            bytes.fromhex(
-                "4f1f479ababcef72faa5f9acf66faec651d143bc76f3880d0a25b72557bfd70a"
-            ),
+            bytes.fromhex("4f1f479ababcef72faa5f9acf66faec651d143bc76f3880d0a25b72557bfd70a"),
         ],
     )
     tx_params = {

@@ -1,28 +1,25 @@
-from pathlib import Path
 from enum import IntEnum
+from pathlib import Path
 from typing import Any
-from web3 import Web3
+
 import pytest
-
+from client.client import EthAppClient
+from client.settings import SettingID, settings_toggle
+from client.status_word import StatusWord
+from client.tx_simu import TxSimu
+from client.utils import TxType
 from ledgered.devices import Device
-
-from ragger.error import ExceptionRAPDU
 from ragger.backend import BackendInterface
+from ragger.error import ExceptionRAPDU
 from ragger.navigator import Navigator, NavInsID
 from ragger.navigator.navigation_scenario import NavigateWithScenario
-
-from test_sign import common as sign_tx_common
 from test_blind_sign import test_blind_sign as blind_sign
-from test_nft import common_test_nft, collecs_721, actions_721, ERC721_PLUGIN
 from test_eip712 import test_eip712_filtering_empty_array as sign_eip712
 from test_eip712 import test_eip712_v0 as sign_eip712_v0
 from test_gcs import test_gcs_poap as sign_gcs_poap
-
-from client.client import EthAppClient
-from client.status_word import StatusWord
-from client.settings import SettingID, settings_toggle
-from client.utils import TxType
-from client.tx_simu import TxSimu
+from test_nft import ERC721_PLUGIN, actions_721, collecs_721, common_test_nft
+from test_sign import common as sign_tx_common
+from web3 import Web3
 
 
 class TxCheckFlags(IntEnum):
@@ -35,9 +32,7 @@ def config_fixture(request) -> str:
     return request.param
 
 
-def __common_setting_handling(
-    device: Device, navigator: Navigator, app_client: EthAppClient, expected: bool
-) -> None:
+def __common_setting_handling(device: Device, navigator: Navigator, app_client: EthAppClient, expected: bool) -> None:
     """Common setting handling for the tests"""
 
     response = app_client.get_app_configuration()
@@ -96,9 +91,7 @@ def test_tx_simulation_opt_in(
     assert response.data[0] & TxCheckFlags.TX_CHECKS_OPT_IN == 0
 
     with app_client.opt_in_tx_simulation():
-        navigator.navigate_and_compare(
-            default_screenshot_path, test_name, [NavInsID.USE_CASE_CHOICE_CONFIRM]
-        )
+        navigator.navigate_and_compare(default_screenshot_path, test_name, [NavInsID.USE_CASE_CHOICE_CONFIRM])
 
     response = app_client.get_app_configuration()
     assert response.status == StatusWord.SWO_SUCCESS
@@ -107,9 +100,7 @@ def test_tx_simulation_opt_in(
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_disabled(
-    backend: BackendInterface, navigator: Navigator
-) -> None:
+def test_tx_simulation_disabled(backend: BackendInterface, navigator: Navigator) -> None:
     """Test the TX Simulation APDU with the TRANSACTION_CHECKS setting disabled.
     It should return an error
     """
@@ -126,7 +117,7 @@ def test_tx_simulation_disabled(
     except ExceptionRAPDU as err:
         assert err.status == StatusWord.SWO_COMMAND_CODE_NOT_SUPPORTED
     else:
-        assert False  # An exception should have been raised
+        raise AssertionError("An exception should have been raised")
 
 
 @pytest.mark.skip_nano
@@ -144,9 +135,7 @@ def test_tx_simulation_enabled(backend: BackendInterface, navigator: Navigator) 
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_sign(
-    scenario_navigator: NavigateWithScenario, config: str
-) -> None:
+def test_tx_simulation_sign(scenario_navigator: NavigateWithScenario, config: str) -> None:
     """Test the TX Simulation APDU with a simple transaction"""
 
     backend = scenario_navigator.backend
@@ -198,9 +187,7 @@ def test_tx_simulation_no_simu(scenario_navigator: NavigateWithScenario) -> None
         "chainId": 5,
     }
 
-    sign_tx_common(
-        scenario_navigator, tx_params, scenario_navigator.test_name, with_simu=False
-    )
+    sign_tx_common(scenario_navigator, tx_params, scenario_navigator.test_name, with_simu=False)
 
 
 @pytest.mark.skip_nano
@@ -227,9 +214,7 @@ def test_tx_simulation_nft(scenario_navigator: NavigateWithScenario) -> None:
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_blind_sign(
-    scenario_navigator: NavigateWithScenario, config: str
-) -> None:
+def test_tx_simulation_blind_sign(scenario_navigator: NavigateWithScenario, config: str) -> None:
     """Test the TX Simulation APDU with a Blind Sign transaction"""
 
     backend = scenario_navigator.backend
@@ -291,9 +276,7 @@ def test_tx_simulation_eip712_v0(scenario_navigator: NavigateWithScenario) -> No
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_gcs(
-    navigator: Navigator, scenario_navigator: NavigateWithScenario
-) -> None:
+def test_tx_simulation_gcs(navigator: Navigator, scenario_navigator: NavigateWithScenario) -> None:
     """Test the TX Simulation APDU with a Message Streaming based on EIP712"""
 
     backend = scenario_navigator.backend
@@ -308,9 +291,7 @@ def test_tx_simulation_gcs(
 
 
 @pytest.mark.skip_nano
-def test_tx_simulation_provider_max_bounds(
-    backend: BackendInterface, navigator: Navigator
-) -> None:
+def test_tx_simulation_provider_max_bounds(backend: BackendInterface, navigator: Navigator) -> None:
     """
     Test that a 25-character provider_message (spec maximum) is accepted.
     Test that a 30-character tiny_url (spec maximum) is accepted.

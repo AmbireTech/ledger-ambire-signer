@@ -1,15 +1,11 @@
+import client.response_parser as ResponseParser
+from client.client import EthAppClient
+from client.utils import recover_transaction
 from ragger.navigator.navigation_scenario import NavigateWithScenario
 from web3 import Web3
 
-from client.client import EthAppClient
-import client.response_parser as ResponseParser
-from client.utils import recover_transaction
-
-
 PUBKEY_LENGTH = 48
-CONSOLIDATION_REQUEST_PREDEPLOY_ADDR = bytes.fromhex(
-    "0000BBdDc7CE488642fb579F8B00f3a590007251"
-)
+CONSOLIDATION_REQUEST_PREDEPLOY_ADDR = bytes.fromhex("0000BBdDc7CE488642fb579F8B00f3a590007251")
 BIP32_PATH = "m/44'/60'/0'/0/0"
 
 

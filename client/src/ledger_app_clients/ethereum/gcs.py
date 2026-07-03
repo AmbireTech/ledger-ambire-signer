@@ -1,10 +1,10 @@
-from typing import Optional
-from enum import IntEnum
 import struct
+from enum import IntEnum
 
 from ragger.tlv import TlvSerializable
+
 from .signing_partners import CALLDATA_PARTNER
-from .trusted_name import TrustedNameType, TrustedNameSource
+from .trusted_name import TrustedNameSource, TrustedNameType
 
 
 class TxInfoTag(IntEnum):
@@ -29,12 +29,12 @@ class TxInfo(TlvSerializable):
     selector: bytes
     fields_hash: bytes
     operation_type: str
-    creator_name: Optional[str]
-    creator_legal_name: Optional[str]
-    creator_url: Optional[str]
-    contract_name: Optional[str]
-    deploy_date: Optional[int]
-    signature: Optional[bytes]
+    creator_name: str | None
+    creator_legal_name: str | None
+    creator_url: str | None
+    contract_name: str | None
+    deploy_date: int | None
+    signature: bytes | None
 
     def __init__(
         self,
@@ -44,12 +44,12 @@ class TxInfo(TlvSerializable):
         selector: bytes,
         fields_hash: bytes,
         operation_type: str,
-        creator_name: Optional[str] = None,
-        creator_legal_name: Optional[str] = None,
-        creator_url: Optional[str] = None,
-        contract_name: Optional[str] = None,
-        deploy_date: Optional[int] = None,
-        signature: Optional[bytes] = None,
+        creator_name: str | None = None,
+        creator_legal_name: str | None = None,
+        creator_url: str | None = None,
+        contract_name: str | None = None,
+        deploy_date: int | None = None,
+        signature: bytes | None = None,
     ):
         self.version = version
         self.chain_id = chain_id
@@ -75,9 +75,7 @@ class TxInfo(TlvSerializable):
         if self.creator_name is not None:
             payload += self.serialize_field(TxInfoTag.CREATOR_NAME, self.creator_name)
         if self.creator_legal_name is not None:
-            payload += self.serialize_field(
-                TxInfoTag.CREATOR_LEGAL_NAME, self.creator_legal_name
-            )
+            payload += self.serialize_field(TxInfoTag.CREATOR_LEGAL_NAME, self.creator_legal_name)
         if self.creator_url is not None:
             payload += self.serialize_field(TxInfoTag.CREATOR_URL, self.creator_url)
         if self.contract_name is not None:
@@ -130,12 +128,10 @@ class PathTuple(TlvSerializable):
 
 class PathArray(TlvSerializable):
     weight: int
-    start: Optional[int]
-    end: Optional[int]
+    start: int | None
+    end: int | None
 
-    def __init__(
-        self, weight: int = 1, start: Optional[int] = None, end: Optional[int] = None
-    ):
+    def __init__(self, weight: int = 1, start: int | None = None, end: int | None = None):
         self.weight = weight
         self.start = start
         self.end = end
@@ -155,7 +151,7 @@ class PathRef(TlvSerializable):
         pass
 
     def serialize(self) -> bytes:
-        return bytes()
+        return b""
 
 
 class PathLeafType(IntEnum):
@@ -176,10 +172,10 @@ class PathLeaf(TlvSerializable):
 
 
 class PathSlice(TlvSerializable):
-    start: Optional[int]
-    end: Optional[int]
+    start: int | None
+    end: int | None
 
-    def __init__(self, start: Optional[int] = None, end: Optional[int] = None):
+    def __init__(self, start: int | None = None, end: int | None = None):
         self.start = start
         self.end = end
 
@@ -215,7 +211,7 @@ class DataPath(TlvSerializable):
             elif isinstance(node, PathSlice):
                 tag = 0x05
             else:
-                assert False, f"Unknown path node type : {type(node)}"
+                raise AssertionError(f"Unknown path node type : {type(node)}")
             payload += self.serialize_field(tag, node.serialize())
         return bytes(payload)
 
@@ -248,21 +244,21 @@ class MapRef(TlvSerializable):
 class Value(TlvSerializable):
     version: int
     type_family: TypeFamily
-    type_size: Optional[int]
-    data_path: Optional[DataPath]
-    container_path: Optional[ContainerPath]
-    constant: Optional[bytes]
-    map_ref: Optional[MapRef]
+    type_size: int | None
+    data_path: DataPath | None
+    container_path: ContainerPath | None
+    constant: bytes | None
+    map_ref: MapRef | None
 
     def __init__(
         self,
         version: int,
         type_family: TypeFamily,
-        type_size: Optional[int] = None,
-        data_path: Optional[DataPath] = None,
-        container_path: Optional[ContainerPath] = None,
-        constant: Optional[bytes] = None,
-        map_ref: Optional[MapRef] = None,
+        type_size: int | None = None,
+        data_path: DataPath | None = None,
+        container_path: ContainerPath | None = None,
+        constant: bytes | None = None,
+        map_ref: MapRef | None = None,
     ):
         self.version = version
         self.type_family = type_family
@@ -328,19 +324,19 @@ class ParamAmount(FieldParam):
 class ParamTokenAmount(FieldParam):
     version: int
     value: Value
-    token: Optional[Value]
-    native_currency: Optional[list[bytes]]
-    threshold: Optional[int]
-    above_threshold_msg: Optional[str]
+    token: Value | None
+    native_currency: list[bytes] | None
+    threshold: int | None
+    above_threshold_msg: str | None
 
     def __init__(
         self,
         version: int,
         value: Value,
-        token: Optional[Value] = None,
-        native_currency: Optional[list[bytes]] = None,
-        threshold: Optional[int] = None,
-        above_threshold_msg: Optional[str] = None,
+        token: Value | None = None,
+        native_currency: list[bytes] | None = None,
+        threshold: int | None = None,
+        above_threshold_msg: str | None = None,
     ):
         self.type = ParamType.TOKEN_AMOUNT
         self.version = version
@@ -429,16 +425,16 @@ class ParamUnit(FieldParam):
     version: int
     value: Value
     base: str
-    decimals: Optional[int]
-    prefix: Optional[bool]
+    decimals: int | None
+    prefix: bool | None
 
     def __init__(
         self,
         version: int,
         value: Value,
         base: str,
-        decimals: Optional[int] = None,
-        prefix: Optional[bool] = None,
+        decimals: int | None = None,
+        prefix: bool | None = None,
     ):
         self.type = ParamType.UNIT
         self.version = version
@@ -469,8 +465,8 @@ class ParamTrustedName(FieldParam):
     value: Value
     types: list[TrustedNameType]
     sources: list[TrustedNameSource]
-    sender_addrs: Optional[list[bytes]]
-    value_type: Optional[TrustedNameValueType]
+    sender_addrs: list[bytes] | None
+    value_type: TrustedNameValueType | None
 
     def __init__(
         self,
@@ -478,8 +474,8 @@ class ParamTrustedName(FieldParam):
         value: Value,
         types: list[TrustedNameType],
         sources: list[TrustedNameSource],
-        sender_addrs: Optional[list[bytes]] = None,
-        value_type: Optional[TrustedNameValueType] = None,
+        sender_addrs: list[bytes] | None = None,
+        value_type: TrustedNameValueType | None = None,
     ):
         self.type = ParamType.TRUSTED_NAME
         self.version = version
@@ -532,20 +528,20 @@ class ParamCalldata(FieldParam):
     version: int
     calldata: Value
     contract_addr: Value
-    chain_id: Optional[Value]
-    selector: Optional[Value]
-    amount: Optional[Value]
-    spender: Optional[Value]
+    chain_id: Value | None
+    selector: Value | None
+    amount: Value | None
+    spender: Value | None
 
     def __init__(
         self,
         version: int,
         calldata: Value,
         contract_addr: Value,
-        chain_id: Optional[Value] = None,
-        selector: Optional[Value] = None,
-        amount: Optional[Value] = None,
-        spender: Optional[Value] = None,
+        chain_id: Value | None = None,
+        selector: Value | None = None,
+        amount: Value | None = None,
+        spender: Value | None = None,
     ):
         self.type = ParamType.CALLDATA
         self.version = version
@@ -575,11 +571,9 @@ class ParamCalldata(FieldParam):
 class ParamToken(FieldParam):
     version: int
     addr: Value
-    native_currency: Optional[list[bytes]]
+    native_currency: list[bytes] | None
 
-    def __init__(
-        self, version, addr: Value, native_currency: Optional[list[bytes]] = None
-    ):
+    def __init__(self, version, addr: Value, native_currency: list[bytes] | None = None):
         self.type = ParamType.TOKEN
         self.version = version
         self.addr = addr
@@ -636,18 +630,18 @@ class Field(TlvSerializable):
     version: int
     name: str
     param: FieldParam
-    visible: Optional[VisibleType]
-    constraints: Optional[list[bytes]]
-    separator: Optional[str]
+    visible: VisibleType | None
+    constraints: list[bytes] | None
+    separator: str | None
 
     def __init__(
         self,
         version: int,
         name: str,
         param: FieldParam,
-        visible: Optional[VisibleType] = None,
-        constraints: Optional[list[bytes]] = None,
-        separator: Optional[str] = None,
+        visible: VisibleType | None = None,
+        constraints: list[bytes] | None = None,
+        separator: str | None = None,
     ):
         self.version = version
         self.name = name
@@ -679,9 +673,7 @@ class ParamGroup(FieldParam):
     iteration_type: GroupIterationType
     fields: list[Field]
 
-    def __init__(
-        self, version: int, iteration_type: GroupIterationType, fields: list[Field]
-    ):
+    def __init__(self, version: int, iteration_type: GroupIterationType, fields: list[Field]):
         self.type = ParamType.GROUP
         self.version = version
         self.iteration_type = iteration_type
