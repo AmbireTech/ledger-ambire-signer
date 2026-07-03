@@ -116,7 +116,7 @@ static bool collect_direct_deps(s_struct_dep **first_dep, const s_struct_712 *st
          field_ptr = (s_struct_712_field *) ((flist_node_t *) field_ptr)->next) {
         if (field_ptr->type == TYPE_STRUCT) {
             dep_name = get_struct_field_typename(field_ptr);
-            if ((dep = get_structn(dep_name, strlen(dep_name))) == NULL) {
+            if ((dep = get_structn(dep_name)) == NULL) {
                 PRINTF("Error: could not find EIP-712 dependency struct \"%s\" during type_hash\n",
                        dep_name);
                 return false;
@@ -178,17 +178,12 @@ static void delete_struct_dep(s_struct_dep *sdep) {
     APP_MEM_FREE(sdep);
 }
 
-static bool type_hash_internal(const char *struct_name,
-                               const uint8_t struct_name_length,
-                               uint8_t *hash_buf,
-                               s_struct_dep **deps) {
+static bool type_hash_internal(const char *struct_name, uint8_t *hash_buf, s_struct_dep **deps) {
     cx_sha3_t hash_ctx;
     const void *struct_ptr;
 
-    if ((struct_ptr = get_structn(struct_name, struct_name_length)) == NULL) {
-        PRINTF("Error: could not find EIP-712 struct \"");
-        for (int i = 0; i < struct_name_length; ++i) PRINTF("%c", struct_name[i]);
-        PRINTF("\" for type_hash\n");
+    if ((struct_ptr = get_structn(struct_name)) == NULL) {
+        PRINTF("Error: could not find EIP-712 struct \"%s\" for type_hash\n", struct_name);
         return false;
     }
     if (cx_keccak_init_no_throw(&hash_ctx, 256) != CX_OK) {
@@ -225,15 +220,14 @@ static bool type_hash_internal(const char *struct_name,
  * Encode the structure's type and hash it
  *
  * @param[in] struct_name name of the given struct
- * @param[in] struct_name_length length of the name of the given struct
  * @param[out] hash_buf buffer containing the resulting type_hash
  * @return whether the type_hash was successful or not
  */
-bool type_hash(const char *struct_name, const uint8_t struct_name_length, uint8_t *hash_buf) {
+bool type_hash(const char *struct_name, uint8_t *hash_buf) {
     s_struct_dep *deps = NULL;
     bool ret;
 
-    ret = type_hash_internal(struct_name, struct_name_length, hash_buf, &deps);
+    ret = type_hash_internal(struct_name, hash_buf, &deps);
     flist_clear((flist_node_t **) &deps, (f_list_node_del) &delete_struct_dep);
     return ret;
 }

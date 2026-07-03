@@ -70,10 +70,9 @@ const s_struct_712 *get_struct_list(void) {
  * Find struct with a given name
  *
  * @param[in] name struct name
- * @param[in] length name length
  * @return pointer to struct
  */
-const s_struct_712 *get_structn(const char *name, uint8_t length) {
+const s_struct_712 *get_structn(const char *name) {
     const s_struct_712 *struct_ptr;
 
     if (name == NULL) {
@@ -82,8 +81,7 @@ const s_struct_712 *get_structn(const char *name, uint8_t length) {
     for (struct_ptr = get_struct_list(); struct_ptr != NULL;
          struct_ptr = (s_struct_712 *) ((flist_node_t *) struct_ptr)->next) {
         if (struct_ptr->name != NULL) {
-            if ((length == strlen(struct_ptr->name)) &&
-                (memcmp(name, struct_ptr->name, length) == 0)) {
+            if (strcmp(name, struct_ptr->name) == 0) {
                 return struct_ptr;
             }
         }
@@ -434,8 +432,7 @@ static bool auto_descend(void) {
         if (f->next->type != TYPE_STRUCT) break;
         if (f->next->array_level_count > 0) break;  // array → wait for P2_IMPL_ARRAY
 
-        const s_struct_712 *nested =
-            get_structn(f->next->struct_name, strlen(f->next->struct_name));
+        const s_struct_712 *nested = get_structn(f->next->struct_name);
         if (nested == NULL) {
             return false;
         }
@@ -469,8 +466,7 @@ static bool advance(void) {
             // more elements: push the next one if this array's base type is reached, else wait for
             // the next P2_IMPL_ARRAY
             if ((f->array_levels_remaining == 0) && (f->next->type == TYPE_STRUCT)) {
-                const s_struct_712 *nested =
-                    get_structn(f->next->struct_name, strlen(f->next->struct_name));
+                const s_struct_712 *nested = get_structn(f->next->struct_name);
                 if (nested == NULL) {
                     return false;
                 }
@@ -532,8 +528,8 @@ static void impl_deinit(void) {
     g_pending_field.filled = 0;
 }
 
-bool impl_set_root(const char *name, size_t length) {
-    const s_struct_712 *root = get_structn(name, (uint8_t) length);
+bool impl_set_root(const char *name) {
+    const s_struct_712 *root = get_structn(name);
     if (root == NULL) {
         return false;
     }
@@ -610,8 +606,7 @@ bool impl_new_array(size_t count) {
     // Only instantiate the base-type element once every array dimension has been opened, else wait
     // for the next impl_new_array call
     if ((levels_remaining_after == 0) && (elem_field->type == TYPE_STRUCT)) {
-        const s_struct_712 *nested =
-            get_structn(elem_field->struct_name, strlen(elem_field->struct_name));
+        const s_struct_712 *nested = get_structn(elem_field->struct_name);
         if (nested == NULL) {
             return false;
         }
@@ -780,7 +775,7 @@ bool impl_backup_exists(const char *path, size_t length) {
         } else if (offset < length) {
             for (i = 0; ((offset + i) < length) && (path[offset + i] != '.'); ++i);
             typename = field_ptr->struct_name;
-            if ((struct_ptr = get_structn(typename, strlen(typename))) == NULL) {
+            if ((struct_ptr = get_structn(typename)) == NULL) {
                 return false;
             }
             for (field_ptr = struct_ptr->fields; field_ptr != NULL;

@@ -102,7 +102,7 @@ static bool hash_struct(const s_struct_712_value *node, uint8_t *out, uint8_t de
 
     PRINTF("hash_struct: %s\n", name);
 
-    if (!type_hash(name, (uint8_t) strlen(name), type_hash_buf)) {
+    if (!type_hash(name, type_hash_buf)) {
         PRINTF("hash_struct: type_hash failed for %s\n", name);
         return false;
     }

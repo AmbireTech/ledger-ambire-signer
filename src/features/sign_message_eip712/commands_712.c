@@ -114,7 +114,10 @@ uint16_t handle_eip712_struct_impl(uint8_t p1, uint8_t p2, const uint8_t *cdata,
     } else {
         switch (p2) {
             case P2_IMPL_NAME:
-                ret = impl_set_root((char *) cdata, length);
+                // make it NULL-terminated
+                memcpy(strings.tmp.tmp, cdata, length);
+                strings.tmp.tmp[length] = '\0';
+                ret = impl_set_root(strings.tmp.tmp);
                 if (ret) {
                     ui_712_field_flags_reset();
                 }

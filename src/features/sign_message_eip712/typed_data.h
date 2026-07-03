@@ -73,13 +73,13 @@ typedef struct {
 
 const char *get_struct_field_typename(const s_struct_712_field *ptr);
 const s_struct_712 *get_struct_list(void);
-const s_struct_712 *get_structn(const char *name_ptr, uint8_t name_length);
+const s_struct_712 *get_structn(const char *name_ptr);
 bool set_struct_name(uint8_t length, const uint8_t *name);
 bool set_struct_field(uint8_t length, const uint8_t *data);
 bool typed_data_init(void);
 void typed_data_deinit(void);
 
-bool impl_set_root(const char *name, size_t length);
+bool impl_set_root(const char *name);
 bool impl_new_array(size_t count);
 // Returns the completed leaf on final chunk, in-progress leaf on intermediate chunks, NULL on
 // error.
