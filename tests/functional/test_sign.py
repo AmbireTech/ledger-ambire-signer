@@ -1,20 +1,16 @@
+import client.response_parser as ResponseParser
 import pytest
-from web3 import Web3
-
-from ragger.error import ExceptionRAPDU
+from client.client import EthAppClient
+from client.dynamic_networks import DynamicNetwork
+from client.settings import SettingID, settings_toggle
+from client.status_word import StatusWord
+from client.utils import get_authorization_obj, recover_transaction
+from dynamic_networks_cfg import get_network_config
 from ragger.backend import BackendInterface
+from ragger.error import ExceptionRAPDU
 from ragger.navigator import Navigator
 from ragger.navigator.navigation_scenario import NavigateWithScenario
-
-from dynamic_networks_cfg import get_network_config
-
-from client.client import EthAppClient
-from client.status_word import StatusWord
-import client.response_parser as ResponseParser
-from client.settings import SettingID, settings_toggle
-from client.utils import recover_transaction, get_authorization_obj
-from client.dynamic_networks import DynamicNetwork
-
+from web3 import Web3
 
 # Values used across all tests
 CHAIN_ID = 1
@@ -51,19 +47,13 @@ def common(
     # Send Network information (name, ticker, icon)
     name, ticker, icon = get_network_config(backend.device.type, tx_params["chainId"])
     if name and ticker:
-        app_client.provide_network_information(
-            DynamicNetwork(name, ticker, tx_params["chainId"], icon)
-        )
+        app_client.provide_network_information(DynamicNetwork(name, ticker, tx_params["chainId"], icon))
 
     with app_client.sign(path, tx_params):
         if with_simu:
-            scenario_navigator.review_approve_with_warning(
-                test_name=test_name, do_comparison=test_name != ""
-            )
+            scenario_navigator.review_approve_with_warning(test_name=test_name, do_comparison=test_name != "")
         else:
-            scenario_navigator.review_approve(
-                test_name=test_name, do_comparison=test_name != ""
-            )
+            scenario_navigator.review_approve(test_name=test_name, do_comparison=test_name != "")
 
     # verify signature
     vrs = ResponseParser.signature(app_client.response().data)
@@ -76,9 +66,7 @@ def common(
     assert addr == device_addr
 
 
-def common_reject(
-    scenario_navigator: NavigateWithScenario, tx_params: dict, path: str = BIP32_PATH
-):
+def common_reject(scenario_navigator: NavigateWithScenario, tx_params: dict, path: str = BIP32_PATH):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
@@ -89,7 +77,7 @@ def common_reject(
     except ExceptionRAPDU as e:
         assert e.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
     else:
-        assert False  # An exception should have been raised
+        raise AssertionError("An exception should have been raised")
 
 
 def common_fail(
@@ -107,7 +95,7 @@ def common_fail(
     except ExceptionRAPDU as e:
         assert e.status == expected
     else:
-        assert False  # An exception should have been raised
+        raise AssertionError("An exception should have been raised")
 
 
 # simple free transaction, no snapshot comparison or signature verification
@@ -193,9 +181,7 @@ def test_1559(scenario_navigator: NavigateWithScenario):
     common(scenario_navigator, tx_params)
 
 
-def test_sign_simple(
-    scenario_navigator: NavigateWithScenario, test_name: str, display_hash: bool
-):
+def test_sign_simple(scenario_navigator: NavigateWithScenario, test_name: str, display_hash: bool):
     tx_params: dict = {
         "nonce": NONCE2,
         "gasPrice": Web3.to_wei(GAS_PRICE, "gwei"),
@@ -227,9 +213,7 @@ def test_sign_limit_nonce(scenario_navigator: NavigateWithScenario, test_name: s
     common(scenario_navigator, tx_params, test_name, BIP32_PATH2)
 
 
-def test_sign_nonce_display(
-    navigator: Navigator, scenario_navigator: NavigateWithScenario, test_name: str
-):
+def test_sign_nonce_display(navigator: Navigator, scenario_navigator: NavigateWithScenario, test_name: str):
 
     device = scenario_navigator.backend.device
     settings_toggle(device, navigator, [SettingID.NONCE])
@@ -276,7 +260,7 @@ def test_sign_error_transaction_type(backend: BackendInterface):
     except TypeError:
         pass
     else:
-        assert False  # An exception should have been raised
+        raise AssertionError("An exception should have been raised")
 
 
 def test_sign_eip_2930(scenario_navigator: NavigateWithScenario, test_name: str):
@@ -291,9 +275,7 @@ def test_sign_eip_2930(scenario_navigator: NavigateWithScenario, test_name: str)
         "accessList": [
             {
                 "address": "0x0000000000000000000000000000000000000001",
-                "storageKeys": [
-                    "0x0100000000000000000000000000000000000000000000000000000000000000"
-                ],
+                "storageKeys": ["0x0100000000000000000000000000000000000000000000000000000000000000"],
             }
         ],
     }

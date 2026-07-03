@@ -1,23 +1,20 @@
-from typing import Callable, Optional, Any
 import json
-import pytest
-from web3 import Web3
+from collections.abc import Callable
+from typing import Any
 
-from ragger.error import ExceptionRAPDU
-from ragger.navigator.navigation_scenario import NavigateWithScenario
-
-from constants import ABIS_FOLDER
-
-from dynamic_networks_cfg import get_network_config
-
-from client.client import EthAppClient
-from client.status_word import StatusWord
 import client.response_parser as ResponseParser
-from client.utils import get_selector_from_data, recover_transaction
-from client.tx_simu import TxSimu
+import pytest
+from client.client import EthAppClient
 from client.dynamic_networks import DynamicNetwork
 from client.gating import Gating
-
+from client.status_word import StatusWord
+from client.tx_simu import TxSimu
+from client.utils import get_selector_from_data, recover_transaction
+from constants import ABIS_FOLDER
+from dynamic_networks_cfg import get_network_config
+from ragger.error import ExceptionRAPDU
+from ragger.navigator.navigation_scenario import NavigateWithScenario
+from web3 import Web3
 
 BIP32_PATH = "m/44'/60'/0'/0/0"
 NONCE = 21
@@ -26,8 +23,8 @@ GAS_LIMIT = 21000
 FROM = bytes.fromhex("1122334455667788990011223344556677889900")
 TO = bytes.fromhex("0099887766554433221100998877665544332211")
 NFTS = [(1, 3), (5, 2), (7, 4)]  # tuples of (token_id, amount)
-DATA = "Some data".encode()
-DEVICE_ADDR: Optional[bytes] = None
+DATA = b"Some data"
+DEVICE_ADDR: bytes | None = None
 
 
 class NFTCollection:
@@ -58,8 +55,8 @@ def common_test_nft(
     action: Action,
     reject: bool,
     plugin_name: str,
-    simu_params: Optional[TxSimu] = None,
-    gating_params: Optional[Gating] = None,
+    simu_params: TxSimu | None = None,
+    gating_params: Gating | None = None,
 ):
     global DEVICE_ADDR
     backend = scenario_navigator.backend
@@ -91,23 +88,19 @@ def common_test_nft(
     # Send Network information (name, ticker, icon)
     name, ticker, icon = get_network_config(backend.device.type, collec.chain_id)
     if name and ticker:
-        app_client.provide_network_information(
-            DynamicNetwork(name, ticker, collec.chain_id, icon)
-        )
+        app_client.provide_network_information(DynamicNetwork(name, ticker, collec.chain_id, icon))
 
     if DEVICE_ADDR is None:  # to only have to request it once
         with app_client.get_public_addr(display=False):
             pass
         _, DEVICE_ADDR, _ = ResponseParser.pk_addr(app_client.response().data)
 
-    app_client.set_plugin(
-        plugin_name, collec.addr, get_selector_from_data(data), collec.chain_id
-    )
+    app_client.set_plugin(plugin_name, collec.addr, get_selector_from_data(data), collec.chain_id)
 
     app_client.provide_nft_metadata(collec.name, collec.addr, collec.chain_id)
 
     with app_client.sign(BIP32_PATH, tx_params):
-        test_name += f"_{action.fn_name}_{str(collec.chain_id)}"
+        test_name += f"_{action.fn_name}_{collec.chain_id!s}"
         if reject:
             scenario_navigator.review_reject(test_name=test_name)
         elif simu_params is not None or gating_params is not None:
@@ -187,15 +180,11 @@ def test_nft_erc721(
     action_721: Action,
     reject: bool = False,
 ):
-    common_test_nft(
-        scenario_navigator, test_name, collec_721, action_721, reject, ERC721_PLUGIN
-    )
+    common_test_nft(scenario_navigator, test_name, collec_721, action_721, reject, ERC721_PLUGIN)
 
 
 def test_nft_erc721_reject(scenario_navigator: NavigateWithScenario, test_name: str):
-    common_test_nft_reject(
-        test_nft_erc721, scenario_navigator, test_name, collecs_721[0], actions_721[0]
-    )
+    common_test_nft_reject(test_nft_erc721, scenario_navigator, test_name, collecs_721[0], actions_721[0])
 
 
 # ERC-1155
@@ -259,9 +248,7 @@ def test_nft_erc1155(
     action_1155: Action,
     reject: bool = False,
 ):
-    common_test_nft(
-        scenario_navigator, test_name, collec_1155, action_1155, reject, ERC1155_PLUGIN
-    )
+    common_test_nft(scenario_navigator, test_name, collec_1155, action_1155, reject, ERC1155_PLUGIN)
 
 
 def test_nft_erc1155_reject(scenario_navigator: NavigateWithScenario, test_name: str):

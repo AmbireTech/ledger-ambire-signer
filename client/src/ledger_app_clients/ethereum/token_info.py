@@ -1,6 +1,6 @@
-from .signing_partners import CAL_COIN_META_PARTNER
-
 from ragger.tlv import TlvSerializable
+
+from .signing_partners import CAL_COIN_META_PARTNER
 
 
 class EthTUID(TlvSerializable):

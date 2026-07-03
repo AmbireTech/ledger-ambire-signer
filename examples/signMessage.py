@@ -18,12 +18,13 @@
 ********************************************************************************
 """
 
-from ledgerblue.comm import getDongle
-from ethBase import sha3
-from eth_keys import KeyAPI
 import argparse
-import struct
 import binascii
+import struct
+
+from eth_keys import KeyAPI
+from ethBase import sha3
+from ledgerblue.comm import getDongle
 
 # Define here Chain_ID
 CHAIN_ID = 0
@@ -76,7 +77,7 @@ if (CHAIN_ID * 2 + 35) + 1 > 255:
 else:
     ecc_parity = (v + 1) % 2
 
-v = "%02X" % ecc_parity
+v = f"{ecc_parity:02X}"
 r = binascii.hexlify(result[1 : 1 + 32]).decode()
 s = binascii.hexlify(result[1 + 32 : 1 + 32 + 32]).decode()
 msg_to_sign = SIGN_MAGIC + str(len(args.message)).encode() + args.message

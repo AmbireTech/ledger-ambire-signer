@@ -18,9 +18,10 @@
 ********************************************************************************
 """
 
-from ledgerblue.comm import getDongle
 import argparse
 import struct
+
+from ledgerblue.comm import getDongle
 
 
 def parse_bip32_path(path):

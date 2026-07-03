@@ -1,14 +1,11 @@
 from pathlib import Path
-from typing import List
+
 import pytest
-
+from client.settings import SettingID, get_settings_moves
 from ledgered.devices import Device
-
 from ragger.backend import BackendInterface
 from ragger.navigator import Navigator
 from ragger.utils.misc import get_current_app_name_and_version
-
-from client.settings import SettingID, get_settings_moves
 
 
 @pytest.mark.parametrize(
@@ -31,7 +28,7 @@ def test_settings(
     test_name: str,
     default_screenshot_path: Path,
     name: str,
-    setting: List[SettingID],
+    setting: list[SettingID],
 ):
     """Check the settings"""
 

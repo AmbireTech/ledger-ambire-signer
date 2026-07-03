@@ -1,6 +1,7 @@
 from enum import IntEnum
-from typing import Optional
+
 from ragger.tlv import TlvSerializable
+
 from .signing_partners import TRUSTED_NAME_PARTNER
 
 
@@ -26,10 +27,10 @@ class ProxyInfo(TlvSerializable):
     challenge: int
     address: bytes
     chain_id: int
-    selector: Optional[bytes]
+    selector: bytes | None
     impl_address: bytes
     delegation_type: DelegationType
-    signature: Optional[bytes]
+    signature: bytes | None
 
     def __init__(
         self,
@@ -38,8 +39,8 @@ class ProxyInfo(TlvSerializable):
         chain_id: int,
         impl_address: bytes,
         delegation_type: DelegationType = DelegationType.PROXY,
-        selector: Optional[bytes] = None,
-        signature: Optional[bytes] = None,
+        selector: bytes | None = None,
+        signature: bytes | None = None,
     ):
         self.challenge = challenge
         self.address = address

@@ -1,13 +1,12 @@
 import json
 from pathlib import Path
-from ragger.navigator.navigation_scenario import NavigateWithScenario
-
-from test_blind_sign import test_blind_sign as blind_sign
-from test_eip712 import test_eip712_new as sign_eip712
-from test_eip712 import eip712_json_path, set_wallet_addr
 
 from client.gating import Gating
 from client.utils import TxType
+from ragger.navigator.navigation_scenario import NavigateWithScenario
+from test_blind_sign import test_blind_sign as blind_sign
+from test_eip712 import eip712_json_path, set_wallet_addr
+from test_eip712 import test_eip712_new as sign_eip712
 
 
 def test_gating_blind_signing(scenario_navigator: NavigateWithScenario) -> None:

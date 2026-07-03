@@ -4,12 +4,12 @@ Each instance bundles: PEM key, cert usage, and per-device certificate hex data.
 """
 
 from pathlib import Path
+
 from ledgered.devices import DeviceType
-from ragger.pki import SigningPartner, CertificatePubKeyUsage
+from ragger.pki import CertificatePubKeyUsage, SigningPartner
 
 _KEYCHAIN_DIR = Path(__file__).parent / "keychain"
 
-# pylint: disable=line-too-long
 NFT_PARTNER = SigningPartner(
     pem_key_path=_KEYCHAIN_DIR / "nft.pem",
     cert_pub_key_usage=CertificatePubKeyUsage.NFT_METADATA,
@@ -129,4 +129,3 @@ GATING_PARTNER = SigningPartner(
         DeviceType.APEX_P: "010101020102110400000002120100130200021401011604000000002006476174696E673002000B31010F32012133210333E5C0A441F3B1E957CE122693DF927D5F1CA774769F72ED38A024C53B36AAF7340101350106154730450221008D7667AE80FF1D48896FDE03A8023CE52D704E6B0A451AA1BFE3F2A1FAA63D2902200CD2DAC679D53EBB116523965ECC65FF4F8FFF90175D1FA760D2027179D39091",  # noqa: E501
     },
 )
-# pylint: enable=line-too-long

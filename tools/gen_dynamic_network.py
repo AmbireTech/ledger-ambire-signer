@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 
-import os
-import sys
+import argparse
 import logging
+import os
 import re
 import subprocess
-import argparse
+import sys
 
 # Retrieve the SDK path from the environment variable
 sdk_path = os.getenv("BOLOS_SDK")
 if sdk_path:
     # Import the library dynamically
     sys.path.append(f"{sdk_path}/lib_nbgl/tools")
-    from icon2glyph import open_image, compute_app_icon_data  # type: ignore
+    from icon2glyph import compute_app_icon_data, open_image  # type: ignore
 else:
     print("Environment variable BOLOS_SDK is not set")
     sys.exit(1)
@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 #          Parameters
 # ===============================================================================
 def init_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Generate hex string for network icon, in NBGL format."
-    )
+    parser = argparse.ArgumentParser(description="Generate hex string for network icon, in NBGL format.")
     parser.add_argument("--icon", "-i", required=True, help="Input icon to process.")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose mode")
     return parser
@@ -53,9 +51,7 @@ def set_logging(verbose: bool = False) -> None:
 def check_glyph(file: str) -> bool:
     extension = os.path.splitext(file)[1][1:]
     if extension not in ["gif", "bmp", "png"]:
-        logger.error(
-            f"Glyph extension should be '.gif', '.bmp', or '.png', not '.{extension}'"
-        )
+        logger.error(f"Glyph extension should be '.gif', '.bmp', or '.png', not '.{extension}'")
         return False
 
     try:
@@ -96,9 +92,7 @@ def check_glyph(file: str) -> bool:
         logger.debug("Grayscale image type")
 
         if nb_colors > 16:
-            logger.error(
-                f"4bpp glyphs can't have more than 16 colors, {nb_colors} found"
-            )
+            logger.error(f"4bpp glyphs can't have more than 16 colors, {nb_colors} found")
             return False
 
         if not any(depth in content for depth in ["Depth: 8-bit", "Depth: 8/8-bit"]):

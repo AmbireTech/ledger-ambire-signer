@@ -1,10 +1,10 @@
 # documentation about APDU format is available here:
 # https://github.com/LedgerHQ/app-ethereum/blob/develop/doc/ethapp.adoc
 
-import struct
 import math
+import struct
 from enum import IntEnum
-from typing import Optional, Union
+
 from ragger.bip import pack_derivation_path
 
 from .eip712.struct import EIP712FieldType, EIP712TypeDescOffset
@@ -87,11 +87,11 @@ class CommandBuilder:
 
     def _serialize(
         self,
-        ins: Union[InsType, int],
+        ins: InsType | int,
         p1: int,
         p2: int,
-        cdata: Union[bytes, bytearray] = bytes(),
-        cla: Optional[int] = None,
+        cdata: bytes | bytearray = b"",
+        cla: int | None = None,
     ) -> bytes:
 
         header = bytearray()
@@ -158,9 +158,7 @@ class CommandBuilder:
     def eip712_send_struct_impl_array(self, size: int) -> bytes:
         data = bytearray()
         data.append(size)
-        return self._serialize(
-            InsType.EIP712_SEND_STRUCT_IMPL, P1Type.COMPLETE_SEND, P2Type.ARRAY, data
-        )
+        return self._serialize(InsType.EIP712_SEND_STRUCT_IMPL, P1Type.COMPLETE_SEND, P2Type.ARRAY, data)
 
     def eip712_send_struct_impl_struct_field(self, data: bytearray) -> list[bytes]:
         chunks = []
@@ -169,11 +167,7 @@ class CommandBuilder:
         data_w_length += struct.pack(">H", len(data))
         data_w_length += data
         while len(data_w_length) > 0:
-            p1 = (
-                P1Type.PARTIAL_SEND
-                if len(data_w_length) > 0xFF
-                else P1Type.COMPLETE_SEND
-            )
+            p1 = P1Type.PARTIAL_SEND if len(data_w_length) > 0xFF else P1Type.COMPLETE_SEND
             chunks.append(
                 self._serialize(
                     InsType.EIP712_SEND_STRUCT_IMPL,
@@ -187,19 +181,13 @@ class CommandBuilder:
 
     def eip712_sign_new(self, bip32_path: str) -> bytes:
         data = pack_derivation_path(bip32_path)
-        return self._serialize(
-            InsType.EIP712_SIGN, P1Type.COMPLETE_SEND, P2Type.NEW_IMPLEM, data
-        )
+        return self._serialize(InsType.EIP712_SIGN, P1Type.COMPLETE_SEND, P2Type.NEW_IMPLEM, data)
 
-    def eip712_sign_legacy(
-        self, bip32_path: str, domain_hash: bytes, message_hash: bytes
-    ) -> bytes:
+    def eip712_sign_legacy(self, bip32_path: str, domain_hash: bytes, message_hash: bytes) -> bytes:
         data = pack_derivation_path(bip32_path)
         data += domain_hash
         data += message_hash
-        return self._serialize(
-            InsType.EIP712_SIGN, P1Type.COMPLETE_SEND, P2Type.LEGACY_IMPLEM, data
-        )
+        return self._serialize(InsType.EIP712_SIGN, P1Type.COMPLETE_SEND, P2Type.LEGACY_IMPLEM, data)
 
     def eip712_filtering_activate(self):
         return self._serialize(
@@ -228,9 +216,7 @@ class CommandBuilder:
             data,
         )
 
-    def eip712_filtering_message_info(
-        self, name: str, filters_count: int, sig: bytes
-    ) -> bytes:
+    def eip712_filtering_message_info(self, name: str, filters_count: int, sig: bytes) -> bytes:
         data = bytearray()
         data.append(len(name))
         data += name.encode()
@@ -244,9 +230,7 @@ class CommandBuilder:
             data,
         )
 
-    def eip712_filtering_amount_join_token(
-        self, token_idx: int, sig: bytes, discarded: bool
-    ) -> bytes:
+    def eip712_filtering_amount_join_token(self, token_idx: int, sig: bytes, discarded: bool) -> bytes:
         data = bytearray()
         data.append(token_idx)
         data.append(len(sig))
@@ -258,9 +242,7 @@ class CommandBuilder:
             data,
         )
 
-    def eip712_filtering_amount_join_value(
-        self, token_idx: int, name: str, sig: bytes, discarded: bool
-    ) -> bytes:
+    def eip712_filtering_amount_join_value(self, token_idx: int, name: str, sig: bytes, discarded: bool) -> bytes:
         data = bytearray()
         data.append(len(name))
         data += name.encode()
@@ -274,9 +256,7 @@ class CommandBuilder:
             data,
         )
 
-    def eip712_filtering_datetime(
-        self, name: str, sig: bytes, discarded: bool
-    ) -> bytes:
+    def eip712_filtering_datetime(self, name: str, sig: bytes, discarded: bool) -> bytes:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
@@ -362,9 +342,7 @@ class CommandBuilder:
             data,
         )
 
-    def eip712_filtering_calldata_chain_id(
-        self, index: int, sig: bytes, discarded: bool
-    ):
+    def eip712_filtering_calldata_chain_id(self, index: int, sig: bytes, discarded: bool):
         data = bytearray()
         data += struct.pack(">B", index)
         data.append(len(sig))
@@ -376,9 +354,7 @@ class CommandBuilder:
             data,
         )
 
-    def eip712_filtering_calldata_selector(
-        self, index: int, sig: bytes, discarded: bool
-    ):
+    def eip712_filtering_calldata_selector(self, index: int, sig: bytes, discarded: bool):
         data = bytearray()
         data += struct.pack(">B", index)
         data.append(len(sig))
@@ -402,9 +378,7 @@ class CommandBuilder:
             data,
         )
 
-    def eip712_filtering_calldata_spender(
-        self, index: int, sig: bytes, discarded: bool
-    ):
+    def eip712_filtering_calldata_spender(self, index: int, sig: bytes, discarded: bool):
         data = bytearray()
         data += struct.pack(">B", index)
         data.append(len(sig))
@@ -424,9 +398,7 @@ class CommandBuilder:
             self._eip712_filtering_send_name(name, sig),
         )
 
-    def set_external_plugin(
-        self, plugin_name: str, contract_address: bytes, selector: bytes, sig: bytes
-    ) -> bytes:
+    def set_external_plugin(self, plugin_name: str, contract_address: bytes, selector: bytes, sig: bytes) -> bytes:
         data = bytearray()
         data.append(len(plugin_name))
         data += plugin_name.encode()
@@ -434,15 +406,13 @@ class CommandBuilder:
         data += selector
         data += sig
 
-        return self._serialize(
-            InsType.EXTERNAL_PLUGIN_SETUP, P1Type.COMPLETE_SEND, 0x00, data
-        )
+        return self._serialize(InsType.EXTERNAL_PLUGIN_SETUP, P1Type.COMPLETE_SEND, 0x00, data)
 
     def sign(
         self,
         mode: int,
-        bip32_path: Optional[str] = None,
-        rlp_data: Optional[bytes] = None,
+        bip32_path: str | None = None,
+        rlp_data: bytes | None = None,
     ) -> list[bytes]:
         apdus: list[bytes] = []
         payload = bytearray()
@@ -466,32 +436,22 @@ class CommandBuilder:
         payload += tlv_payload
         p1 = 1
         while len(payload) > 0:
-            chunks.append(
-                self._serialize(InsType.PROVIDE_TRUSTED_NAME, p1, 0x00, payload[:0xFF])
-            )
+            chunks.append(self._serialize(InsType.PROVIDE_TRUSTED_NAME, p1, 0x00, payload[:0xFF]))
             payload = payload[0xFF:]
             p1 = 0
         return chunks
 
-    def get_public_addr(
-        self, display: bool, chaincode: bool, bip32_path: str, chain_id: Optional[int]
-    ) -> bytes:
+    def get_public_addr(self, display: bool, chaincode: bool, bip32_path: str, chain_id: int | None) -> bytes:
         payload = pack_derivation_path(bip32_path)
         if chain_id is not None:
             payload += struct.pack(">Q", chain_id)
-        return self._serialize(
-            InsType.GET_PUBLIC_ADDR, int(display), int(chaincode), payload
-        )
+        return self._serialize(InsType.GET_PUBLIC_ADDR, int(display), int(chaincode), payload)
 
     def get_eth2_public_addr(self, display: bool, bip32_path: str) -> bytes:
         payload = pack_derivation_path(bip32_path)
-        return self._serialize(
-            InsType.GET_ETH2_PUBLIC_ADDR, int(display), 0x00, payload
-        )
+        return self._serialize(InsType.GET_ETH2_PUBLIC_ADDR, int(display), 0x00, payload)
 
-    def perform_privacy_operation(
-        self, display: bool, bip32_path: str, pubkey: bytes
-    ) -> bytes:
+    def perform_privacy_operation(self, display: bool, bip32_path: str, pubkey: bytes) -> bytes:
         payload = pack_derivation_path(bip32_path)
         return self._serialize(
             InsType.PERFORM_PRIVACY_OPERATION,
@@ -558,16 +518,12 @@ class CommandBuilder:
         p1 = P1Type.SIGN_FIRST_CHUNK
         while len(payload) > 0:
             chunk_size = 0xFF
-            chunks.append(
-                self._serialize(InsType.PERSONAL_SIGN, p1, 0x00, payload[:chunk_size])
-            )
+            chunks.append(self._serialize(InsType.PERSONAL_SIGN, p1, 0x00, payload[:chunk_size]))
             payload = payload[chunk_size:]
             p1 = P1Type.SIGN_SUBSQT_CHUNK
         return chunks
 
-    def provide_erc20_token_information(
-        self, ticker: str, addr: bytes, decimals: int, chain_id: int, sig: bytes
-    ) -> bytes:
+    def provide_erc20_token_information(self, ticker: str, addr: bytes, decimals: int, chain_id: int, sig: bytes) -> bytes:
         payload = bytearray()
         payload.append(len(ticker))
         payload += ticker.encode()
@@ -575,19 +531,21 @@ class CommandBuilder:
         payload += struct.pack(">I", decimals)
         payload += struct.pack(">I", chain_id)
         payload += sig
-        return self._serialize(
-            InsType.PROVIDE_ERC20_TOKEN_INFORMATION, 0x00, 0x00, payload
-        )
+        return self._serialize(InsType.PROVIDE_ERC20_TOKEN_INFORMATION, 0x00, 0x00, payload)
 
     def common_tlv_serialize(
         self,
-        ins: Union[InsType, int],
+        ins: InsType | int,
         tlv_payload: bytes,
-        p1l: list[int] = [0x01, 0x00],
-        p2l: list[int] = [0x00],
-        payload: bytes = bytes(),
-        cla: Optional[int] = None,
+        p1l: list[int] | None = None,
+        p2l: list[int] | None = None,
+        payload: bytes = b"",
+        cla: int | None = None,
     ) -> list[bytes]:
+        if p1l is None:
+            p1l = [0x01, 0x00]
+        if p2l is None:
+            p2l = [0x00]
         assert len(p1l) in [1, 2]
         assert len(p2l) in [1, 2]
         chunks = []
@@ -603,9 +561,7 @@ class CommandBuilder:
             p2 = p2l[-1]
         return chunks
 
-    def provide_network_information(
-        self, tlv_payload: bytes, icon: Optional[bytes] = None
-    ) -> list[bytes]:
+    def provide_network_information(self, tlv_payload: bytes, icon: bytes | None = None) -> list[bytes]:
         chunks = self.common_tlv_serialize(
             InsType.PROVIDE_NETWORK_INFORMATION,
             tlv_payload,
@@ -627,9 +583,7 @@ class CommandBuilder:
                 p1 = P1Type.FOLLOWING_CHUNK
         return chunks
 
-    def sign_eip7702_authorization(
-        self, bip32_path: str, tlv_payload: bytes
-    ) -> list[bytes]:
+    def sign_eip7702_authorization(self, bip32_path: str, tlv_payload: bytes) -> list[bytes]:
         return self.common_tlv_serialize(
             InsType.SIGN_EIP7702_AUTHORIZATION,
             tlv_payload,
@@ -646,28 +600,20 @@ class CommandBuilder:
         return self.common_tlv_serialize(InsType.PROVIDE_TRANSACTION_INFO, tlv_payload)
 
     def provide_transaction_field_desc(self, tlv_payload: bytes) -> list[bytes]:
-        return self.common_tlv_serialize(
-            InsType.PROVIDE_TRANSACTION_FIELD_DESC, tlv_payload
-        )
+        return self.common_tlv_serialize(InsType.PROVIDE_TRANSACTION_FIELD_DESC, tlv_payload)
 
     def opt_in_tx_simulation(self) -> bytes:
         # Serialize the payload
-        return self._serialize(
-            InsType.PROVIDE_TX_SIMULATION, P1Type.OPT_IN_TX_CHECK, 0x00
-        )
+        return self._serialize(InsType.PROVIDE_TX_SIMULATION, P1Type.OPT_IN_TX_CHECK, 0x00)
 
     def provide_tx_simulation(self, tlv_payload: bytes) -> list[bytes]:
-        return self.common_tlv_serialize(
-            InsType.PROVIDE_TX_SIMULATION, tlv_payload, p1l=[0x00], p2l=[0x01, 0x00]
-        )
+        return self.common_tlv_serialize(InsType.PROVIDE_TX_SIMULATION, tlv_payload, p1l=[0x00], p2l=[0x01, 0x00])
 
     def provide_proxy_info(self, tlv_payload: bytes) -> list[bytes]:
         return self.common_tlv_serialize(InsType.PROVIDE_PROXY_INFO, tlv_payload)
 
     def provide_safe_account(self, tlv_payload: bytes, p2: int) -> list[bytes]:
-        return self.common_tlv_serialize(
-            InsType.PROVIDE_SAFE_ACCOUNT, tlv_payload, p2l=[p2]
-        )
+        return self.common_tlv_serialize(InsType.PROVIDE_SAFE_ACCOUNT, tlv_payload, p2l=[p2])
 
     def provide_gating(self, tlv_payload: bytes) -> list[bytes]:
         return self.common_tlv_serialize(InsType.PROVIDE_GATING, tlv_payload)

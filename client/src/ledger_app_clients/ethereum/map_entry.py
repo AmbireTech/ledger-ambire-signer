@@ -1,6 +1,7 @@
 from enum import IntEnum
-from typing import Optional
+
 from ragger.tlv import TlvSerializable
+
 from .signing_partners import CALLDATA_PARTNER
 
 
@@ -23,7 +24,7 @@ class MapEntry(TlvSerializable):
     id: int
     key: bytes
     value: bytes
-    signature: Optional[bytes] = None
+    signature: bytes | None = None
 
     def __init__(
         self,
@@ -34,7 +35,7 @@ class MapEntry(TlvSerializable):
         id: int,
         key: bytes,
         value: bytes,
-        signature: Optional[bytes] = None,
+        signature: bytes | None = None,
     ):
         self.version = version
         self.chain_id = chain_id

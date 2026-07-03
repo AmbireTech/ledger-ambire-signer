@@ -1,29 +1,24 @@
-from pathlib import Path
 import json
-from typing import Optional
+from pathlib import Path
 
-import pytest
-from web3 import Web3
-
-from ragger.backend import BackendInterface
-from ragger.navigator import Navigator, NavInsID
-from ragger.navigator.navigation_scenario import NavigateWithScenario
-from ragger.error import ExceptionRAPDU
-
-from constants import ABIS_FOLDER
-
-from client.client import EthAppClient
-from client.status_word import StatusWord
-from client.settings import SettingID, settings_toggle
 import client.response_parser as ResponseParser
-from client.utils import recover_transaction
-from client.tx_simu import TxSimu
+import pytest
+from client.client import EthAppClient
 from client.gating import Gating
 from client.proxy_info import ProxyInfo
-
+from client.settings import SettingID, settings_toggle
+from client.status_word import StatusWord
+from client.tx_simu import TxSimu
+from client.utils import recover_transaction
+from constants import ABIS_FOLDER
+from ragger.backend import BackendInterface
+from ragger.error import ExceptionRAPDU
+from ragger.navigator import Navigator, NavInsID
+from ragger.navigator.navigation_scenario import NavigateWithScenario
+from web3 import Web3
 
 BIP32_PATH = "m/44'/60'/0'/0/0"
-DEVICE_ADDR: Optional[bytes] = None
+DEVICE_ADDR: bytes | None = None
 
 
 @pytest.fixture(name="reject", params=[False, True])
@@ -85,13 +80,9 @@ def common_blind_sign(
                 test_name += "_nonzero"
 
             if reject:
-                scenario_navigator.review_reject_with_warning(
-                    test_name=test_name, nb_warnings=nb_warnings
-                )
+                scenario_navigator.review_reject_with_warning(test_name=test_name, nb_warnings=nb_warnings)
             else:
-                scenario_navigator.review_approve_with_warning(
-                    test_name=test_name, nb_warnings=nb_warnings
-                )
+                scenario_navigator.review_approve_with_warning(test_name=test_name, nb_warnings=nb_warnings)
 
     except ExceptionRAPDU as e:
         assert reject
@@ -111,8 +102,8 @@ def test_blind_sign(
     test_name: str,
     reject: bool,
     amount: float,
-    simu_params: Optional[TxSimu] = None,
-    gating_params: Optional[Gating] = None,
+    simu_params: TxSimu | None = None,
+    gating_params: Gating | None = None,
     with_proxy: bool = False,
 ):
     if reject and amount > 0.0:
@@ -152,15 +143,11 @@ def test_blind_sign(
         response = app_client.provide_tx_simulation(simu_params)
         assert response.status == StatusWord.SWO_SUCCESS
 
-    common_blind_sign(
-        scenario_navigator, test_name, app_client, tx_params, reject, nb_warnings
-    )
+    common_blind_sign(scenario_navigator, test_name, app_client, tx_params, reject, nb_warnings)
 
 
 # Token approval, would require providing the token metadata from the CAL
-def test_blind_sign_nonce(
-    navigator: Navigator, scenario_navigator: NavigateWithScenario, test_name: str
-):
+def test_blind_sign_nonce(navigator: Navigator, scenario_navigator: NavigateWithScenario, test_name: str):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
     device = backend.device
@@ -173,9 +160,7 @@ def test_blind_sign_nonce(
     common_blind_sign(scenario_navigator, test_name, app_client, tx_params)
 
 
-def test_blind_sign_reject_in_risk_review(
-    backend: BackendInterface, navigator: Navigator
-):
+def test_blind_sign_reject_in_risk_review(backend: BackendInterface, navigator: Navigator):
     app_client = EthAppClient(backend)
     device = backend.device
 
@@ -183,7 +168,7 @@ def test_blind_sign_reject_in_risk_review(
 
     moves = []
     if device.is_nano:
-        moves += [NavInsID.RIGHT_CLICK] + [NavInsID.BOTH_CLICK]
+        moves += [NavInsID.RIGHT_CLICK, NavInsID.BOTH_CLICK]
     else:
         moves += [NavInsID.USE_CASE_CHOICE_CONFIRM]
     try:
@@ -192,7 +177,7 @@ def test_blind_sign_reject_in_risk_review(
     except ExceptionRAPDU as e:
         assert e.status == StatusWord.SWO_CONDITIONS_NOT_SATISFIED
     else:
-        assert False  # Should have thrown
+        raise AssertionError("An exception should have been raised")
 
 
 # Token approval, would require loading the "internal plugin" &
@@ -221,15 +206,9 @@ def test_sign_parameter_selector(
             # (verify | parameter) * flows
             moves += ([NavInsID.RIGHT_CLICK] * 2 + [NavInsID.BOTH_CLICK]) * params
             # blind signing | review | from | amount | to | fees
-            moves += (
-                [NavInsID.BOTH_CLICK]
-                + [NavInsID.RIGHT_CLICK] * 6
-                + [NavInsID.BOTH_CLICK]
-            )
+            moves += [NavInsID.BOTH_CLICK] + [NavInsID.RIGHT_CLICK] * 6 + [NavInsID.BOTH_CLICK]
         else:
-            moves += (
-                [NavInsID.SWIPE_CENTER_TO_LEFT] * 2 + [NavInsID.USE_CASE_REVIEW_CONFIRM]
-            ) * (1 + params)
+            moves += ([NavInsID.SWIPE_CENTER_TO_LEFT] * 2 + [NavInsID.USE_CASE_REVIEW_CONFIRM]) * (1 + params)
             moves += [NavInsID.USE_CASE_CHOICE_REJECT]
             tap_number = 3
             moves += [NavInsID.SWIPE_CENTER_TO_LEFT] * tap_number
@@ -262,4 +241,4 @@ def test_blind_sign_not_enabled_error(
     except ExceptionRAPDU as e:
         assert e.status == StatusWord.SWO_INCORRECT_DATA
     else:
-        assert False  # Should have thrown
+        raise AssertionError("An exception should have been raised")

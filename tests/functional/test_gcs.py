@@ -1,47 +1,43 @@
-# pylint: disable=too-many-lines
 # Large test file containing multiple GCS (Generic Clear Signing) integration tests
-from typing import Any, Optional
-import json
 import hashlib
+import json
 from pathlib import Path
-
-import pytest
-from web3 import Web3
-
-from ragger.navigator.navigation_scenario import NavigateWithScenario
-
-from dynamic_networks_cfg import get_network_config
-from constants import ABIS_FOLDER
-from fields_utils import get_all_tuple_array_paths, get_all_paths, get_all_tuple_paths
+from typing import Any
 
 import client.response_parser as ResponseParser
+import pytest
 from client.client import EthAppClient, SignMode
-from client.status_word import StatusWord
-from client.utils import get_selector_from_data
-from client.gcs import (
-    Field,
-    ParamType,
-    ParamRaw,
-    Value,
-    TypeFamily,
-    DataPath,
-    ParamTrustedName,
-    ParamNFT,
-    ParamDatetime,
-    DatetimeType,
-    ParamTokenAmount,
-    ParamToken,
-    ParamCalldata,
-    ParamAmount,
-    ParamEnum,
-    ContainerPath,
-    TxInfo,
-)
-from client.enum_value import EnumValue
-from client.tx_simu import TxSimu
-from client.proxy_info import ProxyInfo
 from client.dynamic_networks import DynamicNetwork
-from client.trusted_name import TrustedName, TrustedNameType, TrustedNameSource
+from client.enum_value import EnumValue
+from client.gcs import (
+    ContainerPath,
+    DataPath,
+    DatetimeType,
+    Field,
+    ParamAmount,
+    ParamCalldata,
+    ParamDatetime,
+    ParamEnum,
+    ParamNFT,
+    ParamRaw,
+    ParamToken,
+    ParamTokenAmount,
+    ParamTrustedName,
+    ParamType,
+    TxInfo,
+    TypeFamily,
+    Value,
+)
+from client.proxy_info import ProxyInfo
+from client.status_word import StatusWord
+from client.trusted_name import TrustedName, TrustedNameSource, TrustedNameType
+from client.tx_simu import TxSimu
+from client.utils import get_selector_from_data
+from constants import ABIS_FOLDER
+from dynamic_networks_cfg import get_network_config
+from fields_utils import get_all_paths, get_all_tuple_array_paths, get_all_tuple_paths
+from ragger.navigator.navigation_scenario import NavigateWithScenario
+from web3 import Web3
 
 
 def compute_inst_hash(fields: list[Field]) -> bytes:
@@ -198,9 +194,7 @@ def test_gcs_nft(scenario_navigator: NavigateWithScenario):
             challenge=challenge,
         )
     )
-    app_client.provide_nft_metadata(
-        "OpenSea Shared Storefront", tx_params["to"], tx_params["chainId"]
-    )
+    app_client.provide_nft_metadata("OpenSea Shared Storefront", tx_params["to"], tx_params["chainId"])
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
@@ -209,15 +203,12 @@ def test_gcs_nft(scenario_navigator: NavigateWithScenario):
         scenario_navigator.review_approve()
 
 
-def test_gcs_poap(
-    scenario_navigator: NavigateWithScenario, simu_params: Optional[TxSimu] = None
-):
+def test_gcs_poap(scenario_navigator: NavigateWithScenario, simu_params: TxSimu | None = None):
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
 
     with open(f"{ABIS_FOLDER}/poap.abi.json", encoding="utf-8") as file:
         contract = Web3().eth.contract(abi=json.load(file), address=None)
-    # pylint: disable=line-too-long
     data = contract.encode_abi(
         "mintToken",
         [
@@ -240,7 +231,6 @@ def test_gcs_poap(
         "data": data,
         "chainId": 1,
     }
-    # pylint: enable=line-too-long
 
     if simu_params is not None:
         _, tx_hash = app_client.serialize_tx(tx_params)
@@ -368,7 +358,7 @@ def test_gcs_1inch(scenario_navigator: NavigateWithScenario):
                 682119805,
                 0,
             ],
-            bytes(),
+            b"",
         ],
     )
     tx_params = {
@@ -385,9 +375,7 @@ def test_gcs_1inch(scenario_navigator: NavigateWithScenario):
         pass
 
     param_paths = get_all_paths(f"{ABIS_FOLDER}/1inch.abi.json", "swap")
-    param_tuple_paths = get_all_tuple_paths(
-        f"{ABIS_FOLDER}/1inch.abi.json", "swap", "desc"
-    )
+    param_tuple_paths = get_all_tuple_paths(f"{ABIS_FOLDER}/1inch.abi.json", "swap", "desc")
     fields = [
         Field(
             1,
@@ -464,9 +452,7 @@ def test_gcs_1inch(scenario_navigator: NavigateWithScenario):
 
     app_client.provide_transaction_info(tx_info.serialize())
 
-    app_client.provide_token_metadata(
-        "USDC", bytes.fromhex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), 6, 1
-    )
+    app_client.provide_token_metadata("USDC", bytes.fromhex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), 6, 1)
 
     for field in fields:
         app_client.provide_transaction_field_desc(field.serialize())
@@ -502,9 +488,7 @@ def test_gcs_proxy(scenario_navigator: NavigateWithScenario):
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
 
-    param_paths = get_all_paths(
-        f"{ABIS_FOLDER}/proxy_implem.abi.json", "transferOwnership"
-    )
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/proxy_implem.abi.json", "transferOwnership")
     fields = [
         Field(
             1,
@@ -701,9 +685,7 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
             abi=json.load(f),
             address=bytes.fromhex("BD89A1CE4DDe368FFAB0eC35506eEcE0b1fFdc54"),
         )
-    safe_l2_setup_data = safe_l2_setup.encode_abi(
-        "setupToL2", [bytes.fromhex("29fcB43b46531BcA003ddC8FCB67FFE91900C762")]
-    )
+    safe_l2_setup_data = safe_l2_setup.encode_abi("setupToL2", [bytes.fromhex("29fcB43b46531BcA003ddC8FCB67FFE91900C762")])
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
         safe = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
@@ -725,16 +707,12 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
             bytes.fromhex("5afe7A11E7000000000000000000000000000000"),
         ],
     )
-    with open(
-        f"{ABIS_FOLDER}/safe_proxy_factory_1.4.1.abi.json", encoding="utf-8"
-    ) as f:
+    with open(f"{ABIS_FOLDER}/safe_proxy_factory_1.4.1.abi.json", encoding="utf-8") as f:
         safe_proxy_factory = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"),
         )
-    data = safe_proxy_factory.encode_abi(
-        "createProxyWithNonce", [safe.address, safe_data, 0]
-    )
+    data = safe_proxy_factory.encode_abi("createProxyWithNonce", [safe.address, safe_data, 0])
     tx_params = {
         "nonce": 75,
         "maxFeePerGas": Web3.to_wei(4.2, "gwei"),
@@ -748,9 +726,7 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
 
-    param_paths = get_all_paths(
-        f"{ABIS_FOLDER}/safe_proxy_factory_1.4.1.abi.json", "createProxyWithNonce"
-    )
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/safe_proxy_factory_1.4.1.abi.json", "createProxyWithNonce")
     fields = [
         Field(
             1,
@@ -930,9 +906,7 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
         "setup",
     )
 
-    param_paths = get_all_paths(
-        f"{ABIS_FOLDER}/safe_l2_setup_1.4.1.abi.json", "setupToL2"
-    )
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/safe_l2_setup_1.4.1.abi.json", "setupToL2")
     sub_sub_fields = [
         Field(
             1,
@@ -967,9 +941,7 @@ def test_gcs_nested_createProxyWithNonce(scenario_navigator: NavigateWithScenari
                 if sub_field.param.type == ParamType.CALLDATA:
                     app_client.provide_transaction_info(sub_sub_tx_info.serialize())
                     for sub_sub_field in sub_sub_fields:
-                        app_client.provide_transaction_field_desc(
-                            sub_sub_field.serialize()
-                        )
+                        app_client.provide_transaction_field_desc(sub_sub_field.serialize())
 
     with app_client.sign(mode=SignMode.START_FLOW):
         scenario_navigator.review_approve()
@@ -985,13 +957,12 @@ def test_gcs_nested_execTransaction_send(scenario_navigator: NavigateWithScenari
             abi=json.load(f),
             address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
-    # pylint: disable=line-too-long
     data = contract.encode_abi(
         "execTransaction",
         [
             contract.address,
             Web3.to_wei(0.0042, "ether"),
-            bytes(),
+            b"",
             0,
             0,
             0,
@@ -1003,7 +974,6 @@ def test_gcs_nested_execTransaction_send(scenario_navigator: NavigateWithScenari
             ),
         ],
     )
-    # pylint: enable=line-too-long
 
     tx_params = {
         "nonce": 77,
@@ -1090,7 +1060,6 @@ def test_gcs_nested_execTransaction_addOwnerWithThreshold(
         "addOwnerWithThreshold",
         [bytes.fromhex("FD6765Ad4eE64668701356a16aB28B123B3A4170"), 2],
     )
-    # pylint: disable=line-too-long
     data = contract.encode_abi(
         "execTransaction",
         [
@@ -1108,7 +1077,6 @@ def test_gcs_nested_execTransaction_addOwnerWithThreshold(
             ),
         ],
     )
-    # pylint: enable=line-too-long
 
     tx_params = {
         "nonce": 78,
@@ -1278,9 +1246,7 @@ def test_gcs_nested_execTransaction_addOwnerWithThreshold(
 
     app_client.provide_transaction_info(tx_info.serialize())
 
-    param_paths = get_all_paths(
-        f"{ABIS_FOLDER}/safe_1.4.1.abi.json", "addOwnerWithThreshold"
-    )
+    param_paths = get_all_paths(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", "addOwnerWithThreshold")
     sub_fields = [
         Field(
             1,
@@ -1365,7 +1331,6 @@ def test_gcs_nested_execTransaction_changeThreshold(
             address=bytes.fromhex("23F8abfC2824C397cCB3DA89ae772984107dDB99"),
         )
     sub_data = contract.encode_abi("changeThreshold", [3])
-    # pylint: disable=line-too-long
     data = contract.encode_abi(
         "execTransaction",
         [
@@ -1383,7 +1348,6 @@ def test_gcs_nested_execTransaction_changeThreshold(
             ),
         ],
     )
-    # pylint: enable=line-too-long
 
     tx_params = {
         "nonce": 83,
@@ -1633,7 +1597,7 @@ def test_gcs_nested_no_param(scenario_navigator: NavigateWithScenario):
             0,
             bytes.fromhex("0000000000000000000000000000000000000000"),
             bytes.fromhex("0000000000000000000000000000000000000000"),
-            bytes(),
+            b"",
         ],
     )
 
@@ -1781,7 +1745,7 @@ def test_gcs_trusted_name_token(scenario_navigator: NavigateWithScenario):
                 682119805,
                 0,
             ],
-            bytes(),
+            b"",
         ],
     )
     tx_params = {
@@ -1959,9 +1923,7 @@ def test_gcs_batch(scenario_navigator: NavigateWithScenario):
         ),
     ]
 
-    param_paths = get_all_tuple_array_paths(
-        f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls"
-    )
+    param_paths = get_all_tuple_array_paths(f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls")
     fields = [
         Field(
             1,
@@ -2091,14 +2053,13 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
         ],
     )
 
-    # pylint: disable=line-too-long
     # Encode execTransaction data using batchExecute data
     with open(f"{ABIS_FOLDER}/safe_1.4.1.abi.json", encoding="utf-8") as f:
         contract = Web3().eth.contract(  # type: ignore[call-overload]  # web3 stubs reject raw-bytes addresses reused as contract_addr
             abi=json.load(f),
             address=bytes.fromhex("60aa01971a2adc1d6b2b59b972fb47b2fec095fc"),
         )
-    execDataSignature = "93a3e6ff4d0798d51ba53f5d8287326adbe3e22dd0dc28bdbfab825be357ce8c76a13b8128f5d91530af675925220ede099e0f0a51af3a65760060d4b37db9281c"
+    execDataSignature = "93a3e6ff4d0798d51ba53f5d8287326adbe3e22dd0dc28bdbfab825be357ce8c76a13b8128f5d91530af675925220ede099e0f0a51af3a65760060d4b37db9281c"  # noqa: E501
     execTxData = contract.encode_abi(
         "execTransaction",
         [
@@ -2114,7 +2075,6 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
             bytes.fromhex(execDataSignature),
         ],
     )
-    # pylint: enable=line-too-long
 
     # Define top level transaction parameters
     tx_params = {
@@ -2265,9 +2225,7 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
     )
 
     print(f"{'~' * 20} DEBUG L1 {'~' * 20}")
-    param_paths = get_all_tuple_array_paths(
-        f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls"
-    )
+    param_paths = get_all_tuple_array_paths(f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls")
     # Intermediate execTransaction transaction fields definition
     L1_fields = [
         Field(
@@ -2385,9 +2343,7 @@ def test_gcs_batch_2(scenario_navigator: NavigateWithScenario):
     # Send Network information (name, ticker, icon)
     name, ticker, icon = get_network_config(backend.device.type, tx_params["chainId"])
     if name and ticker:
-        app_client.provide_network_information(
-            DynamicNetwork(name, ticker, tx_params["chainId"], icon)
-        )
+        app_client.provide_network_information(DynamicNetwork(name, ticker, tx_params["chainId"], icon))
 
     # Send top level transaction info
     app_client.provide_transaction_info(L0_tx_info.serialize())
@@ -2457,9 +2413,7 @@ def test_gcs_batch_empty_tx(scenario_navigator: NavigateWithScenario) -> None:
     }
     with app_client.sign("m/44'/60'/0'/0/0", tx_params, mode=SignMode.STORE):
         pass
-    param_paths = get_all_tuple_array_paths(
-        f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls"
-    )
+    param_paths = get_all_tuple_array_paths(f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls")
     fields = [
         Field(
             1,
@@ -2639,9 +2593,7 @@ def test_gcs_batch_complex(scenario_navigator: NavigateWithScenario) -> None:
         ),
     ]
 
-    param_paths = get_all_tuple_array_paths(
-        f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls"
-    )
+    param_paths = get_all_tuple_array_paths(f"{ABIS_FOLDER}/batch.json", "batchExecute", "calls")
     fields = [
         Field(
             1,

@@ -18,11 +18,12 @@
 ********************************************************************************
 """
 
-from ledgerblue.comm import getDongle
 import argparse
-import struct
 import binascii
+import struct
+
 import rlp
+from ledgerblue.comm import getDongle
 
 
 def der_encode(value):

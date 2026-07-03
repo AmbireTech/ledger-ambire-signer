@@ -1,7 +1,6 @@
 from enum import IntEnum
-from typing import List, Optional
 
-from ragger.tlv import TlvSerializable, LedgerCommonFieldTag, LesMultisigFieldTag
+from ragger.tlv import LedgerCommonFieldTag, LesMultisigFieldTag, TlvSerializable
 
 from .signing_partners import SAFE_PARTNER
 
@@ -19,29 +18,27 @@ class LesMultiSigRole(IntEnum):
 class SafeAccount(TlvSerializable):
     account_type: AccountType
     challenge: int = 0
-    address: List[bytes] = []
-    lesm_role: Optional[LesMultiSigRole] = None
+    address: list[bytes]
+    lesm_role: LesMultiSigRole | None = None
     threshold: int = 0
     signer_counts: int = 0
-    signature: Optional[bytes]
+    signature: bytes | None
 
     def __init__(
         self,
         account_type: AccountType,
         challenge: int,
-        address: List[bytes],
-        lesm_role: Optional[LesMultiSigRole] = None,
+        address: list[bytes],
+        lesm_role: LesMultiSigRole | None = None,
         threshold: int = 0,
         signer_counts: int = 0,
-        signature: Optional[bytes] = None,
+        signature: bytes | None = None,
     ) -> None:
         assert account_type in (AccountType.SAFE, AccountType.SIGNER), (
             f"Invalid account_type: {account_type}. Must be SAFE(0) or SIGNER(1)"
         )
         if account_type == AccountType.SAFE:
-            assert len(address) == 1, (
-                "Only a single Address for SAFE accounts is allowed"
-            )
+            assert len(address) == 1, "Only a single Address for SAFE accounts is allowed"
             assert lesm_role in (LesMultiSigRole.SIGNER, LesMultiSigRole.PROPOSER), (
                 f"Invalid lesm_role: {lesm_role}. Must be SIGNER(0) or PROPOSER(1)"
             )
@@ -63,24 +60,16 @@ class SafeAccount(TlvSerializable):
             assert self.lesm_role is not None, "LESM role is required for SAFE accounts"
         # Construct the TLV payload
         struct_type = 0x27 if self.account_type == AccountType.SAFE else 0x0A
-        payload: bytes = self.serialize_field(
-            LedgerCommonFieldTag.STRUCTURE_TYPE, struct_type
-        )
+        payload: bytes = self.serialize_field(LedgerCommonFieldTag.STRUCTURE_TYPE, struct_type)
         payload += self.serialize_field(LedgerCommonFieldTag.VERSION, 1)
         payload += self.serialize_field(LedgerCommonFieldTag.CHALLENGE, self.challenge)
         for addr in self.address:
             payload += self.serialize_field(LedgerCommonFieldTag.ADDRESS, addr)
         if self.account_type == AccountType.SAFE:
             if self.lesm_role is not None:
-                payload += self.serialize_field(
-                    LesMultisigFieldTag.ROLE, self.lesm_role
-                )
-            payload += self.serialize_field(
-                LesMultisigFieldTag.THRESHOLD, self.threshold
-            )
-            payload += self.serialize_field(
-                LesMultisigFieldTag.SIGNERS_COUNT, self.signer_counts
-            )
+                payload += self.serialize_field(LesMultisigFieldTag.ROLE, self.lesm_role)
+            payload += self.serialize_field(LesMultisigFieldTag.THRESHOLD, self.threshold)
+            payload += self.serialize_field(LesMultisigFieldTag.SIGNERS_COUNT, self.signer_counts)
 
         # Append the data Signature
         sig = self.signature

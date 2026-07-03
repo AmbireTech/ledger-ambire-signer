@@ -18,20 +18,9 @@
 ********************************************************************************
 """
 
-from rlp.sedes import big_endian_int, binary, Binary
+from eth_utils import keccak
 from rlp import Serializable
-
-try:
-    from Crypto.Hash import keccak
-
-    def sha3_256(x):
-        return keccak.new(digest_bits=256, data=x).digest()
-except ImportError:
-    import sha3 as _sha3
-
-    def sha3_256(x):
-        return _sha3.sha3_256(x).digest()
-
+from rlp.sedes import Binary, big_endian_int, binary
 
 address = Binary.fixed_length(20, allow_empty=True)
 
@@ -39,11 +28,11 @@ address = Binary.fixed_length(20, allow_empty=True)
 def sha3(seed):
     if isinstance(seed, str):
         seed = seed.encode()
-    return sha3_256(seed)
+    return keccak(seed)
 
 
 class Transaction(Serializable):
-    fields = [
+    fields = [  # noqa: RUF012
         ("nonce", big_endian_int),
         ("gasprice", big_endian_int),
         ("startgas", big_endian_int),
@@ -60,7 +49,7 @@ class Transaction(Serializable):
 
 
 class UnsignedTransaction(Serializable):
-    fields = [
+    fields = [  # noqa: RUF012
         ("nonce", big_endian_int),
         ("gasprice", big_endian_int),
         ("startgas", big_endian_int),

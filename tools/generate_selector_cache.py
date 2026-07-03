@@ -4,7 +4,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+
 from eth_utils import keccak
 
 
@@ -72,7 +72,7 @@ def extract_function_signature(func: dict) -> str:
     return f"{name}({','.join(input_types)})"
 
 
-def process_abi_file(abi_path: Path, logger: logging.Logger) -> Dict[str, str]:
+def process_abi_file(abi_path: Path, logger: logging.Logger) -> dict[str, str]:
     """Process a single ABI file and extract all function signatures.
 
     Args:
@@ -83,7 +83,7 @@ def process_abi_file(abi_path: Path, logger: logging.Logger) -> Dict[str, str]:
     """
 
     try:
-        with open(abi_path, "r") as f:
+        with open(abi_path) as f:
             abi = json.load(f)
     except Exception as e:
         logger.error(f"Failed to load {abi_path}: {e}")
@@ -113,7 +113,7 @@ def process_abi_file(abi_path: Path, logger: logging.Logger) -> Dict[str, str]:
     return selectors
 
 
-def scan_abi_directory(directory: Path, logger: logging.Logger) -> Dict[str, str]:
+def scan_abi_directory(directory: Path, logger: logging.Logger) -> dict[str, str]:
     """Scan directory for ABI files and extract all signatures.
 
     Args:
@@ -148,8 +148,8 @@ def scan_abi_directory(directory: Path, logger: logging.Logger) -> Dict[str, str
 
 def gen_selector_cache(
     input_path: Path = Path("tests/functional/abis"),
-    logger: Optional[logging.Logger] = None,
-) -> Dict[str, str]:
+    logger: logging.Logger | None = None,
+) -> dict[str, str]:
     """Generate the function selector cache from a directory of ABI files.
 
     Args:
