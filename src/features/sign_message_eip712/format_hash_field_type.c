@@ -2,7 +2,6 @@
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "commands_712.h"
-#include "hash_bytes.h"
 #include "typed_data.h"
 
 /**
@@ -13,6 +12,7 @@
  * @return whether the formatting & hashing were successful or not
  */
 static bool format_hash_field_type_size(const s_struct_712_field *field_ptr, cx_hash_t *hash_ctx) {
+    cx_err_t ret;
     uint16_t field_size;
     const char *uint_str_ptr;
 
@@ -32,9 +32,9 @@ static bool format_hash_field_type_size(const s_struct_712_field *field_ptr, cx_
     if (uint_str_ptr == NULL) {
         return false;
     }
-    hash_nbytes((uint8_t *) uint_str_ptr, strlen(uint_str_ptr), hash_ctx);
+    ret = cx_hash_update((cx_hash_t *) hash_ctx, (uint8_t *) uint_str_ptr, strlen(uint_str_ptr));
     APP_MEM_FREE((void *) uint_str_ptr);
-    return true;
+    return ret == CX_OK;
 }
 
 /**
@@ -46,10 +46,13 @@ static bool format_hash_field_type_size(const s_struct_712_field *field_ptr, cx_
  */
 static bool format_hash_field_type_array_levels(const s_struct_712_field *field_ptr,
                                                 cx_hash_t *hash_ctx) {
+    cx_err_t ret;
     const char *uint_str_ptr;
 
     for (int i = 0; i < field_ptr->array_level_count; ++i) {
-        hash_byte('[', hash_ctx);
+        if (cx_hash_update((cx_hash_t *) hash_ctx, (uint8_t *) "[", 1) != CX_OK) {
+            return false;
+        }
 
         switch (field_ptr->array_levels[i].type) {
             case ARRAY_DYNAMIC:
@@ -59,14 +62,21 @@ static bool format_hash_field_type_array_levels(const s_struct_712_field *field_
                     NULL) {
                     return false;
                 }
-                hash_nbytes((uint8_t *) uint_str_ptr, strlen(uint_str_ptr), hash_ctx);
+                ret = cx_hash_update((cx_hash_t *) hash_ctx,
+                                     (uint8_t *) uint_str_ptr,
+                                     strlen(uint_str_ptr));
                 APP_MEM_FREE((void *) uint_str_ptr);
+                if (ret != CX_OK) {
+                    return false;
+                }
                 break;
             default:
                 // should not be in here :^)
                 return false;
         }
-        hash_byte(']', hash_ctx);
+        if (cx_hash_update((cx_hash_t *) hash_ctx, (uint8_t *) "]", 1) != CX_OK) {
+            return false;
+        }
     }
     return true;
 }
@@ -86,7 +96,9 @@ bool format_hash_field_type(const s_struct_712_field *field_ptr, cx_hash_t *hash
     if (name == NULL) {
         return false;
     }
-    hash_nbytes((uint8_t *) name, strlen(name), hash_ctx);
+    if (cx_hash_update((cx_hash_t *) hash_ctx, (uint8_t *) name, strlen(name)) != CX_OK) {
+        return false;
+    }
 
     // field type size
     switch (field_ptr->type) {

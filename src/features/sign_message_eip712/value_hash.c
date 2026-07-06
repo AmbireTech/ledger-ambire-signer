@@ -2,8 +2,8 @@
 #include "typed_data.h"
 #include "type_hash.h"
 #include "encode_field.h"
-#include "hash_bytes.h"
 #include "app_mem_utils.h"
+#include "common_utils.h"    // CX_KECCAK_256_SIZE
 #include "shared_context.h"  // tmpCtx
 
 static bool hash_value(const s_struct_712_value *node, uint8_t *out, uint8_t depth);
@@ -24,8 +24,10 @@ static bool encode_atomic(const s_struct_712_value *leaf, uint8_t *out) {
             PRINTF("encode_atomic: keccak_init failed for dyn field %s\n", field->key_name);
             return false;
         }
-        hash_nbytes(data, length, (cx_hash_t *) &sha3);
-        return finalize_hash((cx_hash_t *) &sha3, out, CX_KECCAK_256_SIZE);
+        if (cx_hash_update((cx_hash_t *) &sha3, data, length) != CX_OK) {
+            return false;
+        }
+        return cx_hash_final((cx_hash_t *) &sha3, out) == CX_OK;
     }
 
     switch (field->type) {
@@ -76,9 +78,11 @@ static bool hash_array(const s_struct_712_value *arr, uint8_t *out, uint8_t dept
         if (!hash_value(elem, elem_hash, depth)) {
             return false;
         }
-        hash_nbytes(elem_hash, CX_KECCAK_256_SIZE, (cx_hash_t *) &sha3);
+        if (cx_hash_update((cx_hash_t *) &sha3, elem_hash, sizeof(elem_hash)) != CX_OK) {
+            return false;
+        }
     }
-    return finalize_hash((cx_hash_t *) &sha3, out, CX_KECCAK_256_SIZE);
+    return cx_hash_final((cx_hash_t *) &sha3, out) == CX_OK;
 }
 
 /**
@@ -106,16 +110,20 @@ static bool hash_struct(const s_struct_712_value *node, uint8_t *out, uint8_t de
     if (cx_keccak_init_no_throw(&sha3, 256) != CX_OK) {
         return false;
     }
-    hash_nbytes(type_hash_buf, CX_KECCAK_256_SIZE, (cx_hash_t *) &sha3);
+    if (cx_hash_update((cx_hash_t *) &sha3, type_hash_buf, sizeof(type_hash_buf)) != CX_OK) {
+        return false;
+    }
 
     for (const s_struct_712_value *child = node->children; child != NULL;
          child = (const s_struct_712_value *) ((const flist_node_t *) child)->next) {
         if (!hash_value(child, child_hash, depth + 1)) {
             return false;
         }
-        hash_nbytes(child_hash, CX_KECCAK_256_SIZE, (cx_hash_t *) &sha3);
+        if (cx_hash_update((cx_hash_t *) &sha3, child_hash, sizeof(child_hash)) != CX_OK) {
+            return false;
+        }
     }
-    return finalize_hash((cx_hash_t *) &sha3, out, CX_KECCAK_256_SIZE);
+    return cx_hash_final((cx_hash_t *) &sha3, out) == CX_OK;
 }
 
 static bool hash_value(const s_struct_712_value *node, uint8_t *out, uint8_t depth) {
