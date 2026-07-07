@@ -1,5 +1,5 @@
 pytest
 ecdsa
 web3~=7.0
-ragger[speculos]
+ragger[speculos] @ git+https://github.com/LedgerHQ/ragger.git@recent_qemu
 py_ecc
