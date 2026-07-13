@@ -1,2 +1,50 @@
-# Created by venv; see https://docs.python.org/3/library/venv.html
-*
+# Compilation of Ledger's app
+bin/
+debug/
+build/
+
+# Nano NBGL reversed icon for Home Screen
+glyphs/home_chain_*
+
+# Unit tests and code coverage
+tests/unit/build/
+tests/unit/coverage/
+tests/unit/coverage.*
+
+# Python
+venv/
+*.pyc
+__version__.py
+
+.vscode
+.idea
+
+# Fuzzing
+tests/fuzzing/corpus/
+tests/fuzzing/out/
+tests/fuzzing/CMakeFiles/
+tests/fuzzing/macros/generated/
+
+default.profraw
+default.profdata
+fuzz-*.log
+crash-*
+report.html
+
+# LSP
+.cache/
+
+# Doxygen
+doxygen/
+
+# Local side-loading virtualenv
+ledger/
+
+build*
+core*
+pyvenv.cfg
+lib
+include
+or
+python3.12
+.DS_Store

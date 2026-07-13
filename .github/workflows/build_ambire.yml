@@ -1,0 +1,24 @@
+name: Build Ambire Signer for all Ledger devices
+
+# Builds the custom "Ambire Signer" Ethereum app for every supported Ledger
+# device and uploads the resulting binaries as a downloadable artifact for
+# side-loading. Uses Ledger's official reusable build workflow, which reads the
+# device list from ledger_app.toml (apex_p, nanox, nanos+, stax, flex).
+#
+# The original Nano S is not supported by this app version and is therefore
+# absent from the build matrix.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+      - 'feat/**'
+
+jobs:
+  build_all_devices:
+    name: Build for all supported devices
+    uses: LedgerHQ/ledger-app-workflows/.github/workflows/reusable_build.yml@v1
+    with:
+      # Omitting run_for_devices builds every device declared in ledger_app.toml.
+      upload_app_binaries_artifact: "ambire_signer_builds"
