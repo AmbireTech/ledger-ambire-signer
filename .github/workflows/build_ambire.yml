@@ -1,12 +1,26 @@
 name: Build Ambire Signer for all Ledger devices
 
-# Builds the custom "Ambire Signer" Ethereum app for every supported Ledger
-# device and uploads the resulting binaries as a downloadable artifact for
-# side-loading. Uses Ledger's official reusable build workflow, which reads the
-# device list from ledger_app.toml (apex_p, nanox, nanos+, stax, flex).
+# Builds the custom "Ambire Signer" Ethereum app for every side-loadable Ledger
+# device, each against the LATEST STABLE SDK tag for that device, resolved
+# dynamically from the ledger-secure-sdk tags at run time (no hardcoded API
+# levels to keep up to date).
 #
-# The original Nano S is not supported by this app version and is therefore
-# absent from the build matrix.
+# How it works:
+#   1. `resolve-sdk` queries github.com/LedgerHQ/ledger-secure-sdk for the
+#      per-device tags (nanox_*, nanos+_*, stax_*, flex_*), keeps only stable
+#      releases (drops -rc / -pr / -ed pre-releases), picks the highest via
+#      `sort -V`, and emits a build matrix.
+#   2. `build` fans out one reusable_build call per device, passing that tag as
+#      `sdk_reference`. `ledger-app-builder-lite` clones the SDK fresh and its
+#      toolchain stays ABI-compatible with these tags.
+#
+# ⚠️ "Latest stable SDK" targets the latest production firmware. If a physical
+#    device is on OLDER firmware, loading still fails with 0x511f until you
+#    update that device (Ledger Live -> My Ledger).
+#
+# The original Nano S is unsupported by this app. The Nano X CANNOT be
+# side-loaded (firmware blocks unsigned apps over USB) — its build is only
+# useful for Speculos emulation.
 
 on:
   workflow_dispatch:
@@ -16,9 +30,53 @@ on:
       - 'feat/**'
 
 jobs:
-  build_all_devices:
-    name: Build for all supported devices
+  resolve-sdk:
+    name: Resolve latest SDK tag per device
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+    steps:
+      - name: Discover latest stable SDK tag for each device
+        id: resolve
+        run: |
+          set -euo pipefail
+          SDK="https://github.com/LedgerHQ/ledger-secure-sdk.git"
+          # Devices to build. Add "apex_p" if you also want Apex.
+          DEVICES=("nanos+" "stax" "flex" "nanox")
+
+          tags="$(git ls-remote --tags "$SDK" \
+                    | sed 's#.*refs/tags/##; s/\^{}//' \
+                    | sort -u)"
+
+          entries=()
+          for dev in "${DEVICES[@]}"; do
+            esc="$(printf '%s' "$dev" | sed 's/[+]/\\+/g')"   # escape + for regex
+            # stable X.Y.Z only (no -rc/-pr/-ed suffixes), highest wins
+            latest="$(printf '%s\n' "$tags" \
+                        | grep -E "^${esc}_[0-9]+\.[0-9]+\.[0-9]+$" \
+                        | sort -V | tail -1 || true)"
+            if [ -z "$latest" ]; then
+              echo "::error::No stable SDK tag found for device '$dev'"
+              exit 1
+            fi
+            echo "$dev -> $latest"
+            entries+=("$(jq -nc --arg d "$dev" --arg s "$latest" \
+                          '{device:$d, sdk_reference:$s}')")
+          done
+
+          matrix="$(printf '%s\n' "${entries[@]}" | jq -sc '{include: .}')"
+          echo "Resolved matrix: $matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.device }} (${{ matrix.sdk_reference }})
+    needs: resolve-sdk
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.resolve-sdk.outputs.matrix) }}
     uses: LedgerHQ/ledger-app-workflows/.github/workflows/reusable_build.yml@v1
     with:
-      # Omitting run_for_devices builds every device declared in ledger_app.toml.
-      upload_app_binaries_artifact: "ambire_signer_builds"
+      builder: "ledger-app-builder-lite"
+      run_for_devices: '["${{ matrix.device }}"]'
+      sdk_reference: ${{ matrix.sdk_reference }}
+      upload_app_binaries_artifact: "ambire-signer-${{ matrix.device }}"
