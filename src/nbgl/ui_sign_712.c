@@ -2,6 +2,7 @@
 #include "common_ui.h"
 #include "common_712.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "ui_message_signing.h"
 #include "cmd_get_tx_simulation.h"
 #include "ui_utils.h"
@@ -53,6 +54,7 @@ static void ui_712_start_review(e_eip712_filtering_mode filtering_mode,
         }
     }
 
+#ifndef FUZZ
     nbgl_useCaseAdvancedReview(operationType,
                                g_pairsList,
                                &ICON_APP_REVIEW,
@@ -62,6 +64,7 @@ static void ui_712_start_review(e_eip712_filtering_mode filtering_mode,
                                NULL,
                                &warning,
                                choiceCallback);
+#endif
 }
 
 /**
@@ -75,11 +78,9 @@ uint16_t ui_sign_712(e_eip712_filtering_mode filtering_mode) {
     ui_712_push_pairs();
 
     if (filtering_mode == EIP712_FILTERING_BASIC) {
-#ifdef HAVE_GATING_SUPPORT
         if (set_gating_warning() == false) {
             return SWO_INCORRECT_DATA;
         }
-#endif
     }
 
     ui_712_start_review(filtering_mode, TYPE_MESSAGE, ui_typed_message_review_choice);

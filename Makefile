@@ -36,7 +36,7 @@ endif
 include ./makefile_conf/chain/$(CHAIN).mk
 
 APPVERSION_M = 1
-APPVERSION_N = 21
+APPVERSION_N = 23
 APPVERSION_P = 0
 APPVERSION = $(APPVERSION_M).$(APPVERSION_N).$(APPVERSION_P)-dev
 
@@ -50,7 +50,7 @@ ifeq ($(TARGET_NAME),$(filter $(TARGET_NAME),TARGET_STAX TARGET_FLEX TARGET_APEX
     NETWORK_ICONS_DIR = $(shell dirname "$(NETWORK_ICONS_FILE)")
 
     $(NETWORK_ICONS_FILE):
-    	$(shell python3 tools/gen_networks.py "$(NETWORK_ICONS_DIR)")
+		python3 tools/gen_networks.py "$(NETWORK_ICONS_DIR)"
 
     APP_SOURCE_FILES += $(NETWORK_ICONS_FILE)
 endif
@@ -111,6 +111,11 @@ VARIANT_VALUES = $(SUPPORTED_CHAINS)
 # Enabling DEBUG flag will enable PRINTF and disable optimizations
 #DEBUG = 1
 
+# Enabling DEBUG_OVER_USB flag will enable PRINTF over USB
+# This will force DISABLE_OS_IO_STACK_USE and add USB CDC profile
+# The log can be displayed using a COM port terminal
+# DEBUG_OVER_USB = 1
+
 ########################################
 #     Application custom permissions   #
 ########################################
@@ -126,14 +131,12 @@ else
     DEFINES_LIB = USE_LIB_ETHEREUM
 endif
 
-
 ########################################
 # Application communication interfaces #
 ########################################
 ENABLE_BLUETOOTH = 1
 ENABLE_SWAP = 1
 #ENABLE_NFC = 1
-ENABLE_NBGL_FOR_NANO_DEVICES = 1
 
 ########################################
 #         NBGL custom features         #
@@ -157,10 +160,23 @@ ENABLE_NBGL_QRCODE = 1
 #DISABLE_DEBUG_THROW = 1
 
 ########################################
+#            Stack protector           #
+########################################
+ENABLE_STACK_PROTECTOR = 1
+
+########################################
 #        Main app configuration        #
 ########################################
+ENABLE_NBGL_FOR_NANO_DEVICES = 1
+ENABLE_PKI_LIBRARY = 1
+ENABLE_DYNAMIC_ALLOC = 1
+ENABLE_TLV_LIBRARY = 1
+ENABLE_LISTS_LIBRARY = 1
+ENABLE_ADDRESS_BOOK = 1
+ENABLE_ADDRESS_BOOK_LEDGER_ACCOUNT = 1
+ENABLE_LINK_TIME_OPTIMIZATION = 1
 
-DEFINES += APP_TICKER=\"$(TICKER)\" APP_CHAIN_ID=$(CHAIN_ID)
+DEFINES += APP_TICKER=\"$(TICKER)\" APP_CHAIN_ID=$(CHAIN_ID) APP_COIN_TYPE=$(COIN_TYPE)
 
 # Enabled Features #
 include makefile_conf/features.mk

@@ -1,121 +1,115 @@
 #include <string.h>  // memcpy / explicit_bzero
 #include "os_print.h"
 #include "os_math.h"  // MIN
+#include "os_utils.h"
 #include "gtp_data_path.h"
 #include "read.h"
 #include "utils.h"
 #include "calldata.h"
-#include "mem.h"
+#include "app_mem_utils.h"
 #include "tx_ctx.h"
+#include "tlv_library.h"
+#include "tlv_utils.h"
 
-enum {
-    TAG_VERSION = 0x00,
-    TAG_TUPLE = 0x01,
-    TAG_ARRAY = 0x02,
-    TAG_REF = 0x03,
-    TAG_LEAF = 0x04,
-    TAG_SLICE = 0x05,
-};
+#define DATA_PATH_TAGS(X)                                    \
+    X(0x00, TAG_VERSION, handle_version, ENFORCE_UNIQUE_TAG) \
+    X(0x01, TAG_TUPLE, handle_tuple, ALLOW_MULTIPLE_TAG)     \
+    X(0x02, TAG_ARRAY, handle_array, ALLOW_MULTIPLE_TAG)     \
+    X(0x03, TAG_REF, handle_ref, ALLOW_MULTIPLE_TAG)         \
+    X(0x04, TAG_LEAF, handle_leaf, ALLOW_MULTIPLE_TAG)       \
+    X(0x05, TAG_SLICE, handle_slice, ALLOW_MULTIPLE_TAG)
 
-static bool handle_version(const s_tlv_data *data, s_data_path_context *context) {
-    if (data->length != sizeof(context->data_path->version)) {
-        return false;
-    }
-    context->data_path->version = data->value[0];
-    return true;
+static bool handle_version(const tlv_data_t *data, s_data_path_context *context) {
+    return tlv_get_uint8_range(data, &context->data_path->version, 0, UINT8_MAX);
 }
 
-static bool handle_tuple(const s_tlv_data *data, s_data_path_context *context) {
-    uint8_t buf[sizeof(uint16_t)];
-
-    if (data->length > sizeof(buf)) {
+static bool handle_tuple(const tlv_data_t *data, s_data_path_context *context) {
+    if (!tlv_get_uint16_range(data,
+                              &context->data_path->elements[context->data_path->size].tuple.value,
+                              0,
+                              UINT16_MAX)) {
         return false;
     }
-    buf_shrink_expand(data->value, data->length, buf, sizeof(buf));
     context->data_path->elements[context->data_path->size].type = ELEMENT_TYPE_TUPLE;
-    context->data_path->elements[context->data_path->size].tuple.value = read_u16_be(buf, 0);
-
     context->data_path->size += 1;
     return true;
 }
 
-static bool handle_array(const s_tlv_data *data, s_data_path_context *context) {
+static bool handle_array(const tlv_data_t *data, s_data_path_context *context) {
     s_path_array_context ctx = {0};
 
     ctx.args = &context->data_path->elements[context->data_path->size].array;
     explicit_bzero(ctx.args, sizeof(*ctx.args));
-    if (!tlv_parse(data->value, data->length, (f_tlv_data_handler) &handle_array_struct, &ctx))
+    if (!handle_array_struct(&data->value, &ctx)) {
         return false;
+    }
     context->data_path->elements[context->data_path->size].type = ELEMENT_TYPE_ARRAY;
     context->data_path->size += 1;
     return true;
 }
 
-static bool handle_ref(const s_tlv_data *data, s_data_path_context *context) {
-    if (data->length != 0) {
+static bool handle_ref(const tlv_data_t *data, s_data_path_context *context) {
+    if (data->value.size != 0) {
         return false;
     }
     context->data_path->elements[context->data_path->size].type = ELEMENT_TYPE_REF;
-
     context->data_path->size += 1;
     return true;
 }
 
-static bool handle_leaf(const s_tlv_data *data, s_data_path_context *context) {
-    if (data->length != sizeof(e_path_leaf_type)) {
+static bool handle_leaf(const tlv_data_t *data, s_data_path_context *context) {
+    uint8_t tmp;
+
+    if (!get_uint8_t_from_tlv_data(data, &tmp)) {
         return false;
     }
+    switch (tmp) {
+        case LEAF_TYPE_ARRAY:
+        case LEAF_TYPE_TUPLE:
+        case LEAF_TYPE_STATIC:
+        case LEAF_TYPE_DYNAMIC:
+            break;
+        default:
+            return false;
+    }
+    context->data_path->elements[context->data_path->size].leaf.type = tmp;
     context->data_path->elements[context->data_path->size].type = ELEMENT_TYPE_LEAF;
-    context->data_path->elements[context->data_path->size].leaf.type = data->value[0];
-
     context->data_path->size += 1;
     return true;
 }
 
-static bool handle_slice(const s_tlv_data *data, s_data_path_context *context) {
+static bool handle_slice(const tlv_data_t *data, s_data_path_context *context) {
     s_path_slice_context ctx = {0};
 
     ctx.args = &context->data_path->elements[context->data_path->size].slice;
     explicit_bzero(ctx.args, sizeof(*ctx.args));
-    if (!tlv_parse(data->value, data->length, (f_tlv_data_handler) &handle_slice_struct, &ctx))
+    if (!handle_slice_struct(&data->value, &ctx)) {
         return false;
+    }
     context->data_path->elements[context->data_path->size].type = ELEMENT_TYPE_SLICE;
     context->data_path->size += 1;
     return true;
 }
 
-bool handle_data_path_struct(const s_tlv_data *data, s_data_path_context *context) {
-    bool ret;
+static bool data_path_common_handler(const tlv_data_t *data, s_data_path_context *context);
 
+DEFINE_TLV_PARSER(DATA_PATH_TAGS, &data_path_common_handler, data_path_tlv_parser)
+
+// Common handler to check path size limits
+static bool data_path_common_handler(const tlv_data_t *data, s_data_path_context *context) {
+    // Check size limit for non-VERSION tags
     if (data->tag != TAG_VERSION) {
         if (context->data_path->size >= PATH_MAX_SIZE) {
+            PRINTF("Error: PATH_MAX_SIZE exceeded\n");
             return false;
         }
     }
-    switch (data->tag) {
-        case TAG_VERSION:
-            ret = handle_version(data, context);
-            break;
-        case TAG_TUPLE:
-            ret = handle_tuple(data, context);
-            break;
-        case TAG_ARRAY:
-            ret = handle_array(data, context);
-            break;
-        case TAG_REF:
-            ret = handle_ref(data, context);
-            break;
-        case TAG_LEAF:
-            ret = handle_leaf(data, context);
-            break;
-        case TAG_SLICE:
-            ret = handle_slice(data, context);
-            break;
-        default:
-            PRINTF(TLV_TAG_ERROR_MSG, data->tag);
-            ret = false;
-    }
-    return ret;
+    return true;
+}
+
+bool handle_data_path_struct(const buffer_t *buf, s_data_path_context *context) {
+    TLV_reception_t received_tags;
+    return data_path_tlv_parser(buf, context, &received_tags);
 }
 
 static bool path_tuple(const s_tuple_args *tuple, uint32_t *offset, uint32_t *ref_offset) {
@@ -125,27 +119,37 @@ static bool path_tuple(const s_tuple_args *tuple, uint32_t *offset, uint32_t *re
 }
 
 static bool path_ref(uint32_t *offset, uint32_t *ref_offset) {
-    uint8_t buf[sizeof(uint16_t)];
+    uint16_t raw_offset;
     const uint8_t *chunk;
+    uint8_t chunk_offset = CALLDATA_CHUNK_SIZE - sizeof(raw_offset);
 
     if ((chunk = calldata_get_chunk(get_current_calldata(), *offset)) == NULL) {
         return false;
     }
-    buf_shrink_expand(chunk, CALLDATA_CHUNK_SIZE, buf, sizeof(buf));
-    *offset = read_u16_be(buf, 0) / CALLDATA_CHUNK_SIZE;
-    *offset += *ref_offset;
+    if (!is_zeroes_buffer(chunk, chunk_offset)) {
+        return false;
+    }
+    raw_offset = read_u16_be(chunk, chunk_offset);
+    if ((raw_offset % CALLDATA_CHUNK_SIZE) != 0) {
+        // reject unaligned offsets
+        return false;
+    }
+    *offset = raw_offset / CALLDATA_CHUNK_SIZE;
+    if (__builtin_add_overflow(*offset, *ref_offset, offset)) {
+        return false;
+    }
     return true;
 }
 
 static bool path_leaf(const s_leaf_args *leaf,
                       uint32_t *offset,
                       s_parsed_value_collection *collection) {
-    uint8_t buf[sizeof(uint16_t)];
-    const uint8_t *chunk;
     uint8_t *leaf_buf = NULL;
+    const uint8_t *chunk;
+    uint8_t chunk_offset = CALLDATA_CHUNK_SIZE - sizeof(collection->value[collection->size].size);
     uint8_t cpy_length;
 
-    if (collection->size > MAX_VALUE_COLLECTION_SIZE) {
+    if (collection->size >= MAX_VALUE_COLLECTION_SIZE) {
         return false;
     }
 
@@ -158,25 +162,30 @@ static bool path_leaf(const s_leaf_args *leaf,
             if ((chunk = calldata_get_chunk(get_current_calldata(), *offset)) == NULL) {
                 return false;
             }
-            buf_shrink_expand(chunk, CALLDATA_CHUNK_SIZE, buf, sizeof(buf));
-            collection->value[collection->size].size = read_u16_be(buf, 0);
+            if (!is_zeroes_buffer(chunk, chunk_offset)) {
+                return false;
+            }
+            collection->value[collection->size].size = read_u16_be(chunk, chunk_offset);
             *offset += 1;
             break;
 
+        case LEAF_TYPE_ARRAY:
+        case LEAF_TYPE_TUPLE:
+            // Not yet implemented
         default:
             return false;
     }
     collection->value[collection->size].length = collection->value[collection->size].size;
     collection->value[collection->size].offset = 0;
     if (collection->value[collection->size].length > 0) {
-        if ((leaf_buf = app_mem_alloc(collection->value[collection->size].length)) == NULL) {
+        if ((leaf_buf = APP_MEM_ALLOC(collection->value[collection->size].length)) == NULL) {
             return false;
         }
         for (int chunk_idx = 0;
              (chunk_idx * CALLDATA_CHUNK_SIZE) < collection->value[collection->size].length;
              ++chunk_idx) {
             if ((chunk = calldata_get_chunk(get_current_calldata(), *offset + chunk_idx)) == NULL) {
-                app_mem_free(leaf_buf);
+                APP_MEM_FREE(leaf_buf);
                 return false;
             }
             cpy_length =
@@ -201,13 +210,13 @@ static bool path_slice(const s_slice_args *slice, s_parsed_value_collection *col
 
     value_length = collection->value[collection->size - 1].length;
     if (slice->has_start) {
-        start = (slice->start < 0) ? ((int16_t) value_length + slice->start) : slice->start;
+        start = (slice->start < 0) ? ((int32_t) value_length + slice->start) : slice->start;
     } else {
         start = 0;
     }
 
     if (slice->has_end) {
-        end = (slice->end < 0) ? ((int16_t) value_length + slice->end) : slice->end;
+        end = (slice->end < 0) ? ((int32_t) value_length + slice->end) : slice->end;
     } else {
         end = value_length;
     }
@@ -233,12 +242,14 @@ static bool path_array(const s_array_args *array,
                        uint32_t *offset,
                        uint32_t *ref_offset,
                        s_arrays_info *arrays_info) {
-    uint8_t buf[sizeof(uint16_t)];
     uint16_t array_size;
     uint16_t idx;
     uint16_t start;
     uint16_t end;
+    uint16_t passes;
+    uint32_t product;
     const uint8_t *chunk;
+    uint8_t chunk_offset = CALLDATA_CHUNK_SIZE - sizeof(array_size);
 
     if (arrays_info->index >= MAX_ARRAYS) {
         return false;
@@ -246,30 +257,43 @@ static bool path_array(const s_array_args *array,
     if ((chunk = calldata_get_chunk(get_current_calldata(), *offset)) == NULL) {
         return false;
     }
-    buf_shrink_expand(chunk, CALLDATA_CHUNK_SIZE, buf, sizeof(buf));
-    array_size = read_u16_be(buf, 0);
+    if (!is_zeroes_buffer(chunk, chunk_offset)) {
+        return false;
+    }
+    array_size = read_u16_be(chunk, chunk_offset);
 
     if (array->has_start) {
-        start = (array->start < 0) ? ((int16_t) array_size + array->start) : array->start;
+        start = (array->start < 0) ? ((int32_t) array_size + array->start) : array->start;
     } else {
         start = 0;
     }
 
     if (array->has_end) {
-        end = (array->end < 0) ? ((int16_t) array_size + array->end) : array->end;
+        end = (array->end < 0) ? ((int32_t) array_size + array->end) : array->end;
     } else {
         end = array_size;
     }
 
+    if (end <= start) {
+        return false;
+    }
+    passes = end - start;
+
     *offset += 1;
     if (arrays_info->index == arrays_info->depth) {
         // new depth
-        arrays_info->passes_remaining[arrays_info->index] = (end - start);
+        if (passes > UINT8_MAX) {
+            return false;
+        }
+        arrays_info->passes_remaining[arrays_info->index] = passes;
         arrays_info->depth += 1;
     }
-    idx = start + ((end - start) - arrays_info->passes_remaining[arrays_info->index]);
+    idx = start + (passes - arrays_info->passes_remaining[arrays_info->index]);
     *ref_offset = *offset;
-    *offset += (idx * array->weight);
+    if (__builtin_mul_overflow(idx, array->weight, &product) ||
+        __builtin_add_overflow(*offset, product, offset)) {
+        return false;  // overflow detected
+    }
     arrays_info->index += 1;
     return true;
 }
@@ -329,7 +353,7 @@ bool data_path_get(const s_data_path *data_path, s_parsed_value_collection *coll
 void data_path_cleanup(const s_parsed_value_collection *collection) {
     for (int i = 0; i < collection->size; ++i) {
         if (collection->value[i].ptr != NULL) {
-            app_mem_free((void *) collection->value[i].ptr - collection->value[i].offset);
+            APP_MEM_FREE((uint8_t *) collection->value[i].ptr - collection->value[i].offset);
         }
     }
 }

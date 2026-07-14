@@ -1,0 +1,30 @@
+#include "shared_context.h"
+#include "common_ui.h"
+#include "apdu_constants.h"
+#include "crypto_helpers.h"
+
+unsigned int auth_7702_ok_cb(void) {
+    uint32_t info = 0;
+    CX_ASSERT(bip32_derive_ecdsa_sign_rs_hash_256(CX_CURVE_256K1,
+                                                  tmpCtx.authSigningContext7702.bip32.path,
+                                                  tmpCtx.authSigningContext7702.bip32.length,
+                                                  CX_RND_RFC6979 | CX_LAST,
+                                                  CX_SHA256,
+                                                  tmpCtx.authSigningContext7702.authHash,
+                                                  sizeof(tmpCtx.authSigningContext7702.authHash),
+                                                  G_io_tx_buffer + 1,
+                                                  G_io_tx_buffer + 1 + INT256_LENGTH,
+                                                  &info));
+    if (info & CX_ECCINFO_PARITY_ODD) {
+        G_io_tx_buffer[0] = 1;
+    } else {
+        G_io_tx_buffer[0] = 0;
+    }
+    // Reset to release the APP_STATE_SIGNING_EIP7702 lock and clear the
+    // signing context so a new authorization can start from a clean slate.
+    return io_seproxyhal_send_status(SWO_SUCCESS, ECDSA_SIGNATURE_LENGTH, true, true);
+}
+
+unsigned int auth_7702_cancel_cb(void) {
+    return io_seproxyhal_send_status(SWO_CONDITIONS_NOT_SATISFIED, 0, true, true);
+}

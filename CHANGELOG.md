@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.22.1](../../compare/1.22.0...1.22.1) - 2026-05-27
+
+### Fixed
+
+- Instability in APDU communication handling
+
+## [1.22.0](../../compare/1.21.3...1.22.0) - 2026-04-10
+
+### Added
+
+- Clear-signing gating support
+
+### Fixed
+
+- EIP-712 message hashing issue
+- Blind-signing bypass for single-byte calldata `0x00` transactions
+- Blind-signing bypass with EIP-712 filtering activation
+
+## [1.21.3](../../compare/1.21.2...1.21.3) - 2026-03-17
+
+### Fixed
+
+- Missing trusted name matching with EIP-712 empty calldata
+
+## [1.21.2](../../compare/1.21.1...1.21.2) - 2026-03-03
+
+### Added
+
+- (clone) Sei
+
+### Fixed
+
+- MAB-sourced trusted names handling
+
+## [1.21.1](../../compare/1.21.0...1.21.1) - 2026-02-19
+
+### Fixed
+
+- Blind-signing of ERC-20 transfer/approve not working
+
+## [1.21.0](../../compare/1.20.1...1.21.0) - 2026-02-16
+
+### Added
+
+- EIP-7002 support
+- EIP-7251 support
+- 45'/* derivation path
+
+### Changed
+
+- Improved handling of native send transactions within a batch transaction
+- Improved handling of ERC-20 extra data
+- Enabled the get safe account feature on Nano S+/X
+- More fields are clickable while clear-signing transactions
+- Shows a network field during EIP-712 clear-signing flow
+
 ## [1.20.1](../../compare/1.20.0...1.20.1) - 2025-12-11
 
 ### Fixed

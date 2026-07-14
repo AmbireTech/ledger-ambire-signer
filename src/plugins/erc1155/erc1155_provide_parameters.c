@@ -53,39 +53,76 @@ static void handle_batch_transfer(ethPluginProvideParameter_t *msg, erc1155_cont
             context->next_param = TOKEN_IDS_LENGTH;
             break;
         case TOKEN_IDS_LENGTH:
-            if ((msg->parameterOffset + PARAMETER_LENGTH) > context->ids_offset) {
-                context->ids_array_len =
-                    U2BE(msg->parameter, PARAMETER_LENGTH - sizeof(context->ids_array_len));
-                context->next_param = TOKEN_ID;
-                // set to zero for next step
-                context->array_index = 0;
+            if (msg->parameterOffset < context->ids_offset) {
+                // not there yet
+                break;
             }
+            if (msg->parameterOffset != context->ids_offset) {
+                msg->result = ETH_PLUGIN_RESULT_ERROR;
+                break;
+            }
+            context->ids_array_len =
+                U2BE(msg->parameter, PARAMETER_LENGTH - sizeof(context->ids_array_len));
+            context->batch_displayed = (context->ids_array_len > ERC1155_BATCH_DISPLAY_MAX)
+                                           ? ERC1155_BATCH_DISPLAY_MAX
+                                           : (uint8_t) context->ids_array_len;
+            context->batch_truncated = context->ids_array_len > ERC1155_BATCH_DISPLAY_MAX;
+            context->next_param = TOKEN_ID;
+            // set to zero for next step
+            context->array_index = 0;
             break;
         case TOKEN_ID:
-            // don't copy anything since we won't display it
+            // Surface the first batch entries to the user so a malicious
+            // batch cannot hide a high-value token ID behind innocuous ones.
+            if (context->array_index < ERC1155_BATCH_DISPLAY_MAX) {
+                memcpy(context->batch_ids[context->array_index], msg->parameter, INT256_LENGTH);
+            }
             if (--context->ids_array_len == 0) {
                 context->next_param = VALUE_LENGTH;
             }
             context->array_index++;
             break;
         case VALUE_LENGTH:
-            if ((msg->parameterOffset + PARAMETER_LENGTH) > context->values_offset) {
-                context->values_array_len =
-                    U2BE(msg->parameter, PARAMETER_LENGTH - sizeof(context->values_array_len));
-                if (context->values_array_len != context->array_index) {
-                    PRINTF("Token ids and values array sizes mismatch!");
-                }
-                context->next_param = VALUE;
-                // set to zero for next step
-                context->array_index = 0;
-                explicit_bzero(&context->value, sizeof(context->value));
+            if (msg->parameterOffset < context->values_offset) {
+                // not there yet
+                break;
             }
+            if (msg->parameterOffset != context->values_offset) {
+                msg->result = ETH_PLUGIN_RESULT_ERROR;
+                break;
+            }
+            context->values_array_len =
+                U2BE(msg->parameter, PARAMETER_LENGTH - sizeof(context->values_array_len));
+            if (context->values_array_len != context->array_index) {
+                PRINTF("Token ids and values array sizes mismatch!");
+                msg->result = ETH_PLUGIN_RESULT_ERROR;
+                break;
+            }
+            context->next_param = VALUE;
+            // set to zero for next step
+            context->array_index = 0;
+            explicit_bzero(&context->value, sizeof(context->value));
             break;
         case VALUE:
             // put it temporarily in token id since we don't use it in batch transfer
             copy_parameter(context->tokenId, msg->parameter, sizeof(context->value));
+            // Keep the first per-id values so they pair up with batch_ids
+            // entries on screen. Anything past ERC1155_BATCH_DISPLAY_MAX is
+            // still aggregated into the total below.
+            if (context->array_index < ERC1155_BATCH_DISPLAY_MAX) {
+                memcpy(context->batch_values[context->array_index], msg->parameter, INT256_LENGTH);
+            }
             convertUint256BE(context->tokenId, sizeof(context->tokenId), &new_value);
             add256(&context->value, &new_value, &context->value);
+            // Reject crafted batches whose per-id totals wrap uint256. With
+            // the partial sum already stored in context->value, an overflow
+            // would silently misreport the aggregate "total quantity" shown
+            // to the user.
+            if (gt256(&new_value, &context->value)) {
+                PRINTF("Batch transfer aggregate quantity overflow\n");
+                msg->result = ETH_PLUGIN_RESULT_ERROR;
+                break;
+            }
             if (--context->values_array_len == 0) {
                 context->next_param = NONE;
             }
@@ -124,10 +161,6 @@ void handle_provide_parameter_1155(ethPluginProvideParameter_t *msg) {
 
     msg->result = ETH_PLUGIN_RESULT_SUCCESSFUL;
 
-    // if (context->targetOffset > SELECTOR_SIZE &&
-    //     context->targetOffset != msg->parameterOffset - SELECTOR_SIZE) {
-    //     return;
-    // }
     switch (context->selectorIndex) {
         case SAFE_TRANSFER:
             handle_safe_transfer(msg, context);

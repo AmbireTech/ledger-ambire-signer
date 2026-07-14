@@ -1,8 +1,10 @@
 import struct
 from enum import IntEnum
 
-from .keychain import Key, sign_data
-from .tlv import TlvSerializable
+from ragger.bip import pack_derivation_path
+from ragger.tlv import TlvSerializable
+
+from .signing_partners import CAL_TRUSTED_NAME_PARTNER, TRUSTED_NAME_PARTNER
 
 
 class TrustedNameType(IntEnum):
@@ -41,6 +43,7 @@ class Tag(IntEnum):
     SOURCE = 0x71
     NFT_ID = 0x72
     OWNER = 0x74
+    OWNER_DERIV_PATH = 0x75
 
 
 class TrustedName(TlvSerializable):
@@ -52,9 +55,11 @@ class TrustedName(TlvSerializable):
     name: str
     chain_id: int | None
     address: bytes
-    challenge: bytes | None
+    challenge: int | None
     nft_id: int | None
     owner: bytes | None
+    owner_deriv_path: str | None
+    signature: bytes | None
 
     def __init__(
         self,
@@ -63,25 +68,27 @@ class TrustedName(TlvSerializable):
         name: str,
         coin_type: int | None = None,
         not_valid_after: tuple[int, int, int] | None = None,
-        challenge: bytes | None = None,
+        challenge: int | None = None,
         tn_type: TrustedNameType | None = None,
         tn_source: TrustedNameSource | None = None,
         chain_id: int | None = None,
         nft_id: int | None = None,
         owner: bytes | None = None,
+        owner_deriv_path: str | None = None,
         signature: bytes | None = None,
     ) -> None:
         self.version = version
+        self.address = address
+        self.name = name
         self.coin_type = coin_type
         self.not_valid_after = not_valid_after
+        self.challenge = challenge
         self.tn_type = tn_type
         self.tn_source = tn_source
-        self.name = name
         self.chain_id = chain_id
-        self.address = address
-        self.challenge = challenge
-        self.owner = owner
         self.nft_id = nft_id
+        self.owner = owner
+        self.owner_deriv_path = owner_deriv_path
         self.signature = signature
 
     def serialize(self) -> bytes:
@@ -106,16 +113,18 @@ class TrustedName(TlvSerializable):
             payload += self.serialize_field(Tag.NFT_ID, self.nft_id)
         if self.owner is not None:
             payload += self.serialize_field(Tag.OWNER, self.owner)
+        if self.owner_deriv_path is not None:
+            payload += self.serialize_field(Tag.OWNER_DERIV_PATH, pack_derivation_path(self.owner_deriv_path))
         sig = self.signature
         if self.tn_source == TrustedNameSource.CAL:
             key_id = 9
-            key = Key.CAL
+            partner = CAL_TRUSTED_NAME_PARTNER
         else:
             key_id = 7
-            key = Key.TRUSTED_NAME
+            partner = TRUSTED_NAME_PARTNER
         payload += self.serialize_field(Tag.SIG_KEY_ID, key_id)
         payload += self.serialize_field(Tag.SIG_ALGO, 1)
         if sig is None:
-            sig = sign_data(key, payload)
+            sig = partner.sign(bytes(payload))
         payload += self.serialize_field(Tag.SIGNATURE, sig)
-        return payload
+        return bytes(payload)

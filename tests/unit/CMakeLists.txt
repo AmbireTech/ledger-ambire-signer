@@ -79,151 +79,76 @@ include_directories(
   ${APP_DIR}
   ${PLUGIN_DIR}
   ${APP_DIR}/features/generic_tx_parser
+  ${APP_DIR}/features/provide_erc20_token_information
+  ${APP_DIR}/features/provide_nft_information
   ${APP_DIR}/features/provide_trusted_name
-  ${APP_DIR}/features/getPublicKey
-  ${APP_DIR}/features/signTx
+  ${APP_DIR}/features/provide_map_entry
+  ${APP_DIR}/features/provide_proxy_info
+  ${APP_DIR}/features/get_public_key
+  ${APP_DIR}/features/sign_tx
+  ${APP_DIR}/features/sign_authorization_eip7702
+  ${APP_DIR}/features/sign_message_eip712
+  ${APP_DIR}/features/get_challenge
   ${APP_DIR}/nbgl
+  ${APP_DIR}/utils
   ${MOCK_DIR}
   ${BOLOS_SDK}/io/include
   ${BOLOS_SDK}/lib_cxng/include
   ${BOLOS_SDK}/lib_nbgl/include
+  ${BOLOS_SDK}/lib_lists
   ${BOLOS_SDK}/lib_standard_app
+  ${BOLOS_SDK}/lib_tlv
+  ${BOLOS_SDK}/lib_alloc
   ${BOLOS_SDK}/include
   ${LIBBSD_INCLUDE_DIRS}
 )
 
-# Network parameter test
-add_executable(test_param_network
-  ${SRC_DIR}/test_param_network.c
-  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
-  ${APP_DIR}/features/generic_tx_parser/gtp_param_network.c
-  ${PLUGIN_DIR}/common_utils.c
-  ${MOCK_DIR}/mock.c
-  ${BOLOS_SDK}/lib_standard_app/format.c
+# =============================================================================
+# Test infrastructure: shared libraries + helper function
+# =============================================================================
+
+# Stubs that compile standalone (forward-declares all SDK opaque types,
+# so HAVE_SHA256 etc. are not required).
+add_library(eth_tests_mocks STATIC ${MOCK_DIR}/mock.c)
+
+# Shared app-side globals (txContext, tmpContent, g_chainConfig, ...).
+# Layout of internalStorage_t depends on HAVE_TRANSACTION_CHECKS so we
+# widen the compile defs here to the union of every consumer's view --
+# the library and all callers then agree on struct sizes.
+add_library(eth_tests_app_globals STATIC ${MOCK_DIR}/app_globals.c)
+target_compile_definitions(eth_tests_app_globals PRIVATE
+  HAVE_ECDSA HAVE_HASH HAVE_SHA256 HAVE_SHA3 HAVE_ECC HAVE_MATH
+  HAVE_TRANSACTION_CHECKS
+)
+target_include_directories(eth_tests_app_globals PRIVATE
+  ${APP_DIR}/features/provide_network_info
 )
 
-target_compile_definitions(test_param_network PRIVATE
-  HAVE_HASH
-  HAVE_SHA256
-  HAVE_SHA3
-  HAVE_ECC
-  HAVE_SPRINTF
-)
-
-target_link_libraries(test_param_network PUBLIC
-                      cmocka
-                      gcov
-                      ${LIBBSD_LIBRARIES}
-                      -Wl,--wrap=get_network_as_string_from_chain_id
-                      -Wl,--wrap=add_to_field_table
-)
-
-add_test(test_param_network test_param_network)
-
-# Trusted name parameter test
-add_executable(test_param_trusted_name
-  ${SRC_DIR}/test_param_trusted_name.c
-  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
-  ${APP_DIR}/features/generic_tx_parser/gtp_param_trusted_name.c
-  ${APP_DIR}/utils.c
-  ${PLUGIN_DIR}/common_utils.c
-  ${MOCK_DIR}/mock.c
-  ${BOLOS_SDK}/lib_standard_app/format.c
-)
-
-# Add arraylen.h to the include path before other includes
-target_include_directories(test_param_trusted_name BEFORE PRIVATE ${MOCK_DIR})
-
-target_compile_definitions(test_param_trusted_name PRIVATE
-  HAVE_HASH
-  HAVE_SHA256
-  HAVE_SHA3
-  HAVE_ECC
-)
-
-target_link_libraries(test_param_trusted_name PUBLIC
-                      cmocka
-                      gcov
-                      ${LIBBSD_LIBRARIES}
-                      -Wl,--wrap=get_trusted_name
-                      -Wl,--wrap=get_public_key
-                      -Wl,--wrap=get_current_tx_chain_id
-                      -Wl,--wrap=add_to_field_table
-)
-
-add_test(test_param_trusted_name test_param_trusted_name)
-
-# Raw parameter test
-add_executable(test_param_raw
-  ${SRC_DIR}/test_param_raw.c
-  ${APP_DIR}/features/generic_tx_parser/gtp_value.c
-  ${APP_DIR}/features/generic_tx_parser/gtp_param_raw.c
-  ${APP_DIR}/uint256.c
-  ${APP_DIR}/uint128.c
-  ${APP_DIR}/uint_common.c
-  ${APP_DIR}/utils.c
-  ${PLUGIN_DIR}/common_utils.c
-  ${MOCK_DIR}/mock.c
+# SDK helpers used by 50+ targets.
+add_library(eth_tests_sdk_helpers STATIC
   ${BOLOS_SDK}/lib_standard_app/format.c
   ${BOLOS_SDK}/lib_standard_app/read.c
   ${BOLOS_SDK}/lib_standard_app/write.c
-  ${BOLOS_SDK}/src/os_printf.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
 )
-
-# Disable -Wformat warnings for gtp_param_raw.c (uses BOLOS_SDK specific %.*h format)
 set_source_files_properties(
-  ${APP_DIR}/features/generic_tx_parser/gtp_param_raw.c
-  PROPERTIES COMPILE_FLAGS "-Wno-format -Wno-format-extra-args"
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+  PROPERTIES COMPILE_FLAGS "-Wno-pedantic"
 )
+# tlv_library.c calls pic() from eth_tests_mocks; declare the dependency so
+# CMake lists the libraries in an order the single-pass linker can resolve.
+target_link_libraries(eth_tests_sdk_helpers PUBLIC eth_tests_mocks)
 
-target_compile_definitions(test_param_raw PRIVATE
-  HAVE_HASH
-  HAVE_SHA256
-  HAVE_SHA3
-  HAVE_ECC
-  HAVE_SPRINTF
-  HAVE_SNPRINTF
-  HAVE_SNPRINTF_FORMAT_U
-  HAVE_MATH
-)
+include(cmake/add_eth_unit_test.cmake)
 
-target_link_libraries(test_param_raw PUBLIC
-                      cmocka
-                      gcov
-                      ${LIBBSD_LIBRARIES}
-                      -Wl,--wrap=add_to_field_table
-)
+# =============================================================================
+# Test targets (grouped by feature -- one .cmake file per group)
+# =============================================================================
 
-add_test(test_param_raw test_param_raw)
-
-# Field validation test
-add_executable(test_field_validation
-  ${SRC_DIR}/test_field_validation.c
-  ${APP_DIR}/features/generic_tx_parser/gtp_field.c
-  ${APP_DIR}/mem_utils.c
-  ${APP_DIR}/list.c
-  ${APP_DIR}/utils.c
-  ${PLUGIN_DIR}/common_utils.c
-  ${MOCK_DIR}/mock.c
-  ${MOCK_DIR}/field_validation_mocks.c
-  ${BOLOS_SDK}/lib_standard_app/format.c
-)
-
-target_compile_definitions(test_field_validation PRIVATE
-  HAVE_HASH
-  HAVE_SHA256
-  HAVE_SHA3
-  HAVE_ECC
-)
-
-target_compile_options(test_field_validation PRIVATE
-  -fshort-enums
-)
-
-target_link_libraries(test_field_validation PUBLIC
-                      cmocka
-                      gcov
-                      ${LIBBSD_LIBRARIES}
-)
-
-add_test(test_field_validation test_field_validation)
+include(cmake/tests_low_level.cmake)
+include(cmake/tests_gtp.cmake)
+include(cmake/tests_descriptors.cmake)
+include(cmake/tests_sign.cmake)
+include(cmake/tests_plugins.cmake)
+include(cmake/tests_nbgl.cmake)
+include(cmake/tests_address_book.cmake)

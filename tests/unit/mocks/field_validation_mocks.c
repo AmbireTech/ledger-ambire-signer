@@ -13,30 +13,6 @@
 #include <stdlib.h>
 
 // ============================================================================
-// Memory management - actually used by tests
-// ============================================================================
-
-void *app_mem_alloc_impl(size_t size, bool persistent, const char *file, int line) {
-    (void) persistent;
-    (void) file;
-    (void) line;
-    return calloc(1, size);
-}
-
-void app_mem_free_impl(void *ptr, const char *file, int line) {
-    (void) file;
-    (void) line;
-    free(ptr);
-}
-
-void app_mem_free(void **ptr) {
-    if (ptr && *ptr) {
-        free(*ptr);
-        *ptr = NULL;
-    }
-}
-
-// ============================================================================
 // Stubs required by linker (never called at runtime in validation tests)
 // ============================================================================
 
@@ -180,4 +156,19 @@ bool format_param_network(const void *param, const char *name) {
     (void) param;
     (void) name;
     return true;
+}
+
+bool handle_param_group_struct(const void *buf, void *context) {
+    (void) buf;
+    (void) context;
+    return true;
+}
+
+bool format_param_group(const void *field) {
+    (void) field;
+    return true;
+}
+
+void cleanup_param_group(void *group) {
+    (void) group;
 }

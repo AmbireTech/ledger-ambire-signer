@@ -1,0 +1,607 @@
+#include "shared_context.h"
+#include "common_utils.h"
+#include "feature_sign_tx.h"
+#include "uint256.h"
+#include "eth_plugin_handler.h"
+#include "network.h"
+#include "common_ui.h"
+#include "apdu_constants.h"
+#include "format.h"
+#include "manage_asset_info.h"
+#include "handle_swap_sign_transaction.h"
+#include "os_math.h"
+#include "calldata.h"
+#include "swap_error_code_helpers.h"
+#include "get_public_key.h"
+#include "app_mem_utils.h"
+#include "mem_utils.h"
+#include "tx_ctx.h"
+#include "eth_swap_utils.h"
+
+static uint32_t split_binary_parameter_part(char *result, size_t result_size, uint8_t *parameter) {
+    uint32_t i;
+    for (i = 0; i < 8; i++) {
+        if (parameter[i] != 0x00) {
+            break;
+        }
+    }
+    if (i == 8) {
+        result[0] = '0';
+        result[1] = '0';
+        result[2] = '\0';
+        return 2;
+    } else {
+        format_hex(parameter + i, 8 - i, result, result_size);
+        return ((8 - i) * 2);
+    }
+}
+
+// Whether the field currently being parsed is the transaction's data/calldata
+// field, whose RLP index depends on the transaction type.
+static bool is_rlp_data_field(const txContext_t *context) {
+    switch (context->txType) {
+        case LEGACY:
+            return context->currentField == LEGACY_RLP_DATA;
+        case EIP2930:
+            return context->currentField == EIP2930_RLP_DATA;
+        case EIP1559:
+            return context->currentField == EIP1559_RLP_DATA;
+        case EIP7702:
+            return context->currentField == EIP7702_RLP_DATA;
+        default:
+            return false;
+    }
+}
+
+customStatus_e custom_processor(txContext_t *context) {
+    if (is_rlp_data_field(context) && (context->currentFieldLength != 0)) {
+        context->content->dataPresent = true;
+        // If handling a new contract rather than a function call, abort immediately
+        if (tmpContent.txContent.destinationLength == 0) {
+            return CUSTOM_NOT_HANDLED;
+        }
+        // If data field is less than 4 bytes long, do not try to use a plugin.
+        if (context->currentFieldLength < CALLDATA_SELECTOR_SIZE) {
+            return CUSTOM_NOT_HANDLED;
+        }
+        if (context->currentFieldPos == 0) {
+            ethPluginInitContract_t pluginInit;
+            // If handling the beginning of the data field, assume that the function selector is
+            // present
+            if (context->commandLength < 4) {
+                PRINTF("Missing function selector\n");
+                return CUSTOM_FAULT;
+            }
+            dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_UNAVAILABLE;
+            // If contract debugging mode is activated, do not go through the plugin activation
+            // as they wouldn't be displayed if the plugin consumes all data but fallbacks
+            // Still go through plugin activation in Swap context
+            if (!context->store_calldata) {
+                if (!N_storage.contractDetails || G_called_from_swap) {
+                    eth_plugin_prepare_init(&pluginInit,
+                                            context->workBuffer,
+                                            context->currentFieldLength);
+                    dataContext.tokenContext.pluginStatus =
+                        eth_plugin_perform_init(tmpContent.txContent.destination, &pluginInit);
+                }
+            }
+            PRINTF("pluginstatus %d\n", dataContext.tokenContext.pluginStatus);
+            eth_plugin_result_t status = dataContext.tokenContext.pluginStatus;
+            if (status == ETH_PLUGIN_RESULT_ERROR) {
+                PRINTF("Plugin error\n");
+                return CUSTOM_FAULT;
+            } else if (status >= ETH_PLUGIN_RESULT_SUCCESSFUL) {
+                dataContext.tokenContext.fieldIndex = 0;
+                dataContext.tokenContext.fieldOffset = 0;
+                if (copy_tx_data(context, NULL, 4) == false) {
+                    return CUSTOM_FAULT;
+                }
+                if (context->currentFieldLength == 4) {
+                    return CUSTOM_NOT_HANDLED;
+                }
+            }
+        }
+        uint32_t blockSize;
+        uint32_t copySize;
+        uint32_t fieldPos = context->currentFieldPos;
+        if (fieldPos == 0) {  // not reached if a plugin is available
+            if (!context->store_calldata) {
+                if (!N_storage.dataAllowed) {
+                    PRINTF("Data field forbidden\n");
+                    ui_error_blind_signing();
+                    return CUSTOM_FAULT;
+                }
+            }
+            if (context->store_calldata || !N_storage.contractDetails) {
+                return CUSTOM_NOT_HANDLED;
+            }
+            dataContext.tokenContext.fieldIndex = 0;
+            dataContext.tokenContext.fieldOffset = 0;
+            blockSize = 4;
+        } else {
+            if (context->store_calldata ||
+                (!N_storage.contractDetails &&
+                 dataContext.tokenContext.pluginStatus <= ETH_PLUGIN_RESULT_UNSUCCESSFUL)) {
+                return CUSTOM_NOT_HANDLED;
+            }
+            blockSize =
+                CALLDATA_CHUNK_SIZE - (dataContext.tokenContext.fieldOffset % CALLDATA_CHUNK_SIZE);
+        }
+
+        // If the last parameter is of type `bytes` then we might have an
+        // edge case where the data is not a multiple of 32. Set `blockSize` accordingly
+        if ((context->currentFieldLength - fieldPos) < blockSize) {
+            blockSize = context->currentFieldLength - fieldPos;
+        }
+
+        copySize = (context->commandLength < blockSize ? context->commandLength : blockSize);
+
+        PRINTF("currentFieldPos %d copySize %d\n", context->currentFieldPos, copySize);
+
+        if (copy_tx_data(context,
+                         dataContext.tokenContext.data + dataContext.tokenContext.fieldOffset,
+                         copySize) == false) {
+            return CUSTOM_FAULT;
+        }
+
+        if (context->currentFieldPos == context->currentFieldLength) {
+            PRINTF("\n\nIncrementing one\n");
+            context->currentField++;
+            context->processingField = false;
+        }
+
+        dataContext.tokenContext.fieldOffset += copySize;
+
+        if (copySize == blockSize) {
+            // Can process or display
+            if (dataContext.tokenContext.pluginStatus >= ETH_PLUGIN_RESULT_SUCCESSFUL) {
+                ethPluginProvideParameter_t pluginProvideParameter;
+                eth_plugin_prepare_provide_parameter(
+                    &pluginProvideParameter,
+                    dataContext.tokenContext.data,
+                    dataContext.tokenContext.fieldIndex * CALLDATA_CHUNK_SIZE +
+                        CALLDATA_SELECTOR_SIZE,
+                    (uint8_t) copySize);
+                if (!eth_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER,
+                                     (void *) &pluginProvideParameter)) {
+                    PRINTF("Plugin parameter call failed\n");
+                    return CUSTOM_FAULT;
+                }
+                dataContext.tokenContext.fieldIndex++;
+                dataContext.tokenContext.fieldOffset = 0;
+                explicit_bzero(dataContext.tokenContext.data,
+                               sizeof(dataContext.tokenContext.data));
+                return CUSTOM_HANDLED;
+            }
+
+            if (fieldPos != 0) {
+                dataContext.tokenContext.fieldIndex++;
+            }
+            dataContext.tokenContext.fieldOffset = 0;
+            if (fieldPos == 0) {
+                format_hex(dataContext.tokenContext.data,
+                           4,
+                           strings.tmp.tmp,
+                           sizeof(strings.tmp.tmp));
+                ui_confirm_selector();
+            } else {
+                uint32_t offset = 0;
+                uint32_t i;
+                for (i = 0; i < 4; i++) {
+                    offset += split_binary_parameter_part(strings.tmp.tmp + offset,
+                                                          sizeof(strings.tmp.tmp) - offset,
+                                                          dataContext.tokenContext.data + 8 * i);
+                    if (i != 3) {
+                        strings.tmp.tmp[offset++] = ':';
+                    }
+                }
+                ui_confirm_parameter();
+            }
+        } else {
+            return CUSTOM_HANDLED;
+        }
+
+        return CUSTOM_SUSPENDED;
+    }
+    return CUSTOM_NOT_HANDLED;
+}
+
+static void report_finalize_error(void) {
+    io_seproxyhal_send_status(SWO_INCORRECT_DATA, 0, true, true);
+}
+
+static uint16_t address_to_string(uint8_t *in,
+                                  size_t in_len,
+                                  char *out,
+                                  size_t out_len,
+                                  uint64_t chainId) {
+    if (in_len != 0) {
+        if (!getEthDisplayableAddress(in, out, out_len, chainId)) {
+            return SWO_PARAMETER_ERROR_NO_INFO;
+        }
+    } else {
+        strlcpy(out, "Contract", out_len);
+    }
+    return SWO_SUCCESS;
+}
+
+static void raw_fee_to_string(uint256_t *rawFee, char *out_buffer, uint32_t out_buffer_size) {
+    // Fees are always in the base currency, this is why we need to use the chain_id
+    uint64_t chain_id = get_tx_chain_id();
+    const char *ticker = get_displayable_ticker(&chain_id, g_chain_config, true);
+    uint8_t fee_len = 0;
+    uint8_t ticker_len = 0;
+    char raw_fee_buffer[100] = {0};
+
+    explicit_bzero(out_buffer, out_buffer_size);
+
+    // Convert the fee to decimal string first
+    if (tostring256(rawFee, 10, (char *) raw_fee_buffer, sizeof(raw_fee_buffer)) == false) {
+        PRINTF("tostring256 failed\n");
+        return;
+    }
+    // Adjust the decimal position, store the result in out_buffer
+    fee_len = strnlen(raw_fee_buffer, sizeof(raw_fee_buffer));
+    ticker_len = strnlen(ticker, MAX_TICKER_LEN);
+    if (adjustDecimals(raw_fee_buffer, fee_len, out_buffer, out_buffer_size, WEI_TO_ETHER) ==
+        false) {
+        PRINTF("adjustDecimals failed\n");
+        return;
+    }
+
+    // out_buffer will contain the fee, a space and the ticker, ended with \0
+    if ((strlen(out_buffer) + 1 + ticker_len + 1) > out_buffer_size) {
+        PRINTF("Not enough space for ticker\n");
+        return;
+    }
+    // Append a space and the ticker to the out_buffer
+    // strlcat cannot fail here as we checked boundaries above
+    strlcat(out_buffer, " ", out_buffer_size);
+    strlcat(out_buffer, ticker, out_buffer_size);
+}
+
+// Compute the fees, transform it to a string, prepend a ticker to it and copy everything to
+// `displayBuffer` output
+bool max_transaction_fee_to_string(const txInt256_t *BEGasPrice,
+                                   const txInt256_t *BEGasLimit,
+                                   char *displayBuffer,
+                                   uint32_t displayBufferSize) {
+    // Use temporary variables to convert values to uint256_t
+    uint256_t gasPrice = {0};
+    uint256_t gasLimit = {0};
+    // Use temporary variable to store the result of the operation in uint256_t
+    uint256_t rawFee = {0};
+
+    PRINTF("Gas price %.*H\n", BEGasPrice->length, BEGasPrice->value);
+    PRINTF("Gas limit %.*H\n", BEGasLimit->length, BEGasLimit->value);
+    convertUint256BE(BEGasPrice->value, BEGasPrice->length, &gasPrice);
+    convertUint256BE(BEGasLimit->value, BEGasLimit->length, &gasLimit);
+    if (mul256(&gasPrice, &gasLimit, &rawFee) == false) {
+        return false;
+    }
+    raw_fee_to_string(&rawFee, displayBuffer, displayBufferSize);
+    return true;
+}
+
+static void nonce_to_string(const txInt256_t *nonce, char *out, size_t out_size) {
+    uint256_to_decimal(nonce->value, nonce->length, out, out_size);
+}
+
+__attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContext_t *context) {
+    char displayBuffer[50];
+    uint8_t decimals = WEI_TO_ETHER;
+    uint64_t chain_id = get_tx_chain_id();
+    const char *ticker = get_displayable_ticker(&chain_id, g_chain_config, true);
+    ethPluginFinalize_t pluginFinalize;
+    cx_err_t error = CX_INTERNAL_ERROR;
+
+    // Verify the chain
+    if (g_chain_config->chain_id != ETHEREUM_MAINNET_CHAINID) {
+        if (g_chain_config->chain_id != chain_id) {
+            PRINTF("Invalid chainID %llu expected %llu\n", chain_id, g_chain_config->chain_id);
+            report_finalize_error();
+            return SWO_NO_RESPONSE;
+        }
+    }
+    // Reject pre-EIP-155 LEGACY transactions (no chain_id encoded in V). Their
+    // signature carries the legacy v base of 27/28 and is not domain-separated
+    // by chain, so any other EVM-compatible chain that still accepts
+    // unprotected legacy txs can replay it (CWE-325).
+    if ((context->txType == LEGACY) && (tmpContent.txContent.vLength == 0)) {
+        PRINTF("Rejecting pre-EIP-155 legacy transaction (no chain_id)\n");
+        report_finalize_error();
+        return SWO_NO_RESPONSE;
+    }
+    // Store the hash
+    if (g_tx_hash_ctx == NULL) {
+        error = SWO_INSUFFICIENT_MEMORY;
+        goto end;
+    }
+    CX_CHECK(cx_hash_no_throw((cx_hash_t *) g_tx_hash_ctx,
+                              CX_LAST,
+                              tmpCtx.transactionContext.hash,
+                              0,
+                              tmpCtx.transactionContext.hash,
+                              sizeof(tmpCtx.transactionContext.hash)));
+
+    uint8_t msg_sender[ADDRESS_LENGTH] = {0};
+    error = get_public_key(msg_sender, sizeof(msg_sender));
+    if (error != SWO_SUCCESS) {
+        goto end;
+    }
+
+    memcpy(strings.common.fromAddressRaw, msg_sender, ADDRESS_LENGTH);
+    error = address_to_string(msg_sender,
+                              ADDRESS_LENGTH,
+                              strings.common.fromAddress,
+                              sizeof(strings.common.fromAddress),
+                              g_chain_config->chain_id);
+    if (error != SWO_SUCCESS) {
+        goto end;
+    }
+    PRINTF("FROM address displayed: %s\n", strings.common.fromAddress);
+    // Enforce chain binding for plugin registrations now that the full tx has
+    // been parsed and get_tx_chain_id() is reliable (LEGACY transactions only
+    // expose chain_id through the V field, which is parsed after the plugin
+    // init triggered on the data field).
+    if ((dataContext.tokenContext.pluginStatus >= ETH_PLUGIN_RESULT_SUCCESSFUL) &&
+        (dataContext.tokenContext.pluginChainId != PLUGIN_CHAIN_ID_ANY) &&
+        (dataContext.tokenContext.pluginChainId != chain_id)) {
+        PRINTF("Plugin registered for chain %llu but tx is on chain %llu\n",
+               dataContext.tokenContext.pluginChainId,
+               chain_id);
+        report_finalize_error();
+        error = SWO_NO_RESPONSE;
+        goto end;
+    }
+    // Finalize the plugin handling
+    if (dataContext.tokenContext.pluginStatus >= ETH_PLUGIN_RESULT_SUCCESSFUL) {
+        eth_plugin_prepare_finalize(&pluginFinalize);
+
+        pluginFinalize.address = msg_sender;
+
+        if (eth_plugin_call(ETH_PLUGIN_FINALIZE, (void *) &pluginFinalize) <
+            ETH_PLUGIN_RESULT_SUCCESSFUL) {
+            PRINTF("Plugin finalize call failed\n");
+            report_finalize_error();
+            error = SWO_NO_RESPONSE;
+            goto end;
+        }
+
+        // store the lookup addresses
+        // not needed to set them for PLUGIN_PROVIDE_INFO since it is done within this function,
+        // but required for PLUGIN_QUERY_CONTRACT_UI
+        dataContext.tokenContext.token_lookup1 = pluginFinalize.tokenLookup1;
+        dataContext.tokenContext.token_lookup2 = pluginFinalize.tokenLookup2;
+
+        // Lookup tokens if requested
+        ethPluginProvideInfo_t pluginProvideInfo;
+        eth_plugin_prepare_provide_info(&pluginProvideInfo);
+        pluginProvideInfo.item1 =
+            get_matching_asset_info(&chain_id, dataContext.tokenContext.token_lookup1);
+        if (pluginProvideInfo.item1 != NULL) {
+            PRINTF("Asset1 ticker: %s\n", pluginProvideInfo.item1->token.ticker);
+        }
+        pluginProvideInfo.item2 =
+            get_matching_asset_info(&chain_id, dataContext.tokenContext.token_lookup2);
+        if (pluginProvideInfo.item2 != NULL) {
+            PRINTF("Asset2 ticker: %s\n", pluginProvideInfo.item2->token.ticker);
+        }
+        if ((dataContext.tokenContext.token_lookup1 != NULL) ||
+            (dataContext.tokenContext.token_lookup2 != NULL)) {
+            if (eth_plugin_call(ETH_PLUGIN_PROVIDE_INFO, (void *) &pluginProvideInfo) <=
+                ETH_PLUGIN_RESULT_UNSUCCESSFUL) {
+                PRINTF("Plugin provide token call failed\n");
+                report_finalize_error();
+                error = SWO_NO_RESPONSE;
+                goto end;
+            }
+            pluginFinalize.result = pluginProvideInfo.result;
+        }
+        if (pluginFinalize.result != ETH_PLUGIN_RESULT_FALLBACK) {
+            PRINTF("pluginFinalize.result %d successful\n", pluginFinalize.result);
+            // Handle the right interface
+            switch (pluginFinalize.uiType) {
+                case ETH_UI_TYPE_GENERIC: {
+                    size_t total_items = (size_t) pluginFinalize.numScreens +
+                                         (size_t) pluginProvideInfo.additionalScreens;
+                    if (total_items > MAX_PLUGIN_UI_ITEMS) {
+                        PRINTF("Too many plugin screens requested\n");
+                        report_finalize_error();
+                        error = SWO_NO_RESPONSE;
+                        goto end;
+                    }
+                    // Use the dedicated ETH plugin UI
+                    tmpContent.txContent.dataPresent = false;
+                    // Add the number of screens + the number of additional screens to get the total
+                    // number of screens needed.
+                    dataContext.tokenContext.pluginUiMaxItems = (uint8_t) total_items;
+                    break;
+                }
+
+                // TODO: needs to be removed from the plugin SDK altogether
+                case ETH_UI_TYPE_AMOUNT_ADDRESS:
+                default:
+                    PRINTF("ui type %d not supported\n", pluginFinalize.uiType);
+                    report_finalize_error();
+                    error = SWO_NO_RESPONSE;
+                    goto end;
+            }
+        } else if (G_called_from_swap && G_swap_mode == SWAP_MODE_CROSSCHAIN_SUCCESS) {
+            PRINTF("Plugin swap_with_calldata fell back for UI with success\n");
+            // We are not bling signing, the data has been validated by the plugin
+            tmpContent.txContent.dataPresent = false;
+        }
+    }
+
+    if (G_called_from_swap) {
+        if (G_swap_response_ready) {
+            // Unreachable given current return to exchange mechanism. Safeguard against regression
+            PRINTF("FATAL: safety against double sign triggered\n");
+            app_quit();
+        }
+        G_swap_response_ready = true;
+    }
+
+    if (G_called_from_swap) {
+        // User has just validated a swap but ETH received apdus about a non standard plugin /
+        // contract
+        if ((pluginType != PLUGIN_TYPE_NONE) && (pluginType != PLUGIN_TYPE_OLD_INTERNAL) &&
+            (pluginType != PLUGIN_TYPE_SWAP_WITH_CALLDATA)) {
+            send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
+                                   SWAP_EC_ERROR_WRONG_METHOD,
+                                   APP_CODE_NO_STANDARD_UI);
+            // unreachable — app_exit is __attribute__((noreturn))
+            app_exit();
+        }
+        // Two success cases: we are in standard mode and no calldata was received
+        // We are in crosschain mode and the correct calldata has been received
+        if (G_swap_mode != SWAP_MODE_STANDARD && G_swap_mode != SWAP_MODE_CROSSCHAIN_SUCCESS) {
+            send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
+                                   SWAP_EC_ERROR_CROSSCHAIN_WRONG_MODE,
+                                   APP_CODE_DEFAULT);
+            // unreachable — app_exit is __attribute__((noreturn))
+            app_exit();
+        }
+    }
+
+    if (!context->store_calldata) {
+        if (tmpContent.txContent.dataPresent && !N_storage.dataAllowed) {
+            PRINTF("Data is present but not allowed\n");
+            report_finalize_error();
+            ui_error_blind_signing();
+            error = SWO_NO_RESPONSE;
+            goto end;
+        }
+    }
+
+    // Prepare destination address and amount to display
+    if ((pluginType == PLUGIN_TYPE_NONE) || (pluginType == PLUGIN_TYPE_SWAP_WITH_CALLDATA)) {
+        // Format the address in a temporary buffer, if in swap case compare it with validated
+        // address, else commit it
+        error = address_to_string(tmpContent.txContent.destination,
+                                  tmpContent.txContent.destinationLength,
+                                  displayBuffer,
+                                  sizeof(displayBuffer),
+                                  g_chain_config->chain_id);
+        if (error != SWO_SUCCESS) {
+            goto end;
+        }
+        if (G_called_from_swap) {
+            swap_check_destination(displayBuffer);
+        } else {
+            strlcpy(strings.common.toAddress, displayBuffer, sizeof(strings.common.toAddress));
+        }
+        PRINTF("TO address displayed: %s\n", strings.common.toAddress);
+
+        // Format the amount in a temporary buffer, if in swap case compare it with validated
+        // amount, else commit it
+        if (!amountToString(tmpContent.txContent.value.value,
+                            tmpContent.txContent.value.length,
+                            decimals,
+                            ticker,
+                            displayBuffer,
+                            sizeof(displayBuffer))) {
+            PRINTF("OVERFLOW, amount to string failed\n");
+            error = EXCEPTION_OVERFLOW;
+            goto end;
+        }
+
+        if (G_called_from_swap) {
+            swap_check_amount(displayBuffer);
+        } else {
+            strlcpy(strings.common.fullAmount, displayBuffer, sizeof(strings.common.fullAmount));
+        }
+        PRINTF("Amount displayed: %s\n", strings.common.fullAmount);
+        G_swap_checked = true;
+    }
+
+    // Compute the max fee in a temporary buffer, if in swap case compare it with validated max fee,
+    // else commit it
+    if (max_transaction_fee_to_string(&tmpContent.txContent.gasprice,
+                                      &tmpContent.txContent.startgas,
+                                      displayBuffer,
+                                      sizeof(displayBuffer)) == false) {
+        error = SWO_INCORRECT_DATA;
+        goto end;
+    }
+    if (G_called_from_swap) {
+        swap_check_fee(displayBuffer);
+    } else {
+        strlcpy(strings.common.maxFee, displayBuffer, sizeof(strings.common.maxFee));
+    }
+
+    PRINTF("Fees displayed: %s\n", strings.common.maxFee);
+
+    // Prepare nonce to display
+    nonce_to_string(&tmpContent.txContent.nonce,
+                    strings.common.nonce,
+                    sizeof(strings.common.nonce));
+    PRINTF("Nonce: %s\n", strings.common.nonce);
+
+    // Prepare network field
+    if (get_network_as_string(strings.common.network_name, sizeof(strings.common.network_name)) ==
+        true) {
+        PRINTF("Network: %s\n", strings.common.network_name);
+        error = SWO_SUCCESS;
+    } else {
+        error = SWO_INCORRECT_DATA;
+    }
+end:
+    APP_MEM_FREE_AND_NULL((void **) &g_tx_hash_ctx);
+    return error;
+}
+
+static uint16_t start_signature_flow(void) {
+    if (pluginType == PLUGIN_TYPE_NONE) {
+        return ux_approve_tx(false);
+    }
+    dataContext.tokenContext.pluginUiState = PLUGIN_UI_OUTSIDE;
+    dataContext.tokenContext.pluginUiCurrentItem = 0;
+    return ux_approve_tx(true);
+}
+
+uint16_t finalize_parsing(const txContext_t *context) {
+    uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
+
+    sw = finalize_parsing_helper(context);
+    if (sw != SWO_SUCCESS) {
+        return sw;
+    }
+    if (context->store_calldata) {
+        if ((get_root_calldata() == NULL) || (calldata_get_selector(get_root_calldata()) == NULL)) {
+            PRINTF("Asked to store calldata but none was provided!\n");
+            sw = SWO_INCORRECT_DATA;
+        } else {
+            sw = SWO_SUCCESS;
+        }
+    } else {
+        // If called from swap, the user has already validated a standard transaction
+        // And we have already checked the fields of this transaction above
+        if (G_called_from_swap &&
+            ((pluginType == PLUGIN_TYPE_NONE) || (pluginType == PLUGIN_TYPE_OLD_INTERNAL) ||
+             (pluginType == PLUGIN_TYPE_SWAP_WITH_CALLDATA))) {
+            if (!G_swap_checked) {
+                PRINTF("Error: swap checks haven't been done!\n");
+                send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
+                                       SWAP_EC_ERROR_GENERIC,
+                                       APP_CODE_DEFAULT);
+                // unreachable — app_exit is __attribute__((noreturn))
+                app_exit();
+            }
+            if (tmpContent.txContent.dataPresent && (G_swap_mode == SWAP_MODE_STANDARD)) {
+                PRINTF("Unvalidated calldata is not allowed in standard swap\n");
+                send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
+                                       SWAP_EC_ERROR_WRONG_METHOD,
+                                       APP_CODE_DEFAULT);
+                // unreachable — app_exit is __attribute__((noreturn))
+                app_exit();
+            }
+            io_seproxyhal_touch_tx_ok();
+            sw = SWO_SUCCESS;
+        } else {
+            sw = start_signature_flow();
+        }
+    }
+    return sw;
+}

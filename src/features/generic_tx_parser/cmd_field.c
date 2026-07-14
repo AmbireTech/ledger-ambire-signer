@@ -1,32 +1,33 @@
 #include "cmd_field.h"
 #include "cx.h"
 #include "apdu_constants.h"
-#include "tlv.h"
 #include "tlv_apdu.h"
 #include "gtp_field.h"
 #include "cmd_tx_info.h"
 #include "gtp_tx_info.h"
 #include "tx_ctx.h"
 
-static bool handle_tlv_payload(const uint8_t *payload, uint16_t size) {
+static bool handle_tlv_payload(const buffer_t *buf) {
     s_field field = {0};
     s_field_ctx ctx = {0};
-    bool parsing_ret;
-    bool hashing_ret;
 
     ctx.field = &field;
-    parsing_ret = tlv_parse(payload, size, (f_tlv_data_handler) &handle_field_struct, &ctx);
-    hashing_ret = cx_hash_no_throw(get_fields_hash_ctx(), 0, payload, size, NULL, 0) == CX_OK;
-    if (!parsing_ret || !hashing_ret) {
-        cleanup_field_constraints(&field);
+    if (!handle_field_struct(buf, &ctx)) {
+        PRINTF("Error: could not handle the field struct!\n");
+        cleanup_field(&field);
+        return false;
+    }
+    if (cx_hash_no_throw(get_fields_hash_ctx(), 0, buf->ptr, buf->size, NULL, 0) != CX_OK) {
+        PRINTF("Error: could not hash the field struct!\n");
+        cleanup_field(&field);
         return false;
     }
     if (!verify_field_struct(&ctx)) {
         PRINTF("Error: could not verify the field struct!\n");
-        cleanup_field_constraints(&field);
+        cleanup_field(&field);
         return false;
     }
-    if (!format_field(&field)) {
+    if (!format_field(&field, 0)) {
         return false;
     }
     while (((appState == APP_STATE_SIGNING_EIP712) || !tx_ctx_is_root()) &&

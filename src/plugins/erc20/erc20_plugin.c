@@ -1,4 +1,5 @@
 #include <string.h>
+#include "os_utils.h"
 #include "eth_plugin_internal.h"
 #include "eth_plugin_handler.h"
 #include "shared_context.h"
@@ -7,9 +8,10 @@
 #include "format.h"
 #include "utils.h"
 #include "calldata.h"
-#include "manage_asset_info.h"
+#include "token_info.h"
 #include "eth_swap_utils.h"
 #include "erc20_plugin.h"
+#include "network.h"
 
 typedef enum { ERC20_TRANSFER = 0, ERC20_APPROVE } erc20Selector_t;
 static const uint8_t ERC20_TRANSFER_SELECTOR[SELECTOR_SIZE] = {0xa9, 0x05, 0x9c, 0xbb};
@@ -30,6 +32,8 @@ typedef struct erc20_parameters_t {
     // data not part of the ABI (usually for tracking purposes)
     char extra_data[MAX_EXTRA_DATA_CHUNKS * CALLDATA_CHUNK_SIZE];
     uint8_t extra_data_len;
+    bool destination_parsed;
+    bool amount_parsed;
 } erc20_parameters_t;
 
 void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
@@ -38,11 +42,13 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
             ethPluginInitContract_t *msg = (ethPluginInitContract_t *) parameters;
             erc20_parameters_t *context = (erc20_parameters_t *) msg->pluginContext;
 
-            explicit_bzero(context->extra_data, sizeof(context->extra_data));
-            context->extra_data_len = 0;
+            // Zero the entire context so a stale destinationAddress/amount/
+            // ticker/decimals from a previous signing flow cannot bleed into
+            // the review screen if the next calldata fails to populate them.
+            explicit_bzero(context, sizeof(*context));
 
             // enforce that ETH amount should be 0
-            if (!allzeroes(msg->txContent->value.value, CALLDATA_CHUNK_SIZE)) {
+            if (!is_zeroes_buffer(msg->txContent->value.value, CALLDATA_CHUNK_SIZE)) {
                 PRINTF("Err: Transaction amount is not 0\n");
                 msg->result = ETH_PLUGIN_RESULT_ERROR;
             } else {
@@ -81,6 +87,7 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
                     memmove(context->destinationAddress,
                             msg->parameter + (CALLDATA_CHUNK_SIZE - ADDRESS_LENGTH),
                             ADDRESS_LENGTH);
+                    context->destination_parsed = true;
                     msg->result = ETH_PLUGIN_RESULT_OK;
                     break;
 
@@ -90,6 +97,7 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
                 //                                    ^^^^^^^^^^^^^^
                 case CALLDATA_SELECTOR_SIZE + CALLDATA_CHUNK_SIZE:
                     memmove(context->amount, msg->parameter, CALLDATA_CHUNK_SIZE);
+                    context->amount_parsed = true;
                     msg->result = ETH_PLUGIN_RESULT_OK;
                     break;
 
@@ -103,8 +111,13 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
                         memmove(context->extra_data + extra_data_offset,
                                 msg->parameter,
                                 CALLDATA_CHUNK_SIZE);
-                        context->extra_data_len += msg->parameter_size;
-                        msg->result = ETH_PLUGIN_RESULT_OK;
+                        if (msg->parameter_size <= CALLDATA_CHUNK_SIZE) {
+                            context->extra_data_len += msg->parameter_size;
+                            msg->result = ETH_PLUGIN_RESULT_OK;
+                        } else {
+                            PRINTF("Error: wrong parameter size!\n");
+                            msg->result = ETH_PLUGIN_RESULT_ERROR;
+                        }
                     } else {
                         PRINTF("Extra data too long to buffer\n");
                         context->extra_data_len = 0;
@@ -118,6 +131,18 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
             ethPluginFinalize_t *msg = (ethPluginFinalize_t *) parameters;
             erc20_parameters_t *context = (erc20_parameters_t *) msg->pluginContext;
             PRINTF("erc20 plugin finalize %u\n", pluginType);
+            // Refuse to render the review screen unless both mandatory ABI
+            // parameters were observed; without this, malformed calldata
+            // (wrong offsets, truncated payload) would let the contextual
+            // zeros land on screen as a legitimate-looking "transfer 0 to
+            // 0x000...0000" prompt.
+            if (!context->destination_parsed || !context->amount_parsed) {
+                PRINTF("erc20: missing mandatory parameter (dest=%d, amount=%d)\n",
+                       context->destination_parsed,
+                       context->amount_parsed);
+                msg->result = ETH_PLUGIN_RESULT_ERROR;
+                break;
+            }
             msg->tokenLookup1 = msg->txContent->destination;
             msg->numScreens = 2;
             if (context->extra_data_len > 0) {
@@ -125,26 +150,38 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
             }
             if (G_called_from_swap) {
                 char buf[sizeof(strings.common.fullAmount)];
-                const tokenDefinition_t *token_def;
+                const s_token_info *token_info;
+
+                if (context->selectorIndex != ERC20_TRANSFER) {
+                    PRINTF("erc20 swap: unsupported selector %u\n",
+                           (unsigned int) context->selectorIndex);
+                    msg->result = ETH_PLUGIN_RESULT_ERROR;
+                    break;
+                }
+                if (context->extra_data_len != 0) {
+                    PRINTF("erc20 swap: unexpected extra data\n");
+                    msg->result = ETH_PLUGIN_RESULT_ERROR;
+                    break;
+                }
 
                 if (!getEthDisplayableAddress(context->destinationAddress,
                                               buf,
                                               sizeof(buf),
-                                              chainConfig->chainId)) {
+                                              g_chain_config->chain_id)) {
                     msg->result = ETH_PLUGIN_RESULT_ERROR;
                     break;
                 }
                 swap_check_destination(buf);
 
-                if ((token_def = (const tokenDefinition_t *) get_asset_info_by_addr(
-                         msg->tokenLookup1)) == NULL) {
+                uint64_t chain_id = get_tx_chain_id();
+                if ((token_info = get_matching_token_info(&chain_id, msg->tokenLookup1)) == NULL) {
                     msg->result = ETH_PLUGIN_RESULT_ERROR;
                     break;
                 }
                 if (!amountToString(context->amount,
                                     sizeof(context->amount),
-                                    token_def->decimals,
-                                    token_def->ticker,
+                                    token_info->decimals,
+                                    token_info->ticker,
                                     buf,
                                     sizeof(buf))) {
                     msg->result = ETH_PLUGIN_RESULT_ERROR;
@@ -222,10 +259,11 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
                     if (!getEthDisplayableAddress(context->destinationAddress,
                                                   msg->msg,
                                                   msg->msgLength,
-                                                  chainConfig->chainId)) {
+                                                  g_chain_config->chain_id)) {
                         msg->result = ETH_PLUGIN_RESULT_ERROR;
+                    } else {
+                        msg->result = ETH_PLUGIN_RESULT_OK;
                     }
-                    msg->result = ETH_PLUGIN_RESULT_OK;
                     break;
                 case 2: {
                     PRINTF("Extra Data Length %d\n", context->extra_data_len);
@@ -239,7 +277,7 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
 
                     strlcpy(msg->title, "Extra Data", msg->titleLength);
 
-                    if (is_printable(context->extra_data, context->extra_data_len)) {
+                    if (is_printable_string(context->extra_data, context->extra_data_len)) {
                         // display as string
                         PRINTF("Display as ASCII string\n");
                         // should never trigger unless the msg->msg buffer has been downsized

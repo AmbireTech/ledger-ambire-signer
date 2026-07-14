@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include "common_utils.h"
+#include "buffer.h"
 
 // clang-format off
 typedef enum {
@@ -16,7 +17,7 @@ typedef enum {
                           "Unknown")
 
 typedef struct {
-    const char address[ADDRESS_LENGTH];
+    char address[ADDRESS_LENGTH];
     uint16_t threshold;
     uint16_t signers_count;
     safe_role_t role;
@@ -25,5 +26,5 @@ typedef struct {
 
 extern safe_descriptor_t *SAFE_DESC;
 
-bool handle_safe_tlv_payload(const uint8_t *payload, uint16_t size);
+bool handle_safe_tlv_payload(const buffer_t *payload);
 void clear_safe_descriptor(void);

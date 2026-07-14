@@ -58,6 +58,7 @@ static const network_info_t NETWORK_MAPPING[] = {
     {.chain_id = 1135, .name = "Lisk", .ticker = "ETH"},
     {.chain_id = 1284, .name = "Moonbeam", .ticker = "GLMR"},
     {.chain_id = 1285, .name = "Moonriver", .ticker = "MOVR"},
+    {.chain_id = 1329, .name = "Sei", .ticker = "SEI"},
     {.chain_id = 1818, .name = "Cube", .ticker = "CUBE"},
     {.chain_id = 1868, .name = "Soneium", .ticker = "ETH"},
     {.chain_id = 1907, .name = "Bitcichain", .ticker = "BITCI"},
@@ -123,17 +124,32 @@ static const network_info_t NETWORK_MAPPING[] = {
     {.chain_id = 11297108109, .name = "Palm Network", .ticker = "PALM"},
 };
 
+/**
+ * @brief Find a dynamically loaded network by its chain ID
+ *
+ * @param[in] chain_id The chain ID to search for
+ * @return Pointer to network_info_t if found, NULL otherwise
+ */
+network_info_t *find_dynamic_network_by_chain_id(uint64_t chain_id) {
+    flist_node_t *node = (flist_node_t *) g_dynamic_network_list;
+    while (node != NULL) {
+        network_info_t *net_info = (network_info_t *) node;
+        if (net_info->chain_id == chain_id) {
+            return net_info;
+        }
+        node = node->next;
+    }
+    return NULL;
+}
+
 static const network_info_t *get_network_from_chain_id(const uint64_t *chain_id, bool dynamic) {
     if (*chain_id != 0) {
-        // Look if the network is available
+        // Look if the network is available in dynamically loaded networks
         if (dynamic == true) {
-            for (size_t i = 0; i < MAX_DYNAMIC_NETWORKS; i++) {
-                if ((DYNAMIC_NETWORK_INFO[i]) && (DYNAMIC_NETWORK_INFO[i]->chain_id == *chain_id)) {
-                    PRINTF("[NETWORK] - Found dynamic \"%s\" in slot %u\n",
-                           DYNAMIC_NETWORK_INFO[i]->name,
-                           i);
-                    return (const network_info_t *) DYNAMIC_NETWORK_INFO[i];
-                }
+            network_info_t *net_info = find_dynamic_network_by_chain_id(*chain_id);
+            if (net_info != NULL) {
+                PRINTF("[NETWORK] - Found dynamic '%s'\n", net_info->name);
+                return (const network_info_t *) net_info;
             }
         }
 
@@ -167,22 +183,22 @@ const char *get_network_name_from_chain_id(const uint64_t *chain_id) {
     return PIC(net->name);
 }
 
-uint16_t get_network_as_string_from_chain_id(char *out, size_t out_size, uint64_t chain_id) {
+bool get_network_as_string_from_chain_id(char *out, size_t out_size, uint64_t chain_id) {
     const char *name = get_network_name_from_chain_id(&chain_id);
 
     if (name == NULL) {
         // No network name found so simply copy the chain ID as the network name.
-        if (!u64_to_string(chain_id, out, out_size)) {
-            return SWO_INSUFFICIENT_MEMORY;
+        if (!format_u64(out, out_size, chain_id)) {
+            return false;
         }
     } else {
         // Network name found, simply copy it.
         strlcpy(out, name, out_size);
     }
-    return SWO_SUCCESS;
+    return true;
 }
 
-uint16_t get_network_as_string(char *out, size_t out_size) {
+bool get_network_as_string(char *out, size_t out_size) {
     uint64_t chain_id = get_tx_chain_id();
     return get_network_as_string_from_chain_id(out, out_size, chain_id);
 }
@@ -218,8 +234,8 @@ const char *get_displayable_ticker(const uint64_t *chain_id,
     const char *ticker = get_network_ticker_from_chain_id(chain_id, dynamic);
 
     if (ticker == NULL) {
-        if (*chain_id == chain_cfg->chainId) {
-            ticker = chain_cfg->coinName;
+        if (*chain_id == chain_cfg->chain_id) {
+            ticker = chain_cfg->ticker;
         } else {
             ticker = g_unknown_ticker;
         }
@@ -234,7 +250,14 @@ const char *get_displayable_ticker(const uint64_t *chain_id,
  * - If both chain IDs are present in the array of Ethereum-compatible networks
  */
 bool app_compatible_with_chain_id(const uint64_t *chain_id) {
-    return ((chainConfig->chainId == *chain_id) ||
-            (chain_is_ethereum_compatible(&chainConfig->chainId) &&
+    return ((g_chain_config->chain_id == *chain_id) ||
+            (chain_is_ethereum_compatible(&g_chain_config->chain_id) &&
              chain_is_ethereum_compatible(chain_id)));
+}
+
+const char *get_clone_network_name(const caller_app_t *caller_app) {
+    if ((caller_app == NULL) || (caller_app->type != CALLER_TYPE_CLONE)) {
+        return NULL;
+    }
+    return caller_app->name;
 }

@@ -1,7 +1,8 @@
 #include "nbgl_use_case.h"
 #include "shared_context.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 
 static void ui_error_no_7702_choice(bool confirm) {
     if (confirm) {
@@ -12,6 +13,7 @@ static void ui_error_no_7702_choice(bool confirm) {
 }
 
 void ui_error_no_7702(void) {
+#ifndef FUZZ
     nbgl_useCaseChoice(&ICON_APP_WARNING,
 #ifdef SCREEN_SIZE_WALLET
                        "This authorization cannot be signed",
@@ -22,4 +24,5 @@ void ui_error_no_7702(void) {
                        "Go to settings",
                        "Reject authorization",
                        ui_error_no_7702_choice);
+#endif
 }

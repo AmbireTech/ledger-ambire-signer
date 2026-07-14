@@ -1,0 +1,53 @@
+#include "handle_check_address.h"
+#include "apdu_constants.h"
+#include "crypto_helpers.h"
+#include "get_public_key.h"
+#include "ox_ec.h"
+
+void handle_check_address(check_address_parameters_t *params, chain_config_t *chain_config) {
+    params->result = 0;
+    PRINTF("Params on the address %d\n", (unsigned int) params);
+    PRINTF("Address to check %s\n", params->address_to_check);
+    PRINTF("Inside handle_check_address\n");
+    if (params->address_to_check == 0) {
+        PRINTF("Address to check == 0\n");
+        return;
+    }
+    // The caller (Exchange app, signed by Ledger) is the only path into this
+    // function, so address_parameters comes from a trusted source. Validate
+    // anyway: if a future caller wires up handle_check_address from a less
+    // trusted context, these checks prevent out-of-bounds reads on the
+    // length byte and unsafe overshoot into bip32_path_read.
+    if (params->address_parameters == NULL || params->address_parameters_length == 0) {
+        PRINTF("Empty address_parameters\n");
+        return;
+    }
+
+    char address[ADDRESS_LENGTH_STR];
+    uint8_t raw_pubkey[CX_SECP256_PUB_KEY_SIZE];
+    bip32_path_t bip32;
+    bip32.length = params->address_parameters[0];
+    if (bip32_path_read(params->address_parameters + 1,
+                        params->address_parameters_length,
+                        bip32.path,
+                        bip32.length) == false) {
+        PRINTF("Invalid path\n");
+        return;
+    }
+    if (get_public_key_string(&bip32, raw_pubkey, address, NULL, chain_config->chain_id) != CX_OK) {
+        PRINTF("Error getting public key\n");
+        return;
+    }
+
+    uint8_t offset_0x = 0;
+    if (memcmp(params->address_to_check, "0x", 2) == 0) {
+        offset_0x = 2;
+    }
+
+    if (strcmp(address, params->address_to_check + offset_0x) != 0) {
+        PRINTF("Addresses don't match\n");
+    } else {
+        PRINTF("Addresses match\n");
+        params->result = 1;
+    }
+}

@@ -12,6 +12,7 @@ typedef struct {
     const void *extra_data;
     bool start_intent;  // This pair starts a new transaction in a batch
     bool end_intent;    // This pair ends a transaction in a batch
+    bool is_separator;  // Render as a centered page-break label (no value)
 } s_field_table_entry;
 
 bool field_table_init(void);
@@ -22,4 +23,4 @@ bool add_to_field_table(e_param_type type,
                         const void *extra_data);
 bool set_intent_field(const char *value);
 size_t field_table_size(void);
-const s_field_table_entry *get_from_field_table(int index);
+const s_field_table_entry *get_from_field_table(size_t index);

@@ -1,6 +1,8 @@
 #include "nbgl_use_case.h"
+#include "app_mem_utils.h"
 #include "ui_nbgl.h"
-#include "caller_api.h"
+#include "ui_icons.h"
+#include "caller_app.h"
 #include "network.h"
 #include "cmd_get_tx_simulation.h"
 #include "mem_utils.h"
@@ -16,6 +18,20 @@ nbgl_warning_t warning;
 
 // Tagline format for plugins
 #define FORMAT_PLUGIN "This app enables clear\nsigning transactions for\nthe %s dApp."
+
+// Maximum caller-provided plugin name length we accept for the tagline. 64 is
+// generous compared to real Ledger plugin app names (typically < 20 chars) and
+// the fuzz harnesses' NAME_LENGTH=32, while staying well below the byte that
+// would let the total line length wrap. Any value below ~196 closes the
+// CWE-120 overflow.
+#define MAX_PLUGIN_NAME_LEN 64
+
+// Catch any future change to FORMAT_PLUGIN or MAX_PLUGIN_NAME_LEN that would
+// re-introduce a path where the tagline allocation length wraps. sizeof
+// includes the NUL terminator; 256 keeps a comfortable margin below the 8-bit
+// boundary that used to wrap the original uint8_t accumulator.
+_Static_assert(sizeof(FORMAT_PLUGIN) + MAX_PLUGIN_NAME_LEN < 256,
+               "Plugin tagline buffer math exceeds the historical 8-bit bound ");
 
 enum {
     TRANSACTION_CHECKS_TOKEN = FIRST_USER_TOKEN,
@@ -97,38 +113,6 @@ static void setting_toggle_callback(int token, uint8_t index, int page) {
             nvm_write((void *) &N_storage.displayHash, (void *) &value, sizeof(value));
             break;
     }
-}
-
-const nbgl_icon_details_t *get_app_icon(bool caller_icon) {
-    const nbgl_icon_details_t *icon = NULL;
-
-    if (caller_icon && caller_app) {
-        if (caller_app->icon) {
-            icon = caller_app->icon;
-        }
-    } else {
-        icon = &ICONGLYPH;
-    }
-    if (icon == NULL) {
-        PRINTF("%s(%s) returned NULL!\n", __func__, (caller_icon ? "true" : "false"));
-    }
-    return icon;
-}
-
-static const nbgl_icon_details_t *get_home_icon(void) {
-    const nbgl_icon_details_t *icon = NULL;
-
-    if (caller_app) {
-        if (caller_app->icon) {
-            icon = caller_app->icon;
-        }
-    } else {
-        icon = &ICONHOME;
-    }
-    if (icon == NULL) {
-        PRINTF("%s returned NULL!\n", __func__);
-    }
-    return icon;
 }
 
 /**
@@ -223,6 +207,7 @@ static void prepare_and_display_home(const char *appname, const char *tagline, u
     infoList.infoTypes = infoTypes;
     infoList.infoContents = infoContents;
 
+#ifndef FUZZ
     nbgl_useCaseHomeAndSettings(appname,
                                 get_home_icon(),
                                 tagline,
@@ -231,6 +216,7 @@ static void prepare_and_display_home(const char *appname, const char *tagline, u
                                 &infoList,
                                 NULL,
                                 app_quit);
+#endif
 }
 
 /**
@@ -240,16 +226,26 @@ static void prepare_and_display_home(const char *appname, const char *tagline, u
  */
 static void get_appname_and_tagline(const char **appname, const char **tagline) {
     uint64_t mainnet_chain_id;
-    uint8_t line_len = 1;  // Initialize lengths to 1 for '\0' character
 
-    if (caller_app) {
-        *appname = caller_app->name;
+    if (g_caller_app) {
+        *appname = g_caller_app->name;
 
-        if (caller_app->type == CALLER_TYPE_PLUGIN) {
-            line_len += strlen(FORMAT_PLUGIN);
-            line_len += strlen(caller_app->name);
-            // Allocate the buffer - will never be deallocated...
-            if (mem_buffer_allocate((void **) &g_tag_line, line_len) == true) {
+        if (g_caller_app->type == CALLER_TYPE_PLUGIN) {
+            size_t name_len = strnlen(g_caller_app->name, MAX_PLUGIN_NAME_LEN + 1);
+            if (name_len > MAX_PLUGIN_NAME_LEN) {
+                PRINTF("Plugin g_caller_app->name exceeds %u bytes; tagline omitted\n",
+                       (unsigned) MAX_PLUGIN_NAME_LEN);
+                return;
+            }
+            size_t line_len = 1 + strlen(FORMAT_PLUGIN) + name_len;
+            // Free any tagline left over from a previous home transition
+            // before allocating a new one; without this, repeated returns
+            // to the home screen in the same session accumulate orphaned
+            // buffers in the app-memory pool.
+            if (g_tag_line != NULL) {
+                APP_MEM_FREE_AND_NULL((void **) &g_tag_line);
+            }
+            if (APP_MEM_CALLOC((void **) &g_tag_line, line_len) == true) {
                 snprintf(g_tag_line, line_len, FORMAT_PLUGIN, *appname);
                 *tagline = g_tag_line;
             }

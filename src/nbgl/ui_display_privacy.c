@@ -1,5 +1,6 @@
 #include "ui_nbgl.h"
-#include "ui_callbacks.h"
+#include "ui_icons.h"
+#include "common_ui.h"
 #include "ui_utils.h"
 
 static void reviewChoice(bool confirm) {
@@ -23,6 +24,7 @@ static void buildFirstPage(const char *review_string) {
     g_pairs[1].item = "Key";
     g_pairs[1].value = strings.common.fullAmount;
 
+#ifndef FUZZ
     nbgl_useCaseReview(TYPE_OPERATION,
                        g_pairsList,
                        get_tx_icon(false),
@@ -30,6 +32,7 @@ static void buildFirstPage(const char *review_string) {
                        NULL,
                        review_string,
                        reviewChoice);
+#endif
 }
 
 void ui_display_privacy_public_key(void) {
@@ -37,5 +40,9 @@ void ui_display_privacy_public_key(void) {
 }
 
 void ui_display_privacy_shared_secret(void) {
-    buildFirstPage("Provide public\nsecret key");
+    // The value released here is the X25519 shared secret derived from the
+    // device-held private key and the host-supplied peer public key — it is
+    // NOT a public value. Wording must make that clear so the user does not
+    // approve secret disclosure thinking it is a public-key export.
+    buildFirstPage("Provide derived\nshared secret");
 }

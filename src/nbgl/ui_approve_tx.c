@@ -2,18 +2,23 @@
 #include "os_utils.h"
 #include "apdu_constants.h"
 #include "shared_context.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "ui_message_signing.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "plugins.h"
 #include "trusted_name.h"
-#include "caller_api.h"
-#include "network_icons.h"
+#ifdef HAVE_ADDRESS_BOOK
+#include "handle_contacts.h"
+#ifdef HAVE_ADDRESS_BOOK_LEDGER_ACCOUNT
+#endif  // HAVE_ADDRESS_BOOK_LEDGER_ACCOUNT
+#endif  // HAVE_ADDRESS_BOOK
+#include "caller_app.h"
 #include "network.h"
 #include "cmd_get_tx_simulation.h"
 #include "cmd_get_gating.h"
 #include "utils.h"
-#include "mem.h"
+#include "app_mem_utils.h"
 #include "ui_utils.h"
 #include "enum_value.h"
 #include "proxy_info.h"
@@ -22,6 +27,7 @@
 #define VALUE_MAX_LEN 100
 
 static nbgl_contentValueExt_t *extension = NULL;
+static nbgl_contentValueExt_t *from_extension = NULL;
 
 typedef struct {
     char title[TAG_MAX_LEN];
@@ -34,62 +40,31 @@ static plugin_buffers_t *plugin_buffers = NULL;
  * Cleanup allocated memory
  */
 static void _cleanup(void) {
-    app_mem_free(plugin_buffers);
-    plugin_buffers = NULL;
-    app_mem_free(extension);
-    extension = NULL;
+    APP_MEM_FREE_AND_NULL((void **) &plugin_buffers);
+    APP_MEM_FREE_AND_NULL((void **) &extension);
+    APP_MEM_FREE_AND_NULL((void **) &from_extension);
     ui_all_cleanup();
     proxy_cleanup();
 #ifdef HAVE_TRANSACTION_CHECKS
     clear_tx_simulation();
 #endif
-#ifdef HAVE_GATING_SUPPORT
     clear_gating();
-#endif
 }
 
 // Review callback function to handle user confirmation or cancellation
 static void reviewChoice(bool confirm) {
+    _cleanup();
     if (confirm) {
         io_seproxyhal_touch_tx_ok();
+#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_SIGNED, ui_idle);
+#endif
     } else {
         io_seproxyhal_touch_tx_cancel();
+#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_REJECTED, ui_idle);
+#endif
     }
-    _cleanup();
-}
-
-/**
- * Retrieve the icon for the Transaction
- *
- * @param[in] fromPlugin If true, the data is coming from a plugin, otherwise it is a standard
- * transaction
- * @return Pointer to the icon details structure, or NULL if no icon is available
- */
-const nbgl_icon_details_t *get_tx_icon(bool fromPlugin) {
-    const nbgl_icon_details_t *icon = NULL;
-
-    if (fromPlugin && (pluginType == PLUGIN_TYPE_EXTERNAL)) {
-        if ((caller_app != NULL) && (caller_app->name != NULL)) {
-            if (strcmp(strings.common.toAddress, caller_app->name) == 0) {
-                icon = get_app_icon(true);
-            }
-        }
-        // icon is NULL in this case
-        // Check with Alex if this is expected or a bug
-    } else if ((caller_app != NULL) && !fromPlugin) {
-        // Clone case
-        icon = get_app_icon(true);
-    } else {
-        uint64_t chain_id = get_tx_chain_id();
-        if (chain_id == chainConfig->chainId) {
-            icon = get_app_icon(false);
-        } else {
-            icon = get_network_icon_from_chain_id(&chain_id);
-        }
-    }
-    return icon;
 }
 
 // Force operation to be lowercase
@@ -101,6 +76,71 @@ static void get_lowercase_operation(char *dst, size_t dst_len) {
         dst[idx] = (char) tolower((int) src[idx]);
     }
     dst[idx] = '\0';
+}
+
+/**
+ * Resolves a raw Ethereum address to its display name and fills @p pair.
+ *
+ * Priority: Address Book contact name > ENS trusted name > raw hex string.
+ * When a name is found, *ext_out is allocated and the pair carries an alias
+ * detail view (tappable on Stax/Flex, shown inline on Nano).
+ * The caller is responsible for freeing *ext_out (typically via
+ * APP_MEM_FREE_AND_NULL in the cleanup path).
+ *
+ * @param pair         Tag/value pair whose @p item is already set by the caller
+ * @param raw_addr     20-byte raw address to resolve
+ * @param display_addr Checksummed hex string; used as fallback value and as
+ *                     ENS alias explanation in the detail view
+ * @param ext_out      Extension pointer to allocate on match
+ * @return false on allocation failure, true otherwise
+ */
+static bool resolve_address_pair(nbgl_contentTagValue_t *pair,
+                                 const uint8_t *raw_addr,
+                                 const char *display_addr,
+                                 nbgl_contentValueExt_t **ext_out) {
+    uint64_t chain_id = get_tx_chain_id();
+    const char *display_name = NULL;
+    nbgl_contentValueAliasType_t alias_type = 0;
+    const char *alias_sub_name = NULL;
+    const char *alias_expl = NULL;
+
+#ifdef HAVE_ADDRESS_BOOK
+    const s_ab_contact *ab_contact = get_address_book_contact(chain_id, raw_addr);
+    if (ab_contact != NULL) {
+        display_name = ab_contact->contact_name;
+        alias_type = ADDRESS_BOOK_ALIAS;
+        alias_sub_name = (ab_contact->scope[0] != '\0') ? ab_contact->scope : NULL;
+    }
+    if (display_name == NULL)
+#endif  // HAVE_ADDRESS_BOOK
+    {
+        e_name_type type = TN_TYPE_ACCOUNT;
+        e_name_source source = TN_SOURCE_ENS;
+        const s_trusted_name *trusted_name =
+            get_trusted_name(1, &type, 1, &source, &chain_id, raw_addr);
+        if (trusted_name != NULL) {
+            display_name = trusted_name->name;
+            alias_type = ENS_ALIAS;
+            alias_expl = display_addr;  // shown as small info text in the detail view
+        }
+    }
+
+    if (display_name != NULL) {
+        if (APP_MEM_CALLOC((void **) ext_out, sizeof(**ext_out)) == false) {
+            return false;
+        }
+        pair->value = display_name;
+        (*ext_out)->aliasType = alias_type;
+        (*ext_out)->title = display_name;
+        (*ext_out)->fullValue = display_addr;
+        (*ext_out)->aliasSubName = alias_sub_name;
+        (*ext_out)->explanation = alias_expl;
+        pair->extension = *ext_out;
+        pair->aliasValue = true;
+    } else {
+        pair->value = display_addr;
+    }
+    return true;
 }
 
 /**
@@ -118,15 +158,25 @@ static bool setTagValuePairs(bool displayNetwork, bool fromPlugin) {
     // Setup data to display
     if (fromPlugin) {
         if (pluginType != PLUGIN_TYPE_EXTERNAL) {
+            // Display the From address
+            // ------------------------
             if (strings.common.fromAddress[0] != 0) {
                 g_pairs[nbPairs].item = "From";
-                g_pairs[nbPairs].value = strings.common.fromAddress;
+                if (!resolve_address_pair(&g_pairs[nbPairs],
+                                          strings.common.fromAddressRaw,
+                                          strings.common.fromAddress,
+                                          &from_extension)) {
+                    return false;
+                }
                 nbPairs++;
             }
         }
         for (pairIndex = 0; pairIndex < dataContext.tokenContext.pluginUiMaxItems; pairIndex++) {
             // for the next dataContext.tokenContext.pluginUiMaxItems items, get tag/value from
             // plugin_ui_get_item_internal()
+            if (nbPairs >= g_pairsList->nbPairs) {
+                return false;
+            }
             dataContext.tokenContext.pluginUiCurrentItem = pairIndex;
             if (!plugin_ui_get_item_internal((uint8_t *) plugin_buffers[counter].title,
                                              TAG_MAX_LEN,
@@ -153,14 +203,20 @@ static bool setTagValuePairs(bool displayNetwork, bool fromPlugin) {
         // ------------------------
         if (strings.common.fromAddress[0] != 0) {
             g_pairs[nbPairs].item = "From";
-            g_pairs[nbPairs].value = strings.common.fromAddress;
+            if (!resolve_address_pair(&g_pairs[nbPairs],
+                                      strings.common.fromAddressRaw,
+                                      strings.common.fromAddress,
+                                      &from_extension)) {
+                return false;
+            }
             nbPairs++;
         }
 
         // Display the Amount
         // ------------------
         if (!tmpContent.txContent.dataPresent ||
-            !allzeroes(tmpContent.txContent.value.value, tmpContent.txContent.value.length)) {
+            !is_zeroes_buffer(tmpContent.txContent.value.value,
+                              tmpContent.txContent.value.length)) {
             g_pairs[nbPairs].item = "Amount";
             g_pairs[nbPairs].value = strings.common.fullAmount;
             nbPairs++;
@@ -168,32 +224,21 @@ static bool setTagValuePairs(bool displayNetwork, bool fromPlugin) {
 
         // Display the To address
         // ----------------------
+#if defined(HAVE_ADDRESS_BOOK) && defined(HAVE_ADDRESS_BOOK_LEDGER_ACCOUNT)
+        {
+            const s_ab_contact *to =
+                get_address_book_contact(get_tx_chain_id(), tmpContent.txContent.destination);
+            g_pairs[nbPairs].item =
+                (to && to->type == AB_CONTACT_LEDGER_ACCOUNT) ? "To (self transfer)" : "To";
+        }
+#else
         g_pairs[nbPairs].item = "To";
-
-        uint64_t chain_id = get_tx_chain_id();
-        e_name_type type = TN_TYPE_ACCOUNT;
-        e_name_source source = TN_SOURCE_ENS;
-        const s_trusted_name *trusted_name;
-
-        if ((trusted_name = get_trusted_name(1,
-                                             &type,
-                                             1,
-                                             &source,
-                                             &chain_id,
-                                             tmpContent.txContent.destination)) != NULL) {
-            if ((extension = app_mem_alloc(sizeof(*extension))) == NULL) {
-                return false;
-            }
-            explicit_bzero(extension, sizeof(*extension));
-            g_pairs[nbPairs].value = trusted_name->name;
-            extension->aliasType = ENS_ALIAS;
-            extension->title = trusted_name->name;
-            extension->fullValue = strings.common.toAddress;
-            extension->explanation = strings.common.toAddress;
-            g_pairs[nbPairs].extension = extension;
-            g_pairs[nbPairs].aliasValue = true;
-        } else {
-            g_pairs[nbPairs].value = strings.common.toAddress;
+#endif  // HAVE_ADDRESS_BOOK && HAVE_ADDRESS_BOOK_LEDGER_ACCOUNT
+        if (!resolve_address_pair(&g_pairs[nbPairs],
+                                  tmpContent.txContent.destination,
+                                  strings.common.toAddress,
+                                  &extension)) {
+            return false;
         }
         nbPairs++;
 
@@ -249,8 +294,8 @@ static bool setTagValuePairs(bool displayNetwork, bool fromPlugin) {
  * transaction
  * @return The number of g_pairs to display
  */
-static uint8_t getNbPairs(bool displayNetwork, bool fromPlugin) {
-    uint8_t nbPairs = 0;
+static size_t getNbPairs(bool displayNetwork, bool fromPlugin) {
+    size_t nbPairs = 0;
 
     // Setup data to display
     if (fromPlugin) {
@@ -273,7 +318,8 @@ static uint8_t getNbPairs(bool displayNetwork, bool fromPlugin) {
         }
         // Count the Amount
         if (!tmpContent.txContent.dataPresent ||
-            !allzeroes(tmpContent.txContent.value.value, tmpContent.txContent.value.length)) {
+            !is_zeroes_buffer(tmpContent.txContent.value.value,
+                              tmpContent.txContent.value.length)) {
             // This is not displayed if the amount is 0 and data is present
             nbPairs++;
         }
@@ -309,18 +355,23 @@ static uint8_t getNbPairs(bool displayNetwork, bool fromPlugin) {
 static bool ux_init(bool fromPlugin, uint8_t title_len, uint8_t finish_len) {
     uint64_t chain_id = 0;
     uint16_t buf_size = 0;
-    uint8_t nbPairs = 0;
+    size_t nbPairs = 0;
     bool displayNetwork = false;
 
     chain_id = get_tx_chain_id();
-    if (chainConfig->chainId == ETHEREUM_MAINNET_CHAINID && chain_id != chainConfig->chainId) {
+    if (g_chain_config->chain_id == ETHEREUM_MAINNET_CHAINID &&
+        chain_id != g_chain_config->chain_id) {
         displayNetwork = true;
     }
     // Compute the number of g_pairs to display
     nbPairs = getNbPairs(displayNetwork, fromPlugin);
+    if (nbPairs > UINT8_MAX) {
+        PRINTF("Error: Too many review pairs: %u\n", (unsigned) nbPairs);
+        goto error;
+    }
 
     // Initialize the buffers
-    if (!ui_pairs_init(nbPairs)) {
+    if (!ui_pairs_init((uint8_t) nbPairs)) {
         // Initialization failed, cleanup and return
         goto error;
     }
@@ -331,17 +382,19 @@ static bool ux_init(bool fromPlugin, uint8_t title_len, uint8_t finish_len) {
         goto error;
     }
 
-    if (fromPlugin == true) {
+    if (fromPlugin && (dataContext.tokenContext.pluginUiMaxItems > 0)) {
         buf_size = dataContext.tokenContext.pluginUiMaxItems * sizeof(plugin_buffers_t);
         // Allocate the plugin buffers
-        if ((plugin_buffers = app_mem_alloc(buf_size)) == NULL) {
+        if (APP_MEM_CALLOC((void **) &plugin_buffers, buf_size) == false) {
             goto error;
         }
-        explicit_bzero(plugin_buffers, buf_size);
     }
 
     // Retrieve the Tag/Value g_pairs to display
-    return setTagValuePairs(displayNetwork, fromPlugin);
+    if (!setTagValuePairs(displayNetwork, fromPlugin)) {
+        goto error;
+    }
+    return true;
 error:
     io_seproxyhal_send_status(SWO_INSUFFICIENT_MEMORY, 0, true, true);
     _cleanup();
@@ -402,8 +455,8 @@ static uint16_t ux_init_strings(bool fromPlugin) {
     snprintf(g_finishMsg, finish_len, "%s transaction", tx_check_str);
     if (fromPlugin) {
         // Prepare the suffix
-        if ((suffix_str = app_mem_alloc(title_len)) == NULL) {
-            // Memory allocation failed, cleanup and return
+        if ((suffix_str = APP_MEM_ALLOC(title_len)) == NULL) {
+            _cleanup();
             return SWO_INSUFFICIENT_MEMORY;
         }
         snprintf(suffix_str,
@@ -418,7 +471,7 @@ static uint16_t ux_init_strings(bool fromPlugin) {
 #ifdef SCREEN_SIZE_WALLET
         strlcat(g_finishMsg, suffix_str, finish_len);
 #endif
-        app_mem_free(suffix_str);
+        APP_MEM_FREE(suffix_str);
     }
 #ifdef SCREEN_SIZE_WALLET
     strlcat(g_finishMsg, "?", finish_len);
@@ -440,12 +493,10 @@ uint16_t ux_approve_tx(bool fromPlugin) {
     explicit_bzero(&warning, sizeof(nbgl_warning_t));
     if (tmpContent.txContent.dataPresent) {
         warning.predefinedSet |= SET_BIT(BLIND_SIGNING_WARN);
-#ifdef HAVE_GATING_SUPPORT
         warning.predefinedSet |= SET_BIT(GATED_SIGNING_WARN);
         if (set_gating_warning() == false) {
             return SWO_INCORRECT_DATA;
         }
-#endif
     }
 #ifdef HAVE_TRANSACTION_CHECKS
     set_tx_simulation_warning();
@@ -457,6 +508,7 @@ uint16_t ux_approve_tx(bool fromPlugin) {
         return sw;
     }
 
+#ifndef FUZZ
     nbgl_useCaseAdvancedReview(TYPE_TRANSACTION,
                                g_pairsList,
                                get_tx_icon(fromPlugin),
@@ -466,5 +518,6 @@ uint16_t ux_approve_tx(bool fromPlugin) {
                                NULL,
                                &warning,
                                reviewChoice);
+#endif
     return SWO_SUCCESS;
 }

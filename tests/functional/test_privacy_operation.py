@@ -1,0 +1,28 @@
+import pytest
+from client.client import EthAppClient
+from client.status_word import StatusWord
+from ragger.backend import BackendInterface
+
+
+@pytest.mark.skip_on_backend("speculos")
+def test_perform_privacy_operation_public(backend: BackendInterface):
+
+    app_client = EthAppClient(backend)
+
+    response = app_client.perform_privacy_operation()
+    assert response.status == StatusWord.SWO_SUCCESS
+    assert len(response.data) == 32
+    print(f"Data: {response.data.hex()}")
+
+
+@pytest.mark.skip_on_backend("speculos")
+def test_perform_privacy_operation_secret(backend: BackendInterface):
+
+    pubkey = b"5901c19a086d1be4b907ec0325bffa758c3eb78192c3df4afa2afd2736a39963"
+
+    app_client = EthAppClient(backend)
+
+    response = app_client.perform_privacy_operation(pubkey=pubkey)
+    assert response.status == StatusWord.SWO_SUCCESS
+    assert len(response.data) == 32
+    print(f"Data: {response.data.hex()}")

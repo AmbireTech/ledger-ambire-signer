@@ -2,11 +2,16 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "tlv.h"
+#include "buffer.h"
 #include "gtp_value.h"
 #include "trusted_name.h"
 
 #define MAX_SENDER_ADDRS 3
+
+typedef enum {
+    TNVT_STANDARD = 0x00,       // 20-byte EVM address (default)
+    TNVT_INTEROPERABLE = 0x01,  // EIP-7930 interoperable address (chain_id + address)
+} e_trusted_name_value_type;
 
 // Forward declaration to avoid circular dependency
 struct s_field;
@@ -20,12 +25,12 @@ typedef struct {
     e_name_source sources[TN_SOURCE_COUNT];
     uint8_t sender_addr_count;
     uint8_t sender_addr[MAX_SENDER_ADDRS][ADDRESS_LENGTH];
+    e_trusted_name_value_type value_type;
 } s_param_trusted_name;
 
 typedef struct {
     s_param_trusted_name *param;
 } s_param_trusted_name_context;
 
-bool handle_param_trusted_name_struct(const s_tlv_data *data,
-                                      s_param_trusted_name_context *context);
+bool handle_param_trusted_name_struct(const buffer_t *buf, s_param_trusted_name_context *context);
 bool format_param_trusted_name(const struct s_field *field);

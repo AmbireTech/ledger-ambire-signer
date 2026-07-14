@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "ui_logic.h"
+#include "shared_context.h"
+#include "ux.h"
 
 void ui_idle(void);
 void ui_error_blind_signing(void);
@@ -30,3 +32,23 @@ void ui_sign_7702_auth(void);
 void ui_sign_7702_revocation(void);
 void ui_error_no_7702(void);
 void ui_error_no_7702_whitelist(void);
+
+// Swap
+void ui_swap_show_signing(void);
+
+// UI callbacks
+unsigned int io_seproxyhal_touch_tx_ok(void);
+unsigned int io_seproxyhal_touch_tx_cancel(void);
+unsigned int io_seproxyhal_touch_address_ok(void);
+unsigned int io_seproxyhal_touch_address_cancel(void);
+unsigned int io_seproxyhal_touch_signMessage_ok(void);
+unsigned int io_seproxyhal_touch_signMessage_cancel(void);
+unsigned int io_seproxyhal_touch_data_ok(void);
+unsigned int io_seproxyhal_touch_data_cancel(void);
+unsigned int io_seproxyhal_touch_eth2_address_ok(void);
+unsigned int io_seproxyhal_touch_privacy_ok(void);
+unsigned int io_seproxyhal_touch_privacy_cancel(void);
+unsigned int auth_7702_ok_cb(void);
+unsigned int auth_7702_cancel_cb(void);
+
+uint16_t io_seproxyhal_send_status(uint16_t sw, uint32_t tx, bool reset, bool idle);

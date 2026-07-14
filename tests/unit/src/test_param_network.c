@@ -21,8 +21,6 @@
 #include "network.h"
 #include "common_utils.h"
 
-strings_t strings;
-
 // Helper macro to create a param_network with constant chain_id
 #define CREATE_NETWORK_PARAM_WITH_CHAIN_ID(param_name, chain_id_val)                  \
     uint8_t param_name##_data[8];                                                     \
@@ -42,30 +40,34 @@ strings_t strings;
 /**
  * @brief Mock implementation of add_to_field_table
  */
-bool __wrap_add_to_field_table(e_param_type param_type, const char *name, const char *value) {
+bool __wrap_add_to_field_table(e_param_type param_type,
+                               const char *name,
+                               const char *value,
+                               const void *extra_data) {
     check_expected(param_type);
     check_expected(name);
     check_expected(value);
+    check_expected_ptr(extra_data);
     return (bool) mock();
 }
 
 /**
  * @brief Mock implementation of get_network_as_string_from_chain_id
  */
-uint16_t __wrap_get_network_as_string_from_chain_id(char *buffer,
-                                                    size_t buffer_size,
-                                                    uint64_t chain_id) {
+bool __wrap_get_network_as_string_from_chain_id(char *buffer,
+                                                size_t buffer_size,
+                                                uint64_t chain_id) {
     check_expected(chain_id);
 
     const char *network_name = (const char *) mock();
     if (network_name == NULL) {
-        return SWO_PARAMETER_ERROR_NO_INFO;
+        return false;
     }
 
     strncpy(buffer, network_name, buffer_size - 1);
     buffer[buffer_size - 1] = '\0';
 
-    return SWO_SUCCESS;
+    return true;
 }
 
 // =============================================================================
@@ -90,6 +92,7 @@ static void test_format_network_ethereum_mainnet(void **state) {
     expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_NETWORK);
     expect_string(__wrap_add_to_field_table, name, field_name);
     expect_string(__wrap_add_to_field_table, value, network_name);
+    expect_value(__wrap_add_to_field_table, extra_data, NULL);
     will_return(__wrap_add_to_field_table, true);
 
     // Test
@@ -113,6 +116,7 @@ static void test_format_network_polygon(void **state) {
     expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_NETWORK);
     expect_string(__wrap_add_to_field_table, name, field_name);
     expect_string(__wrap_add_to_field_table, value, network_name);
+    expect_value(__wrap_add_to_field_table, extra_data, NULL);
     will_return(__wrap_add_to_field_table, true);
 
     assert_true(format_param_network(&param, field_name));
@@ -165,6 +169,7 @@ static void test_format_network_max_chain_id(void **state) {
     expect_value(__wrap_add_to_field_table, param_type, PARAM_TYPE_NETWORK);
     expect_string(__wrap_add_to_field_table, name, field_name);
     expect_string(__wrap_add_to_field_table, value, network_name);
+    expect_value(__wrap_add_to_field_table, extra_data, NULL);
     will_return(__wrap_add_to_field_table, true);
 
     assert_true(format_param_network(&param, field_name));
@@ -200,6 +205,50 @@ static void test_format_network_wrong_type_family(void **state) {
 }
 
 // =============================================================================
+// handle_param_network_struct — TLV dispatch
+// =============================================================================
+
+// Real handle_value_struct is in gtp_value.c and is linked here. Empty
+// VALUE payload makes the inner parser accept with no tags consumed.
+static void test_handle_network_struct_version_and_empty_value_ok(void **state) {
+    (void) state;
+    uint8_t buf_bytes[] = {
+        0x00,
+        0x01,
+        0x07,  // VERSION = 7
+        0x01,
+        0x00,  // VALUE (empty inner)
+    };
+    buffer_t buf = {.ptr = buf_bytes, .size = sizeof(buf_bytes), .offset = 0};
+
+    s_param_network param = {0};
+    s_param_network_context ctx = {.param = &param};
+    assert_true(handle_param_network_struct(&buf, &ctx));
+    assert_int_equal(param.version, 7);
+}
+
+// format_network_name rejects payloads whose length is not exactly 8
+// bytes (uint64_t) — guards downstream u64_from_BE against a partial
+// chain_id. The other length errors (zero / overflow) are covered by
+// the existing chain_id-zero / chain_id-overflow tests, but the
+// length-mismatch branch needs a value collection whose entry has
+// length != 8.
+static void test_format_network_length_mismatch_rejected(void **state) {
+    (void) state;
+    // Build a param whose constant is only 4 bytes — value_get returns
+    // a collection with one entry of length 4, triggering the
+    // length != sizeof(uint64_t) rejection.
+    uint8_t four_bytes[4] = {0x00, 0x00, 0x00, 0x01};
+    s_param_network param = {
+        .version = 1,
+        .value = {.type_family = TF_UINT, .source = SOURCE_CONSTANT, .constant = {.size = 4}}};
+    memcpy(param.value.constant.buf, four_bytes, 4);
+
+    // add_to_field_table must NOT be called.
+    assert_false(format_param_network(&param, "Network"));
+}
+
+// =============================================================================
 // Test runner
 // =============================================================================
 
@@ -212,6 +261,8 @@ int main(void) {
         cmocka_unit_test(test_format_network_max_chain_id),
         cmocka_unit_test(test_format_network_chain_id_overflow),
         cmocka_unit_test(test_format_network_wrong_type_family),
+        cmocka_unit_test(test_handle_network_struct_version_and_empty_value_ok),
+        cmocka_unit_test(test_format_network_length_mismatch_rejected),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

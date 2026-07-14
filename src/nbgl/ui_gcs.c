@@ -1,12 +1,14 @@
 #include <string.h>
+#include "shared_context.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "gtp_tx_info.h"
 #include "gtp_field_table.h"
-#include "mem.h"
+#include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "network.h"
-#include "ui_callbacks.h"
-#include "feature_signTx.h"
+#include "common_ui.h"
+#include "feature_sign_tx.h"
 #include "apdu_constants.h"
 #include "cmd_get_tx_simulation.h"
 #include "ui_utils.h"
@@ -14,45 +16,54 @@
 #include "proxy_info.h"
 #include "trusted_name.h"
 #include "tx_ctx.h"
-
-#define ADDRESS_STRING_LENGTH (2 + (2 * ADDRESS_LENGTH) + 1)
+#include "token_info.h"
+#include "nft_info.h"
+#include "common_ui.h"
+#ifdef HAVE_ADDRESS_BOOK
+#include "handle_contacts.h"
+#endif  // HAVE_ADDRESS_BOOK
 
 static bool *index_allocated = NULL;
 
 static void review_choice(bool confirm) {
+    ui_gcs_cleanup();
     if (confirm) {
         io_seproxyhal_touch_tx_ok();
+#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_SIGNED, ui_idle);
+#endif
     } else {
         io_seproxyhal_touch_tx_cancel();
+#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_REJECTED, ui_idle);
+#endif
     }
 }
 
 static void free_pair_extension_infolist_elem(const struct nbgl_contentInfoList_s *infolist,
                                               int idx) {
-    app_mem_free((void *) infolist->infoTypes[idx]);
-    app_mem_free((void *) infolist->infoContents[idx]);
+    APP_MEM_FREE((void *) infolist->infoTypes[idx]);
+    APP_MEM_FREE((void *) infolist->infoContents[idx]);
     if (infolist->infoExtensions != NULL) {
-        app_mem_free((void *) infolist->infoExtensions[idx].title);
-        app_mem_free((void *) infolist->infoExtensions[idx].explanation);
-        app_mem_free((void *) infolist->infoExtensions[idx].fullValue);
+        APP_MEM_FREE((void *) infolist->infoExtensions[idx].title);
+        APP_MEM_FREE((void *) infolist->infoExtensions[idx].explanation);
+        APP_MEM_FREE((void *) infolist->infoExtensions[idx].fullValue);
     }
 }
 
 static void free_pair_extension(const nbgl_contentValueExt_t *ext) {
-    app_mem_free((void *) ext->backText);
-    app_mem_free((void *) ext->fullValue);
+    APP_MEM_FREE((void *) ext->backText);
+    APP_MEM_FREE((void *) ext->fullValue);
     if (ext->infolist != NULL) {
         for (int i = 0; i < ext->infolist->nbInfos; ++i) {
             free_pair_extension_infolist_elem(ext->infolist, i);
         }
-        app_mem_free((void *) ext->infolist->infoTypes);
-        app_mem_free((void *) ext->infolist->infoContents);
-        app_mem_free((void *) ext->infolist->infoExtensions);
-        app_mem_free((void *) ext->infolist);
+        APP_MEM_FREE((void *) ext->infolist->infoTypes);
+        APP_MEM_FREE((void *) ext->infolist->infoContents);
+        APP_MEM_FREE((void *) ext->infolist->infoExtensions);
+        APP_MEM_FREE((void *) ext->infolist);
     }
-    app_mem_free((void *) ext);
+    APP_MEM_FREE((void *) ext);
 }
 
 static void free_pair(const nbgl_contentTagValueList_t *pair_list, int idx) {
@@ -61,8 +72,8 @@ static void free_pair(const nbgl_contentTagValueList_t *pair_list, int idx) {
     // - the second to last one, that shows the Network (optional)
     // - the last one, that shows the TX fees
     if ((index_allocated != NULL) && (index_allocated[idx] == true)) {
-        app_mem_free((void *) pair_list->pairs[idx].item);
-        app_mem_free((void *) pair_list->pairs[idx].value);
+        APP_MEM_FREE((void *) pair_list->pairs[idx].item);
+        APP_MEM_FREE((void *) pair_list->pairs[idx].value);
     }
     if (pair_list->pairs[idx].extension != NULL) {
         free_pair_extension(pair_list->pairs[idx].extension);
@@ -89,12 +100,10 @@ static bool prepare_infos(nbgl_contentInfoList_t *infos) {
 #endif
 
     infos->nbInfos = MAX_INFO_COUNT;
-    if ((keys = app_mem_alloc(sizeof(*keys) * MAX_INFO_COUNT)) == NULL) return false;
-    explicit_bzero(keys, sizeof(*keys) * MAX_INFO_COUNT);
+    if (APP_MEM_CALLOC((void **) &keys, sizeof(*keys) * MAX_INFO_COUNT) == false) return false;
     infos->infoTypes = keys;
 
-    if ((values = app_mem_alloc(sizeof(*values) * MAX_INFO_COUNT)) == NULL) return false;
-    explicit_bzero(keys, sizeof(*values) * MAX_INFO_COUNT);
+    if (APP_MEM_CALLOC((void **) &values, sizeof(*values) * MAX_INFO_COUNT) == false) return false;
     infos->infoContents = values;
 
     if ((value = get_creator_legal_name(get_current_tx_info())) != NULL) {
@@ -106,7 +115,7 @@ static bool prepare_infos(nbgl_contentInfoList_t *infos) {
                  "Contract owner"
 #endif
         );
-        if ((keys[count] = app_mem_strdup(tmp_buf)) == NULL) {
+        if ((keys[count] = APP_MEM_STRDUP(tmp_buf)) == NULL) {
             return false;
         }
         snprintf(tmp_buf, tmp_buf_size, "%s", value);
@@ -114,7 +123,7 @@ static bool prepare_infos(nbgl_contentInfoList_t *infos) {
             off = strlen(tmp_buf);
             snprintf(tmp_buf + off, tmp_buf_size - off, "\n%s", value);
         }
-        if ((values[count] = app_mem_strdup(tmp_buf)) == NULL) {
+        if ((values[count] = APP_MEM_STRDUP(tmp_buf)) == NULL) {
             return false;
         }
         count += 1;
@@ -129,11 +138,11 @@ static bool prepare_infos(nbgl_contentInfoList_t *infos) {
                  "Contract"
 #endif
         );
-        if ((keys[count] = app_mem_strdup(tmp_buf)) == NULL) {
+        if ((keys[count] = APP_MEM_STRDUP(tmp_buf)) == NULL) {
             return false;
         }
         snprintf(tmp_buf, tmp_buf_size, "%s", value);
-        if ((values[count] = app_mem_strdup(tmp_buf)) == NULL) {
+        if ((values[count] = APP_MEM_STRDUP(tmp_buf)) == NULL) {
             return false;
         }
 #ifdef SCREEN_SIZE_WALLET
@@ -146,13 +155,13 @@ static bool prepare_infos(nbgl_contentInfoList_t *infos) {
     if (!getEthDisplayableAddress((uint8_t *) get_contract_addr(get_current_tx_info()),
                                   tmp_buf,
                                   tmp_buf_size,
-                                  chainConfig->chainId)) {
+                                  g_chain_config->chain_id)) {
         return false;
     }
-    if ((keys[count] = app_mem_strdup("Contract address")) == NULL) {
+    if ((keys[count] = APP_MEM_STRDUP("Contract address")) == NULL) {
         return false;
     }
-    if ((values[count] = app_mem_strdup(tmp_buf)) == NULL) {
+    if ((values[count] = APP_MEM_STRDUP(tmp_buf)) == NULL) {
         return false;
     }
     count += 1;
@@ -160,11 +169,11 @@ static bool prepare_infos(nbgl_contentInfoList_t *infos) {
 
     if ((value = get_deploy_date(get_current_tx_info())) != NULL) {
         snprintf(tmp_buf, tmp_buf_size, "Deployed on");
-        if ((keys[count] = app_mem_strdup(tmp_buf)) == NULL) {
+        if ((keys[count] = APP_MEM_STRDUP(tmp_buf)) == NULL) {
             return false;
         }
         snprintf(tmp_buf, tmp_buf_size, "%s", value);
-        if ((values[count] = app_mem_strdup(tmp_buf)) == NULL) {
+        if ((values[count] = APP_MEM_STRDUP(tmp_buf)) == NULL) {
             return false;
         }
         count += 1;
@@ -172,26 +181,25 @@ static bool prepare_infos(nbgl_contentInfoList_t *infos) {
 
 #ifdef SCREEN_SIZE_WALLET
     if (contract_idx != -1) {
-        if ((extensions = app_mem_alloc(sizeof(*extensions) * count)) == NULL) {
+        if (APP_MEM_CALLOC((void **) &extensions, sizeof(*extensions) * count) == false) {
             return false;
         }
-        explicit_bzero(extensions, sizeof(*extensions) * count);
         infos->infoExtensions = extensions;
         infos->withExtensions = true;
 
         if (!getEthDisplayableAddress((uint8_t *) get_contract_addr(get_current_tx_info()),
                                       tmp_buf,
                                       tmp_buf_size,
-                                      chainConfig->chainId)) {
+                                      g_chain_config->chain_id)) {
             return false;
         }
-        if ((extensions[contract_idx].title = app_mem_strdup(tmp_buf)) == NULL) {
+        if ((extensions[contract_idx].title = APP_MEM_STRDUP(tmp_buf)) == NULL) {
             return false;
         }
         // Etherscan only for mainnet
         if (get_tx_chain_id() == ETHEREUM_MAINNET_CHAINID) {
             if ((extensions[contract_idx].explanation =
-                     app_mem_strdup("Scan to view on Etherscan")) == NULL) {
+                     APP_MEM_STRDUP("Scan to view on Etherscan")) == NULL) {
                 return false;
             }
             snprintf(tmp_buf,
@@ -201,7 +209,7 @@ static bool prepare_infos(nbgl_contentInfoList_t *infos) {
         } else {
             snprintf(tmp_buf, tmp_buf_size, "%s", extensions[contract_idx].title);
         }
-        if ((extensions[contract_idx].fullValue = app_mem_strdup(tmp_buf)) == NULL) {
+        if ((extensions[contract_idx].fullValue = APP_MEM_STRDUP(tmp_buf)) == NULL) {
             return false;
         }
         extensions[contract_idx].aliasType = QR_CODE_ALIAS;
@@ -217,8 +225,7 @@ void ui_gcs_cleanup(void) {
         for (int i = 0; i < g_pairsList->nbPairs; ++i) {
             free_pair(g_pairsList, i);
         }
-        app_mem_free((void *) index_allocated);
-        index_allocated = NULL;
+        APP_MEM_FREE_AND_NULL((void *) &index_allocated);
     }
     ui_all_cleanup();
     proxy_cleanup();
@@ -232,48 +239,44 @@ static nbgl_contentValueExt_t *get_infolist_extension(const char *title,
     nbgl_contentInfoList_t *list;
     char **tmp;
 
-    if ((ext = app_mem_alloc(sizeof(*ext))) == NULL) {
+    if (APP_MEM_CALLOC((void **) &ext, sizeof(*ext)) == false) {
         return NULL;
     }
-    explicit_bzero(ext, sizeof(*ext));
 
-    if ((ext->backText = app_mem_strdup(title)) == NULL) {
+    if ((ext->backText = APP_MEM_STRDUP(title)) == NULL) {
         free_pair_extension(ext);
         return NULL;
     }
     ext->aliasType = INFO_LIST_ALIAS;
 
-    if ((list = app_mem_alloc(sizeof(*list))) == NULL) {
+    if (APP_MEM_CALLOC((void **) &list, sizeof(*list)) == false) {
         free_pair_extension(ext);
         return NULL;
     }
-    explicit_bzero(list, sizeof(*list));
     ext->infolist = list;
     list->nbInfos = count;
 
-    if ((tmp = app_mem_alloc(sizeof(*tmp) * count)) == NULL) {
+    if (APP_MEM_CALLOC((void **) &tmp, sizeof(*tmp) * count) == false) {
         free_pair_extension(ext);
         return NULL;
     }
-    explicit_bzero(tmp, sizeof(*tmp) * count);
     list->infoTypes = (const char **) tmp;
 
     for (int idx = 0; (size_t) idx < count; ++idx) {
-        if ((tmp[idx] = app_mem_strdup(keys[idx])) == NULL) {
+        if ((tmp[idx] = APP_MEM_STRDUP(keys[idx])) == NULL) {
             free_pair_extension(ext);
             return NULL;
         }
     }
 
-    if ((tmp = app_mem_alloc(sizeof(*tmp) * count)) == NULL) {
+    if (APP_MEM_CALLOC((void **) &tmp, sizeof(*tmp) * count) == false) {
         free_pair_extension(ext);
         return NULL;
     }
-    explicit_bzero(tmp, sizeof(*tmp) * count);
     list->infoContents = (const char **) tmp;
 
     for (int idx = 0; (size_t) idx < count; ++idx) {
-        if ((tmp[idx] = app_mem_strdup(PIC(values[idx]))) == NULL) {
+        if ((tmp[idx] = APP_MEM_STRDUP(PIC(values[idx]))) == NULL) {
             free_pair_extension(ext);
             return NULL;
         }
@@ -286,7 +289,7 @@ static const nbgl_contentValueExt_t *handle_extra_data_trusted_name(
     nbgl_contentValueAliasType_t alias_type;
     nbgl_contentValueExt_t *extension;
     const s_trusted_name *tname = (s_trusted_name *) field->extra_data;
-    char formatted_addr[ADDRESS_STRING_LENGTH];
+    char formatted_addr[ADDRESS_LENGTH_HEX_STR];
 
     switch (tname->name_source) {
         case TN_SOURCE_ENS:
@@ -302,7 +305,7 @@ static const nbgl_contentValueExt_t *handle_extra_data_trusted_name(
     if (!getEthDisplayableAddress(tname->addr,
                                   formatted_addr,
                                   sizeof(formatted_addr),
-                                  chainConfig->chainId)) {
+                                  g_chain_config->chain_id)) {
         return NULL;
     }
     if (alias_type == INFO_LIST_ALIAS) {
@@ -313,12 +316,11 @@ static const nbgl_contentValueExt_t *handle_extra_data_trusted_name(
             return NULL;
         }
     } else {
-        if ((extension = app_mem_alloc(sizeof(*extension))) == NULL) {
+        if (APP_MEM_CALLOC((void **) &extension, sizeof(*extension)) == false) {
             return NULL;
         }
-        explicit_bzero(extension, sizeof(*extension));
-        if ((extension->fullValue = app_mem_strdup(formatted_addr)) == NULL) {
-            app_mem_free(extension);
+        if ((extension->fullValue = APP_MEM_STRDUP(formatted_addr)) == NULL) {
+            APP_MEM_FREE(extension);
             return NULL;
         }
         extension->title = tname->name;
@@ -327,34 +329,90 @@ static const nbgl_contentValueExt_t *handle_extra_data_trusted_name(
     return extension;
 }
 
+#ifdef HAVE_ADDRESS_BOOK
+/**
+ * @brief Build the alias extension for an Address Book field.
+ *
+ * Populates an ADDRESS_BOOK_ALIAS extension so that tapping the field opens a
+ * detail view showing the contact name, optional scope, and the full hex address.
+ * If a Trusted Name also exists for the same address, it is stored in
+ * @c explanation so the detail view can display both names simultaneously.
+ *
+ * @param[in] field  Field table entry whose extra_data points to an s_ab_contact
+ * @return Allocated extension, or NULL on allocation / formatting failure
+ */
+static const nbgl_contentValueExt_t *handle_extra_data_address_book(
+    const s_field_table_entry *field) {
+    nbgl_contentValueExt_t *extension;
+    const s_ab_contact *ab_contact = (const s_ab_contact *) field->extra_data;
+    char formatted_addr[ADDRESS_LENGTH_HEX_STR];
+
+    if (!getEthDisplayableAddress((uint8_t *) ab_contact->identifier,
+                                  formatted_addr,
+                                  sizeof(formatted_addr),
+                                  g_chain_config->chain_id)) {
+        return NULL;
+    }
+    if (APP_MEM_CALLOC((void **) &extension, sizeof(*extension)) == false) {
+        return NULL;
+    }
+    if ((extension->fullValue = APP_MEM_STRDUP(formatted_addr)) == NULL) {
+        APP_MEM_FREE(extension);
+        return NULL;
+    }
+    extension->title = ab_contact->contact_name;
+    extension->aliasType = ADDRESS_BOOK_ALIAS;
+    // NULL suppresses the scope line in the detail view; an empty string would still render it
+    extension->aliasSubName = (ab_contact->scope[0] != '\0') ? ab_contact->scope : NULL;
+
+    // If a Trusted Name also exists for this address, store it in explanation so the
+    // detail view can show both the Address Book name and the Trusted Name together.
+    {
+        uint64_t chain_id = get_tx_chain_id();
+        e_name_type types[] = {TN_TYPE_ACCOUNT};
+        e_name_source sources[] = {TN_SOURCE_ENS, TN_SOURCE_LAB, TN_SOURCE_MAB};
+        const s_trusted_name *tname = get_trusted_name(ARRAYLEN(types),
+                                                       types,
+                                                       ARRAYLEN(sources),
+                                                       sources,
+                                                       &chain_id,
+                                                       ab_contact->identifier);
+        if (tname != NULL) {
+            extension->explanation = tname->name;
+        }
+    }
+    return extension;
+}
+#endif  // HAVE_ADDRESS_BOOK
+
 static const nbgl_contentValueExt_t *handle_extra_data_token(const s_field_table_entry *field) {
-    const tokenDefinition_t *token_def = (tokenDefinition_t *) field->extra_data;
-    char formatted_addr[ADDRESS_STRING_LENGTH];
+    const s_token_info *token_info = field->extra_data;
+    char formatted_addr[ADDRESS_LENGTH_HEX_STR];
     const char *keys[] = {"Contract address"};
     const char *values[] = {formatted_addr};
 
-    if (!getEthDisplayableAddress(token_def->address,
+    if (!getEthDisplayableAddress(token_info->address,
                                   formatted_addr,
                                   sizeof(formatted_addr),
-                                  chainConfig->chainId)) {
+                                  token_info->chain_id)) {
         return NULL;
     }
-    return get_infolist_extension(token_def->ticker, ARRAYLEN(keys), keys, values);
+    return get_infolist_extension(token_info->ticker, ARRAYLEN(keys), keys, values);
 }
 
 static const nbgl_contentValueExt_t *handle_extra_data_nft(const s_field_table_entry *field) {
-    const nftInfo_t *nft_def = (nftInfo_t *) field->extra_data;
-    char formatted_addr[ADDRESS_STRING_LENGTH];
+    const s_nft_info *nft_info = (s_nft_info *) field->extra_data;
+    char formatted_addr[ADDRESS_LENGTH_HEX_STR];
     const char *keys[] = {"Contract address"};
     const char *values[] = {formatted_addr};
 
-    if (!getEthDisplayableAddress(nft_def->contractAddress,
+    if (!getEthDisplayableAddress(nft_info->address,
                                   formatted_addr,
                                   sizeof(formatted_addr),
-                                  chainConfig->chainId)) {
+                                  nft_info->chain_id)) {
         return NULL;
     }
-    return get_infolist_extension(nft_def->collectionName, ARRAYLEN(keys), keys, values);
+    return get_infolist_extension(nft_info->collection_name, ARRAYLEN(keys), keys, values);
 }
 
 static const nbgl_contentValueExt_t *handle_extra_data_enum(const s_field_table_entry *field) {
@@ -364,7 +422,7 @@ static const nbgl_contentValueExt_t *handle_extra_data_enum(const s_field_table_
     const char *values[] = {formatted_value};
 
     if (snprintf(formatted_value, sizeof(formatted_value), "%u", enum_value->value) <= 0) {
-        return false;
+        return NULL;
     }
     return get_infolist_extension(enum_value->name, ARRAYLEN(keys), keys, values);
 }
@@ -377,6 +435,13 @@ static bool handle_extra_data(const s_field_table_entry *field, nbgl_contentTagV
                 return false;
             }
             break;
+#ifdef HAVE_ADDRESS_BOOK
+        case PARAM_TYPE_ADDRESS_BOOK:
+            if ((pair->extension = handle_extra_data_address_book(field)) == NULL) {
+                return false;
+            }
+            break;
+#endif  // HAVE_ADDRESS_BOOK
         case PARAM_TYPE_TOKEN_AMOUNT:
         case PARAM_TYPE_TOKEN:
             if ((pair->extension = handle_extra_data_token(field)) == NULL) {
@@ -408,9 +473,11 @@ bool ui_gcs(void) {
     bool show_network;
     nbgl_contentValueExt_t *ext = NULL;
     nbgl_contentInfoList_t *infolist = NULL;
-    uint8_t nbPairs = 0;
-    uint8_t pair = 0;
+    size_t nbPairs = 0;
+    size_t pair = 0;
+    size_t table_size = 0;
     uint8_t tx_idx = 0;
+    bool had_separator = false;
     const s_tx_info *info_tx = get_current_tx_info();
 
     explicit_bzero(&warning, sizeof(nbgl_warning_t));
@@ -419,7 +486,7 @@ bool ui_gcs(void) {
 #endif
 
     snprintf(tmp_buf, tmp_buf_size, "Review transaction to %s", get_operation_type(info_tx));
-    if ((g_titleMsg = app_mem_strdup(tmp_buf)) == NULL) {
+    if ((g_titleMsg = APP_MEM_STRDUP(tmp_buf)) == NULL) {
         return false;
     }
 #ifdef SCREEN_SIZE_WALLET
@@ -431,10 +498,12 @@ bool ui_gcs(void) {
 #else
     snprintf(tmp_buf, tmp_buf_size, "%s transaction", ui_tx_simulation_finish_str());
 #endif
-    if ((g_finishMsg = app_mem_strdup(tmp_buf)) == NULL) {
+    if ((g_finishMsg = APP_MEM_STRDUP(tmp_buf)) == NULL) {
         return false;
     }
 
+    // Get the number of TX fields to display
+    table_size = field_table_size();
     // Contract info
     nbPairs += 1;
     // Batch transactions
@@ -442,43 +511,46 @@ bool ui_gcs(void) {
         nbPairs += txContext.batch_nb_tx;  // one page per sub-tx
     }
     // TX fields
-    nbPairs += field_table_size();
-    show_network = get_tx_chain_id() != chainConfig->chainId;
+    nbPairs += table_size;
+    show_network = get_tx_chain_id() != g_chain_config->chain_id;
     if (show_network) {
         nbPairs += 1;
     }
     // Fees
     nbPairs += 1;
 
-    if (!ui_pairs_init(nbPairs)) {
+    if (nbPairs > UINT8_MAX) {
+        PRINTF("Error: Too many review fields: %u\n", (unsigned) nbPairs);
+        return false;
+    }
+
+    if (!ui_pairs_init((uint8_t) nbPairs)) {
         return false;
     }
 
     // Allocate a table to hold all pairs that will be allocated for UI, and need to be freed later
-    if (mem_buffer_allocate((void **) &index_allocated, nbPairs) == false) {
+    if (APP_MEM_CALLOC((void **) &index_allocated, nbPairs) == false) {
         return false;
     }
 
     // First pair: contract info
     index_allocated[pair] = true;
-    g_pairs[pair].item = app_mem_strdup("Interaction with");
+    g_pairs[pair].item = APP_MEM_STRDUP("Interaction with");
     g_pairs[pair].value = get_creator_name(info_tx);
     if (g_pairs[pair].value == NULL) {
         // not great, but this cannot be NULL
-        g_pairs[pair].value = app_mem_strdup("a smart contract");
+        g_pairs[pair].value = APP_MEM_STRDUP("a smart contract");
     } else {
-        g_pairs[pair].value = app_mem_strdup(g_pairs[pair].value);
+        g_pairs[pair].value = APP_MEM_STRDUP(g_pairs[pair].value);
     }
-    if ((ext = app_mem_alloc(sizeof(*ext))) == NULL) {
+    if (APP_MEM_CALLOC((void **) &ext, sizeof(*ext)) == false) {
         return false;
     }
-    explicit_bzero(ext, sizeof(*ext));
     g_pairs[pair].extension = ext;
 
-    if ((infolist = app_mem_alloc(sizeof(*infolist))) == NULL) {
+    if (APP_MEM_CALLOC((void **) &infolist, sizeof(*infolist)) == false) {
         return false;
     }
-    explicit_bzero(infolist, sizeof(*infolist));
     ext->infolist = infolist;
 
     if (!prepare_infos(infolist)) {
@@ -486,27 +558,40 @@ bool ui_gcs(void) {
     }
     ext->aliasType = INFO_LIST_ALIAS;
     if ((ext->backText = get_creator_name(info_tx)) == NULL) {
-        ext->backText = app_mem_strdup("Smart contract information");
+        ext->backText = APP_MEM_STRDUP("Smart contract information");
     } else {
-        ext->backText = app_mem_strdup(ext->backText);
+        ext->backText = APP_MEM_STRDUP(ext->backText);
     }
     g_pairs[pair].aliasValue = true;
     pair++;
 
     // TX fields
-    for (int i = 0; i < (int) field_table_size(); ++i) {
+    for (size_t i = 0; i < table_size; ++i) {
         if ((field = get_from_field_table(i)) == NULL) {
             return false;
         }
-        if ((field->start_intent) && (txContext.batch_nb_tx > 1)) {
+        bool add_intermediate = (field->start_intent) && (txContext.batch_nb_tx > 1);
+        size_t needed = add_intermediate ? 2 : 1;
+        if (pair + needed > g_pairsList->nbPairs) {
+            return false;
+        }
+        if (add_intermediate) {
             // Batch intermediate page
             tx_idx++;
             snprintf(tmp_buf, tmp_buf_size, "%d of %d", tx_idx, txContext.batch_nb_tx);
-            g_pairs[pair].item = app_mem_strdup("Review transaction");
-            g_pairs[pair].value = app_mem_strdup(tmp_buf);
+            g_pairs[pair].item = APP_MEM_STRDUP("Review transaction");
+            g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf);
             index_allocated[pair] = true;
             g_pairs[pair].centeredInfo = true;
             pair++;
+        }
+        if (field->is_separator) {
+            had_separator = true;
+            g_pairs[pair].item = field->key;
+            g_pairs[pair].value = field->value;
+            g_pairs[pair].centeredInfo = true;
+            pair++;
+            continue;
         }
         g_pairs[pair].item = field->key;
         g_pairs[pair].value = field->value;
@@ -516,24 +601,27 @@ bool ui_gcs(void) {
                 return false;
             }
         }
-
+        // Switch to the next pair
         pair++;
-        if ((field->end_intent) && (txContext.batch_nb_tx > 1)) {
+        if ((field->end_intent) && (txContext.batch_nb_tx > 1) && (pair < g_pairsList->nbPairs)) {
             // End of batch transaction : start next info on full page
             g_pairs[pair].forcePageStart = true;
         }
     }
 
+    if (had_separator) {
+        g_pairs[pair].forcePageStart = true;
+    }
     if (show_network) {
         if (pair >= g_pairsList->nbPairs - 1) {
             PRINTF("Error: No more pairs available for network!\n");
             return false;
         }
-        g_pairs[pair].item = app_mem_strdup("Network");
-        if (get_network_as_string(tmp_buf, tmp_buf_size) != SWO_SUCCESS) {
+        g_pairs[pair].item = APP_MEM_STRDUP("Network");
+        if (get_network_as_string(tmp_buf, tmp_buf_size) != true) {
             return false;
         }
-        g_pairs[pair].value = app_mem_strdup(tmp_buf);
+        g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf);
         index_allocated[pair] = true;
         pair++;
     }
@@ -543,15 +631,20 @@ bool ui_gcs(void) {
         PRINTF("Error: No more pairs available for fees!\n");
         return false;
     }
-    g_pairs[pair].item = app_mem_strdup("Max fees");
+    g_pairs[pair].item = APP_MEM_STRDUP("Max fees");
     if (max_transaction_fee_to_string(&tmpContent.txContent.gasprice,
                                       &tmpContent.txContent.startgas,
                                       tmp_buf,
                                       tmp_buf_size) == false) {
         PRINTF("Error: Could not format the max fees!\n");
     }
-    g_pairs[pair].value = app_mem_strdup(tmp_buf);
+    g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf);
     index_allocated[pair] = true;
+
+#ifndef FUZZ
+    // Correct the pair count: empty separators are in the field table but
+    // do not consume a pair slot, so nbPairs may over-estimate.
+    g_pairsList->nbPairs = pair + 1;
 
     nbgl_useCaseAdvancedReview(TYPE_TRANSACTION,
                                g_pairsList,
@@ -562,5 +655,6 @@ bool ui_gcs(void) {
                                NULL,
                                &warning,
                                review_choice);
+#endif
     return true;
 }

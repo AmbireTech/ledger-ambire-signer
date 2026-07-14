@@ -1,0 +1,279 @@
+# tests_sign.cmake -- generated test definitions
+
+add_eth_unit_test(test_eth_ustream_helpers
+  APP_SOURCES
+    ${APP_DIR}/features/sign_tx/eth_ustream.c
+    ${APP_DIR}/features/sign_tx/rlp_utils.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  INCLUDES
+    ${APP_DIR}/features/sign_tx
+    ${APP_DIR}/features/generic_tx_parser
+    ${APP_DIR}/features/provide_network_info
+)
+
+add_eth_unit_test(test_eth_ustream_typed
+  APP_SOURCES
+    ${APP_DIR}/features/sign_tx/eth_ustream.c
+    ${APP_DIR}/features/sign_tx/rlp_utils.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  INCLUDES
+    ${APP_DIR}/features/sign_tx
+    ${APP_DIR}/features/generic_tx_parser
+    ${APP_DIR}/features/provide_network_info
+)
+
+add_eth_unit_test(test_eth_swap_utils
+  APP_SOURCES
+    ${APP_DIR}/swap/eth_swap_utils.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  INCLUDES
+    ${APP_DIR}/swap
+    ${APP_DIR}/features/sign_tx
+    ${BOLOS_SDK}/io_legacy/include
+  DEFS
+    HAVE_SWAP
+    OS_IO_SEPH_BUFFER_SIZE=272
+  WRAPS
+    get_displayable_ticker
+)
+
+add_eth_unit_test(test_logic_sign_tx_fee
+  APP_SOURCES
+    ${APP_DIR}/features/sign_tx/logic_sign_tx.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  INCLUDES
+    ${APP_DIR}/features/sign_tx
+    ${APP_DIR}/features/get_public_key
+    ${APP_DIR}/features/generic_tx_parser
+    ${APP_DIR}/features/provide_network_info
+    ${APP_DIR}/features/provide_proxy_info
+    ${APP_DIR}/plugins
+    ${APP_DIR}/swap
+    ${BOLOS_SDK}/io_legacy/include
+  DEFS
+    HAVE_SWAP
+    OS_IO_SEPH_BUFFER_SIZE=272
+  WRAPS
+    get_tx_chain_id
+    get_displayable_ticker
+    cx_math_mult_no_throw
+  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+)
+
+add_eth_unit_test(test_logic_sign_tx_finalize
+  APP_SOURCES
+    ${APP_DIR}/features/sign_tx/logic_sign_tx.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  INCLUDES
+    ${APP_DIR}/features/sign_tx
+    ${APP_DIR}/features/get_public_key
+    ${APP_DIR}/features/generic_tx_parser
+    ${APP_DIR}/features/provide_network_info
+    ${APP_DIR}/features/provide_proxy_info
+    ${APP_DIR}/plugins
+    ${APP_DIR}/swap
+    ${BOLOS_SDK}/io_legacy/include
+  DEFS
+    HAVE_SWAP
+    OS_IO_SEPH_BUFFER_SIZE=272
+  WRAPS
+    get_tx_chain_id
+    get_displayable_ticker
+    cx_hash_no_throw
+    cx_math_mult_no_throw
+    amountToString
+    getEthDisplayableAddress
+    eth_plugin_call
+    eth_plugin_perform_init
+    copy_tx_data
+    io_seproxyhal_send_status
+    io_seproxyhal_touch_tx_ok
+    ui_error_blind_signing
+    ui_confirm_selector
+    ui_confirm_parameter
+    ux_approve_tx
+    swap_check_destination
+    swap_check_amount
+    swap_check_fee
+    mem_utils_free_and_null
+  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+)
+
+add_eth_unit_test(test_cmd_sign_tx
+  APP_SOURCES
+    ${APP_DIR}/features/sign_tx/cmd_sign_tx.c
+    ${APP_DIR}/features/sign_tx/eth_ustream.c
+    ${APP_DIR}/features/sign_tx/rlp_utils.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  INCLUDES
+    ${APP_DIR}/features/sign_tx
+    ${APP_DIR}/features/generic_tx_parser
+    ${APP_DIR}/features/provide_network_info
+    ${APP_DIR}/plugins
+    ${BOLOS_SDK}/io_legacy/include
+  DEFS
+    HAVE_SWAP
+    OS_IO_SEPH_BUFFER_SIZE=272
+  WRAPS
+    parseBip32
+    reset_app_context
+    cx_keccak_init_no_throw
+    cx_hash_no_throw
+    finalize_parsing
+    custom_processor
+  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+)
+
+add_eth_unit_test(test_cmd_sign_message
+  APP_SOURCES
+    ${APP_DIR}/features/sign_message/cmd_sign_message.c
+  INCLUDES
+    ${APP_DIR}/features/sign_message
+  WRAPS
+    parseBip32
+    cx_keccak_init_no_throw
+    cx_hash_no_throw
+    finalize_hash
+  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+)
+
+add_eth_unit_test(test_commands_7702
+  APP_SOURCES
+    ${APP_DIR}/features/sign_authorization_eip7702/commands_7702.c
+    ${APP_DIR}/features/sign_authorization_eip7702/auth_7702.c
+    ${APP_DIR}/features/sign_authorization_eip7702/rlp_encode.c
+    ${APP_DIR}/features/sign_authorization_eip7702/whitelist_7702.c
+    ${APP_DIR}/tlv_apdu.c
+    ${APP_DIR}/utils/tlv_utils.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  WRAPS
+    finalize_hash
+    mem_utils_calloc
+  COMPILE_OPTIONS "SHELL:-include os_pic.h" "SHELL:-include os_seed.h"
+)
+
+add_eth_unit_test(test_cmd_get_public_key
+  APP_SOURCES
+    ${APP_DIR}/features/get_public_key/cmd_get_public_key.c
+    ${APP_DIR}/features/get_public_key/get_public_key.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  INCLUDES
+    ${APP_DIR}/features/get_public_key
+    ${BOLOS_SDK}/io_legacy/include
+  DEFS
+    HAVE_ECC_WEIERSTRASS
+    HAVE_SECP_CURVES
+    OS_IO_SEPH_BUFFER_SIZE=272
+  WRAPS
+    parseBip32
+    reset_app_context
+    bip32_derive_with_seed_get_pubkey_256
+    getEthAddressFromRawKey
+    getEthAddressStringFromRawKey
+  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+)
+
+add_eth_unit_test(test_cmd_perform_privacy_operation
+  APP_SOURCES
+    ${APP_DIR}/features/perform_privacy_operation/cmd_perform_privacy_operation.c
+    ${APP_DIR}/features/perform_privacy_operation/logic_perform_privacy_operation.c
+    ${APP_DIR}/utils/utils.c
+    ${APP_DIR}/uint128.c
+    ${APP_DIR}/uint256.c
+    ${PLUGIN_DIR}/common_utils.c
+  INCLUDES
+    ${APP_DIR}/features/perform_privacy_operation
+    ${BOLOS_SDK}/io_legacy/include
+  DEFS
+    HAVE_ECC_WEIERSTRASS
+    HAVE_SECP_CURVES
+    HAVE_ECC_MONTGOMERY
+    HAVE_CV25519_CURVE
+    HAVE_ECDH
+    HAVE_X25519
+    OS_IO_SEPH_BUFFER_SIZE=272
+  WRAPS
+    parseBip32
+    os_perso_derive_node_with_seed_key
+    cx_ecfp_init_private_key_no_throw
+    cx_ecfp_generate_pair_no_throw
+    cx_x25519
+    getEthAddressStringFromRawKey
+  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+)
+
+add_eth_unit_test(test_cmd_get_app_configuration
+  APP_SOURCES
+    ${APP_DIR}/features/get_app_configuration/cmd_get_app_configuration.c
+  INCLUDES
+    ${APP_DIR}/features/get_app_configuration
+  DEFS
+    MAJOR_VERSION=99
+    MINOR_VERSION=88
+    PATCH_VERSION=77
+  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+)
+
+add_eth_unit_test(test_cmd_set_eth2_withdrawal_index
+  APP_SOURCES
+    ${APP_DIR}/features/set_eth2_withdrawal_index/cmd_set_eth2_withdrawal_index.c
+  INCLUDES
+    ${APP_DIR}/features/set_eth2_withdrawal_index
+  DEFS
+    HAVE_ETH2
+)
+
+add_eth_unit_test(test_cmd_get_eth2_public_key
+  APP_SOURCES
+    ${APP_DIR}/features/get_eth2_public_key/cmd_get_eth2_public_key.c
+  INCLUDES
+    ${APP_DIR}/features/get_eth2_public_key
+    ${BOLOS_SDK}/io_legacy/include
+  DEFS
+    HAVE_ETH2
+    HAVE_ECC_WEIERSTRASS
+    HAVE_BLS12_381_G1_CURVE
+    OS_IO_SEPH_BUFFER_SIZE=272
+  WRAPS
+    parseBip32
+    set_result_get_eth2_publicKey
+    ui_display_public_eth2
+    reset_app_context
+    io_seproxyhal_io_heartbeat
+    cx_math_mult_no_throw
+)
+
+add_eth_unit_test(test_handle_get_printable_amount
+  APP_SOURCES
+    ${APP_DIR}/swap/handle_get_printable_amount.c
+  INCLUDES
+    ${APP_DIR}/swap
+  WRAPS
+    parse_swap_config
+    get_asset_info_on_network
+    amountToString
+)

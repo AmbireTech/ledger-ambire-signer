@@ -1,7 +1,8 @@
 #include "fuzz_utils.h"
 
-#include "caller_api.h"
+#include "caller_app.h"
 #include "net_icons.gen.h"
+#include "app_mem_utils.h"
 
 // Global state required by the app features
 cx_sha3_t global_sha3 = {0};
@@ -12,8 +13,8 @@ txContent_t txContent = {0};
 dataContext_t dataContext = {0};
 tmpCtx_t tmpCtx = {0};
 strings_t strings = {0};
-caller_app_t *caller_app = NULL;
-const chain_config_t *chainConfig = NULL;
+const caller_app_t *g_caller_app = NULL;
+const chain_config_t *g_chain_config = NULL;
 
 const network_icon_t g_network_icons[10] = {0};
 
@@ -30,8 +31,9 @@ const internalStorage_t N_storage_real = {
 };
 
 chain_config_t config = {
-    .coinName = "FUZZ",
-    .chainId = 0x42,
+    .ticker = "FUZZ",
+    .chain_id = 0x42,
+    .coin_type = 60,
 };
 
 void reset_app_context(void) {
@@ -41,6 +43,14 @@ void reset_app_context(void) {
 }
 
 void init_fuzzing_environment(void) {
+    // Initialize memory allocator with 16KB heap (only once)
+    static bool mem_initialized = false;
+    if (!mem_initialized) {
+        static uint8_t heap_buffer[16 * 1024];
+        mem_utils_init(heap_buffer, sizeof(heap_buffer));
+        mem_initialized = true;
+    }
+
     // Clear global structures to ensure a clean state for each fuzzing iteration
     explicit_bzero(&global_sha3, sizeof(global_sha3));
     explicit_bzero(&sha3, sizeof(sha3));
@@ -51,9 +61,9 @@ void init_fuzzing_environment(void) {
     explicit_bzero(&tmpCtx, sizeof(tmpCtx_t));
     explicit_bzero(&strings, sizeof(strings_t));
 
-    explicit_bzero(&G_io_apdu_buffer, OS_IO_SEPH_BUFFER_SIZE + 1);
+    explicit_bzero(&G_io_tx_buffer, OS_IO_SEPH_BUFFER_SIZE + 1);
 
-    chainConfig = &config;
+    g_chain_config = &config;
     txContext.content = &txContent;
     txContext.sha3 = &sha3;
     pluginType = PLUGIN_TYPE_EXTERNAL;

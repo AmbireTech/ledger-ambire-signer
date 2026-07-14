@@ -17,18 +17,18 @@ The vulnerable input file created can be passed as an argument to the fuzzer to 
 
 ### Preparation
 
-The fuzzer can be run using the Docker image `ledger-app-dev-tools`. You can download it from the
+The fuzzer can be run using the Docker image `ledger-app-builder-lite`. You can download it from the
 `ghcr.io` docker repository:
 
 ```bash
-docker pull ghcr.io/ledgerhq/ledger-app-builder/ledger-app-dev-tools:latest
+docker pull ghcr.io/ledgerhq/ledger-app-builder/ledger-app-builder-lite:latest
 ```
 
 You can then enter this development environment by executing the following command from the
 repository root directory:
 
 ```bash
-docker run --rm -ti -v "$(realpath .):/app" ghcr.io/ledgerhq/ledger-app-builder/ledger-app-dev-tools:latest
+docker run --rm -ti -v "$(realpath .):/app" ghcr.io/ledgerhq/ledger-app-builder/ledger-app-builder-lite:latest
 ```
 
 ### Writing your Harness
@@ -67,9 +67,8 @@ Once inside the container, navigate to the `tests/fuzzing` folder to generate th
 Install the needed modules and set the BOLOS_SDK variable:
 
 ```bash
-cd tests/fuzzing
 export BOLOS_SDK=/opt/flex-secure-sdk/
-apt install -y libbsd-dev
+cd tests/fuzzing
 ```
 
 #### Compile the fuzzers
@@ -100,9 +99,9 @@ ${BOLOS_SDK}/fuzzing/local_run.sh --j=4 --build=1 --BOLOS_SDK=${BOLOS_SDK} \
 | `--fuzzer`             | `PATH`              | **Required**. Path to the fuzzer binary                              |
 | `--compute-coverage`   | `bool`              | **Optional**. Whether to compute coverage after fuzzing (default: 0) |
 | `--run-fuzzer`         | `bool`              | **Optional**. Whether to run or not the fuzzer (default: 0)          |
-| `--run-crash`          | `FILENAME`          | **Optional**. Run the on a specific crash input file (default: 0) |
-| `--sanitizer`          | `address or memory` | **Optional**. Compile with sanitizer (default: address)       |
-| `--j`                  | `int`               | **Optional**. N-parallel jobs for build and fuzzing (default: 1) |
+| `--run-crash`          | `FILENAME`          | **Optional**. Run the on a specific crash input file (default: 0)    |
+| `--sanitizer`          | `address or memory` | **Optional**. Compile with sanitizer (default: address)              |
+| `--j`                  | `int`               | **Optional**. N-parallel jobs for build and fuzzing (default: 1)     |
 | `--help`               |                     | **Optional**. Display help message                                   |
 
 ### Visualizing code coverage

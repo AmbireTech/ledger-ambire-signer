@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <setjmp.h>
 
 #include "cx_errors.h"
 #include "cx_sha256.h"
@@ -7,8 +8,44 @@
 #include "buffer.h"
 #include "lcx_ecfp.h"
 #include "mem_alloc.h"
+#include "exceptions.h"
+#include "os_task.h"
 
 #include "bip32_utils.h"
+
+try_context_t fuzz_exit_jump_ctx = {0};
+try_context_t *G_exception_context = &fuzz_exit_jump_ctx;
+
+try_context_t *try_context_get(void) {
+    return G_exception_context;
+}
+
+try_context_t *try_context_set(try_context_t *context) {
+    try_context_t *previous = G_exception_context;
+    G_exception_context = context;
+    return previous;
+}
+
+void __attribute__((noreturn)) os_sched_exit(bolos_task_status_t exit_code
+                                             __attribute__((unused))) {
+    longjmp(fuzz_exit_jump_ctx.jmp_buf, 1);
+}
+
+void __attribute__((noreturn)) os_lib_end(void) {
+    longjmp(fuzz_exit_jump_ctx.jmp_buf, 1);
+}
+
+/* Short-circuit the lib_standard_app app_exit() WEAK definition. The
+ * SDK's app_exit calls os_io_stop() then os_sched_exit(-1); both end
+ * up routing back to the os_sched_exit mock above through the SDK
+ * chain. Defining app_exit as a strong symbol here lets the fuzzer
+ * jump straight to its recovery point without dragging os_io_stop's
+ * transitive dependencies in. Matches the SDK's noreturn contract so
+ * callers' unreachable-code semantics stay intact.
+ */
+void __attribute__((noreturn)) app_exit(void) {
+    longjmp(fuzz_exit_jump_ctx.jmp_buf, 1);
+}
 
 /** MemorySanitizer does not wrap explicit_bzero https://github.com/google/sanitizers/issues/1507
  * which results in false positives when running MemorySanitizer.
@@ -20,7 +57,13 @@ void memset_s(void *buffer, char c, size_t n) {
     while (n--) *ptr++ = c;
 }
 
-void app_quit(void) {
+/* The real app_quit() in src/main.c ends with app_exit() and therefore
+ * never returns. Mirror that contract here so the fuzzer's stub does
+ * not silently fall through on paths that would have aborted on the
+ * device.
+ */
+__attribute__((noreturn)) void app_quit(void) {
+    app_exit();
 }
 void app_main(void) {
 }
@@ -40,25 +83,30 @@ const uint8_t *parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, bip32_
     return NULL;
 }
 
-mem_ctx_t mem_init(void *heap_start, size_t heap_size) {
+mem_ctx_t __wrap_mem_init(void *heap_start, size_t heap_size) {
     (void) heap_size;
     return heap_start;
 }
 
-void *mem_alloc(mem_ctx_t ctx, size_t nb_bytes) {
+void *__wrap_mem_alloc(mem_ctx_t ctx, size_t nb_bytes) {
     (void) ctx;
     return malloc(nb_bytes);
 }
 
-void mem_free(mem_ctx_t ctx, void *ptr) {
+void __wrap_mem_free(mem_ctx_t ctx, void *ptr) {
     (void) ctx;
     free(ptr);
 }
 
-// APPs expect a specific length
 cx_err_t cx_ecdomain_parameters_length(cx_curve_t cv, size_t *length) {
     (void) cv;
     *length = (size_t) 32;
+    return CX_OK;
+}
+
+cx_err_t cx_ecdomain_size(cx_curve_t curve, size_t *length) {
+    (void) curve;
+    if (length) *length = 32;
     return CX_OK;
 }
 
@@ -67,4 +115,34 @@ cx_err_t cx_bn_alloc(cx_bn_t *x, size_t nbytes) {
     (void) nbytes;
     if (x) *x = 0;
     return CX_OK;
+}
+
+cx_err_t cx_bn_alloc_init(cx_bn_t *x, size_t nbytes, const uint8_t *value, size_t value_nbytes) {
+    (void) nbytes;
+    (void) value;
+    (void) value_nbytes;
+    if (x) *x = 0;
+    return CX_OK;
+}
+
+cx_err_t cx_bn_cmp(const cx_bn_t a, const cx_bn_t b, int *diff) {
+    (void) a;
+    (void) b;
+    if (diff) *diff = 0;
+    return CX_OK;
+}
+
+// Wrapper to override SDK's cx_ecdsa_verify_no_throw which triggers MemorySanitizer
+// Use linker flag: -Wl,--wrap=cx_ecdsa_verify_no_throw
+bool __wrap_cx_ecdsa_verify_no_throw(const cx_ecfp_public_key_t *pukey,
+                                     const uint8_t *hash,
+                                     size_t hash_len,
+                                     const uint8_t *sig,
+                                     size_t sig_len) {
+    (void) pukey;
+    (void) hash;
+    (void) hash_len;
+    (void) sig;
+    (void) sig_len;
+    return true;
 }
