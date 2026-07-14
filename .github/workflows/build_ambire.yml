@@ -35,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: ["nanos+", "stax", "flex", "nanox", "apex_p"]
+        device: ["nanos+", "stax", "flex", "nanox"]
     uses: LedgerHQ/ledger-app-workflows/.github/workflows/reusable_build.yml@v1
     with:
       run_for_devices: '["${{ matrix.device }}"]'
