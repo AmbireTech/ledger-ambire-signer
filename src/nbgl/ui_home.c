@@ -250,6 +250,9 @@ static void get_appname_and_tagline(const char **appname, const char **tagline) 
         }
     } else {  // Ethereum app
         *appname = APPNAME;
+        // Custom home-screen tagline. If left NULL, the SDK auto-generates
+        // "This app enables signing transactions on the <appname> network."
+        *tagline = "This app enables signing transactions in Ambire.";
     }
 }
 
