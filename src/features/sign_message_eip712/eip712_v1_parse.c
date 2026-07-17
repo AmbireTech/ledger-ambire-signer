@@ -58,6 +58,20 @@ static bool v1_set_struct_field_typedesc(const uint8_t *data,
     *is_array = typedesc & ARRAY_MASK;
     *has_size = typedesc & TYPESIZE_MASK;
     *type = typedesc & TYPE_MASK;
+    // sanity check
+    switch (*type) {
+        case TYPE_STRUCT:
+        case TYPE_SOL_INT:
+        case TYPE_SOL_UINT:
+        case TYPE_SOL_ADDRESS:
+        case TYPE_SOL_BOOL:
+        case TYPE_SOL_STRING:
+        case TYPE_SOL_BYTES_FIX:
+        case TYPE_SOL_BYTES_DYN:
+            break;
+        default:
+            return false;
+    }
     return true;
 }
 
