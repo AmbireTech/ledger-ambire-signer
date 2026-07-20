@@ -44,6 +44,8 @@ ifneq ($(findstring -,$(APPVERSION)),)
     DEFINES += DEV_VERSION GIT_COMMIT=\"$(shell git rev-parse --short HEAD)\"
 endif
 
+DEFINES += COPYRIGHT_YEAR=\"$(shell git show -s --format=%cd --date=format:%Y HEAD)\"
+
 # Application source files
 APP_SOURCE_PATH += src
 APP_SOURCE_FILES += $(filter-out ./ethereum-plugin-sdk/src/main.c, $(wildcard ./ethereum-plugin-sdk/src/*.c))

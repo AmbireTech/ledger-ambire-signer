@@ -72,7 +72,7 @@ static const char *const infoContents[SETTING_INFO_NB] = {APPVERSION,
                                                           GIT_COMMIT,
 #endif
                                                           "Ledger",
-                                                          "Ledger (c) 2025"};
+                                                          ("Ledger (c) " COPYRIGHT_YEAR)};
 
 static nbgl_contentInfoList_t infoList = {0};
 static nbgl_contentSwitch_t switches[SETTINGS_SWITCHES_NB] = {0};
