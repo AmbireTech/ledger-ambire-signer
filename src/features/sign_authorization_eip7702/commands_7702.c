@@ -60,16 +60,14 @@ uint16_t hash_RLP64(uint64_t data, uint8_t *rlpTmp, uint8_t rlpTmpLength) {
     return hashRLP(tmp + sizeof(tmp) - encodingLength, encodingLength, rlpTmp, rlpTmpLength);
 }
 
-static bool handle_auth7702_tlv(const buffer_t *buf) {
+static bool handle_auth7702_tlv_internal(const buffer_t *buf) {
     s_auth_7702_ctx auth_7702_ctx = {0};
     s_auth_7702 *auth7702 = &auth_7702_ctx.auth_7702;
     bool parsing_ret = false;
-    bool ret = false;
     uint8_t rlpDataSize = 0;
     uint8_t rlpTmp[40];
     uint8_t hashSize;
     uint16_t sw;
-    cx_err_t error = CX_INTERNAL_ERROR;
     cx_ecfp_public_key_t publicKey;
     const char *networkName;
     const char *delegateName;
@@ -80,14 +78,14 @@ static bool handle_auth7702_tlv(const buffer_t *buf) {
     parsing_ret = handle_auth_7702_tlv_payload(buf, &auth_7702_ctx);
     if (!parsing_ret || !verify_auth_7702_struct(&auth_7702_ctx)) {
         g_7702_sw = SWO_INCORRECT_DATA;
-        goto end;
+        return false;
     }
 
     // Reject if not enabled
     if (!N_storage.eip7702_enable) {
         ui_error_no_7702();
         g_7702_sw = SWO_COMMAND_NOT_ALLOWED;
-        goto end;
+        return false;
     }
 
     // Compute the authorization hash
@@ -103,42 +101,49 @@ static bool handle_auth7702_tlv(const buffer_t *buf) {
     hashSize = rlpEncodeListHeader8(rlpDataSize, rlpTmp + 1, sizeof(rlpTmp) - 1);
     if (hashSize == 0) {
         g_7702_sw = SWO_PARAMETER_ERROR_NO_INFO;
-        goto end;
+        return false;
     }
     if (APP_MEM_CALLOC((void **) &g_7702_hash_ctx, sizeof(cx_sha3_t)) == false) {
-        goto end;
+        return false;
     }
-    CX_CHECK(cx_keccak_init_no_throw(g_7702_hash_ctx, 256));
-    CX_CHECK(cx_hash_no_throw((cx_hash_t *) g_7702_hash_ctx, 0, rlpTmp, hashSize + 1, NULL, 0));
+    if (cx_keccak_init_no_throw(g_7702_hash_ctx, 256) != CX_OK) {
+        return false;
+    }
+    if (cx_hash_no_throw((cx_hash_t *) g_7702_hash_ctx, 0, rlpTmp, hashSize + 1, NULL, 0) !=
+        CX_OK) {
+        return false;
+    }
     sw = hash_RLP64(auth7702->chainId, rlpTmp, sizeof(rlpTmp));
     if (sw != SWO_NO_RESPONSE) {
         g_7702_sw = sw;
-        goto end;
+        return false;
     }
     sw = hashRLP(auth7702->delegate, sizeof(auth7702->delegate), rlpTmp, sizeof(rlpTmp));
     if (sw != SWO_NO_RESPONSE) {
         g_7702_sw = sw;
-        goto end;
+        return false;
     }
     sw = hash_RLP64(auth7702->nonce, rlpTmp, sizeof(rlpTmp));
     if (sw != SWO_NO_RESPONSE) {
         g_7702_sw = sw;
-        goto end;
+        return false;
     }
     if (finalize_hash((cx_hash_t *) g_7702_hash_ctx,
                       tmpCtx.authSigningContext7702.authHash,
                       sizeof(tmpCtx.authSigningContext7702.authHash)) != true) {
-        goto end;
+        return false;
     }
     // Prepare information to be displayed
     // * Address to be delegated
     strings.common.fromAddress[0] = '0';
     strings.common.fromAddress[1] = 'x';
-    CX_CHECK(get_public_key_string(&tmpCtx.authSigningContext7702.bip32,
-                                   publicKey.W,
-                                   strings.common.fromAddress + 2,
-                                   NULL,
-                                   auth7702->chainId));
+    if (get_public_key_string(&tmpCtx.authSigningContext7702.bip32,
+                              publicKey.W,
+                              strings.common.fromAddress + 2,
+                              NULL,
+                              auth7702->chainId) != CX_OK) {
+        return false;
+    }
     // * Delegate
     if (!is_zeroes_buffer(auth7702->delegate, sizeof(auth7702->delegate))) {
         // Check if the delegate is on the whitelist for this chainId
@@ -147,7 +152,7 @@ static bool handle_auth7702_tlv(const buffer_t *buf) {
             // Reject if not in the whitelist
             ui_error_no_7702_whitelist();
             g_7702_sw = SWO_COMMAND_NOT_ALLOWED;
-            goto end;
+            return false;
         } else {
             strlcpy(strings.common.toAddress, delegateName, sizeof(strings.common.toAddress));
         }
@@ -172,15 +177,25 @@ static bool handle_auth7702_tlv(const buffer_t *buf) {
             strlcpy(strings.common.network_name, networkName, sizeof(strings.common.network_name));
         }
     }
+    // * Nonce
+    if (!format_u64(strings.common.nonce, sizeof(strings.common.nonce), auth7702->nonce)) {
+        return false;
+    }
 
     if (is_zeroes_buffer(auth7702->delegate, sizeof(auth7702->delegate))) {
-        ui_sign_7702_revocation();
+        if (!ui_sign_7702_revocation()) {
+            return false;
+        }
     } else {
-        ui_sign_7702_auth();
+        if (!ui_sign_7702_auth()) {
+            return false;
+        }
     }
-    ret = true;
+    return true;
+}
 
-end:
+static bool handle_auth7702_tlv(const buffer_t *buf) {
+    bool ret = handle_auth7702_tlv_internal(buf);
     APP_MEM_FREE_AND_NULL((void **) &g_7702_hash_ctx);
     return ret;
 }

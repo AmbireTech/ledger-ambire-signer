@@ -21,23 +21,32 @@ static void review7702Choice(bool confirm) {
     ui_pairs_cleanup();
 }
 
-void ui_sign_7702_auth(void) {
+bool ui_sign_7702_auth(void) {
+    int index = 0;
+
     // Initialize the buffers
-    if (!ui_pairs_init(3)) {
+    if (!ui_pairs_init(3 + (N_storage.displayNonce ? 1 : 0))) {
         // Initialization failed, cleanup and return
-        return;
+        return false;
     }
 
-    g_pairs[0].item = "Account";
-    g_pairs[0].value = strings.common.fromAddress;
-    g_pairs[1].item = "Delegate to";
-    g_pairs[1].value = strings.common.toAddress;
+    g_pairs[index].item = "Account";
+    g_pairs[index++].value = strings.common.fromAddress;
+
+    g_pairs[index].item = "Delegate to";
+    g_pairs[index++].value = strings.common.toAddress;
+
 #ifdef SCREEN_SIZE_WALLET
-    g_pairs[2].item = "Delegate on network";
+    g_pairs[index].item = "Delegate on network";
 #else
-    g_pairs[2].item = "On network";
+    g_pairs[index].item = "On network";
 #endif
-    g_pairs[2].value = strings.common.network_name;
+    g_pairs[index++].value = strings.common.network_name;
+
+    if (N_storage.displayNonce) {
+        g_pairs[index].item = "Nonce";
+        g_pairs[index++].value = strings.common.nonce;
+    }
 
 #ifndef FUZZ
     nbgl_useCaseReview(TYPE_OPERATION,
@@ -52,4 +61,5 @@ void ui_sign_7702_auth(void) {
 #endif
                        review7702Choice);
 #endif
+    return true;
 }

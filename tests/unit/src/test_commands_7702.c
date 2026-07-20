@@ -161,11 +161,13 @@ void ui_error_no_7702(void) {
 void ui_error_no_7702_whitelist(void) {
     g_ui_error_whitelist_calls++;
 }
-void ui_sign_7702_auth(void) {
+bool ui_sign_7702_auth(void) {
     g_ui_auth_calls++;
+    return true;
 }
-void ui_sign_7702_revocation(void) {
+bool ui_sign_7702_revocation(void) {
     g_ui_revocation_calls++;
+    return true;
 }
 
 // =============================================================================
