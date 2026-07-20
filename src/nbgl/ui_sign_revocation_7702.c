@@ -24,7 +24,7 @@ bool ui_sign_7702_revocation(void) {
     int index = 0;
 
     // Initialize the buffers
-    if (!ui_pairs_init(2)) {
+    if (!ui_pairs_init(2 + (N_storage.displayNonce ? 1 : 0))) {
         // Initialization failed, cleanup and return
         return false;
     }
@@ -34,6 +34,11 @@ bool ui_sign_7702_revocation(void) {
 
     g_pairs[index].item = "Revoke on network";
     g_pairs[index++].value = strings.common.network_name;
+
+    if (N_storage.displayNonce) {
+        g_pairs[index].item = "Nonce";
+        g_pairs[index++].value = strings.common.nonce;
+    }
 
 #ifndef FUZZ
     nbgl_useCaseReview(TYPE_OPERATION,

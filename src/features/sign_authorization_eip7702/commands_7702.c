@@ -177,6 +177,10 @@ static bool handle_auth7702_tlv_internal(const buffer_t *buf) {
             strlcpy(strings.common.network_name, networkName, sizeof(strings.common.network_name));
         }
     }
+    // * Nonce
+    if (!format_u64(strings.common.nonce, sizeof(strings.common.nonce), auth7702->nonce)) {
+        return false;
+    }
 
     if (is_zeroes_buffer(auth7702->delegate, sizeof(auth7702->delegate))) {
         if (!ui_sign_7702_revocation()) {
