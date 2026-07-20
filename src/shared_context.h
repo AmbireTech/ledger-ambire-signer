@@ -149,7 +149,7 @@ typedef enum {
     CONTRACT_ALLOWANCE,
 } contract_call_t;
 
-// must be able to hold in decimal up to : floor(MAX_UINT64 / 2) - 36
+// EIP-2294
 #define NETWORK_STRING_MAX_SIZE 19
 
 typedef struct txStringProperties_s {
