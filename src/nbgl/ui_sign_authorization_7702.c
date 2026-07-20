@@ -21,11 +21,11 @@ static void review7702Choice(bool confirm) {
     ui_pairs_cleanup();
 }
 
-void ui_sign_7702_auth(void) {
+bool ui_sign_7702_auth(void) {
     // Initialize the buffers
     if (!ui_pairs_init(3)) {
         // Initialization failed, cleanup and return
-        return;
+        return false;
     }
 
     g_pairs[0].item = "Account";
@@ -52,4 +52,5 @@ void ui_sign_7702_auth(void) {
 #endif
                        review7702Choice);
 #endif
+    return true;
 }

@@ -28,8 +28,8 @@ bool ui_gcs(void);
 void ui_gcs_cleanup(void);
 
 // EIP-7702
-void ui_sign_7702_auth(void);
-void ui_sign_7702_revocation(void);
+bool ui_sign_7702_auth(void);
+bool ui_sign_7702_revocation(void);
 void ui_error_no_7702(void);
 void ui_error_no_7702_whitelist(void);
 

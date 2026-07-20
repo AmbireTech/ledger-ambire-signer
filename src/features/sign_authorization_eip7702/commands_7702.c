@@ -179,9 +179,13 @@ static bool handle_auth7702_tlv_internal(const buffer_t *buf) {
     }
 
     if (is_zeroes_buffer(auth7702->delegate, sizeof(auth7702->delegate))) {
-        ui_sign_7702_revocation();
+        if (!ui_sign_7702_revocation()) {
+            return false;
+        }
     } else {
-        ui_sign_7702_auth();
+        if (!ui_sign_7702_auth()) {
+            return false;
+        }
     }
     return true;
 }

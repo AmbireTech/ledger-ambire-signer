@@ -20,11 +20,11 @@ static void review7702Choice(bool confirm) {
     ui_pairs_cleanup();
 }
 
-void ui_sign_7702_revocation(void) {
+bool ui_sign_7702_revocation(void) {
     // Initialize the buffers
     if (!ui_pairs_init(2)) {
         // Initialization failed, cleanup and return
-        return;
+        return false;
     }
 
     g_pairs[0].item = "Account";
@@ -45,4 +45,5 @@ void ui_sign_7702_revocation(void) {
 #endif
                        review7702Choice);
 #endif
+    return true;
 }
