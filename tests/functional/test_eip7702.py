@@ -23,11 +23,6 @@ NONCE_MAX = 0xFFFFFFFFFFFFFFFF
 
 DEVICE_ADDR: bytes | None = None
 
-# Test vectors computed with
-# cast wallet sign-auth $ADDRESS --mnemonic $MNEMONIC --mnemonic-derivation-path "m/44'/60'/0'/0/0" --nonce $NONCE --chain $CHAINID  # noqa: E501
-# Decoded by https://codechain-io.github.io/rlp-debugger/
-
-
 def common(
     scenario_navigator: NavigateWithScenario,
     test_name: str,
@@ -107,7 +102,7 @@ def test_eip7702_in_whitelist_all_chain_param(scenario_navigator: NavigateWithSc
 
 def test_eip7702_in_whitelist_max(scenario_navigator: NavigateWithScenario, test_name: str):
     device = scenario_navigator.backend.device
-    settings_toggle(device, scenario_navigator.navigator, [SettingID.EIP7702])
+    settings_toggle(device, scenario_navigator.navigator, [SettingID.EIP7702, SettingID.NONCE])
     common(scenario_navigator, test_name, TEST_ADDRESS_MAX, NONCE_MAX, CHAIN_ID_MAX)
 
 
