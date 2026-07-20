@@ -21,16 +21,19 @@ static void review7702Choice(bool confirm) {
 }
 
 bool ui_sign_7702_revocation(void) {
+    int index = 0;
+
     // Initialize the buffers
     if (!ui_pairs_init(2)) {
         // Initialization failed, cleanup and return
         return false;
     }
 
-    g_pairs[0].item = "Account";
-    g_pairs[0].value = strings.common.fromAddress;
-    g_pairs[1].item = "Revoke on network";
-    g_pairs[1].value = strings.common.network_name;
+    g_pairs[index].item = "Account";
+    g_pairs[index++].value = strings.common.fromAddress;
+
+    g_pairs[index].item = "Revoke on network";
+    g_pairs[index++].value = strings.common.network_name;
 
 #ifndef FUZZ
     nbgl_useCaseReview(TYPE_OPERATION,
