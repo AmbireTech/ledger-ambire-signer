@@ -11,7 +11,11 @@
 nbgl_warning_t warning;
 
 // settings info definition
+#ifdef DEV_VERSION
+#define SETTING_INFO_NB 4
+#else
 #define SETTING_INFO_NB 3
+#endif
 
 // settings menu definition
 #define SETTING_CONTENTS_NB 1
@@ -57,8 +61,18 @@ enum {
 };
 
 // settings definition
-static const char *const infoTypes[SETTING_INFO_NB] = {"Version", "Developer", "Copyright"};
-static const char *const infoContents[SETTING_INFO_NB] = {APPVERSION, "Ledger", "Ledger (c) 2025"};
+static const char *const infoTypes[SETTING_INFO_NB] = {"Version",
+#ifdef DEV_VERSION
+                                                       "Commit",
+#endif
+                                                       "Developer",
+                                                       "Copyright"};
+static const char *const infoContents[SETTING_INFO_NB] = {APPVERSION,
+#ifdef DEV_VERSION
+                                                          GIT_COMMIT,
+#endif
+                                                          "Ledger",
+                                                          "Ledger (c) 2025"};
 
 static nbgl_contentInfoList_t infoList = {0};
 static nbgl_contentSwitch_t switches[SETTINGS_SWITCHES_NB] = {0};
