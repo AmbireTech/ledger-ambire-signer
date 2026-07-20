@@ -149,6 +149,9 @@ typedef enum {
     CONTRACT_ALLOWANCE,
 } contract_call_t;
 
+// EIP-2681
+#define NONCE_STRING_MAX_SIZE 20
+
 // EIP-2294
 #define NETWORK_STRING_MAX_SIZE 19
 
@@ -158,7 +161,7 @@ typedef struct txStringProperties_s {
     char toAddress[ADDRESS_LENGTH_HEX_STR];
     char fullAmount[MAX_TICKER_LEN + 1 + 78 + 1];  // 2^256 is 78 digits long
     char maxFee[50];
-    char nonce[8];  // 10M tx per account ought to be enough for everybody
+    char nonce[NONCE_STRING_MAX_SIZE + 1];
     char network_name[NETWORK_STRING_MAX_SIZE + 1];
     char tx_hash[2 + (INT256_LENGTH * 2) + 1];
 } txStringProperties_t;
