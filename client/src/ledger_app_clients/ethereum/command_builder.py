@@ -1,5 +1,5 @@
 # documentation about APDU format is available here:
-# https://github.com/LedgerHQ/app-ethereum/blob/develop/doc/ethapp.adoc
+# https://github.com/LedgerHQ/app-ethereum/blob/develop/doc/apdu.md
 
 import math
 import struct
