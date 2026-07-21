@@ -40,6 +40,16 @@ APPVERSION_N = 23
 APPVERSION_P = 0
 APPVERSION = $(APPVERSION_M).$(APPVERSION_N).$(APPVERSION_P)-dev
 
+ifneq ($(shell git rev-parse --is-inside-work-tree 2>/dev/null),true)
+    $(error Building requires a git repository (needed for GIT_COMMIT / COPYRIGHT_YEAR))
+endif
+
+ifneq ($(findstring -,$(APPVERSION)),)
+    DEFINES += DEV_VERSION GIT_COMMIT=\"$(shell git rev-parse --short HEAD)\"
+endif
+
+DEFINES += COPYRIGHT_YEAR=\"$(shell git show -s --format=%cd --date=format:%Y HEAD)\"
+
 # Application source files
 APP_SOURCE_PATH += src
 APP_SOURCE_FILES += $(filter-out ./ethereum-plugin-sdk/src/main.c, $(wildcard ./ethereum-plugin-sdk/src/*.c))
