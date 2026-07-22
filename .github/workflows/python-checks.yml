@@ -11,10 +11,12 @@ on:
       - master
     paths:
       - client/**
+      - tests/functional/**
       - .github/workflows/python-checks.yml
   pull_request:
     paths:
       - client/**
+      - tests/functional/**
       - .github/workflows/python-checks.yml
 
 jobs:

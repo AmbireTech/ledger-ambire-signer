@@ -23,6 +23,7 @@ NONCE_MAX = 0xFFFFFFFFFFFFFFFF
 
 DEVICE_ADDR: bytes | None = None
 
+
 def common(
     scenario_navigator: NavigateWithScenario,
     test_name: str,
