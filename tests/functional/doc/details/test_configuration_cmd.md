@@ -92,4 +92,4 @@ version string.
 
 ### External Resources
 
-- [APDU Specification](../../doc/ethapp.adoc) - Ethereum app APDUs
+- [APDU Specification](../../doc/apdu.md) - Ethereum app APDUs
