@@ -1120,13 +1120,13 @@ _Input data:_
 | Description                                                | Length (byte) |
 |------------------------------------------------------------|---------------|
 | struct size (BE)                                           | 2             |
-| [TRANSACTION_INFO struct](tlv_structs.md#transaction_info) | variable      |
+| [TRANSACTION_INFO struct](tlv_structs.md#transaction_info--eip712_message_info) | variable      |
 
 ##### If P1 == following chunk
 
 | Description                                                | Length (byte) |
 |------------------------------------------------------------|---------------|
-| [TRANSACTION_INFO struct](tlv_structs.md#transaction_info) | variable      |
+| [TRANSACTION_INFO struct](tlv_structs.md#transaction_info--eip712_message_info) | variable      |
 
 _Output data:_
 
