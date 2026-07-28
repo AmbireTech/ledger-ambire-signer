@@ -1213,7 +1213,7 @@ static bool format_node_for_verbose_internal(const s_struct_712_value *node,
     ui_712_set_value(strings.tmp.tmp, strlen(strings.tmp.tmp));
 
     if (consume) {
-        td_free_leaf_data(node);
+        td_release_leaf_value(node);
     }
     return true;
 }

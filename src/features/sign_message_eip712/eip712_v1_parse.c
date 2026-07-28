@@ -2,6 +2,7 @@
 #include "read.h"
 #include "eip712_v1_parse.h"
 #include "typed_data.h"
+#include "shared_context.h"  // strings.tmp.tmp
 
 static s_struct_712 *g_pending_struct = NULL;
 
@@ -17,19 +18,13 @@ bool v1_set_struct_name(uint8_t length, const uint8_t *name) {
         return false;
     }
 
-    if ((g_pending_struct = APP_MEM_ALLOC(sizeof(*g_pending_struct))) == NULL) {
+    // make NULL-terminated
+    memcpy(strings.tmp.tmp, name, length);
+    strings.tmp.tmp[length] = '\0';
+
+    if ((g_pending_struct = td_create_struct_def(strings.tmp.tmp)) == NULL) {
         return false;
     }
-    explicit_bzero(g_pending_struct, sizeof(*g_pending_struct));
-
-    if ((g_pending_struct->name = APP_MEM_ALLOC(length + 1)) == NULL) {
-        APP_MEM_FREE(g_pending_struct);
-        g_pending_struct = NULL;
-        return false;
-    }
-    g_pending_struct->name[length] = '\0';
-    memcpy(g_pending_struct->name, name, length);
-
     return td_add_struct_def(g_pending_struct);
 }
 
@@ -46,12 +41,12 @@ bool v1_set_struct_name(uint8_t length, const uint8_t *name) {
  * @param[in] data_idx the data index
  * @return whether it was successful or not
  */
-static bool v1_set_struct_field_typedesc(s_struct_712_field *field,
-                                         const uint8_t *data,
+static bool v1_set_struct_field_typedesc(const uint8_t *data,
                                          uint8_t *data_idx,
                                          uint8_t length,
                                          bool *is_array,
-                                         bool *has_size) {
+                                         bool *has_size,
+                                         e_type *type) {
     uint8_t typedesc;
 
     // copy TypeDesc
@@ -62,7 +57,7 @@ static bool v1_set_struct_field_typedesc(s_struct_712_field *field,
     typedesc = data[(*data_idx)++];
     *is_array = typedesc & ARRAY_MASK;
     *has_size = typedesc & TYPESIZE_MASK;
-    field->type = typedesc & TYPE_MASK;
+    *type = typedesc & TYPE_MASK;
     return true;
 }
 
@@ -91,12 +86,9 @@ static bool v1_set_struct_field_custom_typename(s_struct_712_field *field,
     if ((*data_idx + typename_len) > length) {
         return false;
     }
-    if ((field->struct_name = APP_MEM_ALLOC(typename_len + 1)) == NULL) {
+    if (!td_field_set_struct_name(field, &data[*data_idx], typename_len)) {
         return false;
     }
-
-    field->struct_name[typename_len] = '\0';
-    memmove(field->struct_name, &data[*data_idx], typename_len);
     *data_idx += typename_len;
     return true;
 }
@@ -116,18 +108,19 @@ static bool v1_set_struct_field_array(s_struct_712_field *field,
     if ((*data_idx + sizeof(field->array_level_count)) > length) {
         return false;
     }
-    field->array_level_count = data[(*data_idx)++];
-    if ((field->array_levels =
-             APP_MEM_ALLOC(sizeof(*field->array_levels) * field->array_level_count)) == NULL) {
+    if (!td_field_set_array_level_count(field, data[(*data_idx)++])) {
         return false;
     }
     for (int idx = 0; idx < field->array_level_count; ++idx) {
+        e_array_type arr_type;
+        uint8_t arr_size = 0;
+
         // check buffer bound
         if ((*data_idx + sizeof(field->array_levels[idx].type)) > length) {
             return false;
         }
-        field->array_levels[idx].type = data[(*data_idx)++];
-        switch (field->array_levels[idx].type) {
+        arr_type = data[(*data_idx)++];
+        switch (arr_type) {
             case ARRAY_DYNAMIC:  // nothing to do
                 break;
             case ARRAY_FIXED_SIZE:
@@ -135,11 +128,14 @@ static bool v1_set_struct_field_array(s_struct_712_field *field,
                 if ((*data_idx + sizeof(field->array_levels[idx].size)) > length) {
                     return false;
                 }
-                field->array_levels[idx].size = data[(*data_idx)++];
+                arr_size = data[(*data_idx)++];
                 break;
             default:
                 // should not be in here :^)
                 return false;
+        }
+        if (!td_field_set_array_level(field, idx, arr_type, arr_size)) {
+            return false;
         }
     }
     return true;
@@ -161,8 +157,7 @@ static bool v1_set_struct_field_typesize(s_struct_712_field *field,
     if ((*data_idx + sizeof(field->type_size)) > length) {
         return false;
     }
-    field->type_size = data[(*data_idx)++];
-    return true;
+    return td_field_set_type_size(field, data[(*data_idx)++]);
 }
 
 /**
@@ -191,11 +186,9 @@ static bool v1_set_struct_field_keyname(s_struct_712_field *field,
         return false;
     }
 
-    if ((field->key_name = APP_MEM_ALLOC(keyname_len + 1)) == NULL) {
+    if (!td_field_set_key_name(field, &data[*data_idx], keyname_len)) {
         return false;
     }
-    field->key_name[keyname_len] = '\0';
-    memmove(field->key_name, &data[*data_idx], keyname_len);
     *data_idx += keyname_len;
     return true;
 }
@@ -214,17 +207,17 @@ static bool v1_set_struct_field_internal(s_struct_712_field **new_field_ptr,
         return false;
     }
 
-    if ((new_field = APP_MEM_ALLOC(sizeof(*new_field))) == NULL) {
+    bool is_array;
+    bool has_size;
+    e_type type;
+    if (!v1_set_struct_field_typedesc(data, &data_idx, length, &is_array, &has_size, &type)) {
+        return false;
+    }
+
+    if ((new_field = td_create_field_def(type)) == NULL) {
         return false;
     }
     *new_field_ptr = new_field;
-    explicit_bzero(new_field, sizeof(*new_field));
-
-    bool is_array;
-    bool has_size;
-    if (!v1_set_struct_field_typedesc(new_field, data, &data_idx, length, &is_array, &has_size)) {
-        return false;
-    }
 
     // check TypeSize flag in TypeDesc
     if (has_size) {
@@ -271,7 +264,7 @@ bool v1_set_struct_field(uint8_t length, const uint8_t *data) {
     s_struct_712_field *new_field = NULL;
 
     if (!v1_set_struct_field_internal(&new_field, length, data)) {
-        td_delete_struct_field(new_field);
+        td_discard_struct_field(new_field);
         return false;
     }
     return true;
@@ -299,21 +292,6 @@ static struct {
 } g_pending_field;
 
 // --- helpers ---
-
-static s_struct_712_value *alloc_value(e_val_kind kind) {
-    s_struct_712_value *v = NULL;
-
-    if ((v = APP_MEM_ALLOC(sizeof(*v))) == NULL) {
-        return NULL;
-    }
-    explicit_bzero(v, sizeof(*v));
-    v->kind = kind;
-    return v;
-}
-
-static void append_child(s_struct_712_value *parent, s_struct_712_value *child) {
-    flist_push_back((flist_node_t **) &parent->children, (flist_node_t *) child);
-}
 
 static bool push_frame(const s_struct_712_field *next,
                        s_struct_712_value *node,
@@ -344,12 +322,14 @@ static bool auto_descend(void) {
             return false;
         }
 
-        s_struct_712_value *node = alloc_value(VAL_STRUCT);
-        if (node == NULL) {
+        s_struct_712_value *node;
+        if ((node = td_create_struct(nested)) == NULL) {
             return false;
         }
-        node->struct_type = nested;
-        append_child(f->node, node);
+        if (!td_append_child(f->node, node)) {
+            td_discard_container_value(node);
+            return false;
+        }
 
         if (!push_frame(nested->fields, node, 0, 0)) {
             return false;
@@ -377,12 +357,14 @@ static bool advance(void) {
                 if (nested == NULL) {
                     return false;
                 }
-                s_struct_712_value *elem = alloc_value(VAL_STRUCT);
-                if (elem == NULL) {
+                s_struct_712_value *elem;
+                if ((elem = td_create_struct(nested)) == NULL) {
                     return false;
                 }
-                elem->struct_type = nested;
-                append_child(f->node, elem);
+                if (!td_append_child(f->node, elem)) {
+                    td_discard_container_value(elem);
+                    return false;
+                }
                 if (!push_frame(nested->fields, elem, 0, 0)) {
                     return false;
                 }
@@ -430,11 +412,10 @@ bool v1_set_root(const char *name) {
         return false;
     }
 
-    s_struct_712_value *node = alloc_value(VAL_STRUCT);
-    if (node == NULL) {
+    s_struct_712_value *node;
+    if ((node = td_create_struct(root)) == NULL) {
         return false;
     }
-    node->struct_type = root;
 
     if (strcmp(name, "EIP712Domain") == 0) {
         ret = td_set_domain(node);
@@ -486,12 +467,14 @@ bool v1_set_array(size_t count) {
         return false;
     }
 
-    s_struct_712_value *arr = alloc_value(VAL_ARRAY);
-    if (arr == NULL) {
+    s_struct_712_value *arr;
+    if ((arr = td_create_array(elem_field)) == NULL) {
         return false;
     }
-    arr->field = elem_field;
-    append_child(f->node, arr);
+    if (!td_append_child(f->node, arr)) {
+        td_discard_container_value(arr);
+        return false;
+    }
 
     if (count == 0) {
         // empty array — snapshot only struct-level frames (skip array-container frames, which would
@@ -520,12 +503,14 @@ bool v1_set_array(size_t count) {
         if (nested == NULL) {
             return false;
         }
-        s_struct_712_value *elem = alloc_value(VAL_STRUCT);
-        if (elem == NULL) {
+        s_struct_712_value *elem;
+        if ((elem = td_create_struct(nested)) == NULL) {
             return false;
         }
-        elem->struct_type = nested;
-        append_child(arr, elem);
+        if (!td_append_child(arr, elem)) {
+            td_discard_container_value(elem);
+            return false;
+        }
         if (!push_frame(nested->fields, elem, 0, 0)) {
             return false;
         }
@@ -560,40 +545,29 @@ const s_struct_712_value *v1_add_field(const uint8_t *data, size_t length, bool 
         data += sizeof(uint16_t);
         length -= sizeof(uint16_t);
 
-        s_struct_712_value *leaf = alloc_value(VAL_ATOMIC);
-        if (leaf == NULL) {
+        s_struct_712_value *leaf;
+        if ((leaf = td_create_leaf(f->next, total_size)) == NULL) {
             return NULL;
         }
 
-        leaf->field = f->next;
-        leaf->length = total_size;
-
-        if (total_size > 0) {
-            if ((leaf->data = APP_MEM_ALLOC(total_size)) == NULL) {
-                APP_MEM_FREE(leaf);
-                return NULL;
-            }
-        }
         g_pending_field.leaf = leaf;
         g_pending_field.filled = 0;
     }
 
-    if (g_pending_field.filled + length > g_pending_field.leaf->length) {
+    if (!td_leaf_write(g_pending_field.leaf, g_pending_field.filled, data, length)) {
         return NULL;
     }
-    if (length > 0) {
-        memmove(g_pending_field.leaf->data + g_pending_field.filled, data, length);
-        g_pending_field.filled += (uint16_t) length;
-    }
+    g_pending_field.filled += length;
 
     if (!more) {
-        if (g_pending_field.filled != g_pending_field.leaf->length) {
+        if (!td_leaf_is_complete(g_pending_field.leaf, g_pending_field.filled)) {
             return NULL;
         }
         s_struct_712_value *completed = g_pending_field.leaf;
-        append_child(f->node, completed);
-        g_pending_field.leaf = NULL;
-        g_pending_field.filled = 0;
+        if (!td_append_child(f->node, completed)) {
+            return NULL;
+        }
+        explicit_bzero(&g_pending_field, sizeof(g_pending_field));
         if (!advance()) {
             return NULL;
         }
@@ -656,13 +630,23 @@ const s_struct_712_field *v1_backup_nth_field(uint8_t n) {
     return g_backup.stack[n - 1].next;
 }
 
+typedef struct {
+    const char *ptr;
+    size_t length;
+} s_key_slice;
+
+static bool match_key_name(const s_struct_712_field *f, const void *context_ptr) {
+    const s_key_slice *context = context_ptr;
+    return (context->length == strlen(f->key_name)) &&
+           (memcmp(context->ptr, f->key_name, context->length) == 0);
+}
+
 bool v1_backup_exists(const char *path, size_t length) {
     size_t offset = 0;
     size_t i;
     const s_struct_712_field *field_ptr;
     const char *typename;
     const s_struct_712 *struct_ptr;
-    const char *key;
 
     if (g_backup.depth == 0) {
         return false;
@@ -688,13 +672,9 @@ bool v1_backup_exists(const char *path, size_t length) {
             if ((struct_ptr = td_find_struct(typename)) == NULL) {
                 return false;
             }
-            for (field_ptr = struct_ptr->fields; field_ptr != NULL;
-                 field_ptr = (s_struct_712_field *) ((flist_node_t *) field_ptr)->next) {
-                key = field_ptr->key_name;
-                if ((strlen(key) == i) && (memcmp(key, path + offset, i) == 0)) {
-                    break;
-                }
-            }
+            field_ptr = td_find_struct_field_if(struct_ptr,
+                                                match_key_name,
+                                                &(s_key_slice) {path + offset, i});
             if (field_ptr == NULL) {
                 return false;
             }
@@ -709,7 +689,7 @@ bool v1_backup_exists(const char *path, size_t length) {
 void v1_parse_deinit(void) {
     g_build.depth = 0;
     g_backup.depth = 0;
-    g_pending_field.leaf = NULL;
-    g_pending_field.filled = 0;
+    td_discard_leaf(g_pending_field.leaf);
+    explicit_bzero(&g_pending_field, sizeof(g_pending_field));
     g_pending_struct = NULL;
 }

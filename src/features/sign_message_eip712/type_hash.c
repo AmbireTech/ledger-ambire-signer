@@ -5,27 +5,41 @@
 #include "typed_data.h"
 #include "lists.h"
 
+// Tracks whether the next comma-separated field is the first one
+typedef struct {
+    cx_sha3_t *hash_ctx;
+    bool first;
+} s_type_hash_field_ctx;
+
 /**
  * Encode & hash the given structure field
  *
- * @param[in,out] hash_ctx pointer to hash context
  * @param[in] field_ptr pointer to the struct field
+ * @param[in,out] ctx hash context + first-field tracking
  * @return \ref true it finished correctly, \ref false if it didn't (memory allocation)
  */
-static bool encode_and_hash_field(cx_sha3_t *hash_ctx, const s_struct_712_field *field_ptr) {
+static bool encode_and_hash_field(const s_struct_712_field *field_ptr, void *context) {
+    s_type_hash_field_ctx *ctx = context;
     const char *name;
 
-    if (!format_hash_field_type(field_ptr, (cx_hash_t *) hash_ctx)) {
+    if (!ctx->first) {
+        if (cx_hash_update((cx_hash_t *) ctx->hash_ctx, (uint8_t *) ",", 1) != CX_OK) {
+            return false;
+        }
+    }
+    ctx->first = false;
+
+    if (!format_hash_field_type(field_ptr, (cx_hash_t *) ctx->hash_ctx)) {
         return false;
     }
     // space between field type name and field name
-    if (cx_hash_update((cx_hash_t *) hash_ctx, (uint8_t *) " ", 1) != CX_OK) {
+    if (cx_hash_update((cx_hash_t *) ctx->hash_ctx, (uint8_t *) " ", 1) != CX_OK) {
         return false;
     }
 
     // field name
     name = field_ptr->key_name;
-    return cx_hash_update((cx_hash_t *) hash_ctx, (uint8_t *) name, strlen(name)) == CX_OK;
+    return cx_hash_update((cx_hash_t *) ctx->hash_ctx, (uint8_t *) name, strlen(name)) == CX_OK;
 }
 
 /**
@@ -38,7 +52,7 @@ static bool encode_and_hash_field(cx_sha3_t *hash_ctx, const s_struct_712_field 
  */
 static bool encode_and_hash_type(cx_sha3_t *hash_ctx, const s_struct_712 *struct_ptr) {
     const char *struct_name;
-    const s_struct_712_field *field_ptr;
+    s_type_hash_field_ctx field_ctx = {.hash_ctx = hash_ctx, .first = true};
 
     // struct name
     struct_name = struct_ptr->name;
@@ -52,18 +66,8 @@ static bool encode_and_hash_type(cx_sha3_t *hash_ctx, const s_struct_712 *struct
         return false;
     }
 
-    for (field_ptr = struct_ptr->fields; field_ptr != NULL;
-         field_ptr = (s_struct_712_field *) ((flist_node_t *) field_ptr)->next) {
-        // comma separating struct fields
-        if (field_ptr != struct_ptr->fields) {
-            if (cx_hash_update((cx_hash_t *) hash_ctx, (uint8_t *) ",", 1) != CX_OK) {
-                return false;
-            }
-        }
-
-        if (encode_and_hash_field(hash_ctx, field_ptr) == false) {
-            return NULL;
-        }
+    if (!td_visit_struct_fields(struct_ptr, encode_and_hash_field, &field_ctx)) {
+        return false;
     }
     // closing struct parentheses
     if (cx_hash_update((cx_hash_t *) hash_ctx, (uint8_t *) ")", 1) != CX_OK) {
@@ -101,6 +105,30 @@ static bool add_dep_if_new(s_struct_dep **first_dep, const s_struct_712 *struct_
 }
 
 /**
+ * Add a struct dependency for a single field, if it is a TYPE_STRUCT field.
+ *
+ * @param[in] field_ptr pointer to the struct field being visited
+ * @param[in,out] first_dep pointer to the head of the dependency list
+ * @return \ref true on success (including "not a struct field", a no-op), \ref false on error
+ */
+static bool collect_one_dep(const s_struct_712_field *field_ptr, void *context) {
+    s_struct_dep **first_dep = context;
+    const s_struct_712 *dep;
+    const char *dep_name;
+
+    if (field_ptr->type != TYPE_STRUCT) {
+        return true;
+    }
+    dep_name = td_get_struct_field_typename(field_ptr);
+    if ((dep = td_find_struct(dep_name)) == NULL) {
+        PRINTF("Error: could not find EIP-712 dependency struct \"%s\" during type_hash\n",
+               dep_name);
+        return false;
+    }
+    return add_dep_if_new(first_dep, dep);
+}
+
+/**
  * Scan all fields of a struct and add any unknown TYPE_STRUCT dependencies
  *
  * @param[in,out] first_dep pointer to the head of the dependency list
@@ -108,25 +136,7 @@ static bool add_dep_if_new(s_struct_dep **first_dep, const s_struct_712 *struct_
  * @return \ref true on success, \ref false on error
  */
 static bool collect_direct_deps(s_struct_dep **first_dep, const s_struct_712 *struct_ptr) {
-    const s_struct_712_field *field_ptr;
-    const s_struct_712 *dep;
-    const char *dep_name;
-
-    for (field_ptr = struct_ptr->fields; field_ptr != NULL;
-         field_ptr = (s_struct_712_field *) ((flist_node_t *) field_ptr)->next) {
-        if (field_ptr->type == TYPE_STRUCT) {
-            dep_name = td_get_struct_field_typename(field_ptr);
-            if ((dep = td_find_struct(dep_name)) == NULL) {
-                PRINTF("Error: could not find EIP-712 dependency struct \"%s\" during type_hash\n",
-                       dep_name);
-                return false;
-            }
-            if (!add_dep_if_new(first_dep, dep)) {
-                return false;
-            }
-        }
-    }
-    return true;
+    return td_visit_struct_fields(struct_ptr, collect_one_dep, first_dep);
 }
 
 /**

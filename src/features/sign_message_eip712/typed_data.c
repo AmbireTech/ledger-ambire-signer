@@ -9,11 +9,6 @@
 static s_struct_712 *g_structs = NULL;
 static s_eip712_impl g_impl;
 
-/**
- * Initialize the typed data context
- *
- * @return whether the initialization was successful
- */
 bool td_init(void) {
     if (g_structs != NULL) {
         td_deinit();
@@ -32,7 +27,7 @@ static void delete_struct_field_internal(s_struct_712_field *f) {
     APP_MEM_FREE(f);
 }
 
-void td_delete_struct_field(s_struct_712_field *field) {
+void td_discard_struct_field(s_struct_712_field *field) {
     if (field != NULL) {
         delete_struct_field_internal(field);
     }
@@ -54,6 +49,183 @@ static void delete_value(s_struct_712_value *v) {
     APP_MEM_FREE(v);
 }
 
+s_struct_712_value *td_create_leaf(const s_struct_712_field *field, size_t total_size) {
+    s_struct_712_value *v;
+
+    if ((v = APP_MEM_ALLOC(sizeof(*v))) != NULL) {
+        explicit_bzero(v, sizeof(*v));
+        v->kind = VAL_ATOMIC;
+        v->field = field;
+        v->length = total_size;
+        if (v->length > 0) {
+            if ((v->data = APP_MEM_ALLOC(v->length)) == NULL) {
+                APP_MEM_FREE(v);
+                return NULL;
+            }
+        }
+    }
+    return v;
+}
+
+void td_discard_leaf(s_struct_712_value *leaf) {
+    if (leaf == NULL) {
+        return;
+    }
+    APP_MEM_FREE(leaf->data);
+    APP_MEM_FREE(leaf);
+}
+
+s_struct_712_value *td_create_struct(const s_struct_712 *struct_type) {
+    s_struct_712_value *v;
+
+    if ((v = APP_MEM_ALLOC(sizeof(*v))) != NULL) {
+        explicit_bzero(v, sizeof(*v));
+        v->kind = VAL_STRUCT;
+        v->struct_type = struct_type;
+    }
+    return v;
+}
+
+void td_discard_container_value(s_struct_712_value *node) {
+    if (node == NULL) {
+        return;
+    }
+    flist_clear((flist_node_t **) &node->children, (f_list_node_del) &delete_value);
+    APP_MEM_FREE(node);
+}
+
+s_struct_712_value *td_create_array(const s_struct_712_field *field) {
+    s_struct_712_value *v;
+
+    if ((v = APP_MEM_ALLOC(sizeof(*v))) != NULL) {
+        explicit_bzero(v, sizeof(*v));
+        v->kind = VAL_ARRAY;
+        v->field = field;
+    }
+    return v;
+}
+
+bool td_append_child(s_struct_712_value *parent, const s_struct_712_value *child) {
+    if ((parent == NULL) || (child == NULL)) {
+        return false;
+    }
+    flist_push_back((flist_node_t **) &parent->children, (flist_node_t *) child);
+    return true;
+}
+
+bool td_leaf_write(s_struct_712_value *leaf, size_t offset, const uint8_t *data, size_t length) {
+    if ((leaf == NULL) || (leaf->kind != VAL_ATOMIC)) {
+        return false;
+    }
+    if ((offset + length) > leaf->length) {
+        return false;
+    }
+    memcpy(&leaf->data[offset], data, length);
+    return true;
+}
+
+bool td_leaf_is_complete(const s_struct_712_value *leaf, size_t filled) {
+    if ((leaf == NULL) || (leaf->kind != VAL_ATOMIC)) {
+        return false;
+    }
+    return filled == leaf->length;
+}
+
+s_struct_712_field *td_create_field_def(e_type type) {
+    s_struct_712_field *field;
+
+    if ((field = APP_MEM_ALLOC(sizeof(*field))) != NULL) {
+        explicit_bzero(field, sizeof(*field));
+        field->type = type;
+    }
+    return field;
+}
+
+bool td_field_set_type_size(s_struct_712_field *field, size_t type_size) {
+    if (field == NULL) {
+        return false;
+    }
+    if (field->type == TYPE_STRUCT) {
+        return false;
+    }
+    field->type_size = type_size;
+    return true;
+}
+
+bool td_field_set_struct_name(s_struct_712_field *field, const uint8_t *name, size_t length) {
+    if (field == NULL) {
+        return false;
+    }
+    if (field->type != TYPE_STRUCT) {
+        return false;
+    }
+    if (name == NULL) {
+        return false;
+    }
+    if (field->struct_name != NULL) {
+        // to prevent a memory leak
+        APP_MEM_FREE(field->struct_name);
+    }
+    if ((field->struct_name = APP_MEM_ALLOC(length + 1)) == NULL) {
+        return false;
+    }
+    memcpy(field->struct_name, name, length);
+    field->struct_name[length] = '\0';
+    return true;
+}
+
+bool td_field_set_array_level_count(s_struct_712_field *field, uint8_t count) {
+    if (field == NULL) {
+        return false;
+    }
+    if (field->array_levels != NULL) {
+        // to prevent a memory leak
+        APP_MEM_FREE(field->array_levels);
+    }
+    if ((field->array_levels = APP_MEM_ALLOC(sizeof(*field->array_levels) * count)) == NULL) {
+        return false;
+    }
+    explicit_bzero(field->array_levels, sizeof(*field->array_levels) * count);
+    field->array_level_count = count;
+    return true;
+}
+
+bool td_field_set_array_level(s_struct_712_field *field,
+                              uint8_t index,
+                              e_array_type type,
+                              uint8_t size) {
+    if (field == NULL) {
+        return false;
+    }
+    if (index >= field->array_level_count) {
+        return false;
+    }
+    field->array_levels[index].type = type;
+    if (type == ARRAY_FIXED_SIZE) {
+        field->array_levels[index].size = size;
+    }
+    return true;
+}
+
+bool td_field_set_key_name(s_struct_712_field *field, const uint8_t *name, size_t length) {
+    if (field == NULL) {
+        return false;
+    }
+    if (name == NULL) {
+        return false;
+    }
+    if (field->key_name != NULL) {
+        // to prevent a memory leak
+        APP_MEM_FREE(field->key_name);
+    }
+    if ((field->key_name = APP_MEM_ALLOC(length + 1)) == NULL) {
+        return false;
+    }
+    memcpy(field->key_name, name, length);
+    field->key_name[length] = '\0';
+    return true;
+}
+
 void td_deinit(void) {
     if (g_impl.domain != NULL) {
         delete_value(g_impl.domain);
@@ -66,12 +238,6 @@ void td_deinit(void) {
     flist_clear((flist_node_t **) &g_structs, (f_list_node_del) &delete_struct);
 }
 
-/**
- * Get type name from a struct field
- *
- * @param[in] field_ptr struct field pointer
- * @return type name pointer
- */
 const char *td_get_struct_field_typename(const s_struct_712_field *field_ptr) {
     if (field_ptr == NULL) {
         return NULL;
@@ -82,30 +248,44 @@ const char *td_get_struct_field_typename(const s_struct_712_field *field_ptr) {
     return get_struct_field_sol_typename(field_ptr);
 }
 
-/**
- * Find struct with a given name
- *
- * @param[in] name struct name
- * @return pointer to struct
- */
+static bool match_struct_name(const s_struct_712 *node, const void *context_ptr) {
+    return (node->name != NULL) && (strcmp(node->name, (const char *) context_ptr) == 0);
+}
+
 const s_struct_712 *td_find_struct(const char *name) {
-    const s_struct_712 *struct_ptr;
+    if (name == NULL) {
+        return NULL;
+    }
+    return td_find_struct_if(match_struct_name, (const void *) name);
+}
+
+s_struct_712 *td_create_struct_def(const char *name) {
+    s_struct_712 *def;
+    size_t length;
 
     if (name == NULL) {
         return NULL;
     }
-    for (struct_ptr = g_structs; struct_ptr != NULL;
-         struct_ptr = (s_struct_712 *) ((flist_node_t *) struct_ptr)->next) {
-        if (struct_ptr->name != NULL) {
-            if (strcmp(name, struct_ptr->name) == 0) {
-                return struct_ptr;
-            }
-        }
+    length = strlen(name);
+
+    if ((def = APP_MEM_ALLOC(sizeof(*def))) == NULL) {
+        return NULL;
     }
-    return NULL;
+    explicit_bzero(def, sizeof(*def));
+
+    if ((def->name = APP_MEM_ALLOC(length + 1)) == NULL) {
+        APP_MEM_FREE(def);
+        return NULL;
+    }
+    memcpy(def->name, name, length);
+    def->name[length] = '\0';
+    return def;
 }
 
 bool td_add_struct_def(const s_struct_712 *struct_def) {
+    if (struct_def == NULL) {
+        return false;
+    }
     flist_push_back((flist_node_t **) &g_structs, (flist_node_t *) struct_def);
     return true;
 }
@@ -162,11 +342,6 @@ bool td_has_message(void) {
     return g_impl.message != NULL;
 }
 
-/**
- * Fill @p chain_id with the chainId from the domain value tree.
- *
- * @return true if the field was found and copied into @p chain_id, false otherwise.
- */
 bool td_get_domain_chain_id(uint64_t *chain_id) {
     if (g_impl.domain != NULL) {
         for (const s_struct_712_value *child = g_impl.domain->children; child != NULL;
@@ -184,11 +359,6 @@ bool td_get_domain_chain_id(uint64_t *chain_id) {
     return false;
 }
 
-/**
- * Fill @p addr with the verifyingContract from the domain value tree.
- *
- * @return true if the field was found and copied into @p addr, false otherwise.
- */
 bool td_get_domain_contract_addr(uint8_t addr[ADDRESS_LENGTH]) {
     const char *ethermint_vc = "cosmos";
 
@@ -258,9 +428,6 @@ static bool traverse_node(const s_struct_712_value *node,
     return true;
 }
 
-/**
- * Traverse domain value tree with visitor callback.
- */
 bool td_traverse_domain(td_f_value_visitor visitor, void *context) {
     if (visitor == NULL) {
         return false;
@@ -268,9 +435,6 @@ bool td_traverse_domain(td_f_value_visitor visitor, void *context) {
     return traverse_node(g_impl.domain, visitor, context);
 }
 
-/**
- * Traverse message value tree with visitor callback.
- */
 bool td_traverse_message(td_f_value_visitor visitor, void *context) {
     if (visitor == NULL) {
         return false;
@@ -278,7 +442,7 @@ bool td_traverse_message(td_f_value_visitor visitor, void *context) {
     return traverse_node(g_impl.message, visitor, context);
 }
 
-void td_free_leaf_data(const s_struct_712_value *node) {
+void td_release_leaf_value(const s_struct_712_value *node) {
     if ((node == NULL) || (node->kind != VAL_ATOMIC)) {
         return;
     }
@@ -321,4 +485,33 @@ bool td_visit_struct_fields(const s_struct_712 *s,
 
 bool td_hash_pass(void) {
     return value_hash_pass(&g_impl);
+}
+
+const s_struct_712 *td_find_struct_if(td_f_struct_pred pred, const void *ctx) {
+    const s_struct_712 *struct_ptr = g_structs;
+
+    while (struct_ptr != NULL) {
+        if (pred(struct_ptr, ctx)) {
+            return struct_ptr;
+        }
+        struct_ptr = (const s_struct_712 *) ((const flist_node_t *) struct_ptr)->next;
+    }
+    return NULL;
+}
+
+const s_struct_712_field *td_find_struct_field_if(const s_struct_712 *s,
+                                                  td_f_struct_field_pred pred,
+                                                  const void *ctx) {
+    const s_struct_712_field *field_ptr;
+
+    if (s != NULL) {
+        field_ptr = s->fields;
+        while (field_ptr != NULL) {
+            if (pred(field_ptr, ctx)) {
+                return field_ptr;
+            }
+            field_ptr = (const s_struct_712_field *) ((const flist_node_t *) field_ptr)->next;
+        }
+    }
+    return NULL;
 }
