@@ -55,7 +55,7 @@ static uint16_t apdu_reply(bool success, uint16_t sw) {
         if (eip712_v1_context != NULL) {
             home = eip712_v1_context->go_home_on_failure;
         }
-        eip712_v1_context_deinit();
+        reset_app_context();
         if (home) ui_idle();
     }
     return sw;

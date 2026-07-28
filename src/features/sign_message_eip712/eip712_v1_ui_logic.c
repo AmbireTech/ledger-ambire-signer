@@ -5,7 +5,7 @@
 #include "format.h"
 #include "common_utils.h"  // uint256_to_decimal
 #include "common_712.h"
-#include "eip712_v1_context.h"  // eip712_v1_context_deinit
+#include "eip712_v1_context.h"  // eip712_v1_context
 #include "typed_data.h"
 #include "common_ui.h"
 #include "eip712_v1_filtering.h"
@@ -1004,21 +1004,20 @@ void ui_712_deinit(void) {
 
 /**
  * Approve button handling, calls the common handler function then
- * deinitializes the EIP712 context altogether.
+ * resets the app context (which tears down the EIP712 context as part of it).
  */
 void ui_712_approve(void) {
     ui_712_approve_cb();
-    eip712_v1_context_deinit();
+    reset_app_context();
 }
 
 /**
  * Reject button handling, calls the common handler function then
- * deinitializes the EIP712 context altogether.
-
+ * resets the app context (which tears down the EIP712 context as part of it).
  */
 void ui_712_reject(void) {
     ui_712_reject_cb();
-    eip712_v1_context_deinit();
+    reset_app_context();
 }
 
 /**

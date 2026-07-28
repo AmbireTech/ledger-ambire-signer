@@ -16,7 +16,7 @@ s_eip712_v1_context *eip712_v1_context = NULL;
  */
 bool eip712_v1_context_init(void) {
     if (eip712_v1_context != NULL) {
-        eip712_v1_context_deinit();
+        reset_app_context();
         return false;
     }
 
@@ -40,11 +40,13 @@ bool eip712_v1_context_init(void) {
 
 /**
  * De-initialize the EIP712 context
+ *
+ * Only tears down the EIP-712-specific state. \ref reset_app_context calls this itself
+ * to fold it into the generic app reset; this must not call back into it.
  */
 void eip712_v1_context_deinit(void) {
     v1_parse_deinit();
     td_deinit();
     ui_712_deinit();
     APP_MEM_FREE_AND_NULL((void **) &eip712_v1_context);
-    reset_app_context();
 }

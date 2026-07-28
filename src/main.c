@@ -32,6 +32,7 @@
 #include "handle_check_address.h"
 #include "swap_entrypoints.h"
 #include "eip712_v1_commands.h"
+#include "eip712_v1_context.h"  // eip712_v1_context, eip712_v1_context_deinit
 #include "challenge.h"
 #include "cmd_trusted_name.h"
 #include "crypto_helpers.h"
@@ -86,6 +87,7 @@ void reset_app_context(void) {
     if (appState == APP_STATE_SIGNING_MESSAGE) {
         message_cleanup();
     }
+    eip712_v1_context_deinit();
     appState = APP_STATE_IDLE;
     G_called_from_swap = false;
     G_swap_response_ready = false;
