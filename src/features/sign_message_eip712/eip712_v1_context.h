@@ -7,7 +7,6 @@
 
 typedef struct {
     uint8_t schema_hash[CX_SHA224_SIZE];
-    bool go_home_on_failure;
 } s_eip712_v1_context;
 
 extern s_eip712_v1_context *eip712_v1_context;

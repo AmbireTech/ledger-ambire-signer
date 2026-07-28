@@ -39,29 +39,6 @@
 #define P2_FILT_RAW_FIELD         0xFF
 
 /**
- * Send the response to the previous APDU command
- *
- * In case of an error it uses the global variable to retrieve the error code and resets
- * the app context
- *
- * @param[in] success whether the command was successful
- */
-static uint16_t apdu_reply(bool success, uint16_t sw) {
-    bool home = true;
-
-    if (success) {
-        sw = SWO_SUCCESS;
-    } else {
-        if (eip712_v1_context != NULL) {
-            home = eip712_v1_context->go_home_on_failure;
-        }
-        reset_app_context();
-        if (home) ui_idle();
-    }
-    return sw;
-}
-
-/**
  * Process the EIP712 struct definition command
  *
  * @param[in] p2 instruction parameter 2
@@ -95,7 +72,7 @@ uint16_t handle_eip712_v1_struct_def(uint8_t p2, const uint8_t *cdata, uint8_t l
                 ret = false;
         }
     }
-    return apdu_reply(ret, sw);
+    return ret ? SWO_SUCCESS : sw;
 }
 
 /**
@@ -154,7 +131,7 @@ uint16_t handle_eip712_v1_struct_impl(uint8_t p1,
                 sw = SWO_WRONG_P1_P2;
         }
     }
-    return apdu_reply(ret, sw);
+    return ret ? SWO_SUCCESS : sw;
 }
 
 /**
@@ -173,7 +150,7 @@ uint16_t handle_eip712_v1_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata
     uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
 
     if (eip712_v1_context == NULL) {
-        return apdu_reply(false, SWO_COMMAND_NOT_ALLOWED);
+        return SWO_COMMAND_NOT_ALLOWED;
     }
     if ((p2 != P2_FILT_ACTIVATE) && (ui_712_get_filtering_mode() != EIP712_FILTERING_FULL)) {
         return SWO_SUCCESS;
@@ -250,7 +227,7 @@ uint16_t handle_eip712_v1_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata
         }
     }
     if (reply_apdu) {
-        return apdu_reply(ret, sw);
+        return ret ? SWO_SUCCESS : sw;
     }
     return SWO_NO_RESPONSE;
 }
@@ -289,7 +266,6 @@ uint16_t handle_eip712_v1_sign(const uint8_t *cdata, uint8_t length) {
             !N_storage.verbose_eip712) {
             ui_error_blind_signing();
             sw = SWO_INCORRECT_DATA;
-            eip712_v1_context->go_home_on_failure = false;
         } else {
             bool should_start_ui = true;
             sw = SWO_SUCCESS;
@@ -329,7 +305,7 @@ uint16_t handle_eip712_v1_sign(const uint8_t *cdata, uint8_t length) {
     }
 
     if (!ret) {
-        return apdu_reply(false, sw);
+        return ret ? SWO_SUCCESS : sw;
     }
     return SWO_NO_RESPONSE;
 }

@@ -33,8 +33,6 @@ bool eip712_v1_context_init(void) {
         return false;
     }
 
-    eip712_v1_context->go_home_on_failure = true;
-
     return true;
 }
 
