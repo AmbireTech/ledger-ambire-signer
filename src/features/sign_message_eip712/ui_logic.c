@@ -209,17 +209,16 @@ bool ui_712_set_title(const char *str, size_t length) {
         return false;
     }
     flist_push_back((flist_node_t **) &ui_ctx->ui_pairs, (flist_node_t *) new_pair);
-    if (APP_MEM_CALLOC((void **) &new_pair->key, length + 1) == false) {
+    if ((new_pair->key = APP_MEM_ALLOC(length + 1)) == NULL) {
         return false;
     }
     memcpy(new_pair->key, str, length);
+    new_pair->key[length] = '\0';
     return true;
 }
 
 /**
  * Set a new value for the EIP-712 generic UX_STEP
- *
- * @note The parameters may be NULL if the value is already formatted into strings.tmp.tmp
  *
  * @param[in] str the new value
  * @param[in] length its length
@@ -228,6 +227,9 @@ bool ui_712_set_title(const char *str, size_t length) {
 bool ui_712_set_value(const char *str, size_t length) {
     s_ui_712_pair *tmp = ui_ctx->ui_pairs;
 
+    if (str == NULL) {
+        return false;
+    }
     if (tmp == NULL) {
         // No pairs created yet
         return false;
@@ -239,18 +241,11 @@ bool ui_712_set_value(const char *str, size_t length) {
         PRINTF("Value already exist for tag %s: %s\n", tmp->key, tmp->value);
         return false;
     }
-    if ((str != NULL) && (length > 0)) {
-        // buffer is directly provided with parameters
-        if (APP_MEM_CALLOC((void **) &tmp->value, length + 1) == false) {
-            return false;
-        }
-        memcpy(tmp->value, str, length);
-    } else {
-        // Add the value from the global variable strings.tmp.tmp
-        if ((tmp->value = APP_MEM_STRDUP(strings.tmp.tmp)) == NULL) {
-            return false;
-        }
+    if ((tmp->value = APP_MEM_ALLOC(length + 1)) == NULL) {
+        return false;
     }
+    memcpy(tmp->value, str, length);
+    tmp->value[length] = '\0';
     tmp->end_intent = validate_instruction_hash();
     if (tmp->end_intent) {
         PRINTF("[Intent] End\n");
@@ -345,7 +340,7 @@ bool ui_712_message_hash(void) {
                            sizeof(strings.tmp.tmp),
                            tmpCtx.messageSigningContext712.messageHash,
                            KECCAK256_HASH_BYTESIZE);
-        if (!ui_712_set_value(NULL, 0)) {
+        if (!ui_712_set_value(strings.tmp.tmp, strlen(strings.tmp.tmp))) {
             return false;
         }
     }
@@ -1042,7 +1037,7 @@ bool ui_712_feed_to_display(const s_struct_712_field *field_ptr,
     // Check if this field is supposed to be displayed
     if (last && ui_712_field_shown()) {
         // This is the last chunk, we can now set the value
-        if (!ui_712_set_value(NULL, 0)) {
+        if (!ui_712_set_value(strings.tmp.tmp, strlen(strings.tmp.tmp))) {
             return false;
         }
 
