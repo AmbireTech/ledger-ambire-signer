@@ -243,8 +243,8 @@ add_eth_unit_test(test_cmd_get_gating
     hash_nbytes
     get_tx_chain_id
     compute_schema_hash
-    impl_get_domain_chain_id
-    impl_get_domain_contract_addr
+    td_get_domain_chain_id
+    td_get_domain_contract_addr
     get_implem_contract
     get_proxy_contract
     nvm_write

@@ -5,6 +5,7 @@
 #include "typed_data.h"
 #include "shared_context.h"  // reset_app_context
 #include "common_ui.h"       // ui_idle
+#include "parsing_v1.h"
 
 s_eip712_context *eip712_context = NULL;
 
@@ -28,7 +29,7 @@ bool eip712_context_init(void) {
         return false;
     }
 
-    if (typed_data_init() == false) {
+    if (td_init() == false) {
         return false;
     }
 
@@ -41,7 +42,8 @@ bool eip712_context_init(void) {
  * De-initialize the EIP712 context
  */
 void eip712_context_deinit(void) {
-    typed_data_deinit();
+    v1_parse_deinit();
+    td_deinit();
     ui_712_deinit();
     APP_MEM_FREE_AND_NULL((void **) &eip712_context);
     reset_app_context();

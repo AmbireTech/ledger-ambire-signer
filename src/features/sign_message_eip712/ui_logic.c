@@ -10,6 +10,7 @@
 #include "commands_712.h"
 #include "common_ui.h"
 #include "filtering.h"
+#include "parsing_v1.h"
 #include "network.h"
 #include "time_format.h"
 #include "lists.h"
@@ -427,7 +428,7 @@ static bool ui_712_format_amount_join(const s_amount_join *amount_join) {
     const s_token_info *token_info;
     uint64_t domain_chain_id;
 
-    if (!impl_get_domain_chain_id(&domain_chain_id)) {
+    if (!td_get_domain_chain_id(&domain_chain_id)) {
         return false;
     }
 
@@ -516,7 +517,7 @@ static bool ui_712_format_trusted_name(const uint8_t *data, size_t length) {
     if (length != ADDRESS_LENGTH) {
         return false;
     }
-    if (!impl_get_domain_chain_id(&domain_chain_id)) {
+    if (!td_get_domain_chain_id(&domain_chain_id)) {
         return false;
     }
 #ifdef HAVE_ADDRESS_BOOK
@@ -601,7 +602,7 @@ static bool handle_fallback_empty_calldata(const s_eip712_calldata_info *calldat
         if (calldata_info->chain_id != 0) {
             chain_id = calldata_info->chain_id;
         } else {
-            if (!impl_get_domain_chain_id(&chain_id)) {
+            if (!td_get_domain_chain_id(&chain_id)) {
                 return false;
             }
         }
@@ -1213,19 +1214,19 @@ bool ui_712_populate_from_value_tree(void) {
     }
 
     // Domain fields
-    if (!impl_traverse_domain(format_node_for_verbose, &(s_verbose_ctx) {.is_root = true})) {
+    if (!td_traverse_domain(format_node_for_verbose, &(s_verbose_ctx) {.is_root = true})) {
         return false;
     }
 
 #ifdef SCREEN_SIZE_WALLET
     // Stax/Flex/Apex: always show message fields
-    if (!impl_traverse_message(format_node_for_verbose, &(s_verbose_ctx) {.is_root = true})) {
+    if (!td_traverse_message(format_node_for_verbose, &(s_verbose_ctx) {.is_root = true})) {
         return false;
     }
 #else
     // Nano: show message fields only if raw messages enabled
     if (N_storage.verbose_eip712) {
-        if (!impl_traverse_message(format_node_for_verbose, &(s_verbose_ctx) {.is_root = true})) {
+        if (!td_traverse_message(format_node_for_verbose, &(s_verbose_ctx) {.is_root = true})) {
             return false;
         }
     }

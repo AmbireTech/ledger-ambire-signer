@@ -92,7 +92,7 @@ bool format_hash_field_type(const s_struct_712_field *field_ptr, cx_hash_t *hash
     const char *name;
 
     // field type name
-    name = get_struct_field_typename(field_ptr);
+    name = td_get_struct_field_typename(field_ptr);
     if (name == NULL) {
         return false;
     }

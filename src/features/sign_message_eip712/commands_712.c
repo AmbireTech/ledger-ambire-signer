@@ -8,6 +8,7 @@
 #include "tx_ctx.h"  // get_tx_ctx_count
 #include "value_hash.h"
 #include "common_712.h"  // ui_712_start
+#include "parsing_v1.h"
 
 // APDUs P1
 #define P1_COMPLETE  0x00
@@ -141,7 +142,7 @@ uint16_t handle_eip712_struct_impl(uint8_t p1, uint8_t p2, const uint8_t *cdata,
                 if (length != 1) {
                     sw = SWO_INCORRECT_DATA;
                 } else {
-                    ret = impl_new_array(cdata[0]);
+                    ret = impl_set_array(cdata[0]);
                 }
                 break;
 
@@ -266,7 +267,7 @@ uint16_t handle_eip712_sign(const uint8_t *cdata, uint8_t length) {
     } else if (!impl_is_complete()) {
         PRINTF("impl not complete\n");
         sw = SWO_INCORRECT_DATA;
-    } else if (!impl_hash_pass()) {
+    } else if (!td_hash_pass()) {
         PRINTF("value_hash_pass failed\n");
     } else if ((ui_712_get_filtering_mode() == EIP712_FILTERING_FULL) &&
                (!ui_712_message_info_received() || (ui_712_remaining_filters() != 0))) {

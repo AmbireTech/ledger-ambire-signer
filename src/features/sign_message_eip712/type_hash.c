@@ -115,8 +115,8 @@ static bool collect_direct_deps(s_struct_dep **first_dep, const s_struct_712 *st
     for (field_ptr = struct_ptr->fields; field_ptr != NULL;
          field_ptr = (s_struct_712_field *) ((flist_node_t *) field_ptr)->next) {
         if (field_ptr->type == TYPE_STRUCT) {
-            dep_name = get_struct_field_typename(field_ptr);
-            if ((dep = get_structn(dep_name)) == NULL) {
+            dep_name = td_get_struct_field_typename(field_ptr);
+            if ((dep = td_find_struct(dep_name)) == NULL) {
                 PRINTF("Error: could not find EIP-712 dependency struct \"%s\" during type_hash\n",
                        dep_name);
                 return false;
@@ -182,7 +182,7 @@ static bool type_hash_internal(const char *struct_name, uint8_t *hash_buf, s_str
     cx_sha3_t hash_ctx;
     const void *struct_ptr;
 
-    if ((struct_ptr = get_structn(struct_name)) == NULL) {
+    if ((struct_ptr = td_find_struct(struct_name)) == NULL) {
         PRINTF("Error: could not find EIP-712 struct \"%s\" for type_hash\n", struct_name);
         return false;
     }

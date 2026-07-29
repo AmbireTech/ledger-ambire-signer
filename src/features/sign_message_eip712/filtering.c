@@ -14,6 +14,7 @@
 #include "network.h"
 #include "format.h"
 #include "shared_context.h"
+#include "parsing_v1.h"
 
 #define FILT_MAGIC_MESSAGE_INFO      183
 #define FILT_MAGIC_CALLDATA_INFO     55
@@ -111,7 +112,7 @@ static bool sig_verif_start(cx_sha256_t *hash_ctx, uint8_t magic) {
     // Chain ID
     uint64_t domain_chain_id;
     // optional in EIP-712 domain; if absent, 0 is used in the signature hash
-    if (!impl_get_domain_chain_id(&domain_chain_id)) {
+    if (!td_get_domain_chain_id(&domain_chain_id)) {
         domain_chain_id = 0;
     }
     chain_id = __builtin_bswap64(domain_chain_id);
@@ -124,7 +125,7 @@ static bool sig_verif_start(cx_sha256_t *hash_ctx, uint8_t magic) {
     // address which is not provided
     uint8_t domain_contract[ADDRESS_LENGTH];
     // optional in EIP-712 domain; if absent, 0 is used in the signature hash
-    if (!impl_get_domain_contract_addr(domain_contract)) {
+    if (!td_get_domain_contract_addr(domain_contract)) {
         explicit_bzero(domain_contract, sizeof(domain_contract));
     }
     if ((addr = get_implem_contract(&domain_chain_id, domain_contract, NULL)) == NULL) {
@@ -178,7 +179,7 @@ static bool check_typename(const char *expected) {
     uint8_t typename_len = 0;
     const char *typename;
 
-    if ((typename = get_struct_field_typename(impl_get_current_field())) == NULL) {
+    if ((typename = td_get_struct_field_typename(impl_get_current_field())) == NULL) {
         return false;
     }
     typename_len = strlen(typename);
@@ -263,7 +264,7 @@ bool filtering_message_info(const uint8_t *payload, uint8_t length) {
         if (!ui_712_set_value(name, name_len)) {
             return false;
         }
-        if (impl_get_domain_chain_id(&domain_chain_id)) {
+        if (td_get_domain_chain_id(&domain_chain_id)) {
             // Adds the Network pair after Contract while root is still ROOT_DOMAIN; skipped if
             // chain matches the app's own
             if (ui_712_get_filtering_mode() == EIP712_FILTERING_FULL &&
@@ -881,7 +882,7 @@ bool filtering_calldata_info(const uint8_t *payload, uint8_t length) {
             calldata_info->callee_state = CALLDATA_INFO_PARAM_UNSET;
             break;
         case CALLDATA_FLAG_ADDR_VERIFYING_CONTRACT:
-            if (!impl_get_domain_contract_addr(calldata_info->callee)) {
+            if (!td_get_domain_contract_addr(calldata_info->callee)) {
                 return false;
             }
             calldata_info->callee_state = CALLDATA_INFO_PARAM_SET;
@@ -892,7 +893,7 @@ bool filtering_calldata_info(const uint8_t *payload, uint8_t length) {
     if (chain_id_flag) {
         calldata_info->chain_id_state = CALLDATA_INFO_PARAM_UNSET;
     } else {
-        if (!impl_get_domain_chain_id(&calldata_info->chain_id)) {
+        if (!td_get_domain_chain_id(&calldata_info->chain_id)) {
             return false;
         }
         calldata_info->chain_id_state = CALLDATA_INFO_PARAM_SET;
@@ -901,7 +902,7 @@ bool filtering_calldata_info(const uint8_t *payload, uint8_t length) {
     if (amount_flag) calldata_info->amount_state = CALLDATA_INFO_PARAM_UNSET;
     switch (spender_flag) {
         case CALLDATA_FLAG_ADDR_VERIFYING_CONTRACT:
-            if (!impl_get_domain_contract_addr(calldata_info->spender)) {
+            if (!td_get_domain_contract_addr(calldata_info->spender)) {
                 return false;
             }
             calldata_info->spender_state = CALLDATA_INFO_PARAM_SET;
@@ -1258,7 +1259,7 @@ bool filtering_amount_join_value(const uint8_t *payload,
         ui_712_token_join_prepare_addr_check(join_id);
         // simulate as if we had received a token-join addr
         uint8_t domain_contract[ADDRESS_LENGTH];
-        if (!impl_get_domain_contract_addr(domain_contract)) {
+        if (!td_get_domain_contract_addr(domain_contract)) {
             return false;
         }
         if (!ui_712_set_amount_join_token_addr(domain_contract)) {

@@ -147,7 +147,7 @@ static bool hash_value(const s_struct_712_value *node, uint8_t *out, uint8_t dep
  *
  * Must be called only after impl_is_complete() returns true.
  * Domain special fields (chainId, verifyingContract) are extracted when the domain is complete
- * and accessible via impl_get_domain_chain_id() / impl_get_domain_contract_addr().
+ * and accessible via td_get_domain_chain_id() / td_get_domain_contract_addr().
  */
 bool value_hash_pass(const s_eip712_impl *impl) {
     uint8_t hash[CX_KECCAK_256_SIZE];

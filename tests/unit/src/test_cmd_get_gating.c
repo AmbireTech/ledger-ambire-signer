@@ -68,12 +68,12 @@ bool __wrap_compute_schema_hash(uint8_t hash[CX_SHA224_SIZE]) {
 }
 
 static uint8_t g_domain_contract_addr[ADDRESS_LENGTH];
-bool __wrap_impl_get_domain_contract_addr(uint8_t addr[ADDRESS_LENGTH]) {
+bool __wrap_td_get_domain_contract_addr(uint8_t addr[ADDRESS_LENGTH]) {
     memcpy(addr, g_domain_contract_addr, ADDRESS_LENGTH);
     return true;
 }
 
-bool __wrap_impl_get_domain_chain_id(uint64_t *chain_id) {
+bool __wrap_td_get_domain_chain_id(uint64_t *chain_id) {
     (void) chain_id;
     return false;
 }
