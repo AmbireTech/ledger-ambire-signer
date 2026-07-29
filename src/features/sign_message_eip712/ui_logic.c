@@ -821,6 +821,9 @@ static bool update_calldata_callee(const uint8_t *data,
                                    s_eip712_calldata_info *calldata_info) {
     if (calldata_info->callee_state != CALLDATA_INFO_PARAM_UNSET) return false;
     if (!last) return false;
+    if (length > sizeof(calldata_info->callee)) {
+        return false;
+    }
     buf_shrink_expand(data, length, calldata_info->callee, sizeof(calldata_info->callee));
     calldata_info->callee_state = CALLDATA_INFO_PARAM_SET;
     return true;
@@ -834,6 +837,9 @@ static bool update_calldata_chain_id(const uint8_t *data,
 
     if (calldata_info->chain_id_state != CALLDATA_INFO_PARAM_UNSET) return false;
     if (!last) return false;
+    if (length > sizeof(chain_id_buf)) {
+        return false;
+    }
     buf_shrink_expand(data, length, chain_id_buf, sizeof(chain_id_buf));
     calldata_info->chain_id = read_u64_be(chain_id_buf, 0);
     calldata_info->chain_id_state = CALLDATA_INFO_PARAM_SET;
@@ -846,6 +852,9 @@ static bool update_calldata_selector(const uint8_t *data,
                                      s_eip712_calldata_info *calldata_info) {
     if (calldata_info->selector_state != CALLDATA_INFO_PARAM_UNSET) return false;
     if (!last) return false;
+    if (length > sizeof(calldata_info->selector)) {
+        return false;
+    }
     buf_shrink_expand(data, length, calldata_info->selector, sizeof(calldata_info->selector));
     calldata_info->selector_state = CALLDATA_INFO_PARAM_SET;
     if (calldata_info->value_state == CALLDATA_INFO_PARAM_SET) {
@@ -862,6 +871,9 @@ static bool update_calldata_amount(const uint8_t *data,
                                    s_eip712_calldata_info *calldata_info) {
     if (calldata_info->amount_state != CALLDATA_INFO_PARAM_UNSET) return false;
     if (!last) return false;
+    if (length > sizeof(calldata_info->amount)) {
+        return false;
+    }
     buf_shrink_expand(data, length, calldata_info->amount, sizeof(calldata_info->amount));
     calldata_info->amount_state = CALLDATA_INFO_PARAM_SET;
     return true;
@@ -873,6 +885,9 @@ static bool update_calldata_spender(const uint8_t *data,
                                     s_eip712_calldata_info *calldata_info) {
     if (calldata_info->spender_state != CALLDATA_INFO_PARAM_UNSET) return false;
     if (!last) return false;
+    if (length > sizeof(calldata_info->spender)) {
+        return false;
+    }
     buf_shrink_expand(data, length, calldata_info->spender, sizeof(calldata_info->spender));
     calldata_info->spender_state = CALLDATA_INFO_PARAM_SET;
     return true;
