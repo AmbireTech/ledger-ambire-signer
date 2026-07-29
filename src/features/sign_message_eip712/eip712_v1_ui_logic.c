@@ -1205,11 +1205,12 @@ static bool format_node_for_verbose_internal(const s_struct_712_value *node,
             return true;  // Skip unknown types
     }
 
-    // Set value and push pair
+    // Set value. The flattened g_pairs display array is (re)built once, by the
+    // caller, after the full domain/message traversal completes — not per-leaf.
+    // Calling ui_712_push_pairs() here would redundantly free+reallocate the
+    // whole array at a size one larger for every single leaf, which for large
+    // nested messages both wastes cycles and fragments the heap needlessly.
     ui_712_set_value(strings.tmp.tmp, strlen(strings.tmp.tmp));
-    if (!ui_712_push_pairs()) {
-        return false;
-    }
 
     if (consume) {
         td_free_leaf_data(node);
@@ -1238,6 +1239,19 @@ static bool format_node_for_verbose_consuming(const s_struct_712_value *node, vo
  * Message fields: Stax/Flex/Apex always, Nano only if verbose_eip712 enabled.
  * Message hash for Nano non-verbose is handled separately by ui_712_message_hash().
  * Domain/Message hashes when displayHash enabled are added later by ui_712_end_sign.
+ *
+ * Message leaves are freed via format_leaf_for_verbose_consuming() right after
+ * being displayed, to reduce peak memory usage for large nested messages —
+ * safe here because this is only ever called from handle_eip712_v1_sign()
+ * after td_hash_pass() has already computed the message hash. Domain leaves
+ * are NOT freed this way: gating checks read them again later via
+ * td_get_domain_chain_id()/td_get_domain_contract_addr().
+ *
+ * The flattened g_pairs display array is built explicitly after domain traversal
+ * (needed since Nano non-verbose mode never traverses the message and never
+ * reaches ui_sign_712_v1(), which is otherwise responsible for this) and again,
+ * once, by ui_sign_712_v1()/ui_712_end_sign() after this function returns for
+ * every other mode — never per-leaf during traversal itself.
  */
 bool ui_712_populate_from_value_tree(void) {
     if (ui_ctx == NULL) {
@@ -1246,6 +1260,9 @@ bool ui_712_populate_from_value_tree(void) {
 
     // Domain fields
     if (!td_traverse_domain(format_node_for_verbose, &(s_verbose_ctx) {.is_root = true})) {
+        return false;
+    }
+    if (!ui_712_push_pairs()) {
         return false;
     }
 
