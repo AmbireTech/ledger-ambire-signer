@@ -93,7 +93,7 @@ static const uint8_t *field_hash_finalize_static(const s_struct_712_field *field
             value = encode_address(data, data_length);
             break;
         case TYPE_SOL_BOOL:
-            value = encode_boolean((bool *) data, data_length);
+            value = encode_boolean(data, data_length);
             break;
         case TYPE_STRUCT:
         default:

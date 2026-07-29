@@ -103,13 +103,16 @@ void *encode_bytes(const uint8_t *value, uint8_t length) {
  * @param[in] length its byte-length
  * @return the encoded value
  */
-void *encode_boolean(const bool *value, uint8_t length) {
+void *encode_boolean(const uint8_t *value, uint8_t length) {
     if (length != 1)  // sanity check
     {
         apdu_response_code = SWO_INCORRECT_DATA;
         return NULL;
     }
-    return encode_uint((uint8_t *) value, length);
+    if (*value > 0x01) {
+        return NULL;
+    }
+    return encode_uint(value, length);
 }
 
 /**
