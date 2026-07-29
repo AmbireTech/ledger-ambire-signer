@@ -278,6 +278,18 @@ bool td_traverse_message(td_f_value_visitor visitor, void *context) {
     return traverse_node(g_impl.message, visitor, context);
 }
 
+void td_free_leaf_data(const s_struct_712_value *node) {
+    if ((node == NULL) || (node->kind != VAL_ATOMIC)) {
+        return;
+    }
+    // s_struct_712_value is exposed as const to traversal visitors, but this
+    // function's whole purpose is to mutate it; cast away constness here only.
+    s_struct_712_value *mutable_node = (s_struct_712_value *) node;
+    APP_MEM_FREE(mutable_node->data);
+    mutable_node->data = NULL;
+    mutable_node->length = 0;
+}
+
 bool td_visit_structs(td_f_struct_visitor visitor, void *context) {
     const s_struct_712 *it = g_structs;
 

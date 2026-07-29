@@ -98,6 +98,8 @@ typedef bool (*td_f_value_visitor)(const s_struct_712_value *node, void *context
 bool td_traverse_domain(td_f_value_visitor visitor, void *context);
 bool td_traverse_message(td_f_value_visitor visitor, void *context);
 
+void td_free_leaf_data(const s_struct_712_value *node);
+
 typedef bool (*td_f_struct_visitor)(const s_struct_712 *node, void *context);
 
 bool td_visit_structs(td_f_struct_visitor visitor, void *context);

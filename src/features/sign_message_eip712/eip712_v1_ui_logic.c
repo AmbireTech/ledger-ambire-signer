@@ -1117,16 +1117,23 @@ typedef struct {
 } s_verbose_ctx;
 
 /**
- * Visitor callback for verbose mode tree traversal.
- * Formats VAL_ATOMIC leaves as UI pairs. VAL_STRUCT root nodes get a
- * "Review struct" screen (see s_verbose_ctx). Ignores VAL_ARRAY.
+ * Formats a value tree node as a UI pair for verbose mode. VAL_ATOMIC leaves
+ * become a key/value pair. VAL_STRUCT root nodes get a "Review struct" screen
+ * (see s_verbose_ctx). Ignores VAL_ARRAY.
+ * Shared body for format_node_for_verbose() and format_node_for_verbose_consuming().
+ *
+ * @param consume if true, frees the leaf's raw data right after formatting it,
+ *                to reduce peak memory usage for large nested messages. Only
+ *                safe for the message tree, and only after td_hash_pass() has
+ *                already computed the message hash — the value can no longer
+ *                be re-hashed once freed. Must be false for the domain tree:
+ *                gating checks read domain leaves again later via
+ *                td_get_domain_chain_id()/td_get_domain_contract_addr().
  */
-static bool format_node_for_verbose(const s_struct_712_value *node, void *context) {
+static bool format_node_for_verbose_internal(const s_struct_712_value *node,
+                                             void *context,
+                                             bool consume) {
     s_verbose_ctx *ctx = context;
-
-    if (node == NULL) {
-        return true;
-    }
 
     if (node->kind == VAL_STRUCT) {
         if (ctx->is_root) {
@@ -1200,7 +1207,29 @@ static bool format_node_for_verbose(const s_struct_712_value *node, void *contex
 
     // Set value and push pair
     ui_712_set_value(strings.tmp.tmp, strlen(strings.tmp.tmp));
-    return ui_712_push_pairs();
+    if (!ui_712_push_pairs()) {
+        return false;
+    }
+
+    if (consume) {
+        td_free_leaf_data(node);
+    }
+    return true;
+}
+
+/**
+ * Visitor callback for verbose mode tree traversal (domain tree).
+ */
+static bool format_node_for_verbose(const s_struct_712_value *node, void *context) {
+    return format_node_for_verbose_internal(node, context, false);
+}
+
+/**
+ * Visitor callback for verbose mode tree traversal (message tree). See
+ * format_node_for_verbose_internal()'s @p consume doc for when this is safe.
+ */
+static bool format_node_for_verbose_consuming(const s_struct_712_value *node, void *context) {
+    return format_node_for_verbose_internal(node, context, true);
 }
 
 /**
@@ -1222,13 +1251,15 @@ bool ui_712_populate_from_value_tree(void) {
 
 #ifdef SCREEN_SIZE_WALLET
     // Stax/Flex/Apex: always show message fields
-    if (!td_traverse_message(format_node_for_verbose, &(s_verbose_ctx) {.is_root = true})) {
+    if (!td_traverse_message(format_node_for_verbose_consuming,
+                             &(s_verbose_ctx) {.is_root = true})) {
         return false;
     }
 #else
     // Nano: show message fields only if raw messages enabled
     if (N_storage.verbose_eip712) {
-        if (!td_traverse_message(format_node_for_verbose, &(s_verbose_ctx) {.is_root = true})) {
+        if (!td_traverse_message(format_node_for_verbose_consuming,
+                                 &(s_verbose_ctx) {.is_root = true})) {
             return false;
         }
     }
