@@ -193,11 +193,14 @@ static bool type_hash_internal(const char *struct_name,
     if (encode_and_hash_type(struct_ptr) == false) {
         return false;
     }
-    // loop over each struct and generate string
+    // loop over each struct and generate string, skipping the struct type itself in
+    // case a recursive schema listed it in its own dependency set
     for (const s_struct_dep *tmp = *deps; tmp != NULL;
          tmp = (s_struct_dep *) ((flist_node_t *) tmp)->next) {
-        if (encode_and_hash_type(tmp->s) == false) {
-            return false;
+        if (tmp->s != struct_ptr) {
+            if (encode_and_hash_type(tmp->s) == false) {
+                return false;
+            }
         }
     }
 
