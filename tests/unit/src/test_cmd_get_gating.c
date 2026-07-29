@@ -61,8 +61,21 @@ const nbgl_icon_details_t C_ledger_14px;
 // from wraps.h.
 
 static bool g_compute_schema_hash_ret = true;
-bool __wrap_compute_schema_hash(void) {
+static uint8_t g_schema_hash_buf[CX_SHA224_SIZE];
+bool __wrap_compute_schema_hash(uint8_t hash[CX_SHA224_SIZE]) {
+    memcpy(hash, g_schema_hash_buf, CX_SHA224_SIZE);
     return g_compute_schema_hash_ret;
+}
+
+static uint8_t g_domain_contract_addr[ADDRESS_LENGTH];
+bool __wrap_impl_get_domain_contract_addr(uint8_t addr[ADDRESS_LENGTH]) {
+    memcpy(addr, g_domain_contract_addr, ADDRESS_LENGTH);
+    return true;
+}
+
+bool __wrap_impl_get_domain_chain_id(uint64_t *chain_id) {
+    (void) chain_id;
+    return false;
 }
 
 // Proxy lookup wraps — return NULL by default (no proxy).
@@ -263,6 +276,8 @@ static int reset(void **state) {
     g_compute_schema_hash_ret = true;
     g_implem_contract_ret = NULL;
     g_proxy_contract_ret = NULL;
+    memset(g_schema_hash_buf, 0, sizeof(g_schema_hash_buf));
+    memset(g_domain_contract_addr, 0, sizeof(g_domain_contract_addr));
     g_captured_counter = 0;
     g_nvm_write_calls = 0;
     g_tx_chain_id = 1;
@@ -557,9 +572,8 @@ static void test_set_warning_typed_data_happy_path(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_EIP712;
     eip712_context = &g_eip712_storage;
-    g_eip712_storage.chain_id = 1;
-    memset(g_eip712_storage.contract_addr, 0xAA, ADDRESS_LENGTH);
-    memset(g_eip712_storage.schema_hash, 0xCC, sizeof(g_eip712_storage.schema_hash));
+    memset(g_domain_contract_addr, 0xAA, ADDRESS_LENGTH);
+    memset(g_schema_hash_buf, 0xCC, sizeof(g_schema_hash_buf));
 
     uint8_t tlv[500];
     s_opts opts = default_eip712_opts();
@@ -574,9 +588,8 @@ static void test_set_warning_typed_data_schema_hash_mismatch(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_EIP712;
     eip712_context = &g_eip712_storage;
-    g_eip712_storage.chain_id = 1;
-    memset(g_eip712_storage.contract_addr, 0xAA, ADDRESS_LENGTH);
-    memset(g_eip712_storage.schema_hash, 0x33, sizeof(g_eip712_storage.schema_hash));  // mismatch
+    memset(g_domain_contract_addr, 0xAA, ADDRESS_LENGTH);
+    memset(g_schema_hash_buf, 0x33, sizeof(g_schema_hash_buf));  // mismatch
 
     uint8_t tlv[500];
     s_opts opts = default_eip712_opts();
@@ -590,8 +603,7 @@ static void test_set_warning_typed_data_compute_schema_failure(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_EIP712;
     eip712_context = &g_eip712_storage;
-    g_eip712_storage.chain_id = 1;
-    memset(g_eip712_storage.contract_addr, 0xAA, ADDRESS_LENGTH);
+    memset(g_domain_contract_addr, 0xAA, ADDRESS_LENGTH);
     g_compute_schema_hash_ret = false;
 
     uint8_t tlv[500];

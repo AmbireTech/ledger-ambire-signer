@@ -13,10 +13,7 @@ typedef enum { MSB, LSB } e_padding_type;
  * @param[in] pval value used for padding
  * @return encoded field value
  */
-static void *field_encode(const uint8_t *value,
-                          uint8_t length,
-                          e_padding_type ptype,
-                          uint8_t pval) {
+static void *field_encode(const uint8_t *value, size_t length, e_padding_type ptype, uint8_t pval) {
     uint8_t *padded_value;
     uint8_t start_idx;
 
@@ -53,7 +50,7 @@ static void *field_encode(const uint8_t *value,
  * @param[in] length its byte-length
  * @return the encoded value
  */
-void *encode_uint(const uint8_t *value, uint8_t length) {
+void *encode_uint(const uint8_t *value, size_t length) {
     // no length check here since it will be checked by field_encode
     return field_encode(value, length, MSB, 0x00);
 }
@@ -66,7 +63,7 @@ void *encode_uint(const uint8_t *value, uint8_t length) {
  * @param[in] typesize the type size in bytes
  * @return the encoded value
  */
-void *encode_int(const uint8_t *value, uint8_t length, uint8_t typesize) {
+void *encode_int(const uint8_t *value, size_t length, uint8_t typesize) {
     uint8_t padding_value;
 
     if (length < 1) {
@@ -91,7 +88,7 @@ void *encode_int(const uint8_t *value, uint8_t length, uint8_t typesize) {
  * @param[in] length its byte-length
  * @return the encoded value
  */
-void *encode_bytes(const uint8_t *value, uint8_t length) {
+void *encode_bytes(const uint8_t *value, size_t length) {
     // no length check here since it will be checked by field_encode
     return field_encode(value, length, LSB, 0x00);
 }
@@ -103,7 +100,7 @@ void *encode_bytes(const uint8_t *value, uint8_t length) {
  * @param[in] length its byte-length
  * @return the encoded value
  */
-void *encode_boolean(const uint8_t *value, uint8_t length) {
+void *encode_boolean(const uint8_t *value, size_t length) {
     if (length != 1)  // sanity check
     {
         apdu_response_code = SWO_INCORRECT_DATA;
@@ -122,7 +119,7 @@ void *encode_boolean(const uint8_t *value, uint8_t length) {
  * @param[in] length its byte-length
  * @return the encoded value
  */
-void *encode_address(const uint8_t *value, uint8_t length) {
+void *encode_address(const uint8_t *value, size_t length) {
     if (length != ADDRESS_LENGTH)  // sanity check
     {
         apdu_response_code = SWO_INCORRECT_DATA;
