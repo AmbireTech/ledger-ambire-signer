@@ -18,7 +18,6 @@ const chain_config_t *g_chain_config = NULL;
 
 const network_icon_t g_network_icons[10] = {0};
 
-uint16_t apdu_response_code = 0;
 pluginType_t pluginType = 0;
 uint32_t eth2WithdrawalIndex = 0;
 uint8_t appState = 0;

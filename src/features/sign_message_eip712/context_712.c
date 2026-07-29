@@ -3,7 +3,6 @@
 #include "mem_utils.h"
 #include "ui_logic.h"
 #include "typed_data.h"
-#include "apdu_constants.h"  // APDU response codes
 #include "shared_context.h"  // reset_app_context
 #include "common_ui.h"       // ui_idle
 
@@ -22,7 +21,6 @@ bool eip712_context_init(void) {
 
     // init global variables
     if (APP_MEM_CALLOC((void **) &eip712_context, sizeof(*eip712_context)) == false) {
-        apdu_response_code = SWO_INSUFFICIENT_MEMORY;
         return false;
     }
 

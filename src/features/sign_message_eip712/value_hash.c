@@ -4,8 +4,7 @@
 #include "encode_field.h"
 #include "hash_bytes.h"
 #include "app_mem_utils.h"
-#include "common_utils.h"  // KECCAK256_HASH_BYTESIZE
-#include "apdu_constants.h"
+#include "common_utils.h"    // KECCAK256_HASH_BYTESIZE
 #include "shared_context.h"  // tmpCtx
 
 static bool hash_value(const s_struct_712_value *node, uint8_t *out, uint8_t depth);
@@ -24,7 +23,6 @@ static bool encode_atomic(const s_struct_712_value *leaf, uint8_t *out) {
         cx_sha3_t sha3;
         if (cx_keccak_init_no_throw(&sha3, 256) != CX_OK) {
             PRINTF("encode_atomic: keccak_init failed for dyn field %s\n", field->key_name);
-            apdu_response_code = SWO_INCORRECT_DATA;
             return false;
         }
         hash_nbytes(data, length, (cx_hash_t *) &sha3);
@@ -49,7 +47,6 @@ static bool encode_atomic(const s_struct_712_value *leaf, uint8_t *out) {
             break;
         default:
             PRINTF("encode_atomic: unknown type %d for field %s\n", field->type, field->key_name);
-            apdu_response_code = SWO_INCORRECT_DATA;
             return false;
     }
     if (encoded == NULL) {
@@ -73,7 +70,6 @@ static bool hash_array(const s_struct_712_value *arr, uint8_t *out, uint8_t dept
     uint8_t elem_hash[KECCAK256_HASH_BYTESIZE];
 
     if (cx_keccak_init_no_throw(&sha3, 256) != CX_OK) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
     for (const s_struct_712_value *elem = arr->children; elem != NULL;
@@ -98,7 +94,6 @@ static bool hash_struct(const s_struct_712_value *node, uint8_t *out, uint8_t de
 
     if (depth >= TD_MAX_DEPTH) {
         PRINTF("hash_struct: max depth exceeded\n");
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
 
@@ -106,12 +101,10 @@ static bool hash_struct(const s_struct_712_value *node, uint8_t *out, uint8_t de
 
     if (!type_hash(name, (uint8_t) strlen(name), type_hash_buf)) {
         PRINTF("hash_struct: type_hash failed for %s\n", name);
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
 
     if (cx_keccak_init_no_throw(&sha3, 256) != CX_OK) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
     hash_nbytes(type_hash_buf, KECCAK256_HASH_BYTESIZE, (cx_hash_t *) &sha3);
@@ -135,7 +128,6 @@ static bool hash_value(const s_struct_712_value *node, uint8_t *out, uint8_t dep
         case VAL_ARRAY:
             return hash_array(node, out, depth);
         default:
-            apdu_response_code = SWO_INCORRECT_DATA;
             return false;
     }
 }

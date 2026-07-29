@@ -1,6 +1,6 @@
 #include "encode_field.h"
+#include "common_utils.h"
 #include "app_mem_utils.h"
-#include "apdu_constants.h"  // APDU response codes
 
 typedef enum { MSB, LSB } e_padding_type;
 
@@ -17,9 +17,8 @@ static void *field_encode(const uint8_t *value, size_t length, e_padding_type pt
     uint8_t *padded_value;
     uint8_t start_idx;
 
-    if (length > EIP_712_ENCODED_FIELD_LENGTH)  // sanity check
-    {
-        apdu_response_code = SWO_INCORRECT_DATA;
+    // sanity check
+    if (length > EIP_712_ENCODED_FIELD_LENGTH) {
         return NULL;
     }
     if ((padded_value = APP_MEM_ALLOC(EIP_712_ENCODED_FIELD_LENGTH)) != NULL) {
@@ -33,12 +32,9 @@ static void *field_encode(const uint8_t *value, size_t length, e_padding_type pt
                 start_idx = 0;
                 break;
             default:
-                apdu_response_code = SWO_INCORRECT_DATA;
                 return NULL;  // should not be here
         }
         memcpy(&padded_value[start_idx], value, length);
-    } else {
-        apdu_response_code = SWO_INSUFFICIENT_MEMORY;
     }
     return padded_value;
 }
@@ -67,7 +63,6 @@ void *encode_int(const uint8_t *value, size_t length, uint8_t typesize) {
     uint8_t padding_value;
 
     if (length < 1) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return NULL;
     }
 
@@ -101,15 +96,14 @@ void *encode_bytes(const uint8_t *value, size_t length) {
  * @return the encoded value
  */
 void *encode_boolean(const uint8_t *value, size_t length) {
-    if (length != 1)  // sanity check
-    {
-        apdu_response_code = SWO_INCORRECT_DATA;
+    // sanity check
+    if (length != 1) {
         return NULL;
     }
     if (*value > 0x01) {
         return NULL;
     }
-    return encode_uint(value, length);
+    return encode_uint((uint8_t *) value, length);
 }
 
 /**
@@ -120,9 +114,8 @@ void *encode_boolean(const uint8_t *value, size_t length) {
  * @return the encoded value
  */
 void *encode_address(const uint8_t *value, size_t length) {
-    if (length != ADDRESS_LENGTH)  // sanity check
-    {
-        apdu_response_code = SWO_INCORRECT_DATA;
+    // sanity check
+    if (length != ADDRESS_LENGTH) {
         return NULL;
     }
     return encode_uint(value, length);

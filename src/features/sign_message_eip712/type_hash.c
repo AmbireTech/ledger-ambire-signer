@@ -1,9 +1,9 @@
+#include "type_hash.h"
+#include "shared_context.h"
 #include "app_mem_utils.h"
 #include "mem_utils.h"
-#include "type_hash.h"
 #include "format_hash_field_type.h"
 #include "hash_bytes.h"
-#include "apdu_constants.h"  // APDU response codes
 #include "typed_data.h"
 #include "lists.h"
 
@@ -83,7 +83,6 @@ static bool add_dep_if_new(s_struct_dep **first_dep, const s_struct_712 *struct_
         if (tmp->s == struct_ptr) return true;
     }
     if ((new_dep = APP_MEM_ALLOC(sizeof(*new_dep))) == NULL) {
-        apdu_response_code = SWO_INSUFFICIENT_MEMORY;
         return false;
     }
     new_dep->s = struct_ptr;

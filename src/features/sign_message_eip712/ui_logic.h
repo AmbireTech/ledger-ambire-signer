@@ -64,7 +64,7 @@ typedef struct {
 
 bool ui_712_init(void);
 void ui_712_deinit(void);
-void ui_712_end_sign(void);
+bool ui_712_end_sign(void);
 void ui_712_approve(void);
 void ui_712_reject(void);
 bool ui_712_set_intent(void);

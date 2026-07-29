@@ -5,8 +5,7 @@
 #include "format.h"
 #include "common_utils.h"  // uint256_to_decimal
 #include "common_712.h"
-#include "context_712.h"     // eip712_context_deinit
-#include "apdu_constants.h"  // APDU response codes
+#include "context_712.h"  // eip712_context_deinit
 #include "typed_data.h"
 #include "commands_712.h"
 #include "common_ui.h"
@@ -226,23 +225,18 @@ bool ui_712_continue_or_finish(void) {
         if ((ui_ctx->filtering_mode == EIP712_FILTERING_BASIC) && !N_storage.dataAllowed &&
             !N_storage.verbose_eip712) {
             ui_error_blind_signing();
-            apdu_response_code = SWO_INCORRECT_DATA;
             eip712_context->go_home_on_failure = false;
             return false;
         }
-        apdu_response_code = ui_712_start(ui_ctx->filtering_mode);
-        if (apdu_response_code != SWO_SUCCESS) {
+        if (!ui_712_start(ui_ctx->filtering_mode)) {
             return false;
         }
-        handle_eip712_return_code(true);
+        io_seproxyhal_send_status(SWO_SUCCESS, 0, false, false);
     } else {
         if (ui_ctx->end_reached) {
-            apdu_response_code = ui_sign_712(ui_ctx->filtering_mode);
-            if (apdu_response_code != SWO_SUCCESS) {
-                return false;
-            }
+            return ui_sign_712(ui_ctx->filtering_mode);
         } else {
-            handle_eip712_return_code(true);
+            io_seproxyhal_send_status(SWO_SUCCESS, 0, false, false);
             explicit_bzero(&strings, sizeof(strings));
         }
     }
@@ -315,14 +309,12 @@ static void ui_712_format_str(const uint8_t *data, size_t length) {
 static bool ui_712_format_addr(const uint8_t *data, size_t length) {
     // no reason for an address to be received over multiple chunks
     if (length != ADDRESS_LENGTH) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
     if (!getEthDisplayableAddress((uint8_t *) data,
                                   strings.tmp.tmp,
                                   sizeof(strings.tmp.tmp),
                                   g_chain_config->chain_id)) {
-        apdu_response_code = SWO_PARAMETER_ERROR_NO_INFO;
         return false;
     }
     return true;
@@ -342,7 +334,6 @@ static bool ui_712_format_bool(const uint8_t *data, size_t length) {
     const char *str;
 
     if (length != 1) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
     str = *data ? true_str : false_str;
@@ -392,7 +383,6 @@ static bool ui_712_format_int(const uint8_t *data,
                               field_ptr->type_size,
                               strings.tmp.tmp,
                               sizeof(strings.tmp.tmp))) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
     return true;
@@ -490,7 +480,6 @@ static bool update_amount_join(s_amount_join *amount_join, const uint8_t *data, 
     switch (ui_ctx->amount.state) {
         case AMOUNT_JOIN_STATE_TOKEN:
             if (length > sizeof(amount_join->address)) {
-                apdu_response_code = SWO_INCORRECT_DATA;
                 return false;
             }
             buf_shrink_expand(data, length, amount_join->address, sizeof(amount_join->address));
@@ -499,7 +488,6 @@ static bool update_amount_join(s_amount_join *amount_join, const uint8_t *data, 
 
         case AMOUNT_JOIN_STATE_VALUE:
             if (length > sizeof(amount_join->value)) {
-                apdu_response_code = SWO_INCORRECT_DATA;
                 return false;
             }
             buf_shrink_expand(data, length, amount_join->value, sizeof(amount_join->value));
@@ -951,20 +939,20 @@ bool ui_712_accumulate_value(const s_struct_712_field *field_ptr,
  * Used to signal that we are done with reviewing the structs and we can now have
  * the option to approve or reject the signature
  */
-void ui_712_end_sign(void) {
+bool ui_712_end_sign(void) {
     if (ui_ctx == NULL) {
-        apdu_response_code = SWO_COMMAND_NOT_ALLOWED;
-        return;
+        return false;
     }
 
 #ifdef SCREEN_SIZE_WALLET
-    if (true) {
+    {
 #else
     if (N_storage.verbose_eip712 || (ui_ctx->filtering_mode == EIP712_FILTERING_FULL)) {
 #endif
         ui_ctx->end_reached = true;
-        apdu_response_code = ui_sign_712(ui_ctx->filtering_mode);
+        return ui_sign_712(ui_ctx->filtering_mode);
     }
+    return true;
 }
 
 /**
@@ -977,7 +965,6 @@ bool ui_712_init(void) {
     }
 
     if (APP_MEM_CALLOC((void **) &ui_ctx, sizeof(*ui_ctx)) == false) {
-        apdu_response_code = SWO_INSUFFICIENT_MEMORY;
     } else {
         ui_712_set_filtering_mode(EIP712_FILTERING_BASIC);
         explicit_bzero(&strings, sizeof(strings));
@@ -1311,12 +1298,10 @@ bool ui_712_push_new_filter_path(uint32_t path_crc) {
     }
 
     if (filter_count >= ui_ctx->filters_to_process) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
     // allocate it
     if (APP_MEM_CALLOC((void **) &new_crc, sizeof(*new_crc)) == false) {
-        apdu_response_code = SWO_INSUFFICIENT_MEMORY;
         return false;
     }
     new_crc->value = path_crc;

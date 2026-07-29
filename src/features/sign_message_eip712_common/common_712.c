@@ -87,9 +87,9 @@ void eip712_format_hash(uint8_t index) {
  * Initialize EIP712 flow
  *
  * @param filtering the filtering mode to use for the EIP712 flow
- * @return status code indicating success or failure
+ * @return boolean indicating success or failure
  */
-uint16_t ui_712_start(e_eip712_filtering_mode filtering) {
+bool ui_712_start(e_eip712_filtering_mode filtering) {
     if (appState != APP_STATE_IDLE) {
         reset_app_context();
     }
@@ -101,5 +101,5 @@ uint16_t ui_712_start(e_eip712_filtering_mode filtering) {
         warning.predefinedSet |= SET_BIT(BLIND_SIGNING_WARN);
         warning.predefinedSet |= SET_BIT(GATED_SIGNING_WARN);
     }
-    return SWO_SUCCESS;
+    return true;
 }
