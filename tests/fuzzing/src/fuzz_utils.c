@@ -5,7 +5,6 @@
 #include "app_mem_utils.h"
 
 // Global state required by the app features
-cx_sha3_t global_sha3 = {0};
 cx_sha3_t sha3 = {0};
 tmpContent_t tmpContent = {0};
 txContext_t txContext = {0};
@@ -18,7 +17,6 @@ const chain_config_t *g_chain_config = NULL;
 
 const network_icon_t g_network_icons[10] = {0};
 
-uint16_t apdu_response_code = 0;
 pluginType_t pluginType = 0;
 uint32_t eth2WithdrawalIndex = 0;
 uint8_t appState = 0;
@@ -52,7 +50,6 @@ void init_fuzzing_environment(void) {
     }
 
     // Clear global structures to ensure a clean state for each fuzzing iteration
-    explicit_bzero(&global_sha3, sizeof(global_sha3));
     explicit_bzero(&sha3, sizeof(sha3));
     explicit_bzero(&tmpContent, sizeof(tmpContent_t));
     explicit_bzero(&txContext, sizeof(txContext_t));

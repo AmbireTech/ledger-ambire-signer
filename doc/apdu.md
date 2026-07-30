@@ -280,7 +280,7 @@ Returned only when the last (or only) chunk has been processed.
 
 This command signs an Ethereum message following the [EIP-712 specification](https://eips.ethereum.org/EIPS/eip-712).
 
-For implementation version 0, the domain hash and message hash are provided to the device, which displays them and returns the signature.
+For V0 implementation, the domain hash and message hash are provided to the device, which displays them and returns the signature.
 
 This command has been supported since app version 1.5.0.
 
@@ -290,9 +290,9 @@ The full implementation uses all the JSON data and does all the hashing on the d
 
 _Command:_
 
-| CLA | INS | P1  | P2                                                   | Lc       | Le       |
-|-----|-----|-----|------------------------------------------------------|----------|----------|
-| E0  | 0C  | 00  | `00`: v0 implementation<br>`01`: full implementation | variable | variable |
+| CLA | INS | P1  | P2                                                                 | Lc       | Le       |
+|-----|-----|-----|--------------------------------------------------------------------|----------|----------|
+| E0  | 0C  | 00  | `00`: V0 (legacy) implementation<br>`01`: V1 (full) implementation | variable | variable |
 
 _Input data:_
 
@@ -302,8 +302,8 @@ _Input data:_
 | First derivation index (big endian)              | 4      |
 | ...                                              | 4      |
 | Last derivation index (big endian)               | 4      |
-| Domain hash _(only for v0)_                      | 32     |
-| Message hash _(only for v0)_                     | 32     |
+| Domain hash _(only for V0)_                      | 32     |
+| Message hash _(only for V0)_                     | 32     |
 
 _Output data:_
 

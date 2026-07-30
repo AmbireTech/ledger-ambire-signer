@@ -1,33 +1,33 @@
-#include "apdu_constants.h"
 #include "os_io_seproxyhal.h"
 #include "crypto_helpers.h"
 #include "common_ui.h"
 #include "utils.h"
 #include "ui_utils.h"
-#include "ui_logic.h"
+#include "eip712_v1_ui_logic.h"
 #include "ui_nbgl.h"
 #include "cmd_get_tx_simulation.h"
 
 static const uint8_t EIP_712_MAGIC[] = {0x19, 0x01};
 
 void ui_712_approve_cb(void) {
+    cx_sha3_t hash_ctx;
     uint8_t hash[INT256_LENGTH];
 
     io_seproxyhal_io_heartbeat();
-    CX_ASSERT(cx_keccak_init_no_throw(&global_sha3, 256));
-    CX_ASSERT(cx_hash_no_throw((cx_hash_t *) &global_sha3,
+    CX_ASSERT(cx_keccak_init_no_throw(&hash_ctx, 256));
+    CX_ASSERT(cx_hash_no_throw((cx_hash_t *) &hash_ctx,
                                0,
                                (uint8_t *) EIP_712_MAGIC,
                                sizeof(EIP_712_MAGIC),
                                NULL,
                                0));
-    CX_ASSERT(cx_hash_no_throw((cx_hash_t *) &global_sha3,
+    CX_ASSERT(cx_hash_no_throw((cx_hash_t *) &hash_ctx,
                                0,
                                tmpCtx.messageSigningContext712.domainHash,
                                sizeof(tmpCtx.messageSigningContext712.domainHash),
                                NULL,
                                0));
-    CX_ASSERT(cx_hash_no_throw((cx_hash_t *) &global_sha3,
+    CX_ASSERT(cx_hash_no_throw((cx_hash_t *) &hash_ctx,
                                CX_LAST,
                                tmpCtx.messageSigningContext712.messageHash,
                                sizeof(tmpCtx.messageSigningContext712.messageHash),
@@ -62,7 +62,7 @@ void ui_712_reject_cb(void) {
 }
 
 static char *format_hash(const uint8_t *hash, char *buffer, size_t buffer_size, size_t offset) {
-    array_bytes_string(buffer + offset, buffer_size - offset, hash, KECCAK256_HASH_BYTESIZE);
+    array_bytes_string(buffer + offset, buffer_size - offset, hash, CX_KECCAK_256_SIZE);
     return buffer + offset;
 }
 
@@ -87,9 +87,9 @@ void eip712_format_hash(uint8_t index) {
  * Initialize EIP712 flow
  *
  * @param filtering the filtering mode to use for the EIP712 flow
- * @return status code indicating success or failure
+ * @return boolean indicating success or failure
  */
-uint16_t ui_712_start(e_eip712_filtering_mode filtering) {
+bool ui_712_start(e_eip712_filtering_mode filtering) {
     if (appState != APP_STATE_IDLE) {
         reset_app_context();
     }
@@ -101,5 +101,5 @@ uint16_t ui_712_start(e_eip712_filtering_mode filtering) {
         warning.predefinedSet |= SET_BIT(BLIND_SIGNING_WARN);
         warning.predefinedSet |= SET_BIT(GATED_SIGNING_WARN);
     }
-    return SWO_SUCCESS;
+    return true;
 }

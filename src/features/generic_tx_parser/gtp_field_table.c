@@ -4,7 +4,7 @@
 #include "app_mem_utils.h"
 #include "lists.h"
 #include "shared_context.h"  // appState
-#include "ui_logic.h"
+#include "eip712_v1_ui_logic.h"
 #include "tx_ctx.h"
 
 typedef struct {
@@ -49,11 +49,17 @@ bool add_to_field_table(e_param_type type,
     if (appState == APP_STATE_SIGNING_EIP712) {
         if ((type == PARAM_TYPE_INTENT) && (txContext.current_batch_size > 1)) {
             // Special handling for intent in EIP712 mode
-            ui_712_set_intent();
+            if (!ui_712_set_intent()) {
+                return false;
+            }
             PRINTF("[Intent] Start\n");
         }
-        ui_712_set_title(key, strlen(key));
-        ui_712_set_value(value, strlen(value));
+        if (!ui_712_set_title(key, strlen(key))) {
+            return false;
+        }
+        if (!ui_712_set_value(value, strlen(value))) {
+            return false;
+        }
         return true;
     }
     if (APP_MEM_CALLOC((void **) &node, sizeof(*node)) == false) {

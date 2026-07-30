@@ -1,17 +1,15 @@
-#include "ui_logic.h"
+#include "eip712_v1_ui_logic.h"
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "os_io.h"
 #include "format.h"
 #include "common_utils.h"  // uint256_to_decimal
 #include "common_712.h"
-#include "context_712.h"     // eip712_context_deinit
-#include "path.h"            // path_get_root_type
-#include "apdu_constants.h"  // APDU response codes
+#include "eip712_v1_context.h"  // eip712_v1_context
 #include "typed_data.h"
-#include "commands_712.h"
 #include "common_ui.h"
-#include "filtering.h"
+#include "eip712_v1_filtering.h"
+#include "eip712_v1_parse.h"
 #include "network.h"
 #include "time_format.h"
 #include "lists.h"
@@ -70,7 +68,6 @@ typedef struct {
     uint8_t filters_to_process;
     bool message_info_received;
     uint8_t field_flags;
-    uint8_t structs_to_review;
     s_amount_context amount;
     s_filter_crc *filters_crc;
     char *discarded_path;
@@ -103,32 +100,6 @@ static void delete_amount_join(s_amount_join *join) {
 }
 
 /**
- * Called to fetch the next field if they have not all been processed yet
- *
- * Also handles the special "Review struct" screen of the verbose mode
- *
- * @return the next field state
- */
-static bool ui_712_next_field(void) {
-    bool ret = false;
-
-    if (ui_ctx == NULL) {
-        apdu_response_code = SWO_INCORRECT_DATA;
-    } else {
-        if (ui_ctx->structs_to_review > 0) {
-            ret = ui_712_review_struct(path_get_nth_field_to_last(ui_ctx->structs_to_review));
-            ui_ctx->structs_to_review -= 1;
-        } else if (!ui_ctx->end_reached) {
-            handle_eip712_return_code(true);
-            // So that later when we append to them, we start from an empty string
-            explicit_bzero(&strings, sizeof(strings));
-            ret = true;
-        }
-    }
-    return ret;
-}
-
-/**
  * Checks on the UI context to determine if the next EIP 712 field should be shown
  *
  * @return whether the next field should be shown
@@ -140,7 +111,7 @@ static bool ui_712_field_shown(void) {
 #ifdef SCREEN_SIZE_WALLET
         ret = true;
 #else
-        if (N_storage.verbose_eip712 || (path_get_root_type() == ROOT_DOMAIN)) {
+        if (N_storage.verbose_eip712 || (v1_get_root_type() == ROOT_DOMAIN)) {
             ret = true;
         }
 #endif
@@ -153,44 +124,36 @@ static bool ui_712_field_shown(void) {
 }
 
 /**
- * Skip the field if needed and reset its UI flags
- */
-void ui_712_finalize_field(void) {
-    if (!ui_712_field_shown()) {
-        ui_712_next_field();
-    }
-    ui_712_field_flags_reset();
-}
-
-/**
- * Set a new intent for the EIP-712 batch transaction
+ * Set a new intent for the EIP-712 SafeBatch transaction
  *
+ * @return whether it was successful or not
  */
-void ui_712_set_intent(void) {
+bool ui_712_set_intent(void) {
     s_ui_712_pair *new_pair = NULL;
     const char *title = "Review transaction";
     size_t title_length = strlen(title);
 
     // Allocate memory for the new pair
     if (APP_MEM_CALLOC((void **) &new_pair, sizeof(*new_pair)) == false) {
-        return;
+        return false;
     }
     // Add it to the chained list
     flist_push_back((flist_node_t **) &ui_ctx->ui_pairs, (flist_node_t *) new_pair);
 
     // Allocate and copy the title
     if (APP_MEM_CALLOC((void **) &new_pair->key, title_length + 1) == false) {
-        return;
+        return false;
     }
     memcpy(new_pair->key, title, title_length);
 
     // Allocate and clear the intent buffer
     if (APP_MEM_CALLOC((void **) &new_pair->value, N_OF_M_LENGTH) == false) {
-        return;
+        return false;
     }
 
     // Mark it as an intent
     new_pair->start_intent = true;
+    return true;
 }
 
 /**
@@ -198,128 +161,85 @@ void ui_712_set_intent(void) {
  *
  * @param[in] str the new title
  * @param[in] length its length
+ * @return whether it was successful or not
  */
-void ui_712_set_title(const char *str, size_t length) {
+bool ui_712_set_title(const char *str, size_t length) {
     s_ui_712_pair *new_pair = NULL;
 
     if (APP_MEM_CALLOC((void **) &new_pair, sizeof(*new_pair)) == false) {
-        return;
+        return false;
     }
     flist_push_back((flist_node_t **) &ui_ctx->ui_pairs, (flist_node_t *) new_pair);
-    if (APP_MEM_CALLOC((void **) &new_pair->key, length + 1) == false) {
-        return;
+    if ((new_pair->key = APP_MEM_ALLOC(length + 1)) == NULL) {
+        return false;
     }
     memcpy(new_pair->key, str, length);
+    new_pair->key[length] = '\0';
+    return true;
 }
 
 /**
  * Set a new value for the EIP-712 generic UX_STEP
  *
- * @note The parameters may be NULL if the value is already formatted into strings.tmp.tmp
- *
  * @param[in] str the new value
  * @param[in] length its length
+ * @return whether it was successful or not
  */
-void ui_712_set_value(const char *str, size_t length) {
+bool ui_712_set_value(const char *str, size_t length) {
     s_ui_712_pair *tmp = ui_ctx->ui_pairs;
 
+    if (str == NULL) {
+        return false;
+    }
     if (tmp == NULL) {
         // No pairs created yet
-        return;
+        return false;
     }
     while (((flist_node_t *) tmp)->next != NULL) {
         tmp = (s_ui_712_pair *) ((flist_node_t *) tmp)->next;
     }
     if (tmp->value != NULL) {
         PRINTF("Value already exist for tag %s: %s\n", tmp->key, tmp->value);
-        return;
+        return false;
     }
-    if ((str != NULL) && (length > 0)) {
-        // buffer is directly provided with parameters
-        if (APP_MEM_CALLOC((void **) &tmp->value, length + 1) == false) {
-            return;
-        }
-        memcpy(tmp->value, str, length);
-    } else {
-        // Add the value from the global variable strings.tmp.tmp
-        if ((tmp->value = APP_MEM_STRDUP(strings.tmp.tmp)) == NULL) {
-            return;
-        }
+    if ((tmp->value = APP_MEM_ALLOC(length + 1)) == NULL) {
+        return false;
     }
+    memcpy(tmp->value, str, length);
+    tmp->value[length] = '\0';
     tmp->end_intent = validate_instruction_hash();
     if (tmp->end_intent) {
         PRINTF("[Intent] End\n");
-    }
-}
-
-/**
- * Redraw the dynamic UI step that shows EIP712 information
- *
- * @return whether it was successful or not
- */
-bool ui_712_redraw_generic_step(void) {
-    if (appState != APP_STATE_SIGNING_EIP712) {  // Initialize if it is not already
-        if ((ui_ctx->filtering_mode == EIP712_FILTERING_BASIC) && !N_storage.dataAllowed &&
-            !N_storage.verbose_eip712) {
-            // Both settings not enabled => Error
-            ui_error_blind_signing();
-            apdu_response_code = SWO_INCORRECT_DATA;
-            eip712_context->go_home_on_failure = false;
-            return false;
-        }
-        apdu_response_code = ui_712_start(ui_ctx->filtering_mode);
-        if (apdu_response_code != SWO_SUCCESS) {
-            return false;
-        }
-        handle_eip712_return_code(true);
-    } else {
-        if (ui_712_next_field() == false) {
-            apdu_response_code = ui_sign_712(ui_ctx->filtering_mode);
-            if (apdu_response_code != SWO_SUCCESS) {
-                return false;
-            }
-        }
     }
     return true;
 }
 
 /**
- * Used to notify of a new struct to review
+ * Send APDU reply continuing the filtering flow, or trigger final review if end reached.
+ * Called after a filtering APDU has added its pairs to the list.
  *
- * @param[in] struct_ptr pointer to the structure to be shown
  * @return whether it was successful or not
  */
-bool ui_712_review_struct(const s_struct_712 *struct_ptr) {
-    const char *struct_name;
-    const char *title = "Review struct";
-
-    if (ui_ctx == NULL) {
-        return false;
-    }
-
-    ui_712_set_title(title, strlen(title));
-    if ((struct_name = struct_ptr->name) != NULL) {
-        ui_712_set_value(struct_name, strlen(struct_name));
-    }
-    return ui_712_redraw_generic_step();
-}
-
-bool ui_712_review_network(const uint64_t *chain_id) {
-    const char *title = "Network";
-    const char *buf;
-
-    if (*chain_id == g_chain_config->chain_id) {
-        return true;
-    }
-    ui_712_set_title(title, strlen(title));
-    if ((buf = get_network_name_from_chain_id(chain_id)) == NULL) {
-        if (!format_u64(strings.tmp.tmp, NETWORK_STRING_MAX_SIZE, *chain_id)) {
+bool ui_712_continue_or_finish(void) {
+    if (appState != APP_STATE_SIGNING_EIP712) {
+        if ((ui_ctx->filtering_mode == EIP712_FILTERING_BASIC) && !N_storage.dataAllowed &&
+            !N_storage.verbose_eip712) {
+            ui_error_blind_signing();
             return false;
         }
-        buf = strings.tmp.tmp;
+        if (!ui_712_start(ui_ctx->filtering_mode)) {
+            return false;
+        }
+        io_seproxyhal_send_status(SWO_SUCCESS, 0, false, false);
+    } else {
+        if (ui_ctx->end_reached) {
+            return ui_sign_712_v1(ui_ctx->filtering_mode);
+        } else {
+            io_seproxyhal_send_status(SWO_SUCCESS, 0, false, false);
+            explicit_bzero(&strings, sizeof(strings));
+        }
     }
-    ui_712_set_value(buf, strlen(buf));
-    return ui_712_redraw_generic_step();
+    return true;
 }
 
 /**
@@ -332,15 +252,19 @@ bool ui_712_message_hash(void) {
     // Message hash > Domain hash > Message hash
     // as the last three fields
     if (!N_storage.displayHash) {
-        ui_712_set_title(title, strlen(title));
+        if (!ui_712_set_title(title, strlen(title))) {
+            return false;
+        }
         array_bytes_string(strings.tmp.tmp,
                            sizeof(strings.tmp.tmp),
                            tmpCtx.messageSigningContext712.messageHash,
-                           KECCAK256_HASH_BYTESIZE);
-        ui_712_set_value(NULL, 0);
+                           CX_KECCAK_256_SIZE);
+        if (!ui_712_set_value(strings.tmp.tmp, strlen(strings.tmp.tmp))) {
+            return false;
+        }
     }
     ui_ctx->end_reached = true;
-    return ui_712_redraw_generic_step();
+    return ui_712_continue_or_finish();
 }
 
 /**
@@ -348,9 +272,8 @@ bool ui_712_message_hash(void) {
  *
  * @param[in] data the data that needs formatting
  * @param[in] length its length
- * @param[in] last if this is the last chunk
  */
-static void ui_712_format_str(const uint8_t *data, uint8_t length, bool last) {
+static void ui_712_format_str(const uint8_t *data, size_t length) {
     size_t max_len = sizeof(strings.tmp.tmp) - 1;
     size_t cur_len = strlen(strings.tmp.tmp);
     size_t available;
@@ -368,8 +291,8 @@ static void ui_712_format_str(const uint8_t *data, uint8_t length, bool last) {
     memcpy(strings.tmp.tmp + cur_len, data, to_copy);
     strings.tmp.tmp[cur_len + to_copy] = '\0';
 
-    // truncated - add ellipsis if this is the last chunk and we couldn't fit everything
-    if (last && (to_copy < length)) {
+    // truncated - add ellipsis if we couldn't fit everything
+    if (to_copy < length) {
         memcpy(strings.tmp.tmp + max_len - 3, "...", 3);
         strings.tmp.tmp[max_len] = '\0';
     }
@@ -380,23 +303,17 @@ static void ui_712_format_str(const uint8_t *data, uint8_t length, bool last) {
  *
  * @param[in] data the data that needs formatting
  * @param[in] length its length
- * @param[in] first if this is the first chunk
  * @return if the formatting was successful
  */
-static bool ui_712_format_addr(const uint8_t *data, uint8_t length, bool first) {
+static bool ui_712_format_addr(const uint8_t *data, size_t length) {
     // no reason for an address to be received over multiple chunks
-    if (!first) {
-        return false;
-    }
     if (length != ADDRESS_LENGTH) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
     if (!getEthDisplayableAddress((uint8_t *) data,
                                   strings.tmp.tmp,
                                   sizeof(strings.tmp.tmp),
                                   g_chain_config->chain_id)) {
-        apdu_response_code = SWO_PARAMETER_ERROR_NO_INFO;
         return false;
     }
     return true;
@@ -407,21 +324,15 @@ static bool ui_712_format_addr(const uint8_t *data, uint8_t length, bool first) 
  *
  * @param[in] data the data that needs formatting
  * @param[in] length its length
- * @param[in] first if this is the first chunk
  * @return if the formatting was successful
  */
-static bool ui_712_format_bool(const uint8_t *data, uint8_t length, bool first) {
+static bool ui_712_format_bool(const uint8_t *data, size_t length) {
     size_t max_len = sizeof(strings.tmp.tmp) - 1;
     const char *true_str = "true";
     const char *false_str = "false";
     const char *str;
 
-    // no reason for a boolean to be received over multiple chunks
-    if (!first) {
-        return false;
-    }
     if (length != 1) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
     str = *data ? true_str : false_str;
@@ -434,18 +345,14 @@ static bool ui_712_format_bool(const uint8_t *data, uint8_t length, bool first) 
  *
  * @param[in] data the data that needs formatting
  * @param[in] length its length
- * @param[in] first if this is the first chunk
- * @param[in] last if this is the last chunk
  * @return if the formatting was successful
  */
-static bool ui_712_format_bytes(const uint8_t *data, uint8_t length, bool first, bool last) {
+static bool ui_712_format_bytes(const uint8_t *data, size_t length) {
     size_t max_len = sizeof(strings.tmp.tmp) - 1;
     size_t cur_len = strlen(strings.tmp.tmp);
 
-    if (first) {
-        memcpy(strings.tmp.tmp, "0x", MIN(max_len, 2));
-        cur_len += 2;
-    }
+    memcpy(strings.tmp.tmp, "0x", MIN(max_len, 2));
+    cur_len += 2;
     if (format_hex(data,
                    MIN((max_len - cur_len) / 2, length),
                    strings.tmp.tmp + cur_len,
@@ -453,7 +360,7 @@ static bool ui_712_format_bytes(const uint8_t *data, uint8_t length, bool first,
         return false;
     }
     // truncated
-    if (last && (((max_len - cur_len) / 2) < length)) {
+    if (((max_len - cur_len) / 2) < length) {
         memcpy(strings.tmp.tmp + max_len - 3, "...", 3);
     }
     return true;
@@ -464,24 +371,17 @@ static bool ui_712_format_bytes(const uint8_t *data, uint8_t length, bool first,
  *
  * @param[in] data the data that needs formatting
  * @param[in] length its length
- * @param[in] first if this is the first chunk
  * @param[in] field_ptr pointer to the EIP-712 field
  * @return if the formatting was successful
  */
 static bool ui_712_format_int(const uint8_t *data,
-                              uint8_t length,
-                              bool first,
+                              size_t length,
                               const s_struct_712_field *field_ptr) {
-    // no reason for an integer to be received over multiple chunks
-    if (!first) {
-        return false;
-    }
     if (!format_signed_int_be(data,
                               length,
                               field_ptr->type_size,
                               strings.tmp.tmp,
                               sizeof(strings.tmp.tmp))) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
     return true;
@@ -492,14 +392,9 @@ static bool ui_712_format_int(const uint8_t *data,
  *
  * @param[in] data the data that needs formatting
  * @param[in] length its length
- * @param[in] first if this is the first chunk
  * @return if the formatting was successful
  */
-static bool ui_712_format_uint(const uint8_t *data, uint8_t length, bool first) {
-    // no reason for an integer to be received over multiple chunks
-    if (!first) {
-        return false;
-    }
+static bool ui_712_format_uint(const uint8_t *data, size_t length) {
     return uint256_to_decimal(data, length, strings.tmp.tmp, sizeof(strings.tmp.tmp));
 }
 
@@ -529,8 +424,13 @@ static s_amount_join *get_amount_join(uint8_t id) {
  */
 static bool ui_712_format_amount_join(const s_amount_join *amount_join) {
     const s_token_info *token_info;
+    uint64_t domain_chain_id;
 
-    token_info = get_matching_token_info(&eip712_context->chain_id, amount_join->address);
+    if (!td_get_domain_chain_id(&domain_chain_id)) {
+        return false;
+    }
+
+    token_info = get_matching_token_info(&domain_chain_id, amount_join->address);
     if (ismaxint(amount_join->value, sizeof(amount_join->value))) {
         strlcpy(strings.tmp.tmp, "Unlimited ", sizeof(strings.tmp.tmp));
         strlcat(strings.tmp.tmp,
@@ -547,7 +447,9 @@ static bool ui_712_format_amount_join(const s_amount_join *amount_join) {
         }
     }
     ui_ctx->field_flags |= UI_712_FIELD_SHOWN;
-    ui_712_set_title(amount_join->name, strlen(amount_join->name));
+    if (!ui_712_set_title(amount_join->name, strlen(amount_join->name))) {
+        return false;
+    }
     flist_remove((flist_node_t **) &ui_ctx->amount.joins,
                  (flist_node_t *) amount_join,
                  (f_list_node_del) delete_amount_join);
@@ -577,7 +479,6 @@ static bool update_amount_join(s_amount_join *amount_join, const uint8_t *data, 
     switch (ui_ctx->amount.state) {
         case AMOUNT_JOIN_STATE_TOKEN:
             if (length > sizeof(amount_join->address)) {
-                apdu_response_code = SWO_INCORRECT_DATA;
                 return false;
             }
             buf_shrink_expand(data, length, amount_join->address, sizeof(amount_join->address));
@@ -586,7 +487,6 @@ static bool update_amount_join(s_amount_join *amount_join, const uint8_t *data, 
 
         case AMOUNT_JOIN_STATE_VALUE:
             if (length > sizeof(amount_join->value)) {
-                apdu_response_code = SWO_INCORRECT_DATA;
                 return false;
             }
             buf_shrink_expand(data, length, amount_join->value, sizeof(amount_join->value));
@@ -608,18 +508,21 @@ static bool update_amount_join(s_amount_join *amount_join, const uint8_t *data, 
  * @param[in] length its length
  * @return whether it was successful or not
  */
-static bool ui_712_format_trusted_name(const uint8_t *data, uint8_t length) {
+static bool ui_712_format_trusted_name(const uint8_t *data, size_t length) {
     const s_trusted_name *trusted_name;
+    uint64_t domain_chain_id;
 
     if (length != ADDRESS_LENGTH) {
+        return false;
+    }
+    if (!td_get_domain_chain_id(&domain_chain_id)) {
         return false;
     }
 #ifdef HAVE_ADDRESS_BOOK
     // Address Book contacts take priority over Trusted Names for account addresses.
     for (uint8_t i = 0; i < ui_ctx->tn_type_count; i++) {
         if (ui_ctx->tn_types[i] == TN_TYPE_ACCOUNT) {
-            const s_ab_contact *ab_contact =
-                get_address_book_contact(eip712_context->chain_id, data);
+            const s_ab_contact *ab_contact = get_address_book_contact(domain_chain_id, data);
             if (ab_contact != NULL) {
                 strlcpy(strings.tmp.tmp, ab_contact->contact_name, sizeof(strings.tmp.tmp));
                 return true;
@@ -634,7 +537,7 @@ static bool ui_712_format_trusted_name(const uint8_t *data, uint8_t length) {
                                          ui_ctx->tn_types,
                                          ui_ctx->tn_source_count,
                                          ui_ctx->tn_sources,
-                                         &eip712_context->chain_id,
+                                         &domain_chain_id,
                                          data)) != NULL) {
         strlcpy(strings.tmp.tmp, trusted_name->name, sizeof(strings.tmp.tmp));
     }
@@ -650,7 +553,7 @@ static bool ui_712_format_trusted_name(const uint8_t *data, uint8_t length) {
  * @return whether it was successful or not
  */
 static bool ui_712_format_datetime(const uint8_t *data,
-                                   uint8_t length,
+                                   size_t length,
                                    const s_struct_712_field *field_ptr) {
     time_t timestamp;
 
@@ -676,11 +579,10 @@ static bool ui_712_format_datetime(const uint8_t *data,
     return time_format_to_utc(&timestamp, strings.tmp.tmp, sizeof(strings.tmp.tmp));
 }
 
-static void ui_712_set_intent_field(const char *value) {
+static bool ui_712_set_intent_field(const char *value) {
     const char key[] = "Transaction type";
 
-    ui_712_set_title(key, strlen(key));
-    ui_712_set_value(value, strlen(value));
+    return ui_712_set_title(key, strlen(key)) && ui_712_set_value(value, strlen(value));
 }
 
 static bool handle_fallback_empty_calldata(const s_eip712_calldata_info *calldata_info) {
@@ -691,12 +593,16 @@ static bool handle_fallback_empty_calldata(const s_eip712_calldata_info *calldat
     const char *ticker;
 
     if (calldata_info->amount_state == CALLDATA_INFO_PARAM_SET) {
-        ui_712_set_intent_field("Send");
+        if (!ui_712_set_intent_field("Send")) {
+            return false;
+        }
 
         if (calldata_info->chain_id != 0) {
             chain_id = calldata_info->chain_id;
         } else {
-            chain_id = eip712_context->chain_id;
+            if (!td_get_domain_chain_id(&chain_id)) {
+                return false;
+            }
         }
 
         ticker = get_displayable_ticker(&chain_id, g_chain_config, true);
@@ -709,24 +615,31 @@ static bool handle_fallback_empty_calldata(const s_eip712_calldata_info *calldat
                             buf_size)) {
             return false;
         }
-        ui_712_set_title("Amount", 6);
-        ui_712_set_value(buf, strlen(buf));
+        if (!ui_712_set_title("Amount", 6) || !ui_712_set_value(buf, strlen(buf))) {
+            return false;
+        }
     } else {
-        ui_712_set_intent_field("Empty transaction");
+        if (!ui_712_set_intent_field("Empty transaction")) {
+            return false;
+        }
     }
 
     e_name_type types[] = {TN_TYPE_ACCOUNT};
     e_name_source sources[] = {TN_SOURCE_ENS, TN_SOURCE_LAB, TN_SOURCE_MAB};
     const s_trusted_name *trusted_name;
 
-    ui_712_set_title("To", 2);
+    if (!ui_712_set_title("To", 2)) {
+        return false;
+    }
 #ifdef HAVE_ADDRESS_BOOK
     // Address Book contacts take priority over Trusted Names for the callee address.
     {
         const s_ab_contact *ab_contact =
             get_address_book_contact(calldata_info->chain_id, calldata_info->callee);
         if (ab_contact != NULL) {
-            ui_712_set_value(ab_contact->contact_name, strlen(ab_contact->contact_name));
+            if (!ui_712_set_value(ab_contact->contact_name, strlen(ab_contact->contact_name))) {
+                return false;
+            }
             return true;
         }
     }
@@ -738,7 +651,9 @@ static bool handle_fallback_empty_calldata(const s_eip712_calldata_info *calldat
                                          sources,
                                          &calldata_info->chain_id,
                                          calldata_info->callee)) != NULL) {
-        ui_712_set_value(trusted_name->name, strlen(trusted_name->name));
+        if (!ui_712_set_value(trusted_name->name, strlen(trusted_name->name))) {
+            return false;
+        }
     } else {
         if (!getEthDisplayableAddress(calldata_info->callee,
                                       buf,
@@ -746,7 +661,9 @@ static bool handle_fallback_empty_calldata(const s_eip712_calldata_info *calldat
                                       calldata_info->chain_id)) {
             return false;
         }
-        ui_712_set_value(buf, strlen(buf));
+        if (!ui_712_set_value(buf, strlen(buf))) {
+            return false;
+        }
     }
     return true;
 }
@@ -793,10 +710,11 @@ static bool update_calldata_value(const uint8_t *data,
 
 static bool update_calldata_callee(const uint8_t *data,
                                    uint8_t length,
-                                   bool last,
                                    s_eip712_calldata_info *calldata_info) {
     if (calldata_info->callee_state != CALLDATA_INFO_PARAM_UNSET) return false;
-    if (!last) return false;
+    if (length > sizeof(calldata_info->callee)) {
+        return false;
+    }
     buf_shrink_expand(data, length, calldata_info->callee, sizeof(calldata_info->callee));
     calldata_info->callee_state = CALLDATA_INFO_PARAM_SET;
     return true;
@@ -804,12 +722,13 @@ static bool update_calldata_callee(const uint8_t *data,
 
 static bool update_calldata_chain_id(const uint8_t *data,
                                      uint8_t length,
-                                     bool last,
                                      s_eip712_calldata_info *calldata_info) {
     uint8_t chain_id_buf[sizeof(uint64_t)];
 
     if (calldata_info->chain_id_state != CALLDATA_INFO_PARAM_UNSET) return false;
-    if (!last) return false;
+    if (length > sizeof(chain_id_buf)) {
+        return false;
+    }
     buf_shrink_expand(data, length, chain_id_buf, sizeof(chain_id_buf));
     calldata_info->chain_id = read_u64_be(chain_id_buf, 0);
     calldata_info->chain_id_state = CALLDATA_INFO_PARAM_SET;
@@ -818,10 +737,11 @@ static bool update_calldata_chain_id(const uint8_t *data,
 
 static bool update_calldata_selector(const uint8_t *data,
                                      uint8_t length,
-                                     bool last,
                                      s_eip712_calldata_info *calldata_info) {
     if (calldata_info->selector_state != CALLDATA_INFO_PARAM_UNSET) return false;
-    if (!last) return false;
+    if (length > sizeof(calldata_info->selector)) {
+        return false;
+    }
     buf_shrink_expand(data, length, calldata_info->selector, sizeof(calldata_info->selector));
     calldata_info->selector_state = CALLDATA_INFO_PARAM_SET;
     if (calldata_info->value_state == CALLDATA_INFO_PARAM_SET) {
@@ -834,10 +754,11 @@ static bool update_calldata_selector(const uint8_t *data,
 
 static bool update_calldata_amount(const uint8_t *data,
                                    uint8_t length,
-                                   bool last,
                                    s_eip712_calldata_info *calldata_info) {
     if (calldata_info->amount_state != CALLDATA_INFO_PARAM_UNSET) return false;
-    if (!last) return false;
+    if (length > sizeof(calldata_info->amount)) {
+        return false;
+    }
     buf_shrink_expand(data, length, calldata_info->amount, sizeof(calldata_info->amount));
     calldata_info->amount_state = CALLDATA_INFO_PARAM_SET;
     return true;
@@ -845,10 +766,11 @@ static bool update_calldata_amount(const uint8_t *data,
 
 static bool update_calldata_spender(const uint8_t *data,
                                     uint8_t length,
-                                    bool last,
                                     s_eip712_calldata_info *calldata_info) {
     if (calldata_info->spender_state != CALLDATA_INFO_PARAM_UNSET) return false;
-    if (!last) return false;
+    if (length > sizeof(calldata_info->spender)) {
+        return false;
+    }
     buf_shrink_expand(data, length, calldata_info->spender, sizeof(calldata_info->spender));
     calldata_info->spender_state = CALLDATA_INFO_PARAM_SET;
     return true;
@@ -867,19 +789,19 @@ static bool update_calldata(const uint8_t *data,
                 return false;
             break;
         case EIP712_CALLDATA_CALLEE:
-            if (!update_calldata_callee(data, length, last, calldata_info)) return false;
+            if (!update_calldata_callee(data, length, calldata_info)) return false;
             break;
         case EIP712_CALLDATA_CHAIN_ID:
-            if (!update_calldata_chain_id(data, length, last, calldata_info)) return false;
+            if (!update_calldata_chain_id(data, length, calldata_info)) return false;
             break;
         case EIP712_CALLDATA_SELECTOR:
-            if (!update_calldata_selector(data, length, last, calldata_info)) return false;
+            if (!update_calldata_selector(data, length, calldata_info)) return false;
             break;
         case EIP712_CALLDATA_AMOUNT:
-            if (!update_calldata_amount(data, length, last, calldata_info)) return false;
+            if (!update_calldata_amount(data, length, calldata_info)) return false;
             break;
         case EIP712_CALLDATA_SPENDER:
-            if (!update_calldata_spender(data, length, last, calldata_info)) return false;
+            if (!update_calldata_spender(data, length, calldata_info)) return false;
             break;
         default:
             return false;
@@ -904,64 +826,56 @@ static bool update_calldata(const uint8_t *data,
 }
 
 /**
- * Formats and feeds the given input data to the display buffers
- *
- * @param[in] field_ptr pointer to the new struct field
- * @param[in] data pointer to the field's raw value
- * @param[in] length field's raw value byte-length
- * @param[in] complete_length pointer to complete length if first chunk, \ref NULL otherwise
- * @param[in] last if this is the last chunk
+ * Accumulate a fully-received leaf value into the UI display system.
+ * impl APDUs never trigger display directly. Runs only in EIP712_FILTERING_FULL
+ * mode. Resets field flags when done.
  */
-bool ui_712_feed_to_display(const s_struct_712_field *field_ptr,
-                            const uint8_t *data,
-                            uint8_t length,
-                            const uint16_t *complete_length,
-                            bool last) {
-    bool first = complete_length != NULL;
-
+bool ui_712_accumulate_value(const s_struct_712_field *field_ptr,
+                             const uint8_t *data,
+                             size_t length) {
     if (ui_ctx == NULL) {
-        apdu_response_code = SWO_INCORRECT_DATA;
-        return false;
+        return true;
+    }
+    if (ui_ctx->filtering_mode != EIP712_FILTERING_FULL) {
+        return true;
     }
 
-    if (first && (strlen(strings.tmp.tmp) > 0)) {
-        return false;
-    }
-    // Value
+    // Clear accumulation buffer for fresh formatting.
+    explicit_bzero(strings.tmp.tmp, sizeof(strings.tmp.tmp));
+
     if (ui_712_field_shown()) {
         switch (field_ptr->type) {
             case TYPE_SOL_STRING:
-                ui_712_format_str(data, length, last);
+                ui_712_format_str(data, length);
                 break;
             case TYPE_SOL_ADDRESS:
-                if (ui_712_format_addr(data, length, first) == false) {
+                if (!ui_712_format_addr(data, length)) {
                     return false;
                 }
                 break;
             case TYPE_SOL_BOOL:
-                if (ui_712_format_bool(data, length, first) == false) {
+                if (!ui_712_format_bool(data, length)) {
                     return false;
                 }
                 break;
             case TYPE_SOL_BYTES_FIX:
             case TYPE_SOL_BYTES_DYN:
-                if (ui_712_format_bytes(data, length, first, last) == false) {
+                if (!ui_712_format_bytes(data, length)) {
                     return false;
                 }
                 break;
             case TYPE_SOL_INT:
-                if (ui_712_format_int(data, length, first, field_ptr) == false) {
+                if (!ui_712_format_int(data, length, field_ptr)) {
                     return false;
                 }
                 break;
             case TYPE_SOL_UINT:
-                if (ui_712_format_uint(data, length, first) == false) {
+                if (!ui_712_format_uint(data, length)) {
                     return false;
                 }
                 break;
             default:
-                PRINTF("Unhandled type\n");
-                return false;
+                break;
         }
     }
 
@@ -970,11 +884,9 @@ bool ui_712_feed_to_display(const s_struct_712_field *field_ptr,
         if (amount_join == NULL) {
             return false;
         }
-
-        if (!update_amount_join(amount_join, data, length)) {
+        if (!update_amount_join(amount_join, data, (uint8_t) MIN(length, 32))) {
             return false;
         }
-
         if (amount_join->flags == (AMOUNT_JOIN_FLAG_TOKEN | AMOUNT_JOIN_FLAG_VALUE)) {
             if (!ui_712_format_amount_join(amount_join)) {
                 return false;
@@ -995,18 +907,30 @@ bool ui_712_feed_to_display(const s_struct_712_field *field_ptr,
     }
 
     if (ui_ctx->field_flags & UI_712_CALLDATA) {
-        if (!update_calldata(data, length, complete_length, last)) {
+        uint16_t remaining = length;
+        const uint8_t *ptr = data;
+        uint16_t total = length;
+        bool first = true;
+        // do-while ensures an empty calldata field (length == 0) still triggers update_calldata
+        // once
+        do {
+            uint8_t chunk = (uint8_t) MIN(remaining, 0xFF);
+            bool last_chunk = (remaining <= 0xFF);
+            if (!update_calldata(ptr, chunk, first ? &total : NULL, last_chunk)) {
+                return false;
+            }
+            ptr += chunk;
+            remaining -= chunk;
+            first = false;
+        } while (remaining > 0);
+    }
+
+    if (ui_712_field_shown()) {
+        if (!ui_712_set_value(strings.tmp.tmp, strlen(strings.tmp.tmp))) {
             return false;
         }
     }
-
-    // Check if this field is supposed to be displayed
-    if (last && ui_712_field_shown()) {
-        // This is the last chunk, we can now set the value
-        ui_712_set_value(NULL, 0);
-
-        return ui_712_redraw_generic_step();
-    }
+    ui_712_field_flags_reset();
     return true;
 }
 
@@ -1014,20 +938,20 @@ bool ui_712_feed_to_display(const s_struct_712_field *field_ptr,
  * Used to signal that we are done with reviewing the structs and we can now have
  * the option to approve or reject the signature
  */
-void ui_712_end_sign(void) {
+bool ui_712_end_sign(void) {
     if (ui_ctx == NULL) {
-        apdu_response_code = SWO_COMMAND_NOT_ALLOWED;
-        return;
+        return false;
     }
 
 #ifdef SCREEN_SIZE_WALLET
-    if (true) {
+    {
 #else
     if (N_storage.verbose_eip712 || (ui_ctx->filtering_mode == EIP712_FILTERING_FULL)) {
 #endif
         ui_ctx->end_reached = true;
-        apdu_response_code = ui_sign_712(ui_ctx->filtering_mode);
+        return ui_sign_712_v1(ui_ctx->filtering_mode);
     }
+    return true;
 }
 
 /**
@@ -1040,7 +964,6 @@ bool ui_712_init(void) {
     }
 
     if (APP_MEM_CALLOC((void **) &ui_ctx, sizeof(*ui_ctx)) == false) {
-        apdu_response_code = SWO_INSUFFICIENT_MEMORY;
     } else {
         ui_712_set_filtering_mode(EIP712_FILTERING_BASIC);
         explicit_bzero(&strings, sizeof(strings));
@@ -1080,21 +1003,20 @@ void ui_712_deinit(void) {
 
 /**
  * Approve button handling, calls the common handler function then
- * deinitializes the EIP712 context altogether.
+ * resets the app context (which tears down the EIP712 context as part of it).
  */
 void ui_712_approve(void) {
     ui_712_approve_cb();
-    eip712_context_deinit();
+    reset_app_context();
 }
 
 /**
  * Reject button handling, calls the common handler function then
- * deinitializes the EIP712 context altogether.
-
+ * resets the app context (which tears down the EIP712 context as part of it).
  */
 void ui_712_reject(void) {
     ui_712_reject_cb();
-    eip712_context_deinit();
+    reset_app_context();
 }
 
 /**
@@ -1147,6 +1069,9 @@ void ui_712_set_filtering_mode(e_eip712_filtering_mode mode) {
  * @return current filtering mode
  */
 e_eip712_filtering_mode ui_712_get_filtering_mode(void) {
+    if (ui_ctx == NULL) {
+        return EIP712_FILTERING_BASIC;
+    }
     return ui_ctx->filtering_mode;
 }
 
@@ -1181,18 +1106,182 @@ void ui_712_field_flags_reset(void) {
 }
 
 /**
- * Add a struct to the UI review queue
- *
- * Makes it so the user will have to go through a "Review struct" screen
+ * Per-traversal state for verbose-mode formatting. Tracks whether the current
+ * node is the tree root, so only the root struct (domain or message) gets a
+ * "Review struct" screen.
  */
-void ui_712_queue_struct_to_review(void) {
+typedef struct {
+    bool is_root;
+} s_verbose_ctx;
+
+/**
+ * Formats a value tree node as a UI pair for verbose mode. VAL_ATOMIC leaves
+ * become a key/value pair. VAL_STRUCT root nodes get a "Review struct" screen
+ * (see s_verbose_ctx). Ignores VAL_ARRAY.
+ * Shared body for format_node_for_verbose() and format_node_for_verbose_consuming().
+ *
+ * @param consume if true, frees the leaf's raw data right after formatting it,
+ *                to reduce peak memory usage for large nested messages. Only
+ *                safe for the message tree, and only after td_hash_pass() has
+ *                already computed the message hash — the value can no longer
+ *                be re-hashed once freed. Must be false for the domain tree:
+ *                gating checks read domain leaves again later via
+ *                td_get_domain_chain_id()/td_get_domain_contract_addr().
+ */
+static bool format_node_for_verbose_internal(const s_struct_712_value *node,
+                                             void *context,
+                                             bool consume) {
+    s_verbose_ctx *ctx = context;
+
+    if (node->kind == VAL_STRUCT) {
+        if (ctx->is_root) {
+            ctx->is_root = false;
 #ifdef SCREEN_SIZE_WALLET
-    if (true) {
+            bool show = true;
 #else
-    if (N_storage.verbose_eip712) {
+            bool show = N_storage.verbose_eip712;
 #endif
-        ui_ctx->structs_to_review += 1;
+            if (show && (node->struct_type != NULL) && (node->struct_type->name != NULL)) {
+                const char *title = "Review struct";
+                ui_712_set_title(title, strlen(title));
+                ui_712_set_value(node->struct_type->name, strlen(node->struct_type->name));
+            }
+        }
+        return true;
     }
+
+    if (node->kind != VAL_ATOMIC) {
+        return true;  // VAL_ARRAY: nothing to show directly
+    }
+
+    const s_struct_712_field *field = node->field;
+    const uint8_t *data = node->data;
+    size_t length = node->length;
+
+    if (field == NULL || field->key_name == NULL) {
+        return true;
+    }
+
+    // Set title
+    ui_712_set_title(field->key_name, strlen(field->key_name));
+
+    // Clear temp buffer
+    explicit_bzero(strings.tmp.tmp, sizeof(strings.tmp.tmp));
+
+    // Format value based on type
+    switch (field->type) {
+        case TYPE_SOL_STRING:
+            ui_712_format_str(data, length);
+            break;
+        case TYPE_SOL_ADDRESS:
+            if (!ui_712_format_addr(data, length)) {
+                return false;
+            }
+            break;
+        case TYPE_SOL_BOOL:
+            if (!ui_712_format_bool(data, length)) {
+                return false;
+            }
+            break;
+        case TYPE_SOL_BYTES_FIX:
+        case TYPE_SOL_BYTES_DYN:
+            if (!ui_712_format_bytes(data, length)) {
+                return false;
+            }
+            break;
+        case TYPE_SOL_INT:
+            if (!ui_712_format_int(data, length, field)) {
+                return false;
+            }
+            break;
+        case TYPE_SOL_UINT:
+            if (!ui_712_format_uint(data, length)) {
+                return false;
+            }
+            break;
+        default:
+            return true;  // Skip unknown types
+    }
+
+    // Set value. The flattened g_pairs display array is (re)built once, by the
+    // caller, after the full domain/message traversal completes — not per-leaf.
+    // Calling ui_712_push_pairs() here would redundantly free+reallocate the
+    // whole array at a size one larger for every single leaf, which for large
+    // nested messages both wastes cycles and fragments the heap needlessly.
+    ui_712_set_value(strings.tmp.tmp, strlen(strings.tmp.tmp));
+
+    if (consume) {
+        td_release_leaf_value(node);
+    }
+    return true;
+}
+
+/**
+ * Visitor callback for verbose mode tree traversal (domain tree).
+ */
+static bool format_node_for_verbose(const s_struct_712_value *node, void *context) {
+    return format_node_for_verbose_internal(node, context, false);
+}
+
+/**
+ * Visitor callback for verbose mode tree traversal (message tree). See
+ * format_node_for_verbose_internal()'s @p consume doc for when this is safe.
+ */
+static bool format_node_for_verbose_consuming(const s_struct_712_value *node, void *context) {
+    return format_node_for_verbose_internal(node, context, true);
+}
+
+/**
+ * Build UI pairs from value tree for verbose/no-filtering mode.
+ * Walks domain (all devices).
+ * Message fields: Stax/Flex/Apex always, Nano only if verbose_eip712 enabled.
+ * Message hash for Nano non-verbose is handled separately by ui_712_message_hash().
+ * Domain/Message hashes when displayHash enabled are added later by ui_712_end_sign.
+ *
+ * Message leaves are freed via format_leaf_for_verbose_consuming() right after
+ * being displayed, to reduce peak memory usage for large nested messages —
+ * safe here because this is only ever called from handle_eip712_v1_sign()
+ * after td_hash_pass() has already computed the message hash. Domain leaves
+ * are NOT freed this way: gating checks read them again later via
+ * td_get_domain_chain_id()/td_get_domain_contract_addr().
+ *
+ * The flattened g_pairs display array is built explicitly after domain traversal
+ * (needed since Nano non-verbose mode never traverses the message and never
+ * reaches ui_sign_712_v1(), which is otherwise responsible for this) and again,
+ * once, by ui_sign_712_v1()/ui_712_end_sign() after this function returns for
+ * every other mode — never per-leaf during traversal itself.
+ */
+bool ui_712_populate_from_value_tree(void) {
+    if (ui_ctx == NULL) {
+        return false;
+    }
+
+    // Domain fields
+    if (!td_traverse_domain(format_node_for_verbose, &(s_verbose_ctx) {.is_root = true})) {
+        return false;
+    }
+    if (!ui_712_push_pairs()) {
+        return false;
+    }
+
+#ifdef SCREEN_SIZE_WALLET
+    // Stax/Flex/Apex: always show message fields
+    if (!td_traverse_message(format_node_for_verbose_consuming,
+                             &(s_verbose_ctx) {.is_root = true})) {
+        return false;
+    }
+#else
+    // Nano: show message fields only if raw messages enabled
+    if (N_storage.verbose_eip712) {
+        if (!td_traverse_message(format_node_for_verbose_consuming,
+                                 &(s_verbose_ctx) {.is_root = true})) {
+            return false;
+        }
+    }
+    // Nano non-verbose: message hash is added by ui_712_message_hash() in handle_eip712_sign
+#endif
+
+    return true;
 }
 
 void ui_712_token_join_prepare_addr_check(uint8_t id) {
@@ -1229,7 +1318,9 @@ bool ui_712_show_raw_key(const s_struct_712_field *field_ptr) {
     }
 
     if (ui_712_field_shown() && !(ui_ctx->field_flags & UI_712_FIELD_NAME_PROVIDED)) {
-        ui_712_set_title(key, strlen(key));
+        if (!ui_712_set_title(key, strlen(key))) {
+            return false;
+        }
     }
     return true;
 }
@@ -1256,12 +1347,10 @@ bool ui_712_push_new_filter_path(uint32_t path_crc) {
     }
 
     if (filter_count >= ui_ctx->filters_to_process) {
-        apdu_response_code = SWO_INCORRECT_DATA;
         return false;
     }
     // allocate it
     if (APP_MEM_CALLOC((void **) &new_crc, sizeof(*new_crc)) == false) {
-        apdu_response_code = SWO_INSUFFICIENT_MEMORY;
         return false;
     }
     new_crc->value = path_crc;
@@ -1317,7 +1406,7 @@ void ui_712_set_trusted_name_requirements(uint8_t type_count,
  * Set the tag/value pairs for the review
  *
  */
-void ui_712_push_pairs(void) {
+bool ui_712_push_pairs(void) {
     uint8_t nbPairs = 0;
     uint8_t pair = 0;
     s_ui_712_pair *tmp = NULL;
@@ -1329,7 +1418,9 @@ void ui_712_push_pairs(void) {
         nbPairs += 2;
     }
 
-    ui_pairs_init(nbPairs);
+    if (!ui_pairs_init(nbPairs)) {
+        return false;
+    }
     // Initialize the tag/value pairs from the chain list
     tmp = ui_ctx->ui_pairs;
     while (tmp != NULL) {
@@ -1363,6 +1454,7 @@ void ui_712_push_pairs(void) {
         eip712_format_hash(pair);
         g_pairs[pair].forcePageStart = true;
     }
+    return true;
 }
 
 void add_calldata_info(s_eip712_calldata_info *node) {

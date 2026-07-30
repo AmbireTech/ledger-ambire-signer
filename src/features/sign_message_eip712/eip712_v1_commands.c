@@ -1,14 +1,15 @@
-#include "apdu_constants.h"  // APDU response codes
-#include "context_712.h"
-#include "field_hash.h"
-#include "path.h"
-#include "ui_logic.h"
+#include "eip712_v1_commands.h"
+#include "eip712_v1_context.h"
+#include "eip712_v1_ui_logic.h"
 #include "typed_data.h"
 #include "schema_hash.h"
-#include "filtering.h"
-#include "common_ui.h"  // ui_idle
+#include "eip712_v1_filtering.h"
+#include "common_ui.h"  // ui_idle, ui_error_blind_signing
 #include "manage_asset_info.h"
 #include "tx_ctx.h"  // get_tx_ctx_count
+#include "value_hash.h"
+#include "common_712.h"  // ui_712_start
+#include "eip712_v1_parse.h"
 
 // APDUs P1
 #define P1_COMPLETE  0x00
@@ -38,45 +39,6 @@
 #define P2_FILT_RAW_FIELD         0xFF
 
 /**
- * Send the response to the previous APDU command
- *
- * In case of an error it uses the global variable to retrieve the error code and resets
- * the app context
- *
- * @param[in] success whether the command was successful
- */
-static void apdu_reply(bool success) {
-    bool home = true;
-
-    if (success) {
-        apdu_response_code = SWO_SUCCESS;
-    } else {
-        if (apdu_response_code == SWO_SUCCESS) {  // somehow not set
-            apdu_response_code = SWO_PARAMETER_ERROR_NO_INFO;
-        }
-        if (eip712_context != NULL) {
-            home = eip712_context->go_home_on_failure;
-        }
-        eip712_context_deinit();
-        if (home) ui_idle();
-    }
-}
-
-/**
- * Send the response to the previous APDU command
- *
- * In case of an error it uses the global variable to retrieve the error code and resets
- * the app context
- *
- * @param[in] success whether the command was successful
- */
-void handle_eip712_return_code(bool success) {
-    apdu_reply(success);
-
-    io_seproxyhal_send_status(apdu_response_code, 0, false, false);
-}
-
-/**
  * Process the EIP712 struct definition command
  *
  * @param[in] p2 instruction parameter 2
@@ -84,32 +46,33 @@ void handle_eip712_return_code(bool success) {
  * @param[in] length length of the command data
  * @return whether the command was successful or not
  */
-uint16_t handle_eip712_struct_def(uint8_t p2, const uint8_t *cdata, uint8_t length) {
+uint16_t handle_eip712_v1_struct_def(uint8_t p2, const uint8_t *cdata, uint8_t length) {
     bool ret = true;
+    uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
 
-    if (eip712_context == NULL) {
-        ret = eip712_context_init();
+    if (eip712_v1_context == NULL) {
+        ret = eip712_v1_context_init();
     }
-    if (struct_state == DEFINED) {
+    if ((v1_get_root_type() != ROOT_NONE) ||
+        (ui_712_get_filtering_mode() == EIP712_FILTERING_FULL)) {
         ret = false;
     }
 
     if (ret) {
         switch (p2) {
             case P2_DEF_NAME:
-                ret = set_struct_name(length, cdata);
+                ret = v1_set_struct_name(length, cdata);
                 break;
             case P2_DEF_FIELD:
-                ret = set_struct_field(length, cdata);
+                ret = v1_set_struct_field(length, cdata);
                 break;
             default:
                 PRINTF("Unknown P2 0x%x\n", p2);
-                apdu_response_code = SWO_WRONG_P1_P2;
+                sw = SWO_WRONG_P1_P2;
                 ret = false;
         }
     }
-    apdu_reply(ret);
-    return apdu_response_code;
+    return ret ? SWO_SUCCESS : sw;
 }
 
 /**
@@ -121,52 +84,54 @@ uint16_t handle_eip712_struct_def(uint8_t p2, const uint8_t *cdata, uint8_t leng
  * @param[in] length length of the command data
  * @return whether the command was successful or not
  */
-uint16_t handle_eip712_struct_impl(uint8_t p1, uint8_t p2, const uint8_t *cdata, uint8_t length) {
+uint16_t handle_eip712_v1_struct_impl(uint8_t p1,
+                                      uint8_t p2,
+                                      const uint8_t *cdata,
+                                      uint8_t length) {
     bool ret = false;
-    bool reply_apdu = true;
+    uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
 
-    if (eip712_context == NULL) {
-        apdu_response_code = SWO_COMMAND_NOT_ALLOWED;
+    if (eip712_v1_context == NULL) {
+        sw = SWO_COMMAND_NOT_ALLOWED;
     } else {
         switch (p2) {
             case P2_IMPL_NAME:
-                // set root type
-                ret = path_set_root((char *) cdata, length);
+                // make it NULL-terminated
+                memcpy(strings.tmp.tmp, cdata, length);
+                strings.tmp.tmp[length] = '\0';
+                ret = v1_set_root(strings.tmp.tmp);
                 if (ret) {
-#ifdef SCREEN_SIZE_WALLET
-                    if (ui_712_get_filtering_mode() == EIP712_FILTERING_BASIC) {
-#else
-                    if (N_storage.verbose_eip712) {
-#endif
-                        if ((ret = ui_712_review_struct(path_get_root()))) {
-                            reply_apdu = false;
-                        }
-                    }
-                    if ((path_get_root_type() == ROOT_MESSAGE) &&
-                        (ui_712_get_filtering_mode() == EIP712_FILTERING_FULL)) {
-                        ret = ui_712_review_network(&eip712_context->chain_id);
-                    }
                     ui_712_field_flags_reset();
                 }
                 break;
-            case P2_IMPL_FIELD:
-                if ((ret = field_hash(cdata, length, p1 != P1_COMPLETE))) {
-                    reply_apdu = false;
+
+            case P2_IMPL_FIELD: {
+                const s_struct_712_field *cur_field = v1_get_current_field();
+                if ((ret = (cur_field != NULL))) {
+                    const s_struct_712_value *leaf = v1_add_field(cdata, length, p1 != P1_COMPLETE);
+                    if ((ret = (leaf != NULL))) {
+                        if (p1 == P1_COMPLETE) {
+                            ret = ui_712_accumulate_value(cur_field, leaf->data, leaf->length);
+                        }
+                    }
                 }
                 break;
+            }
+
             case P2_IMPL_ARRAY:
-                ret = path_new_array_depth(cdata, length);
+                if (length != 1) {
+                    sw = SWO_INCORRECT_DATA;
+                } else {
+                    ret = v1_set_array(cdata[0]);
+                }
                 break;
+
             default:
                 PRINTF("Unknown P2 0x%x\n", p2);
-                apdu_response_code = SWO_WRONG_P1_P2;
+                sw = SWO_WRONG_P1_P2;
         }
     }
-    if (reply_apdu) {
-        apdu_reply(ret);
-        return apdu_response_code;
-    }
-    return SWO_NO_RESPONSE;
+    return ret ? SWO_SUCCESS : sw;
 }
 
 /**
@@ -178,13 +143,13 @@ uint16_t handle_eip712_struct_impl(uint8_t p1, uint8_t p2, const uint8_t *cdata,
  * @param[in] length length of the command data
  * @return whether the command was successful or not
  */
-uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, uint8_t length) {
+uint16_t handle_eip712_v1_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, uint8_t length) {
     bool ret = true;
     bool reply_apdu = true;
     uint32_t path_crc = 0;
+    uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
 
-    if (eip712_context == NULL) {
-        apdu_reply(false);
+    if (eip712_v1_context == NULL) {
         return SWO_COMMAND_NOT_ALLOWED;
     }
     if ((p2 != P2_FILT_ACTIVATE) && (ui_712_get_filtering_mode() != EIP712_FILTERING_FULL)) {
@@ -193,7 +158,7 @@ uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, u
     switch (p2) {
         case P2_FILT_ACTIVATE:
             if (!N_storage.verbose_eip712) {
-                ret = compute_schema_hash();
+                ret = compute_schema_hash(eip712_v1_context->schema_hash);
                 if (ret) {
                     // Switch to filtering mode and lock the type system in
                     // one atomic step: a host cannot append struct
@@ -202,7 +167,6 @@ uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, u
                     // covered. On hash-compute failure, both state changes
                     // are skipped so the activate can be retried.
                     ui_712_set_filtering_mode(EIP712_FILTERING_FULL);
-                    struct_state = DEFINED;
                 }
             }
             forget_known_assets();
@@ -254,7 +218,7 @@ uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, u
             break;
         default:
             PRINTF("Unknown P2 0x%x\n", p2);
-            apdu_response_code = SWO_WRONG_P1_P2;
+            sw = SWO_WRONG_P1_P2;
             ret = false;
     }
     if ((p2 > P2_FILT_MESSAGE_INFO) && (p2 != P2_FILT_CALLDATA_INFO) && ret) {
@@ -263,8 +227,7 @@ uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, u
         }
     }
     if (reply_apdu) {
-        apdu_reply(ret);
-        return apdu_response_code;
+        return ret ? SWO_SUCCESS : sw;
     }
     return SWO_NO_RESPONSE;
 }
@@ -275,41 +238,74 @@ uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, u
  * @param[in] apdu_buf the APDU payload
  * @return whether the command was successful or not
  */
-uint16_t handle_eip712_sign(const uint8_t *cdata, uint8_t length) {
+uint16_t handle_eip712_v1_sign(const uint8_t *cdata, uint8_t length) {
     bool ret = false;
+    uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
+    e_eip712_filtering_mode filt_mode = ui_712_get_filtering_mode();
 
-    if (eip712_context == NULL) {
-        apdu_response_code = SWO_COMMAND_NOT_ALLOWED;
-    }
-    // if the final hashes are still zero or if there are some unimplemented fields
-    else if (is_zeroes_buffer(tmpCtx.messageSigningContext712.domainHash,
-                              sizeof(tmpCtx.messageSigningContext712.domainHash)) ||
-             is_zeroes_buffer(tmpCtx.messageSigningContext712.messageHash,
-                              sizeof(tmpCtx.messageSigningContext712.messageHash)) ||
-             (path_get_field() != NULL)) {
-        apdu_response_code = SWO_INCORRECT_DATA;
-    } else if ((ui_712_get_filtering_mode() == EIP712_FILTERING_FULL) &&
+    if (eip712_v1_context == NULL) {
+        sw = SWO_COMMAND_NOT_ALLOWED;
+    } else if (!v1_is_complete()) {
+        PRINTF("impl not complete\n");
+        sw = SWO_INCORRECT_DATA;
+    } else if (!td_hash_pass()) {
+        PRINTF("value_hash_pass failed\n");
+    } else if ((filt_mode == EIP712_FILTERING_FULL) &&
                (!ui_712_message_info_received() || (ui_712_remaining_filters() != 0))) {
         PRINTF("%d EIP712 filters are missing\n", ui_712_remaining_filters());
-        apdu_response_code = SWO_REFERENCED_DATA_NOT_FOUND;
+        sw = SWO_REFERENCED_DATA_NOT_FOUND;
     } else if (!all_calldata_info_processed() || (get_tx_ctx_count() != 0)) {
         PRINTF("Unprocessed calldata\n");
-        apdu_response_code = SWO_REFERENCED_DATA_NOT_FOUND;
+        sw = SWO_REFERENCED_DATA_NOT_FOUND;
     } else if (parseBip32(cdata, &length, &tmpCtx.messageSigningContext.bip32) == NULL) {
-        apdu_response_code = SWO_INCORRECT_DATA;
+        sw = SWO_INCORRECT_DATA;
     } else {
-        ret = true;
+        // impl APDUs never trigger display, so enforce blind-signing protection and transition to
+        // signing state here
+        if ((filt_mode == EIP712_FILTERING_BASIC) && !N_storage.dataAllowed &&
+            !N_storage.verbose_eip712) {
+            ui_error_blind_signing();
+            sw = SWO_INCORRECT_DATA;
+        } else {
+            bool should_start_ui = true;
+            sw = SWO_SUCCESS;
+
+            // Only call ui_712_start() if not already in signing state (FULL filtering may have
+            // already transitioned it via display)
+            if (appState != APP_STATE_SIGNING_EIP712) {
+                // For verbose/no-filtering mode, populate UI pairs from the value tree before
+                // starting UI
+                if (filt_mode == EIP712_FILTERING_BASIC) {
+                    if (!ui_712_populate_from_value_tree()) {
+                        PRINTF("ui_712_populate_from_value_tree failed\n");
+                        sw = SWO_INCORRECT_DATA;
+                        should_start_ui = false;
+                    }
+                }
+                if (should_start_ui) {
+                    if (!(ret = ui_712_start(filt_mode))) {
+                        PRINTF("SIGN fail: ui_712_start\n");
+                        sw = SWO_INCORRECT_DATA;
+                    }
+                }
+            }
+            if (should_start_ui && (sw == SWO_SUCCESS)) {
 #ifndef SCREEN_SIZE_WALLET
-        if (!N_storage.verbose_eip712 && (ui_712_get_filtering_mode() == EIP712_FILTERING_BASIC)) {
-            ret = ui_712_message_hash();
-        }
+                if (!N_storage.verbose_eip712 && (filt_mode == EIP712_FILTERING_BASIC)) {
+                    ret = ui_712_message_hash();
+                }
 #endif
-        ui_712_end_sign();
+                if (ui_712_end_sign()) {
+                    ret = true;
+                } else {
+                    sw = SWO_COMMAND_ERROR_NO_INFO;
+                }
+            }
+        }
     }
 
     if (!ret) {
-        apdu_reply(false);
-        return apdu_response_code;
+        return ret ? SWO_SUCCESS : sw;
     }
     return SWO_NO_RESPONSE;
 }

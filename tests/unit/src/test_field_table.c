@@ -59,24 +59,27 @@ static int g_ui_712_value_calls = 0;
 static char g_ui_712_last_title[64] = {0};
 static char g_ui_712_last_value[64] = {0};
 
-void ui_712_set_intent(void) {
+bool ui_712_set_intent(void) {
     g_ui_712_intent_calls++;
+    return true;
 }
 
-void ui_712_set_title(const char *str, size_t length) {
+bool ui_712_set_title(const char *str, size_t length) {
     g_ui_712_title_calls++;
     size_t copy =
         length < sizeof(g_ui_712_last_title) - 1 ? length : sizeof(g_ui_712_last_title) - 1;
     memcpy(g_ui_712_last_title, str, copy);
     g_ui_712_last_title[copy] = '\0';
+    return true;
 }
 
-void ui_712_set_value(const char *str, size_t length) {
+bool ui_712_set_value(const char *str, size_t length) {
     g_ui_712_value_calls++;
     size_t copy =
         length < sizeof(g_ui_712_last_value) - 1 ? length : sizeof(g_ui_712_last_value) - 1;
     memcpy(g_ui_712_last_value, str, copy);
     g_ui_712_last_value[copy] = '\0';
+    return true;
 }
 
 // =============================================================================

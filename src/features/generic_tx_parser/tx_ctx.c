@@ -7,7 +7,7 @@
 #include "shared_context.h"  // appState
 #include "utils.h"           // buf_shrink_expand
 #include "get_public_key.h"
-#include "context_712.h"
+#include "eip712_v1_context.h"
 #include "network.h"
 #include "hash_bytes.h"
 
