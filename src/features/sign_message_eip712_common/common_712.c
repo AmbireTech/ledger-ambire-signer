@@ -3,7 +3,7 @@
 #include "common_ui.h"
 #include "utils.h"
 #include "ui_utils.h"
-#include "ui_logic.h"
+#include "eip712_v1_ui_logic.h"
 #include "ui_nbgl.h"
 #include "cmd_get_tx_simulation.h"
 

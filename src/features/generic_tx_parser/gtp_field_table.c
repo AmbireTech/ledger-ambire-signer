@@ -4,7 +4,7 @@
 #include "app_mem_utils.h"
 #include "lists.h"
 #include "shared_context.h"  // appState
-#include "ui_logic.h"
+#include "eip712_v1_ui_logic.h"
 #include "tx_ctx.h"
 
 typedef struct {

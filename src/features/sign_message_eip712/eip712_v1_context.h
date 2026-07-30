@@ -8,9 +8,9 @@
 typedef struct {
     uint8_t schema_hash[CX_SHA224_SIZE];
     bool go_home_on_failure;
-} s_eip712_context;
+} s_eip712_v1_context;
 
-extern s_eip712_context *eip712_context;
+extern s_eip712_v1_context *eip712_v1_context;
 
-bool eip712_context_init(void);
-void eip712_context_deinit(void);
+bool eip712_v1_context_init(void);
+void eip712_v1_context_deinit(void);

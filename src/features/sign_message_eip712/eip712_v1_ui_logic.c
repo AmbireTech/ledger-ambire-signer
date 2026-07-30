@@ -1,16 +1,15 @@
-#include "ui_logic.h"
+#include "eip712_v1_ui_logic.h"
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "os_io.h"
 #include "format.h"
 #include "common_utils.h"  // uint256_to_decimal
 #include "common_712.h"
-#include "context_712.h"  // eip712_context_deinit
+#include "eip712_v1_context.h"  // eip712_v1_context_deinit
 #include "typed_data.h"
-#include "commands_712.h"
 #include "common_ui.h"
-#include "filtering.h"
-#include "parsing_v1.h"
+#include "eip712_v1_filtering.h"
+#include "eip712_v1_parse.h"
 #include "network.h"
 #include "time_format.h"
 #include "lists.h"
@@ -112,7 +111,7 @@ static bool ui_712_field_shown(void) {
 #ifdef SCREEN_SIZE_WALLET
         ret = true;
 #else
-        if (N_storage.verbose_eip712 || (impl_get_root_type() == ROOT_DOMAIN)) {
+        if (N_storage.verbose_eip712 || (v1_get_root_type() == ROOT_DOMAIN)) {
             ret = true;
         }
 #endif
@@ -226,7 +225,7 @@ bool ui_712_continue_or_finish(void) {
         if ((ui_ctx->filtering_mode == EIP712_FILTERING_BASIC) && !N_storage.dataAllowed &&
             !N_storage.verbose_eip712) {
             ui_error_blind_signing();
-            eip712_context->go_home_on_failure = false;
+            eip712_v1_context->go_home_on_failure = false;
             return false;
         }
         if (!ui_712_start(ui_ctx->filtering_mode)) {
@@ -235,7 +234,7 @@ bool ui_712_continue_or_finish(void) {
         io_seproxyhal_send_status(SWO_SUCCESS, 0, false, false);
     } else {
         if (ui_ctx->end_reached) {
-            return ui_sign_712(ui_ctx->filtering_mode);
+            return ui_sign_712_v1(ui_ctx->filtering_mode);
         } else {
             io_seproxyhal_send_status(SWO_SUCCESS, 0, false, false);
             explicit_bzero(&strings, sizeof(strings));
@@ -951,7 +950,7 @@ bool ui_712_end_sign(void) {
     if (N_storage.verbose_eip712 || (ui_ctx->filtering_mode == EIP712_FILTERING_FULL)) {
 #endif
         ui_ctx->end_reached = true;
-        return ui_sign_712(ui_ctx->filtering_mode);
+        return ui_sign_712_v1(ui_ctx->filtering_mode);
     }
     return true;
 }
@@ -1009,7 +1008,7 @@ void ui_712_deinit(void) {
  */
 void ui_712_approve(void) {
     ui_712_approve_cb();
-    eip712_context_deinit();
+    eip712_v1_context_deinit();
 }
 
 /**
@@ -1019,7 +1018,7 @@ void ui_712_approve(void) {
  */
 void ui_712_reject(void) {
     ui_712_reject_cb();
-    eip712_context_deinit();
+    eip712_v1_context_deinit();
 }
 
 /**
@@ -1072,6 +1071,9 @@ void ui_712_set_filtering_mode(e_eip712_filtering_mode mode) {
  * @return current filtering mode
  */
 e_eip712_filtering_mode ui_712_get_filtering_mode(void) {
+    if (ui_ctx == NULL) {
+        return EIP712_FILTERING_BASIC;
+    }
     return ui_ctx->filtering_mode;
 }
 

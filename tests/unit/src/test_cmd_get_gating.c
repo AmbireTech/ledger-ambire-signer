@@ -32,7 +32,7 @@
 #include "cmd_get_gating.h"
 #include "apdu_constants.h"
 #include "tlv_apdu.h"
-#include "context_712.h"
+#include "eip712_v1_context.h"
 #include "nbgl_use_case.h"
 #include "nbgl_types.h"
 #include "wraps.h"
@@ -44,8 +44,8 @@
 // Globals required by linked translation units
 // =============================================================================
 
-s_eip712_context g_eip712_storage;
-s_eip712_context *eip712_context = NULL;
+s_eip712_v1_context g_eip712_storage;
+s_eip712_v1_context *eip712_v1_context = NULL;
 
 // ui_icons.h pulls in ICON_LEDGER → C_ledger_14px (no SCREEN_SIZE_WALLET
 // in the test build). Stub the symbol so set_gating_ui_screen links.
@@ -270,7 +270,7 @@ static int reset(void **state) {
     clear_gating();
     memset(&g_n_storage_writable, 0, sizeof(g_n_storage_writable));
     memset(&g_eip712_storage, 0, sizeof(g_eip712_storage));
-    eip712_context = NULL;
+    eip712_v1_context = NULL;
     g_sig_check_ret = true;
     g_finalize_hash_ret = true;
     g_compute_schema_hash_ret = true;
@@ -571,7 +571,7 @@ static void test_set_warning_proxy_implementation_mismatch(void **state) {
 static void test_set_warning_typed_data_happy_path(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_EIP712;
-    eip712_context = &g_eip712_storage;
+    eip712_v1_context = &g_eip712_storage;
     memset(g_domain_contract_addr, 0xAA, ADDRESS_LENGTH);
     memset(g_schema_hash_buf, 0xCC, sizeof(g_schema_hash_buf));
 
@@ -587,7 +587,7 @@ static void test_set_warning_typed_data_happy_path(void **state) {
 static void test_set_warning_typed_data_schema_hash_mismatch(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_EIP712;
-    eip712_context = &g_eip712_storage;
+    eip712_v1_context = &g_eip712_storage;
     memset(g_domain_contract_addr, 0xAA, ADDRESS_LENGTH);
     memset(g_schema_hash_buf, 0x33, sizeof(g_schema_hash_buf));  // mismatch
 
@@ -602,7 +602,7 @@ static void test_set_warning_typed_data_schema_hash_mismatch(void **state) {
 static void test_set_warning_typed_data_compute_schema_failure(void **state) {
     (void) state;
     appState = APP_STATE_SIGNING_EIP712;
-    eip712_context = &g_eip712_storage;
+    eip712_v1_context = &g_eip712_storage;
     memset(g_domain_contract_addr, 0xAA, ADDRESS_LENGTH);
     g_compute_schema_hash_ret = false;
 

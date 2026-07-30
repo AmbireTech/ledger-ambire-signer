@@ -1,5 +1,5 @@
 #include "ui_nbgl.h"
-#include "ui_logic.h"
+#include "eip712_v1_ui_logic.h"
 #include "common_712.h"
 #include "common_ui.h"
 #include "ui_utils.h"

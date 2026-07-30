@@ -1,11 +1,9 @@
-#include "filtering.h"
+#include "eip712_v1_filtering.h"
 #include "public_keys.h"
 #include "manage_asset_info.h"
-#include "context_712.h"
-#include "commands_712.h"
+#include "eip712_v1_context.h"
 #include "typed_data.h"
-#include "ui_logic.h"
-#include "filtering.h"
+#include "eip712_v1_ui_logic.h"
 #include "os_pki.h"
 #include "trusted_name.h"
 #include "proxy_info.h"
@@ -14,7 +12,7 @@
 #include "network.h"
 #include "format.h"
 #include "shared_context.h"
-#include "parsing_v1.h"
+#include "eip712_v1_parse.h"
 
 #define FILT_MAGIC_MESSAGE_INFO      183
 #define FILT_MAGIC_CALLDATA_INFO     55
@@ -55,14 +53,14 @@ static bool hash_filtering_path(cx_hash_t *hash_ctx, bool discarded, uint32_t *p
         }
         *path_crc = cx_crc32_update(*path_crc, path, path_len);
     } else {
-        for (uint8_t i = 0; i < impl_get_depth_count(); ++i) {
+        for (uint8_t i = 0; i < v1_depth_count(); ++i) {
             if (i > 0) {
                 if (cx_hash_update((cx_hash_t *) hash_ctx, (uint8_t *) ".", 1) != CX_OK) {
                     return false;
                 }
                 *path_crc = cx_crc32_update(*path_crc, ".", 1);
             }
-            if ((field_ptr = impl_get_nth_field(i + 1)) == NULL) {
+            if ((field_ptr = v1_nth_field(i + 1)) == NULL) {
                 return false;
             }
             if ((key = field_ptr->key_name) != NULL) {
@@ -137,8 +135,8 @@ static bool sig_verif_start(cx_sha256_t *hash_ctx, uint8_t magic) {
 
     // Schema hash
     return cx_hash_update((cx_hash_t *) hash_ctx,
-                          eip712_context->schema_hash,
-                          sizeof(eip712_context->schema_hash)) == CX_OK;
+                          eip712_v1_context->schema_hash,
+                          sizeof(eip712_v1_context->schema_hash)) == CX_OK;
 }
 
 /**
@@ -179,7 +177,7 @@ static bool check_typename(const char *expected) {
     uint8_t typename_len = 0;
     const char *typename;
 
-    if ((typename = td_get_struct_field_typename(impl_get_current_field())) == NULL) {
+    if ((typename = td_get_struct_field_typename(v1_get_current_field())) == NULL) {
         return false;
     }
     typename_len = strlen(typename);
@@ -207,7 +205,7 @@ bool filtering_message_info(const uint8_t *payload, uint8_t length) {
     const uint8_t *sig;
     uint8_t offset = 0;
 
-    if (impl_get_root_type() != ROOT_DOMAIN) {
+    if (v1_get_root_type() != ROOT_DOMAIN) {
         return false;
     }
 
@@ -307,14 +305,14 @@ static bool matches_backup_path(const char *path, uint8_t path_len, uint8_t *off
     const char *key;
     uint8_t offset = 0;
 
-    for (uint8_t i = 0; i < impl_backup_get_depth_count(); ++i) {
+    for (uint8_t i = 0; i < v1_backup_depth_count(); ++i) {
         if (i > 0) {
             if (((offset + 1) > path_len) || (memcmp(path + offset, ".", 1) != 0)) {
                 return false;
             }
             offset += 1;
         }
-        if ((field_ptr = impl_backup_get_nth_field(i + 1)) != NULL) {
+        if ((field_ptr = v1_backup_nth_field(i + 1)) != NULL) {
             if ((key = field_ptr->key_name) != NULL) {
                 // field name
                 if (((offset + strlen(key)) > path_len) ||
@@ -368,7 +366,7 @@ bool filtering_discarded_path(const uint8_t *payload, uint8_t length) {
     if (!matches_backup_path(path, path_len, &path_offset)) {
         return false;
     }
-    if (!impl_backup_exists(path + path_offset, path_len - path_offset)) {
+    if (!v1_backup_exists(path + path_offset, path_len - path_offset)) {
         return false;
     }
     ui_712_set_discarded_path(path, path_len);
@@ -393,7 +391,7 @@ bool filtering_calldata_spender(const uint8_t *payload,
     uint8_t sig_len;
     const uint8_t *sig;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -455,7 +453,7 @@ bool filtering_calldata_amount(const uint8_t *payload,
     uint8_t sig_len;
     const uint8_t *sig;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -517,7 +515,7 @@ bool filtering_calldata_selector(const uint8_t *payload,
     uint8_t sig_len;
     const uint8_t *sig;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -579,7 +577,7 @@ bool filtering_calldata_chain_id(const uint8_t *payload,
     uint8_t sig_len;
     const uint8_t *sig;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -641,7 +639,7 @@ bool filtering_calldata_callee(const uint8_t *payload,
     uint8_t sig_len;
     const uint8_t *sig;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -703,7 +701,7 @@ bool filtering_calldata_value(const uint8_t *payload,
     uint8_t sig_len;
     const uint8_t *sig;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -767,7 +765,7 @@ bool filtering_calldata_info(const uint8_t *payload, uint8_t length) {
     const uint8_t *sig;
     s_eip712_calldata_info *calldata_info;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -945,7 +943,7 @@ bool filtering_trusted_name(const uint8_t *payload,
     const uint8_t *sig;
     uint8_t offset = 0;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -1074,7 +1072,7 @@ bool filtering_date_time(const uint8_t *payload,
     const uint8_t *sig;
     uint8_t offset = 0;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -1143,7 +1141,7 @@ bool filtering_amount_join_token(const uint8_t *payload,
     const uint8_t *sig;
     uint8_t offset = 0;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -1205,7 +1203,7 @@ bool filtering_amount_join_value(const uint8_t *payload,
     const uint8_t *sig;
     uint8_t offset = 0;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 
@@ -1292,7 +1290,7 @@ bool filtering_raw_field(const uint8_t *payload,
     const uint8_t *sig;
     uint8_t offset = 0;
 
-    if (impl_get_root_type() != ROOT_MESSAGE) {
+    if (v1_get_root_type() != ROOT_MESSAGE) {
         return false;
     }
 

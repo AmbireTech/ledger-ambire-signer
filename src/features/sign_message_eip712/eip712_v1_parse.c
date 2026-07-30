@@ -1,6 +1,6 @@
 #include "app_mem_utils.h"
 #include "read.h"
-#include "parsing_v1.h"
+#include "eip712_v1_parse.h"
 #include "typed_data.h"
 
 static s_struct_712 *g_pending_struct = NULL;
@@ -12,7 +12,7 @@ static s_struct_712 *g_pending_struct = NULL;
  * @param[in] name name
  * @return whether it was successful
  */
-bool set_struct_name(uint8_t length, const uint8_t *name) {
+bool v1_set_struct_name(uint8_t length, const uint8_t *name) {
     if (name == NULL) {
         return false;
     }
@@ -46,12 +46,12 @@ bool set_struct_name(uint8_t length, const uint8_t *name) {
  * @param[in] data_idx the data index
  * @return whether it was successful or not
  */
-static bool set_struct_field_typedesc(s_struct_712_field *field,
-                                      const uint8_t *data,
-                                      uint8_t *data_idx,
-                                      uint8_t length,
-                                      bool *is_array,
-                                      bool *has_size) {
+static bool v1_set_struct_field_typedesc(s_struct_712_field *field,
+                                         const uint8_t *data,
+                                         uint8_t *data_idx,
+                                         uint8_t length,
+                                         bool *is_array,
+                                         bool *has_size) {
     uint8_t typedesc;
 
     // copy TypeDesc
@@ -73,10 +73,10 @@ static bool set_struct_field_typedesc(s_struct_712_field *field,
  * @param[in] data_idx the data index
  * @return whether it was successful
  */
-static bool set_struct_field_custom_typename(s_struct_712_field *field,
-                                             const uint8_t *data,
-                                             uint8_t *data_idx,
-                                             uint8_t length) {
+static bool v1_set_struct_field_custom_typename(s_struct_712_field *field,
+                                                const uint8_t *data,
+                                                uint8_t *data_idx,
+                                                uint8_t length) {
     uint8_t typename_len;
 
     // copy custom struct name length
@@ -108,10 +108,10 @@ static bool set_struct_field_custom_typename(s_struct_712_field *field,
  * @param[in] data_idx the data index
  * @return whether it was successful
  */
-static bool set_struct_field_array(s_struct_712_field *field,
-                                   const uint8_t *data,
-                                   uint8_t *data_idx,
-                                   uint8_t length) {
+static bool v1_set_struct_field_array(s_struct_712_field *field,
+                                      const uint8_t *data,
+                                      uint8_t *data_idx,
+                                      uint8_t length) {
     // check buffer bound
     if ((*data_idx + sizeof(field->array_level_count)) > length) {
         return false;
@@ -152,10 +152,10 @@ static bool set_struct_field_array(s_struct_712_field *field,
  * @param[in,out] data_idx the data index
  * @return whether it was successful
  */
-static bool set_struct_field_typesize(s_struct_712_field *field,
-                                      const uint8_t *data,
-                                      uint8_t *data_idx,
-                                      uint8_t length) {
+static bool v1_set_struct_field_typesize(s_struct_712_field *field,
+                                         const uint8_t *data,
+                                         uint8_t *data_idx,
+                                         uint8_t length) {
     // copy TypeSize
     // check buffer bound
     if ((*data_idx + sizeof(field->type_size)) > length) {
@@ -172,10 +172,10 @@ static bool set_struct_field_typesize(s_struct_712_field *field,
  * @param[in,out] data_idx the data index
  * @return whether it was successful
  */
-static bool set_struct_field_keyname(s_struct_712_field *field,
-                                     const uint8_t *data,
-                                     uint8_t *data_idx,
-                                     uint8_t length) {
+static bool v1_set_struct_field_keyname(s_struct_712_field *field,
+                                        const uint8_t *data,
+                                        uint8_t *data_idx,
+                                        uint8_t length) {
     uint8_t keyname_len;
 
     // copy length
@@ -200,9 +200,9 @@ static bool set_struct_field_keyname(s_struct_712_field *field,
     return true;
 }
 
-static bool set_struct_field_internal(s_struct_712_field **new_field_ptr,
-                                      uint8_t length,
-                                      const uint8_t *data) {
+static bool v1_set_struct_field_internal(s_struct_712_field **new_field_ptr,
+                                         uint8_t length,
+                                         const uint8_t *data) {
     s_struct_712_field *new_field;
     uint8_t data_idx = 0;
 
@@ -222,7 +222,7 @@ static bool set_struct_field_internal(s_struct_712_field **new_field_ptr,
 
     bool is_array;
     bool has_size;
-    if (!set_struct_field_typedesc(new_field, data, &data_idx, length, &is_array, &has_size)) {
+    if (!v1_set_struct_field_typedesc(new_field, data, &data_idx, length, &is_array, &has_size)) {
         return false;
     }
 
@@ -233,22 +233,22 @@ static bool set_struct_field_internal(s_struct_712_field **new_field_ptr,
             return false;
         }
 
-        if (set_struct_field_typesize(new_field, data, &data_idx, length) == false) {
+        if (v1_set_struct_field_typesize(new_field, data, &data_idx, length) == false) {
             return false;
         }
 
     } else if (new_field->type == TYPE_STRUCT) {
-        if (set_struct_field_custom_typename(new_field, data, &data_idx, length) == false) {
+        if (v1_set_struct_field_custom_typename(new_field, data, &data_idx, length) == false) {
             return false;
         }
     }
     if (is_array) {
-        if (set_struct_field_array(new_field, data, &data_idx, length) == false) {
+        if (v1_set_struct_field_array(new_field, data, &data_idx, length) == false) {
             return false;
         }
     }
 
-    if (set_struct_field_keyname(new_field, data, &data_idx, length) == false) {
+    if (v1_set_struct_field_keyname(new_field, data, &data_idx, length) == false) {
         return false;
     }
 
@@ -267,10 +267,10 @@ static bool set_struct_field_internal(s_struct_712_field **new_field_ptr,
  * @param[in] data the field data
  * @return whether it was successful
  */
-bool set_struct_field(uint8_t length, const uint8_t *data) {
+bool v1_set_struct_field(uint8_t length, const uint8_t *data) {
     s_struct_712_field *new_field = NULL;
 
-    if (!set_struct_field_internal(&new_field, length, data)) {
+    if (!v1_set_struct_field_internal(&new_field, length, data)) {
         td_delete_struct_field(new_field);
         return false;
     }
@@ -281,7 +281,7 @@ typedef struct {
     const s_struct_712_field *next;  // next field expecting data
     s_struct_712_value *node;        // VAL_STRUCT or VAL_ARRAY being built
     uint8_t array_remaining;         // >0 = array frame; 0 = struct frame
-    // remaining array dimensions to open via impl_set_array before elements are the base type
+    // remaining array dimensions to open via v1_set_array before elements are the base type
     uint8_t array_levels_remaining;
 } s_build_frame;
 
@@ -388,7 +388,7 @@ static bool advance(void) {
                 }
                 return auto_descend();
             }
-            return true;  // next leaf/array arrives via next impl_add_field/impl_set_array call
+            return true;  // next leaf/array arrives via next v1_add_field/v1_set_array call
         } else {
             f->next = (const s_struct_712_field *) ((flist_node_t *) f->next)->next;
         }
@@ -411,7 +411,7 @@ static bool advance(void) {
 
 // --- value tree deinit ---
 
-bool impl_set_root(const char *name) {
+bool v1_set_root(const char *name) {
     bool ret;
     const s_struct_712 *root;
 
@@ -451,7 +451,7 @@ bool impl_set_root(const char *name) {
     return auto_descend();
 }
 
-bool impl_set_array(size_t count) {
+bool v1_set_array(size_t count) {
     // reject if a P2_IMPL_FIELD chunk sequence is still in flight, to avoid desyncing the pending
     // leaf's frames
     if (g_pending_field.leaf != NULL) {
@@ -514,7 +514,7 @@ bool impl_set_array(size_t count) {
     }
 
     // Only instantiate the base-type element once every array dimension has been opened, else wait
-    // for the next impl_set_array call
+    // for the next v1_set_array call
     if ((levels_remaining_after == 0) && (elem_field->type == TYPE_STRUCT)) {
         const s_struct_712 *nested = td_find_struct(elem_field->struct_name);
         if (nested == NULL) {
@@ -534,11 +534,11 @@ bool impl_set_array(size_t count) {
     return true;
 }
 
-bool impl_is_complete(void) {
+bool v1_is_complete(void) {
     return (g_build.depth == 0) && td_has_domain() && td_has_message();
 }
 
-const s_struct_712_value *impl_add_field(const uint8_t *data, size_t length, bool more) {
+const s_struct_712_value *v1_add_field(const uint8_t *data, size_t length, bool more) {
     if (g_build.depth == 0) {
         return NULL;
     }
@@ -546,7 +546,7 @@ const s_struct_712_value *impl_add_field(const uint8_t *data, size_t length, boo
     s_build_frame *f = &g_build.stack[g_build.depth - 1];
 
     // an array frame still awaiting inner dimensions must receive them via
-    // impl_set_array(), not a leaf value, or the declared array shape would be collapsed
+    // v1_set_array(), not a leaf value, or the declared array shape would be collapsed
     if ((f->array_remaining > 0) && (f->array_levels_remaining > 0)) {
         return NULL;
     }
@@ -604,7 +604,7 @@ const s_struct_712_value *impl_add_field(const uint8_t *data, size_t length, boo
 
 // --- path-compatible accessors (derived from build stack) ---
 
-e_root_type impl_get_root_type(void) {
+e_root_type v1_get_root_type(void) {
     if (!td_has_domain()) {
         return ROOT_NONE;
     }
@@ -614,14 +614,14 @@ e_root_type impl_get_root_type(void) {
     return ROOT_MESSAGE;
 }
 
-const s_struct_712_field *impl_get_current_field(void) {
+const s_struct_712_field *v1_get_current_field(void) {
     if (g_build.depth == 0) {
         return NULL;
     }
     return g_build.stack[g_build.depth - 1].next;
 }
 
-uint8_t impl_get_depth_count(void) {
+uint8_t v1_depth_count(void) {
     uint8_t count = 0;
     for (uint8_t i = 0; i < g_build.depth; ++i) {
         if (g_build.stack[i].array_remaining == 0) count++;
@@ -629,7 +629,7 @@ uint8_t impl_get_depth_count(void) {
     return count;
 }
 
-const s_struct_712_field *impl_get_nth_field(uint8_t n) {
+const s_struct_712_field *v1_nth_field(uint8_t n) {
     if (n == 0) {
         return NULL;
     }
@@ -645,18 +645,18 @@ const s_struct_712_field *impl_get_nth_field(uint8_t n) {
     return NULL;
 }
 
-uint8_t impl_backup_get_depth_count(void) {
+uint8_t v1_backup_depth_count(void) {
     return g_backup.depth;
 }
 
-const s_struct_712_field *impl_backup_get_nth_field(uint8_t n) {
+const s_struct_712_field *v1_backup_nth_field(uint8_t n) {
     if ((n == 0) || (n > g_backup.depth)) {
         return NULL;
     }
     return g_backup.stack[n - 1].next;
 }
 
-bool impl_backup_exists(const char *path, size_t length) {
+bool v1_backup_exists(const char *path, size_t length) {
     size_t offset = 0;
     size_t i;
     const s_struct_712_field *field_ptr;

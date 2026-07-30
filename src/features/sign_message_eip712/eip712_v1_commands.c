@@ -1,14 +1,15 @@
-#include "context_712.h"
-#include "ui_logic.h"
+#include "eip712_v1_commands.h"
+#include "eip712_v1_context.h"
+#include "eip712_v1_ui_logic.h"
 #include "typed_data.h"
 #include "schema_hash.h"
-#include "filtering.h"
+#include "eip712_v1_filtering.h"
 #include "common_ui.h"  // ui_idle, ui_error_blind_signing
 #include "manage_asset_info.h"
 #include "tx_ctx.h"  // get_tx_ctx_count
 #include "value_hash.h"
 #include "common_712.h"  // ui_712_start
-#include "parsing_v1.h"
+#include "eip712_v1_parse.h"
 
 // APDUs P1
 #define P1_COMPLETE  0x00
@@ -51,10 +52,10 @@ static uint16_t apdu_reply(bool success, uint16_t sw) {
     if (success) {
         sw = SWO_SUCCESS;
     } else {
-        if (eip712_context != NULL) {
-            home = eip712_context->go_home_on_failure;
+        if (eip712_v1_context != NULL) {
+            home = eip712_v1_context->go_home_on_failure;
         }
-        eip712_context_deinit();
+        eip712_v1_context_deinit();
         if (home) ui_idle();
     }
     return sw;
@@ -68,14 +69,14 @@ static uint16_t apdu_reply(bool success, uint16_t sw) {
  * @param[in] length length of the command data
  * @return whether the command was successful or not
  */
-uint16_t handle_eip712_struct_def(uint8_t p2, const uint8_t *cdata, uint8_t length) {
+uint16_t handle_eip712_v1_struct_def(uint8_t p2, const uint8_t *cdata, uint8_t length) {
     bool ret = true;
     uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
 
-    if (eip712_context == NULL) {
-        ret = eip712_context_init();
+    if (eip712_v1_context == NULL) {
+        ret = eip712_v1_context_init();
     }
-    if ((impl_get_root_type() != ROOT_NONE) ||
+    if ((v1_get_root_type() != ROOT_NONE) ||
         (ui_712_get_filtering_mode() == EIP712_FILTERING_FULL)) {
         ret = false;
     }
@@ -83,10 +84,10 @@ uint16_t handle_eip712_struct_def(uint8_t p2, const uint8_t *cdata, uint8_t leng
     if (ret) {
         switch (p2) {
             case P2_DEF_NAME:
-                ret = set_struct_name(length, cdata);
+                ret = v1_set_struct_name(length, cdata);
                 break;
             case P2_DEF_FIELD:
-                ret = set_struct_field(length, cdata);
+                ret = v1_set_struct_field(length, cdata);
                 break;
             default:
                 PRINTF("Unknown P2 0x%x\n", p2);
@@ -106,11 +107,14 @@ uint16_t handle_eip712_struct_def(uint8_t p2, const uint8_t *cdata, uint8_t leng
  * @param[in] length length of the command data
  * @return whether the command was successful or not
  */
-uint16_t handle_eip712_struct_impl(uint8_t p1, uint8_t p2, const uint8_t *cdata, uint8_t length) {
+uint16_t handle_eip712_v1_struct_impl(uint8_t p1,
+                                      uint8_t p2,
+                                      const uint8_t *cdata,
+                                      uint8_t length) {
     bool ret = false;
     uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
 
-    if (eip712_context == NULL) {
+    if (eip712_v1_context == NULL) {
         sw = SWO_COMMAND_NOT_ALLOWED;
     } else {
         switch (p2) {
@@ -118,17 +122,16 @@ uint16_t handle_eip712_struct_impl(uint8_t p1, uint8_t p2, const uint8_t *cdata,
                 // make it NULL-terminated
                 memcpy(strings.tmp.tmp, cdata, length);
                 strings.tmp.tmp[length] = '\0';
-                ret = impl_set_root(strings.tmp.tmp);
+                ret = v1_set_root(strings.tmp.tmp);
                 if (ret) {
                     ui_712_field_flags_reset();
                 }
                 break;
 
             case P2_IMPL_FIELD: {
-                const s_struct_712_field *cur_field = impl_get_current_field();
+                const s_struct_712_field *cur_field = v1_get_current_field();
                 if ((ret = (cur_field != NULL))) {
-                    const s_struct_712_value *leaf =
-                        impl_add_field(cdata, length, p1 != P1_COMPLETE);
+                    const s_struct_712_value *leaf = v1_add_field(cdata, length, p1 != P1_COMPLETE);
                     if ((ret = (leaf != NULL))) {
                         if (p1 == P1_COMPLETE) {
                             ret = ui_712_accumulate_value(cur_field, leaf->data, leaf->length);
@@ -142,7 +145,7 @@ uint16_t handle_eip712_struct_impl(uint8_t p1, uint8_t p2, const uint8_t *cdata,
                 if (length != 1) {
                     sw = SWO_INCORRECT_DATA;
                 } else {
-                    ret = impl_set_array(cdata[0]);
+                    ret = v1_set_array(cdata[0]);
                 }
                 break;
 
@@ -163,13 +166,13 @@ uint16_t handle_eip712_struct_impl(uint8_t p1, uint8_t p2, const uint8_t *cdata,
  * @param[in] length length of the command data
  * @return whether the command was successful or not
  */
-uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, uint8_t length) {
+uint16_t handle_eip712_v1_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, uint8_t length) {
     bool ret = true;
     bool reply_apdu = true;
     uint32_t path_crc = 0;
     uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
 
-    if (eip712_context == NULL) {
+    if (eip712_v1_context == NULL) {
         return apdu_reply(false, SWO_COMMAND_NOT_ALLOWED);
     }
     if ((p2 != P2_FILT_ACTIVATE) && (ui_712_get_filtering_mode() != EIP712_FILTERING_FULL)) {
@@ -178,7 +181,7 @@ uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, u
     switch (p2) {
         case P2_FILT_ACTIVATE:
             if (!N_storage.verbose_eip712) {
-                ret = compute_schema_hash(eip712_context->schema_hash);
+                ret = compute_schema_hash(eip712_v1_context->schema_hash);
                 if (ret) {
                     // Switch to filtering mode and lock the type system in
                     // one atomic step: a host cannot append struct
@@ -258,18 +261,19 @@ uint16_t handle_eip712_filtering(uint8_t p1, uint8_t p2, const uint8_t *cdata, u
  * @param[in] apdu_buf the APDU payload
  * @return whether the command was successful or not
  */
-uint16_t handle_eip712_sign(const uint8_t *cdata, uint8_t length) {
+uint16_t handle_eip712_v1_sign(const uint8_t *cdata, uint8_t length) {
     bool ret = false;
     uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
+    e_eip712_filtering_mode filt_mode = ui_712_get_filtering_mode();
 
-    if (eip712_context == NULL) {
+    if (eip712_v1_context == NULL) {
         sw = SWO_COMMAND_NOT_ALLOWED;
-    } else if (!impl_is_complete()) {
+    } else if (!v1_is_complete()) {
         PRINTF("impl not complete\n");
         sw = SWO_INCORRECT_DATA;
     } else if (!td_hash_pass()) {
         PRINTF("value_hash_pass failed\n");
-    } else if ((ui_712_get_filtering_mode() == EIP712_FILTERING_FULL) &&
+    } else if ((filt_mode == EIP712_FILTERING_FULL) &&
                (!ui_712_message_info_received() || (ui_712_remaining_filters() != 0))) {
         PRINTF("%d EIP712 filters are missing\n", ui_712_remaining_filters());
         sw = SWO_REFERENCED_DATA_NOT_FOUND;
@@ -281,11 +285,11 @@ uint16_t handle_eip712_sign(const uint8_t *cdata, uint8_t length) {
     } else {
         // impl APDUs never trigger display, so enforce blind-signing protection and transition to
         // signing state here
-        if ((ui_712_get_filtering_mode() == EIP712_FILTERING_BASIC) && !N_storage.dataAllowed &&
+        if ((filt_mode == EIP712_FILTERING_BASIC) && !N_storage.dataAllowed &&
             !N_storage.verbose_eip712) {
             ui_error_blind_signing();
             sw = SWO_INCORRECT_DATA;
-            eip712_context->go_home_on_failure = false;
+            eip712_v1_context->go_home_on_failure = false;
         } else {
             bool should_start_ui = true;
             sw = SWO_SUCCESS;
@@ -295,7 +299,7 @@ uint16_t handle_eip712_sign(const uint8_t *cdata, uint8_t length) {
             if (appState != APP_STATE_SIGNING_EIP712) {
                 // For verbose/no-filtering mode, populate UI pairs from the value tree before
                 // starting UI
-                if (ui_712_get_filtering_mode() == EIP712_FILTERING_BASIC) {
+                if (filt_mode == EIP712_FILTERING_BASIC) {
                     if (!ui_712_populate_from_value_tree()) {
                         PRINTF("ui_712_populate_from_value_tree failed\n");
                         sw = SWO_INCORRECT_DATA;
@@ -303,7 +307,7 @@ uint16_t handle_eip712_sign(const uint8_t *cdata, uint8_t length) {
                     }
                 }
                 if (should_start_ui) {
-                    if (!(ret = ui_712_start(ui_712_get_filtering_mode()))) {
+                    if (!(ret = ui_712_start(filt_mode))) {
                         PRINTF("SIGN fail: ui_712_start\n");
                         sw = SWO_INCORRECT_DATA;
                     }
@@ -311,8 +315,7 @@ uint16_t handle_eip712_sign(const uint8_t *cdata, uint8_t length) {
             }
             if (should_start_ui && (sw == SWO_SUCCESS)) {
 #ifndef SCREEN_SIZE_WALLET
-                if (!N_storage.verbose_eip712 &&
-                    (ui_712_get_filtering_mode() == EIP712_FILTERING_BASIC)) {
+                if (!N_storage.verbose_eip712 && (filt_mode == EIP712_FILTERING_BASIC)) {
                     ret = ui_712_message_hash();
                 }
 #endif

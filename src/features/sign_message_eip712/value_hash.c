@@ -145,7 +145,7 @@ static bool hash_value(const s_struct_712_value *node, uint8_t *out, uint8_t dep
  * Computes hashStruct(domain) and hashStruct(message) and writes results to
  * tmpCtx.messageSigningContext712.domainHash / .messageHash.
  *
- * Must be called only after impl_is_complete() returns true.
+ * Must be called only after v1_is_complete() returns true.
  * Domain special fields (chainId, verifyingContract) are extracted when the domain is complete
  * and accessible via td_get_domain_chain_id() / td_get_domain_contract_addr().
  */

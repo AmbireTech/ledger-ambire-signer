@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "ui_logic.h"
+#include "eip712_v1_ui_logic.h"
 #include "shared_context.h"
 #include "ux.h"
 
@@ -20,7 +20,7 @@ void ui_display_safe_account(void);
 void ui_191_start(const char *message);
 
 // EIP-712
-bool ui_sign_712(e_eip712_filtering_mode filtering_mode);
+bool ui_sign_712_v1(e_eip712_filtering_mode filtering_mode);
 bool ui_sign_712_v0(void);
 
 // Generic clear-signing

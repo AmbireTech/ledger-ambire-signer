@@ -53,23 +53,23 @@ class P2Type(IntEnum):
     STRUCT_NAME = 0x00
     STRUCT_FIELD = 0xFF
     ARRAY = 0x0F
-    LEGACY_IMPLEM = 0x00
-    NEW_IMPLEM = 0x01
-    FILTERING_ACTIVATE = 0x00
-    FILTERING_DISCARDED_PATH = 0x01
-    FILTERING_MESSAGE_INFO = 0x0F
-    FILTERING_CALLDATA_SPENDER = 0xF4
-    FILTERING_CALLDATA_AMOUNT = 0xF5
-    FILTERING_CALLDATA_SELECTOR = 0xF6
-    FILTERING_CALLDATA_CHAIN_ID = 0xF7
-    FILTERING_CALLDATA_CALLEE = 0xF8
-    FILTERING_CALLDATA_VALUE = 0xF9
-    FILTERING_CALLDATA_INFO = 0xFA
-    FILTERING_TRUSTED_NAME = 0xFB
-    FILTERING_DATETIME = 0xFC
-    FILTERING_TOKEN_ADDR_CHECK = 0xFD
-    FILTERING_AMOUNT_FIELD = 0xFE
-    FILTERING_RAW = 0xFF
+    EIP712_V0_IMPLEM = 0x00
+    EIP712_V1_IMPLEM = 0x01
+    EIP712_V1_FILTERING_ACTIVATE = 0x00
+    EIP712_V1_FILTERING_DISCARDED_PATH = 0x01
+    EIP712_V1_FILTERING_MESSAGE_INFO = 0x0F
+    EIP712_V1_FILTERING_CALLDATA_SPENDER = 0xF4
+    EIP712_V1_FILTERING_CALLDATA_AMOUNT = 0xF5
+    EIP712_V1_FILTERING_CALLDATA_SELECTOR = 0xF6
+    EIP712_V1_FILTERING_CALLDATA_CHAIN_ID = 0xF7
+    EIP712_V1_FILTERING_CALLDATA_CALLEE = 0xF8
+    EIP712_V1_FILTERING_CALLDATA_VALUE = 0xF9
+    EIP712_V1_FILTERING_CALLDATA_INFO = 0xFA
+    EIP712_V1_FILTERING_TRUSTED_NAME = 0xFB
+    EIP712_V1_FILTERING_DATETIME = 0xFC
+    EIP712_V1_FILTERING_TOKEN_ADDR_CHECK = 0xFD
+    EIP712_V1_FILTERING_AMOUNT_FIELD = 0xFE
+    EIP712_V1_FILTERING_RAW = 0xFF
     NETWORK_CONFIG = 0x00
     NETWORK_ICON = 0x01
     SIGN_PROCESS_START = 0x00
@@ -181,19 +181,19 @@ class CommandBuilder:
 
     def eip712_sign_new(self, bip32_path: str) -> bytes:
         data = pack_derivation_path(bip32_path)
-        return self._serialize(InsType.EIP712_SIGN, P1Type.COMPLETE_SEND, P2Type.NEW_IMPLEM, data)
+        return self._serialize(InsType.EIP712_SIGN, P1Type.COMPLETE_SEND, P2Type.EIP712_V1_IMPLEM, data)
 
     def eip712_sign_legacy(self, bip32_path: str, domain_hash: bytes, message_hash: bytes) -> bytes:
         data = pack_derivation_path(bip32_path)
         data += domain_hash
         data += message_hash
-        return self._serialize(InsType.EIP712_SIGN, P1Type.COMPLETE_SEND, P2Type.LEGACY_IMPLEM, data)
+        return self._serialize(InsType.EIP712_SIGN, P1Type.COMPLETE_SEND, P2Type.EIP712_V0_IMPLEM, data)
 
     def eip712_filtering_activate(self):
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             P1Type.COMPLETE_SEND,
-            P2Type.FILTERING_ACTIVATE,
+            P2Type.EIP712_V1_FILTERING_ACTIVATE,
             bytearray(),
         )
 
@@ -212,7 +212,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             P1Type.COMPLETE_SEND,
-            P2Type.FILTERING_DISCARDED_PATH,
+            P2Type.EIP712_V1_FILTERING_DISCARDED_PATH,
             data,
         )
 
@@ -226,7 +226,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             P1Type.COMPLETE_SEND,
-            P2Type.FILTERING_MESSAGE_INFO,
+            P2Type.EIP712_V1_FILTERING_MESSAGE_INFO,
             data,
         )
 
@@ -238,7 +238,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_TOKEN_ADDR_CHECK,
+            P2Type.EIP712_V1_FILTERING_TOKEN_ADDR_CHECK,
             data,
         )
 
@@ -252,7 +252,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_AMOUNT_FIELD,
+            P2Type.EIP712_V1_FILTERING_AMOUNT_FIELD,
             data,
         )
 
@@ -260,7 +260,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_DATETIME,
+            P2Type.EIP712_V1_FILTERING_DATETIME,
             self._eip712_filtering_send_name(name, sig),
         )
 
@@ -286,7 +286,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_TRUSTED_NAME,
+            P2Type.EIP712_V1_FILTERING_TRUSTED_NAME,
             data,
         )
 
@@ -314,7 +314,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(False),
-            P2Type.FILTERING_CALLDATA_INFO,
+            P2Type.EIP712_V1_FILTERING_CALLDATA_INFO,
             data,
         )
 
@@ -326,7 +326,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_CALLDATA_VALUE,
+            P2Type.EIP712_V1_FILTERING_CALLDATA_VALUE,
             data,
         )
 
@@ -338,7 +338,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_CALLDATA_CALLEE,
+            P2Type.EIP712_V1_FILTERING_CALLDATA_CALLEE,
             data,
         )
 
@@ -350,7 +350,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_CALLDATA_CHAIN_ID,
+            P2Type.EIP712_V1_FILTERING_CALLDATA_CHAIN_ID,
             data,
         )
 
@@ -362,7 +362,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_CALLDATA_SELECTOR,
+            P2Type.EIP712_V1_FILTERING_CALLDATA_SELECTOR,
             data,
         )
 
@@ -374,7 +374,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_CALLDATA_AMOUNT,
+            P2Type.EIP712_V1_FILTERING_CALLDATA_AMOUNT,
             data,
         )
 
@@ -386,7 +386,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_CALLDATA_SPENDER,
+            P2Type.EIP712_V1_FILTERING_CALLDATA_SPENDER,
             data,
         )
 
@@ -394,7 +394,7 @@ class CommandBuilder:
         return self._serialize(
             InsType.EIP712_SEND_FILTERING,
             int(discarded),
-            P2Type.FILTERING_RAW,
+            P2Type.EIP712_V1_FILTERING_RAW,
             self._eip712_filtering_send_name(name, sig),
         )
 

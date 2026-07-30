@@ -31,7 +31,7 @@
 #include "handle_get_printable_amount.h"
 #include "handle_check_address.h"
 #include "swap_entrypoints.h"
-#include "commands_712.h"
+#include "eip712_v1_commands.h"
 #include "challenge.h"
 #include "cmd_trusted_name.h"
 #include "crypto_helpers.h"
@@ -228,12 +228,12 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
 
         case INS_SIGN_EIP_712_MESSAGE:
             switch (cmd->p2) {
-                case P2_EIP712_LEGACY_IMPLEM:
+                case P2_EIP712_V0_IMPLEM:
                     forget_known_assets();
                     sw = handle_sign_eip712_message_v0(cmd->p1, cmd->data, cmd->lc);
                     break;
-                case P2_EIP712_FULL_IMPLEM:
-                    sw = handle_eip712_sign(cmd->data, cmd->lc);
+                case P2_EIP712_V1_IMPLEM:
+                    sw = handle_eip712_v1_sign(cmd->data, cmd->lc);
                     break;
                 default:
                     sw = SWO_WRONG_P1_P2;
@@ -253,15 +253,15 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
 
         // EIP-712 full implementation: structure definition, instantiation, filtering
         case INS_EIP712_STRUCT_DEF:
-            sw = handle_eip712_struct_def(cmd->p2, cmd->data, cmd->lc);
+            sw = handle_eip712_v1_struct_def(cmd->p2, cmd->data, cmd->lc);
             break;
 
         case INS_EIP712_STRUCT_IMPL:
-            sw = handle_eip712_struct_impl(cmd->p1, cmd->p2, cmd->data, cmd->lc);
+            sw = handle_eip712_v1_struct_impl(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
 
         case INS_EIP712_FILTERING:
-            sw = handle_eip712_filtering(cmd->p1, cmd->p2, cmd->data, cmd->lc);
+            sw = handle_eip712_v1_filtering(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
 
         // Generic clear-signing protocol (GTP) and trusted data provisioning

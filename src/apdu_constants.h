@@ -67,16 +67,16 @@
      : x == INS_PROVIDE_GATING                  ? "PROVIDE_GATING"             \
      : x == INS_PROVIDE_MAP_ENTRY               ? "PROVIDE_MAP_ENTRY"          \
                                                 : "Unknown")
-#define P1_CONFIRM              0x01
-#define P1_NON_CONFIRM          0x00
-#define P2_NO_CHAINCODE         0x00
-#define P2_CHAINCODE            0x01
-#define P1_FIRST                0x00
-#define P1_MORE                 0x80
-#define P1_FIRST_CHUNK          0x01
-#define P1_FOLLOWING_CHUNK      0x00
-#define P2_EIP712_LEGACY_IMPLEM 0x00
-#define P2_EIP712_FULL_IMPLEM   0x01
+#define P1_CONFIRM          0x01
+#define P1_NON_CONFIRM      0x00
+#define P2_NO_CHAINCODE     0x00
+#define P2_CHAINCODE        0x01
+#define P1_FIRST            0x00
+#define P1_MORE             0x80
+#define P1_FIRST_CHUNK      0x01
+#define P1_FOLLOWING_CHUNK  0x00
+#define P2_EIP712_V0_IMPLEM 0x00
+#define P2_EIP712_V1_IMPLEM 0x01
 
 #define APDU_RESPONSE_MODE_CHECK_FAILED 0x6001
 

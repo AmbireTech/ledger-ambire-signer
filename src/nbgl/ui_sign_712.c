@@ -73,7 +73,7 @@ static void ui_712_start_review(e_eip712_filtering_mode filtering_mode,
  * @param filtering_mode the filtering mode to use
  * @return boolean indicating success or failure
  */
-bool ui_sign_712(e_eip712_filtering_mode filtering_mode) {
+bool ui_sign_712_v1(e_eip712_filtering_mode filtering_mode) {
     // Initialize the pairs list
     if (!ui_712_push_pairs()) {
         return false;

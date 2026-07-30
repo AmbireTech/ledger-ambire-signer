@@ -1,7 +1,6 @@
 #include "format_hash_field_type.h"
 #include "app_mem_utils.h"
 #include "mem_utils.h"
-#include "commands_712.h"
 #include "typed_data.h"
 
 /**

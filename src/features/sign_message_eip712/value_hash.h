@@ -9,7 +9,7 @@
  * Computes hashStruct(domain) and hashStruct(message) via recursive traversal
  * and writes results to tmpCtx.messageSigningContext712.domainHash and .messageHash.
  *
- * Must be called only after impl_is_complete() returns true.
+ * Must be called only after v1_is_complete() returns true.
  *
  * @return whether the hash pass was successful
  */

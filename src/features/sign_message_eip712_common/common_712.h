@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "ui_logic.h"
+#include "eip712_v1_ui_logic.h"
 
 bool ui_712_start(e_eip712_filtering_mode filtering);
 
