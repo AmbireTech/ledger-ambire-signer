@@ -79,6 +79,9 @@ typedef struct {
 // Maximum nesting depth supported when traversing/building a value tree
 #define TD_MAX_DEPTH 16
 
+// Maximum array dimensions of a field declaration; each consumes a TD_MAX_DEPTH level
+#define TD_MAX_ARRAY_LEVELS 8
+
 /**
  * Create a new, empty struct type definition
  *
@@ -231,7 +234,7 @@ bool td_field_set_struct_name(s_struct_712_field *field, const uint8_t *name, si
  * Set the number of array dimensions a field has, resetting any previously set levels
  *
  * @param[in,out] field field definition to update
- * @param[in] count number of array dimensions
+ * @param[in] count number of array dimensions, at most TD_MAX_ARRAY_LEVELS
  * @return whether the count was set
  */
 bool td_field_set_array_level_count(s_struct_712_field *field, uint8_t count);

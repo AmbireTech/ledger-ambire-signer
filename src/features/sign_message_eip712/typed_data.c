@@ -190,6 +190,9 @@ bool td_field_set_array_level_count(s_struct_712_field *field, uint8_t count) {
     if (field == NULL) {
         return false;
     }
+    if (count > TD_MAX_ARRAY_LEVELS) {
+        return false;
+    }
     if (field->array_levels != NULL) {
         // to prevent a memory leak
         APP_MEM_FREE(field->array_levels);
