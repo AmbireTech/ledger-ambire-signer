@@ -1143,8 +1143,10 @@ static bool format_node_for_verbose_internal(const s_struct_712_value *node,
 #endif
             if (show && (node->struct_type != NULL) && (node->struct_type->name != NULL)) {
                 const char *title = "Review struct";
-                ui_712_set_title(title, strlen(title));
-                ui_712_set_value(node->struct_type->name, strlen(node->struct_type->name));
+                if (!ui_712_set_title(title, strlen(title)) ||
+                    !ui_712_set_value(node->struct_type->name, strlen(node->struct_type->name))) {
+                    return false;
+                }
             }
         }
         return true;
@@ -1163,7 +1165,9 @@ static bool format_node_for_verbose_internal(const s_struct_712_value *node,
     }
 
     // Set title
-    ui_712_set_title(field->key_name, strlen(field->key_name));
+    if (!ui_712_set_title(field->key_name, strlen(field->key_name))) {
+        return false;
+    }
 
     // Clear temp buffer
     explicit_bzero(strings.tmp.tmp, sizeof(strings.tmp.tmp));
@@ -1208,7 +1212,9 @@ static bool format_node_for_verbose_internal(const s_struct_712_value *node,
     // Calling ui_712_push_pairs() here would redundantly free+reallocate the
     // whole array at a size one larger for every single leaf, which for large
     // nested messages both wastes cycles and fragments the heap needlessly.
-    ui_712_set_value(strings.tmp.tmp, strlen(strings.tmp.tmp));
+    if (!ui_712_set_value(strings.tmp.tmp, strlen(strings.tmp.tmp))) {
+        return false;
+    }
 
     if (consume) {
         td_release_leaf_value(node);
