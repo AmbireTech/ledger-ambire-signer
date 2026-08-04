@@ -6,8 +6,6 @@
 #include "common_utils.h"    // CX_KECCAK_256_SIZE
 #include "shared_context.h"  // tmpCtx
 
-static bool hash_value(const s_struct_712_value *node, uint8_t *out, uint8_t depth);
-
 /**
  * Encode a VAL_ATOMIC leaf to 32 bytes.
  * Static types: encode+pad. Dynamic types (string/bytes): keccak256(data).
@@ -63,10 +61,39 @@ static bool encode_atomic(const s_struct_712_value *leaf, uint8_t *out) {
     return true;
 }
 
+// One allocation per child, so no single allocation scales with the child count.
+typedef struct {
+    flist_node_t _list;
+    uint8_t hash[CX_KECCAK_256_SIZE];
+} s_child_digest;
+
+// to be used as a \ref f_list_node_del
+static void delete_child_digest(s_child_digest *digest) {
+    APP_MEM_FREE(digest);
+}
+
+// Leaves are encoded on the spot, containers were already hashed into @p cursor, in order.
+static bool child_digest(const s_struct_712_value *child,
+                         const s_child_digest **cursor,
+                         uint8_t *out) {
+    if (child->kind == VAL_ATOMIC) {
+        return encode_atomic(child, out);
+    }
+    if (*cursor == NULL) {
+        return false;
+    }
+    memcpy(out, (*cursor)->hash, CX_KECCAK_256_SIZE);
+    *cursor = (const s_child_digest *) ((const flist_node_t *) *cursor)->next;
+    return true;
+}
+
 /**
  * Hash an array: keccak256(enc(elem[0]) || enc(elem[1]) || ...).
+ * noinline: keeps the cx_sha3_t below out of hash_value()'s recursive frames.
  */
-static bool hash_array(const s_struct_712_value *arr, uint8_t *out, uint8_t depth) {
+__attribute__((noinline)) static bool hash_array(const s_struct_712_value *arr,
+                                                 uint8_t *out,
+                                                 const s_child_digest *digests) {
     cx_sha3_t sha3;
     uint8_t elem_hash[CX_KECCAK_256_SIZE];
 
@@ -75,7 +102,7 @@ static bool hash_array(const s_struct_712_value *arr, uint8_t *out, uint8_t dept
     }
     for (const s_struct_712_value *elem = arr->children; elem != NULL;
          elem = (const s_struct_712_value *) ((const flist_node_t *) elem)->next) {
-        if (!hash_value(elem, elem_hash, depth)) {
+        if (!child_digest(elem, &digests, elem_hash)) {
             return false;
         }
         if (cx_hash_update((cx_hash_t *) &sha3, elem_hash, sizeof(elem_hash)) != CX_OK) {
@@ -87,18 +114,15 @@ static bool hash_array(const s_struct_712_value *arr, uint8_t *out, uint8_t dept
 
 /**
  * Hash a struct: keccak256(typeHash || enc(field[0]) || enc(field[1]) || ...).
- * Each recursive call holds its own cx_sha3_t on the stack (bounded by schema depth).
+ * noinline for the same reason as hash_array().
  */
-static bool hash_struct(const s_struct_712_value *node, uint8_t *out, uint8_t depth) {
+__attribute__((noinline)) static bool hash_struct(const s_struct_712_value *node,
+                                                  uint8_t *out,
+                                                  const s_child_digest *digests) {
     cx_sha3_t sha3;
     uint8_t type_hash_buf[CX_KECCAK_256_SIZE];
     uint8_t child_hash[CX_KECCAK_256_SIZE];
     const char *name = node->struct_type->name;
-
-    if (depth >= TD_MAX_DEPTH) {
-        PRINTF("hash_struct: max depth exceeded\n");
-        return false;
-    }
 
     PRINTF("hash_struct: %s\n", name);
 
@@ -116,7 +140,7 @@ static bool hash_struct(const s_struct_712_value *node, uint8_t *out, uint8_t de
 
     for (const s_struct_712_value *child = node->children; child != NULL;
          child = (const s_struct_712_value *) ((const flist_node_t *) child)->next) {
-        if (!hash_value(child, child_hash, depth + 1)) {
+        if (!child_digest(child, &digests, child_hash)) {
             return false;
         }
         if (cx_hash_update((cx_hash_t *) &sha3, child_hash, sizeof(child_hash)) != CX_OK) {
@@ -127,16 +151,36 @@ static bool hash_struct(const s_struct_712_value *node, uint8_t *out, uint8_t de
 }
 
 static bool hash_value(const s_struct_712_value *node, uint8_t *out, uint8_t depth) {
-    switch (node->kind) {
-        case VAL_ATOMIC:
-            return encode_atomic(node, out);
-        case VAL_STRUCT:
-            return hash_struct(node, out, depth);
-        case VAL_ARRAY:
-            return hash_array(node, out, depth);
-        default:
-            return false;
+    s_child_digest *digests = NULL;
+    bool ret = true;
+
+    // leaves never recurse, so this bound counts the same nesting levels as the parser's frames
+    if ((node->kind == VAL_ATOMIC) || (depth >= TD_MAX_DEPTH)) {
+        PRINTF("hash_value: leaf node or max depth exceeded\n");
+        return false;
     }
+
+    // pre-hashing the children keeps every hashing context out of the recursion
+    for (const s_struct_712_value *child = node->children; (child != NULL) && ret;
+         child = (const s_struct_712_value *) ((const flist_node_t *) child)->next) {
+        if (child->kind != VAL_ATOMIC) {
+            s_child_digest *digest;
+
+            if ((digest = APP_MEM_ALLOC(sizeof(*digest))) == NULL) {
+                ret = false;
+                break;
+            }
+            flist_push_back((flist_node_t **) &digests, (flist_node_t *) digest);
+            ret = hash_value(child, digest->hash, depth + 1);
+        }
+    }
+
+    if (ret) {
+        ret = (node->kind == VAL_STRUCT) ? hash_struct(node, out, digests)
+                                         : hash_array(node, out, digests);
+    }
+    flist_clear((flist_node_t **) &digests, (f_list_node_del) &delete_child_digest);
+    return ret;
 }
 
 /**
@@ -145,7 +189,6 @@ static bool hash_value(const s_struct_712_value *node, uint8_t *out, uint8_t dep
  * Computes hashStruct(domain) and hashStruct(message) and writes results to
  * tmpCtx.messageSigningContext712.domainHash / .messageHash.
  *
- * Must be called only after v1_is_complete() returns true.
  * Domain special fields (chainId, verifyingContract) are extracted when the domain is complete
  * and accessible via td_get_domain_chain_id() / td_get_domain_contract_addr().
  */
@@ -156,13 +199,13 @@ bool value_hash_pass(const s_eip712_impl *impl) {
         return false;
     }
 
-    if ((impl->domain == NULL) || !hash_struct(impl->domain, hash, 0)) {
+    if ((impl->domain == NULL) || !hash_value(impl->domain, hash, 0)) {
         PRINTF("value_hash_pass: domain hash failed\n");
         return false;
     }
     memcpy(tmpCtx.messageSigningContext712.domainHash, hash, CX_KECCAK_256_SIZE);
 
-    if ((impl->message == NULL) || !hash_struct(impl->message, hash, 0)) {
+    if ((impl->message == NULL) || !hash_value(impl->message, hash, 0)) {
         PRINTF("value_hash_pass: message hash failed\n");
         return false;
     }
