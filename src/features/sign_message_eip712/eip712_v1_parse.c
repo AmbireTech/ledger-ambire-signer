@@ -559,6 +559,11 @@ const s_struct_712_value *v1_add_field(const uint8_t *data, size_t length, bool 
         data += sizeof(uint16_t);
         length -= sizeof(uint16_t);
 
+        if ((f->next->type == TYPE_SOL_ADDRESS) && (total_size != ADDRESS_LENGTH)) {
+            PRINTF("Error: address field is %u bytes long\n", total_size);
+            return NULL;
+        }
+
         s_struct_712_value *leaf;
         if ((leaf = td_create_leaf(f->next, total_size)) == NULL) {
             return NULL;

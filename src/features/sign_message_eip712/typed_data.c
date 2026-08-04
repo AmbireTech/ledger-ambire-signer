@@ -372,8 +372,8 @@ bool td_get_domain_contract_addr(uint8_t addr[ADDRESS_LENGTH]) {
 
                 switch (child->field->type) {
                     case TYPE_SOL_ADDRESS:
-                        if (length > ADDRESS_LENGTH) {
-                            PRINTF("Error: verifyingContract too big\n");
+                        if (length != ADDRESS_LENGTH) {
+                            PRINTF("Error: verifyingContract is %u bytes long\n", length);
                             return false;
                         }
                         break;
