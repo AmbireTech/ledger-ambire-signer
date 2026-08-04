@@ -97,11 +97,14 @@ def send_struct_def_field(typename, keyname):
     type_enum = None
 
     (typename, array_lvls) = get_array_levels(typename)
-    (typename, typesize) = get_typesize(typename)
+    (basename, typesize) = get_typesize(typename)
 
-    if typename in parsing_type_functions:
-        (type_enum, typesize) = parsing_type_functions[typename](typesize)
+    if basename in parsing_type_functions:
+        (type_enum, typesize) = parsing_type_functions[basename](typesize)
+        typename = basename
     else:
+        # only a native type carries a size suffix; splitting a struct name would
+        # truncate it (for example "Permit2" into "Permit")
         type_enum = EIP712FieldType.CUSTOM
         typesize = None
 
