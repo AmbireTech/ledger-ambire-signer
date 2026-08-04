@@ -95,7 +95,8 @@ static bool hash_struct(const s_struct_712_value *node, uint8_t *out, uint8_t de
     uint8_t child_hash[CX_KECCAK_256_SIZE];
     const char *name = node->struct_type->name;
 
-    if (depth >= TD_MAX_DEPTH) {
+    // containers only, like the parser's frames: a leaf opens no nesting level
+    if ((node->kind != VAL_ATOMIC) && (depth >= TD_MAX_DEPTH)) {
         PRINTF("hash_struct: max depth exceeded\n");
         return false;
     }
