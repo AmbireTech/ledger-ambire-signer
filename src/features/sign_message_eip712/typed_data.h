@@ -99,10 +99,15 @@ void td_discard_struct_def(s_struct_712 *struct_def);
 /**
  * Register a struct definition as usable for future field/value declarations
  *
+ * Takes ownership of @p struct_def unconditionally: on success it becomes
+ * registered; on failure (already registered elsewhere, or a struct with the
+ * same name is already registered) it is destroyed. The caller must not use
+ * @p struct_def again after this call.
+ *
  * @param[in] struct_def struct definition to register
  * @return whether the registration succeeded
  */
-bool td_add_struct_def(const s_struct_712 *struct_def);
+bool td_add_struct_def(s_struct_712 *struct_def);
 
 /**
  * Append a field definition to a struct definition

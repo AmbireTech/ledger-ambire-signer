@@ -289,8 +289,12 @@ s_struct_712 *td_create_struct_def(const uint8_t *name, size_t length) {
     return def;
 }
 
-bool td_add_struct_def(const s_struct_712 *struct_def) {
+bool td_add_struct_def(s_struct_712 *struct_def) {
     if (struct_def == NULL) {
+        return false;
+    }
+    if (td_find_struct(struct_def->name) != NULL) {
+        td_discard_struct_def(struct_def);
         return false;
     }
     flist_push_back((flist_node_t **) &g_structs, (flist_node_t *) struct_def);
