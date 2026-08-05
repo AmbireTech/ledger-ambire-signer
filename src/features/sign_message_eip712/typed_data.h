@@ -88,6 +88,15 @@ typedef struct {
 s_struct_712 *td_create_struct_def(const uint8_t *name, size_t length);
 
 /**
+ * Discard a struct definition created via td_create_struct_def() that was never
+ * registered via td_add_struct_def() (e.g. abandoned mid-assembly). Any fields
+ * already attached via td_add_struct_field_def() are destroyed too.
+ *
+ * @param[in] struct_def struct definition to discard; no-op if NULL
+ */
+void td_discard_struct_def(s_struct_712 *struct_def);
+
+/**
  * Register a struct definition as usable for future field/value declarations
  *
  * @param[in] struct_def struct definition to register

@@ -40,6 +40,12 @@ static void delete_struct(s_struct_712 *s) {
     APP_MEM_FREE(s);
 }
 
+void td_discard_struct_def(s_struct_712 *struct_def) {
+    if (struct_def != NULL) {
+        delete_struct(struct_def);
+    }
+}
+
 static void delete_value(s_struct_712_value *v) {
     if (v->kind == VAL_ATOMIC) {
         APP_MEM_FREE(v->data);
