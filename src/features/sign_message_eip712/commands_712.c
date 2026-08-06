@@ -89,6 +89,9 @@ uint16_t handle_eip712_struct_def(uint8_t p2, const uint8_t *cdata, uint8_t leng
     bool ret = true;
 
     if (eip712_context == NULL) {
+        if (appState != APP_STATE_IDLE) {
+            return SWO_COMMAND_NOT_ALLOWED;
+        }
         ret = eip712_context_init();
     }
     if (struct_state == DEFINED) {
