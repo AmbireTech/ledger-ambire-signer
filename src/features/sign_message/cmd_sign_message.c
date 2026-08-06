@@ -27,7 +27,6 @@ static const char SIGN_MAGIC[] =
  */
 static void set_idle(void) {
     message_cleanup();
-    APP_MEM_FREE_AND_NULL((void **) &g_msg_hash_ctx);
     ui_idle();
 }
 
@@ -232,7 +231,6 @@ uint16_t handle_sign_personal_message(uint8_t p1,
     if (p1 == P1_FIRST) {
         // Check if the app is in idle state
         if (appState != APP_STATE_IDLE) {
-            set_idle();
             return SWO_COMMAND_NOT_ALLOWED;
         }
         appState = APP_STATE_SIGNING_MESSAGE;
@@ -295,4 +293,5 @@ void message_cleanup(void) {
         APP_MEM_FREE_AND_NULL((void **) &signMsgCtx->display_buffer);
     }
     APP_MEM_FREE_AND_NULL((void **) &signMsgCtx);
+    APP_MEM_FREE_AND_NULL((void **) &g_msg_hash_ctx);
 }
