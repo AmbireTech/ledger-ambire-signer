@@ -196,8 +196,16 @@ uint16_t handle_sign_eip7702_authorization(uint8_t p1,
         }
     }
     if (!tlv_from_apdu(p1 == P1_FIRST_CHUNK, dataLength, dataBuffer, &handle_auth7702_tlv)) {
+        if (g_7702_sw == SWO_COMMAND_NOT_ALLOWED) {
+            // An error screen is already displayed; only reset the state so
+            // subsequent APDUs are accepted, the UI callback handles idle.
+            appState = APP_STATE_IDLE;
+        } else {
+            reset_app_context();
+        }
         return g_7702_sw;
     }
+    appState = APP_STATE_SIGNING_EIP7702;
     *flags |= IO_ASYNCH_REPLY;
     return APDU_NO_RESPONSE;
 }

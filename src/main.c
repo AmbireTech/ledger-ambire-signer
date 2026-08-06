@@ -80,7 +80,6 @@ void reset_app_context(void) {
     if (appState == APP_STATE_SIGNING_MESSAGE) {
         message_cleanup();
     }
-    appState = APP_STATE_IDLE;
     G_called_from_swap = false;
     G_swap_response_ready = false;
     G_swap_checked = false;
@@ -103,6 +102,7 @@ void reset_app_context(void) {
 #ifdef HAVE_GATING_SUPPORT
     clear_gating();
 #endif
+    appState = APP_STATE_IDLE;
 }
 
 void app_quit(void) {
@@ -356,6 +356,10 @@ void app_main(void) {
             if ((sw & 0xF000) != 0x6000) {
                 // Internal error
                 sw = SWO_NOT_SUPPORTED_ERROR_NO_INFO | (sw & 0x7FF);
+            }
+            if (appState != APP_STATE_IDLE) {
+                // Dismiss any ongoing review before its UI buffers are freed
+                ui_idle();
             }
             reset_app_context();
             flags &= ~IO_ASYNCH_REPLY;
