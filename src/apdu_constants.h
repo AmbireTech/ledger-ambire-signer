@@ -3,6 +3,7 @@
 #include "offsets.h"
 #include "shared_context.h"
 #include "status_words.h"
+#include "parser.h"
 
 #define APP_FLAG_DATA_ALLOWED          0x01
 #define APP_FLAG_EXTERNAL_TOKEN_NEEDED 0x02
@@ -121,3 +122,7 @@ uint16_t handle_get_eth2_public_key(uint8_t p1,
 #endif
 
 uint16_t handle_safe_account(uint8_t p1, uint8_t p2, const uint8_t *data, uint8_t length);
+
+uint16_t handleApdu(command_t *cmd, uint32_t *tx);
+
+extern uint16_t apdu_response_code;
