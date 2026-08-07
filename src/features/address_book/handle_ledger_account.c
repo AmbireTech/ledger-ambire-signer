@@ -145,7 +145,6 @@ void display_register_ledger_account_review(nbgl_choiceCallback_t choice_callbac
     ra->details.barList.texts = ra->texts;
     ra->details.barList.subTexts = ra->subTexts;
 
-#ifndef FUZZ
 #ifdef SCREEN_SIZE_WALLET
     // Middle-truncated address for the subMessage line: "0x1234...5678"
     snprintf(ra->address_display_short,
@@ -181,7 +180,6 @@ void display_register_ledger_account_review(nbgl_choiceCallback_t choice_callbac
                        NULL,
                        "Confirm account name",
                        choice_callback);
-#endif
 #endif
 }
 

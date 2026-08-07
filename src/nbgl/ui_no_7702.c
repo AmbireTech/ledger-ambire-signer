@@ -13,7 +13,6 @@ static void ui_error_no_7702_choice(bool confirm) {
 }
 
 void ui_error_no_7702(void) {
-#ifndef FUZZ
     nbgl_useCaseChoice(&LARGE_WARNING_ICON,
 #ifdef SCREEN_SIZE_WALLET
                        "This authorization cannot be signed",
@@ -24,5 +23,4 @@ void ui_error_no_7702(void) {
                        "Go to settings",
                        "Reject authorization",
                        ui_error_no_7702_choice);
-#endif
 }

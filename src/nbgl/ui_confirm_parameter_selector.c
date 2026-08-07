@@ -47,7 +47,6 @@ static void buildScreen(e_confirmation_type confirm_type) {
     if (tmpContent.txContent.dataPresent) {
         op |= BLIND_OPERATION;
     }
-#ifndef FUZZ
     nbgl_useCaseReview(op,
                        g_pairsList,
                        get_tx_icon(false),
@@ -55,7 +54,6 @@ static void buildScreen(e_confirmation_type confirm_type) {
                        NULL,
                        g_finishMsg,
                        reviewChoice);
-#endif
 }
 
 void ui_confirm_parameter(void) {

@@ -9,14 +9,10 @@
 static void review_choice(bool confirm) {
     if (confirm) {
         io_seproxyhal_touch_address_ok();
-#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_ADDRESS_VERIFIED, ui_idle);
-#endif
     } else {
         io_seproxyhal_touch_address_cancel();
-#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_ADDRESS_REJECTED, ui_idle);
-#endif
     }
     ui_buffers_cleanup();
 }
@@ -58,12 +54,10 @@ void ui_display_public_key(const uint64_t *chain_id) {
     }
     strlcat(g_titleMsg, title_sufix, title_len);
 
-#ifndef FUZZ
     nbgl_useCaseAddressReview(strings.common.toAddress,
                               NULL,
                               icon,
                               g_titleMsg,
                               NULL,
                               review_choice);
-#endif
 }

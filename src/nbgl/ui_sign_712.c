@@ -54,7 +54,6 @@ static void ui_712_start_review(e_eip712_filtering_mode filtering_mode,
         }
     }
 
-#ifndef FUZZ
     nbgl_useCaseAdvancedReview(operationType,
                                g_pairsList,
                                &LARGE_REVIEW_ICON,
@@ -64,7 +63,6 @@ static void ui_712_start_review(e_eip712_filtering_mode filtering_mode,
                                NULL,
                                &warning,
                                choiceCallback);
-#endif
 }
 
 /**

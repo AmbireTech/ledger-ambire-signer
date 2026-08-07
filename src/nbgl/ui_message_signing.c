@@ -11,14 +11,10 @@ static void ui_typed_message_review_choice_common(bool confirm,
                                                   nbgl_callback_t reject_func) {
     if (confirm) {
         approve_func();
-#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_MESSAGE_SIGNED, ui_idle);
-#endif
     } else {
         reject_func();
-#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_MESSAGE_REJECTED, ui_idle);
-#endif
     }
     ui_all_cleanup();
     proxy_cleanup();
