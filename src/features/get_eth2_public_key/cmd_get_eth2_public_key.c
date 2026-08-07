@@ -98,7 +98,8 @@ uint16_t handle_get_eth2_public_key(uint8_t p1,
     // Return code will be sent after UI approve/cancel
     error = 0;
 end:
-    return error;
+    // A cx_err_t does not fit a status word; the low half is what the client sees.
+    return (uint16_t) error;
 }
 
 #endif

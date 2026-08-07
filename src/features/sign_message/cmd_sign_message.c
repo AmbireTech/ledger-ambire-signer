@@ -61,7 +61,7 @@ static uint16_t first_apdu_data(uint8_t **data, uint8_t *length) {
     }
 
     // Get the message length
-    signMsgCtx->msg_length = U4BE(*data, 0);
+    signMsgCtx->msg_length = (uint16_t) U4BE(*data, 0);
 
     // Allocate the buffer for the message
     if (APP_MEM_CALLOC((void **) &(signMsgCtx->received_buffer), signMsgCtx->msg_length) == false) {
@@ -109,10 +109,15 @@ static uint16_t process_data(const uint8_t *const data, const uint8_t length) {
     cx_err_t error = CX_INTERNAL_ERROR;
 
     // Hash the data
-    CX_CHECK(cx_hash_no_throw((cx_hash_t *) g_msg_hash_ctx, 0, data, length, NULL, 0));
+    if (length > 0) {
+        if ((data == NULL) || (signMsgCtx->received_buffer == NULL)) {
+            return SWO_INCORRECT_DATA;
+        }
+        CX_CHECK(cx_hash_no_throw((cx_hash_t *) g_msg_hash_ctx, 0, data, length, NULL, 0));
 
-    // Copy the data to the buffer
-    memcpy(&signMsgCtx->received_buffer[signMsgCtx->processed_size], data, length);
+        // Copy the data to the buffer
+        memcpy(&signMsgCtx->received_buffer[signMsgCtx->processed_size], data, length);
+    }
 
     // Decrease the remaining length
     signMsgCtx->processed_size += length;
@@ -202,7 +207,13 @@ static uint16_t final_process(void) {
         }
 #else   // SCREEN_SIZE_NANO
         // Copy the message to the display buffer
-        memcpy(signMsgCtx->display_buffer, signMsgCtx->received_buffer, signMsgCtx->msg_length);
+        if (signMsgCtx->msg_length > 0) {
+            if (signMsgCtx->received_buffer == NULL) {
+                error = SWO_INCORRECT_DATA;
+                goto end;
+            }
+            memcpy(signMsgCtx->display_buffer, signMsgCtx->received_buffer, signMsgCtx->msg_length);
+        }
 #endif  // SCREEN_SIZE_NANO
     }
 

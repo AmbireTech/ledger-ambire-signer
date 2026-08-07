@@ -8,6 +8,10 @@
 
 uint16_t handle_set_external_plugin(const uint8_t *workBuffer, uint8_t dataLength) {
     PRINTF("Handling set Plugin\n");
+    // An Lc=0 APDU reaches here with a NULL data pointer; reject before deref.
+    if (workBuffer == NULL || dataLength == 0) {
+        return SWO_INCORRECT_DATA;
+    }
     uint8_t hash[INT256_LENGTH];
     uint8_t pluginNameLength = *workBuffer;
     uint32_t params[2];

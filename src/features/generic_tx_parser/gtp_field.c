@@ -84,7 +84,9 @@ static bool handle_param_type(const tlv_data_t *data, s_field_ctx *context) {
         case PARAM_TYPE_CALLDATA:
         case PARAM_TYPE_TOKEN:
         case PARAM_TYPE_NETWORK:
+            break;
         case PARAM_TYPE_GROUP:
+            context->field->param_group.fields = NULL;
             break;
         default:
             PRINTF("Error: Unsupported param type (%u)\n", context->field->param_type);
@@ -140,7 +142,14 @@ static bool handle_param_constraint(const tlv_data_t *data, s_field_ctx *context
         APP_MEM_FREE(node);
         return false;
     }
-    memcpy(node->value, data->value.ptr, data->value.size);
+    if (data->value.size > 0) {
+        if (data->value.ptr == NULL) {
+            APP_MEM_FREE(node->value);
+            APP_MEM_FREE(node);
+            return false;
+        }
+        memcpy(node->value, data->value.ptr, data->value.size);
+    }
     // Add to linked list
     flist_push_back((flist_node_t **) &context->field->constraints, (flist_node_t *) node);
     return true;
