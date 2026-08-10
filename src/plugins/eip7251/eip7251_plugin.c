@@ -67,6 +67,11 @@ static void eip7251_plugin_provider_parameter(ethPluginProvideParameter_t *param
 static void eip7251_plugin_finalize(ethPluginFinalize_t *param) {
     eip7251_context_t *context = (eip7251_context_t *) param->pluginContext;
 
+    if (get_tx_chain_id() != ETHEREUM_MAINNET_CHAINID) {
+        PRINTF("eip7251: consolidation predeploy only valid on Ethereum mainnet\n");
+        param->result = ETH_PLUGIN_RESULT_ERROR;
+        return;
+    }
     param->uiType = ETH_UI_TYPE_GENERIC;
     param->numScreens = target_equals_source(context) ? 1 : 2;
     param->result = (context->received == sizeof(context->consolidation_request))

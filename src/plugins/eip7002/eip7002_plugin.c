@@ -65,6 +65,11 @@ static void eip7002_plugin_provider_parameter(ethPluginProvideParameter_t *param
 static void eip7002_plugin_finalize(ethPluginFinalize_t *param) {
     eip7002_context_t *context = (eip7002_context_t *) param->pluginContext;
 
+    if (get_tx_chain_id() != ETHEREUM_MAINNET_CHAINID) {
+        PRINTF("eip7002: withdrawal predeploy only valid on Ethereum mainnet\n");
+        param->result = ETH_PLUGIN_RESULT_ERROR;
+        return;
+    }
     param->uiType = ETH_UI_TYPE_GENERIC;
     param->numScreens = allzeroes(context->raw_amount, sizeof(context->raw_amount)) ? 1 : 2;
     param->result = (context->received == sizeof(context->withdrawal_request))
