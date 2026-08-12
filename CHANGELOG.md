@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.22.2](../../compare/1.22.1...1.22.2) - 2026-08-12
+
+### Fixed
+
+- Security issues
+
 ## [1.22.1](../../compare/1.22.0...1.22.1) - 2026-05-27
 
 ### Fixed
