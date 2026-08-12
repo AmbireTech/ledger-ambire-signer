@@ -63,7 +63,9 @@ uint16_t handleGetEth2PublicKey(uint8_t p1,
     cx_err_t error = CX_INTERNAL_ERROR;
 
     if (!G_called_from_swap) {
-        reset_app_context();
+        if (appState != APP_STATE_IDLE) {
+            return APDU_RESPONSE_CONDITION_NOT_SATISFIED;
+        }
     }
     if ((p1 != P1_CONFIRM) && (p1 != P1_NON_CONFIRM)) {
         return APDU_RESPONSE_INVALID_P1_P2;
@@ -84,6 +86,7 @@ uint16_t handleGetEth2PublicKey(uint8_t p1,
         *tx = set_result_get_eth2_publicKey();
         return APDU_RESPONSE_OK;
     }
+    appState = APP_STATE_VERIFYING_ADDRESS;
     ui_display_public_eth2();
     *flags |= IO_ASYNCH_REPLY;
     // Return code will be sent after UI approve/cancel
