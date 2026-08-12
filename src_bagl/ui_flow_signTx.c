@@ -7,8 +7,6 @@
 #include "ui_plugin.h"
 #include "common_ui.h"
 #include "plugins.h"
-#include "trusted_name.h"
-#include "ui_trusted_name.h"
 
 static unsigned int data_ok_cb(void) {
     ui_idle();
@@ -114,11 +112,7 @@ UX_STEP_NOCB(ux_approval_review_step,
 UX_STEP_NOCB(ux_approval_tx_hash_step,
     bnnn_paging,
     {
-#ifdef TARGET_NANOS
       .title = "TX hash",
-#else
-      .title = "Transaction hash",
-#endif
       .text = strings.common.tx_hash
     });
 UX_STEP_NOCB(
@@ -264,22 +258,7 @@ void ux_approve_tx(bool fromPlugin) {
             !allzeroes(tmpContent.txContent.value.value, tmpContent.txContent.value.length)) {
             ux_approval_tx_flow[step++] = &ux_approval_amount_step;
         }
-#ifdef HAVE_TRUSTED_NAME
-        uint64_t chain_id = get_tx_chain_id();
-        e_name_type type = TN_TYPE_ACCOUNT;
-        e_name_source source = TN_SOURCE_ENS;
-        if (get_trusted_name(1, &type, 1, &source, &chain_id, tmpContent.txContent.destination) !=
-            NULL) {
-            ux_approval_tx_flow[step++] = &ux_trusted_name_step;
-            if (N_storage.verbose_trusted_name) {
-                ux_approval_tx_flow[step++] = &ux_approval_to_step;
-            }
-        } else {
-#endif  // HAVE_TRUSTED_NAME
-            ux_approval_tx_flow[step++] = &ux_approval_to_step;
-#ifdef HAVE_TRUSTED_NAME
-        }
-#endif  // HAVE_TRUSTED_NAME
+        ux_approval_tx_flow[step++] = &ux_approval_to_step;
     }
 
     if (N_storage.displayNonce) {

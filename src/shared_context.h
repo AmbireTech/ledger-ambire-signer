@@ -21,17 +21,6 @@ typedef struct internalStorage_t {
     bool dataAllowed;
     bool contractDetails;
     bool displayNonce;
-#ifdef HAVE_EIP712_FULL_SUPPORT
-    bool verbose_eip712;
-#endif  // HAVE_EIP712_FULL_SUPPORT
-#ifdef HAVE_TRUSTED_NAME
-    bool verbose_trusted_name;
-#endif  // HAVE_TRUSTED_NAME
-#ifdef HAVE_WEB3_CHECKS
-    bool w3c_enable;
-    // hidden setting (not shown in the UI)
-    bool w3c_opt_in;
-#endif
     bool initialized;
 } internalStorage_t;
 
@@ -134,15 +123,7 @@ typedef struct txStringProperties_s {
     char tx_hash[2 + (INT256_LENGTH * 2) + 1];
 } txStringProperties_t;
 
-#ifdef TARGET_NANOS
 #define SHARED_CTX_FIELD_1_SIZE 100
-#else
-#ifdef SCREEN_SIZE_WALLET
-#define SHARED_CTX_FIELD_1_SIZE 380
-#else
-#define SHARED_CTX_FIELD_1_SIZE 256
-#endif
-#endif
 #define SHARED_CTX_FIELD_2_SIZE 40
 
 typedef struct strDataTmp_s {

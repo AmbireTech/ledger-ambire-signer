@@ -20,14 +20,8 @@
 
 static void display_settings(const ux_flow_step_t* const start_step);
 static void switch_settings_blind_signing(void);
-#ifdef HAVE_TRUSTED_NAME
-static void switch_settings_verbose_trusted_name(void);
-#endif  // HAVE_TRUSTED_NAME
 static void switch_settings_display_data(void);
 static void switch_settings_display_nonce(void);
-#ifdef HAVE_EIP712_FULL_SUPPORT
-static void switch_settings_verbose_eip712(void);
-#endif  // HAVE_EIP712_FULL_SUPPORT
 
 //////////////////////////////////////////////////////////////////////
 // clang-format off
@@ -74,87 +68,31 @@ UX_FLOW(ux_idle_flow,
 // clang-format off
 UX_STEP_CB(
     ux_settings_flow_blind_signing_step,
-#ifdef TARGET_NANOS
     bnnn_paging,
-#else
-    bnnn,
-#endif
     switch_settings_blind_signing(),
     {
-#ifdef TARGET_NANOS
       .title = "Blind signing",
       .text =
-#else
-      "Blind signing",
-      "Enables transaction",
-      "blind signing",
-#endif
       SETTING_BLIND_SIGNING_STATE
     });
 
-#ifdef HAVE_TRUSTED_NAME
-UX_STEP_CB(
-    ux_settings_flow_verbose_trusted_name_step,
-    bnnn,
-    switch_settings_verbose_trusted_name(),
-    {
-      "ENS addresses",
-      "Displays resolved",
-      "addresses from ENS",
-      SETTING_VERBOSE_TRUSTED_NAME_STATE
-    });
-#endif // HAVE_TRUSTED_NAME
-
 UX_STEP_CB(
     ux_settings_flow_display_nonce_step,
-#ifdef TARGET_NANOS
     bnnn_paging,
-#else
-    bnnn,
-#endif
     switch_settings_display_nonce(),
     {
-#ifdef TARGET_NANOS
       .title = "Account nonce",
       .text =
-#else
-      "Nonce",
-      "Displays nonce",
-      "in transactions",
-#endif
       SETTING_DISPLAY_NONCE_STATE
     });
 
-#ifdef HAVE_EIP712_FULL_SUPPORT
-UX_STEP_CB(
-    ux_settings_flow_verbose_eip712_step,
-    bnnn,
-    switch_settings_verbose_eip712(),
-    {
-      "Raw messages",
-      "Displays raw content",
-      "from EIP712 messages",
-      SETTING_VERBOSE_EIP712_STATE
-    });
-#endif // HAVE_EIP712_FULL_SUPPORT
-
 UX_STEP_CB(
     ux_settings_flow_display_data_step,
-#ifdef TARGET_NANOS
     bnnn_paging,
-#else
-    bnnn,
-#endif
     switch_settings_display_data(),
     {
-#ifdef TARGET_NANOS
       .title = "Debug data",
       .text =
-#else
-      "Debug contracts",
-      "Displays contract",
-      "data details",
-#endif
       SETTING_DISPLAY_DATA_STATE
     });
 
@@ -170,13 +108,7 @@ UX_STEP_CB(
 
 UX_FLOW(ux_settings_flow,
         &ux_settings_flow_blind_signing_step,
-#ifdef HAVE_TRUSTED_NAME
-        &ux_settings_flow_verbose_trusted_name_step,
-#endif  // HAVE_TRUSTED_NAME
         &ux_settings_flow_display_nonce_step,
-#ifdef HAVE_EIP712_FULL_SUPPORT
-        &ux_settings_flow_verbose_eip712_step,
-#endif  // HAVE_EIP712_FULL_SUPPORT
         &ux_settings_flow_display_data_step,
         &ux_settings_flow_back_step);
 
@@ -186,16 +118,6 @@ static void display_settings(const ux_flow_step_t* const start_step) {
             BOOL_TO_STATE_STR(N_storage.contractDetails),
             BUF_INCREMENT);
     strlcpy(SETTING_DISPLAY_NONCE_STATE, BOOL_TO_STATE_STR(N_storage.displayNonce), BUF_INCREMENT);
-#ifdef HAVE_EIP712_FULL_SUPPORT
-    strlcpy(SETTING_VERBOSE_EIP712_STATE,
-            BOOL_TO_STATE_STR(N_storage.verbose_eip712),
-            BUF_INCREMENT);
-#endif  // HAVE_EIP712_FULL_SUPPORT
-#ifdef HAVE_TRUSTED_NAME
-    strlcpy(SETTING_VERBOSE_TRUSTED_NAME_STATE,
-            BOOL_TO_STATE_STR(N_storage.verbose_trusted_name),
-            BUF_INCREMENT);
-#endif  // HAVE_TRUSTED_NAME
 
     ux_flow_init(0, ux_settings_flow, start_step);
 }
@@ -218,21 +140,8 @@ static void switch_settings_display_nonce(void) {
     toggle_setting(&N_storage.displayNonce, &ux_settings_flow_display_nonce_step);
 }
 
-#ifdef HAVE_EIP712_FULL_SUPPORT
-static void switch_settings_verbose_eip712(void) {
-    toggle_setting(&N_storage.verbose_eip712, &ux_settings_flow_verbose_eip712_step);
-}
-#endif  // HAVE_EIP712_FULL_SUPPORT
-
-#ifdef HAVE_TRUSTED_NAME
-static void switch_settings_verbose_trusted_name(void) {
-    toggle_setting(&N_storage.verbose_trusted_name, &ux_settings_flow_verbose_trusted_name_step);
-}
-#endif  // HAVE_TRUSTED_NAME
-
 //////////////////////////////////////////////////////////////////////
 // clang-format off
-#ifdef TARGET_NANOS
 UX_STEP_CB(
     ux_error_blind_signing_step,
     bnnn_paging,
@@ -241,17 +150,6 @@ UX_STEP_CB(
       "Error",
       "Blind signing must be enabled in Settings",
     });
-#else
-UX_STEP_CB(
-    ux_error_blind_signing_step,
-    pnn,
-    ui_idle(),
-    {
-      &C_icon_crossmark,
-      "Blind signing must be",
-      "enabled in Settings",
-    });
-#endif
 
 UX_STEP_NOCB(
     ux_warning_blind_signing_warn_step,

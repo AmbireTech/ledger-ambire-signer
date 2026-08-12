@@ -1,3 +1,5 @@
+// Compiled but unused (in-practice) by LNS
+
 #include "apdu_constants.h"
 #include "eth_plugin_interface.h"
 #include "eth_plugin_internal.h"
@@ -87,11 +89,7 @@ uint16_t handleSetPlugin(const uint8_t *workBuffer, uint8_t dataLength) {
     uint64_t chain_id = 0;
     uint8_t signatureLen = 0;
     cx_err_t error = CX_INTERNAL_ERROR;
-#ifdef HAVE_NFT_STAGING_KEY
-    enum KeyId valid_keyId = TEST_PLUGIN_KEY;
-#else
     enum KeyId valid_keyId = PROD_PLUGIN_KEY;
-#endif
     enum KeyId keyId;
     uint32_t params[2];
 

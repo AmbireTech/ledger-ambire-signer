@@ -5,8 +5,6 @@
 #include "shared_context.h"
 #include "eth_plugin_interface.h"
 
-void erc721_plugin_call(int message, void* parameters);
-void erc1155_plugin_call(int message, void* parameters);
 void swap_with_calldata_plugin_call(int message, void* parameters);
 
 typedef bool (*const PluginAvailableCheck)(void);
