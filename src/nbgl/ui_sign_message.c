@@ -75,7 +75,7 @@ void ui_191_start(const char *message) {
 #ifndef FUZZ
     nbgl_useCaseAdvancedReview(TYPE_MESSAGE,
                                g_pairsList,
-                               &ICON_APP_REVIEW,
+                               &LARGE_REVIEW_ICON,
                                "Review message",
                                NULL,
                                g_finishMsg,

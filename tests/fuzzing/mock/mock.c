@@ -13,40 +13,6 @@
 
 #include "bip32_utils.h"
 
-try_context_t fuzz_exit_jump_ctx = {0};
-try_context_t *G_exception_context = &fuzz_exit_jump_ctx;
-
-try_context_t *try_context_get(void) {
-    return G_exception_context;
-}
-
-try_context_t *try_context_set(try_context_t *context) {
-    try_context_t *previous = G_exception_context;
-    G_exception_context = context;
-    return previous;
-}
-
-void __attribute__((noreturn)) os_sched_exit(bolos_task_status_t exit_code
-                                             __attribute__((unused))) {
-    longjmp(fuzz_exit_jump_ctx.jmp_buf, 1);
-}
-
-void __attribute__((noreturn)) os_lib_end(void) {
-    longjmp(fuzz_exit_jump_ctx.jmp_buf, 1);
-}
-
-/* Short-circuit the lib_standard_app app_exit() WEAK definition. The
- * SDK's app_exit calls os_io_stop() then os_sched_exit(-1); both end
- * up routing back to the os_sched_exit mock above through the SDK
- * chain. Defining app_exit as a strong symbol here lets the fuzzer
- * jump straight to its recovery point without dragging os_io_stop's
- * transitive dependencies in. Matches the SDK's noreturn contract so
- * callers' unreachable-code semantics stay intact.
- */
-void __attribute__((noreturn)) app_exit(void) {
-    longjmp(fuzz_exit_jump_ctx.jmp_buf, 1);
-}
-
 /** MemorySanitizer does not wrap explicit_bzero https://github.com/google/sanitizers/issues/1507
  * which results in false positives when running MemorySanitizer.
  */

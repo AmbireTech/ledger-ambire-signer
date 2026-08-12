@@ -43,7 +43,7 @@ bool ui_sign_7702_revocation(void) {
 #ifndef FUZZ
     nbgl_useCaseReview(TYPE_OPERATION,
                        g_pairsList,
-                       &ICON_APP_REVIEW,
+                       &LARGE_REVIEW_ICON,
                        "Review authorization to revoke smart contract delegation?",
                        NULL,
 #ifdef SCREEN_SIZE_WALLET

@@ -443,7 +443,6 @@ def _common_register_identity(
         identifier=address,
         contact_name=contact_name,
         scope=scope,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
         group_handle=group_handle,
@@ -543,7 +542,6 @@ def test_address_book_identity_register_reject(
         identifier=DEFAULT_ADDRESS,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -606,7 +604,6 @@ def test_address_book_identity_edit_identifier(
         new_identifier=new_address,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         hmac_proof=hmac_name_old,
         hmac_rest=hmac_rest_old,
         group_handle=group_handle,
@@ -653,7 +650,6 @@ def test_address_book_identity_edit_contact_name(
         new_contact_name=new_name,
         hmac_proof=hmac_name_old,
         group_handle=group_handle,
-        derivation_path=DEFAULT_BIP32_PATH,
     )
 
     with app_client.provide_address_book(apdu):
@@ -688,7 +684,6 @@ def test_address_book_identity_edit_contact_name_reject(
         new_contact_name=new_name,
         hmac_proof=hmac_name_old,
         group_handle=group_handle,
-        derivation_path=DEFAULT_BIP32_PATH,
     )
 
     text = "Cancel" if scenario_navigator.backend.device.is_nano else "Confirm"
@@ -735,7 +730,6 @@ def test_address_book_identity_edit_scope(
         new_scope=new_scope,
         identifier=DEFAULT_ADDRESS,
         contact_name=DEFAULT_CONTACT_NAME,
-        derivation_path=DEFAULT_BIP32_PATH,
         hmac_proof=hmac_name_old,
         hmac_rest=hmac_rest_old,
         group_handle=group_handle,
@@ -972,7 +966,6 @@ def test_address_book_simple_tx(scenario_navigator: NavigateWithScenario) -> Non
         hmac_rest=hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1028,7 +1021,6 @@ def test_address_book_simple_tx_long_name(
         hmac_rest=hmac_rest,
         contact_name=LONG_CONTACT_NAME,
         scope=LONG_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1079,7 +1071,6 @@ def test_address_book_simple_tx_reject(
         hmac_rest=hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1141,7 +1132,6 @@ def test_address_book_simple_tx_chain_id_mismatch(
         hmac_rest=hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1213,7 +1203,6 @@ def test_address_book_multi_address(scenario_navigator: NavigateWithScenario) ->
         new_contact_name=new_name,
         hmac_proof=hmac_name_alice,
         group_handle=group_handle,
-        derivation_path=DEFAULT_BIP32_PATH,
     )
 
     with app_client.provide_address_book(apdu):
@@ -1228,7 +1217,6 @@ def test_address_book_multi_address(scenario_navigator: NavigateWithScenario) ->
         hmac_rest=hmac_rest_2,
         contact_name=new_name,
         scope=SECONDARY_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1259,7 +1247,6 @@ def test_address_book_multi_address(scenario_navigator: NavigateWithScenario) ->
         hmac_rest=hmac_rest_1,
         contact_name=new_name,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1402,7 +1389,6 @@ def test_address_book_eip712_calldata_empty_send(
         hmac_rest=hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1449,7 +1435,6 @@ def test_address_book_eip712_typed_field(
         hmac_rest=hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1537,7 +1522,6 @@ def test_address_book_gcs_empty_tx(scenario_navigator: NavigateWithScenario) -> 
         hmac_rest=hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1631,7 +1615,6 @@ def test_address_book_gcs_trusted_name_field(
         hmac_rest=hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1734,7 +1717,6 @@ def test_address_book_gcs_combined_ab_and_tn(
         hmac_rest=hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1838,7 +1820,6 @@ def test_address_book_simple_tx_after_edit_identifier(
         new_identifier=new_address,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         hmac_proof=hmac_name,
         hmac_rest=hmac_rest_old,
         group_handle=group_handle,
@@ -1858,7 +1839,6 @@ def test_address_book_simple_tx_after_edit_identifier(
         hmac_rest=hmac_rest_new,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -1909,7 +1889,6 @@ def test_address_book_simple_tx_after_edit_scope(
         new_scope=new_scope,
         identifier=DEFAULT_ADDRESS,
         contact_name=DEFAULT_CONTACT_NAME,
-        derivation_path=DEFAULT_BIP32_PATH,
         hmac_proof=hmac_name,
         hmac_rest=hmac_rest_old,
         group_handle=group_handle,
@@ -1929,7 +1908,6 @@ def test_address_book_simple_tx_after_edit_scope(
         hmac_rest=hmac_rest_new,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=new_scope,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -2059,7 +2037,6 @@ def test_address_book_cache_invalidation_after_edit_contact_name(
         hmac_rest=hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -2073,7 +2050,6 @@ def test_address_book_cache_invalidation_after_edit_contact_name(
         new_contact_name=new_name,
         hmac_proof=hmac_name_old,
         group_handle=group_handle,
-        derivation_path=DEFAULT_BIP32_PATH,
     )
 
     with app_client.provide_address_book(apdu):
@@ -2197,7 +2173,6 @@ def test_address_book_provide_contact_invalid_hmac(
         hmac_rest=hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )
@@ -2217,7 +2192,6 @@ def test_address_book_provide_contact_invalid_hmac(
         hmac_rest=corrupted_hmac_rest,
         contact_name=DEFAULT_CONTACT_NAME,
         scope=DEFAULT_SCOPE,
-        derivation_path=DEFAULT_BIP32_PATH,
         blockchain_family=FAMILY,
         chain_id=DEFAULT_CHAIN_ID,
     )

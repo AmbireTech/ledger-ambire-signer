@@ -57,7 +57,7 @@ static void ui_712_start_review(e_eip712_filtering_mode filtering_mode,
 #ifndef FUZZ
     nbgl_useCaseAdvancedReview(operationType,
                                g_pairsList,
-                               &ICON_APP_REVIEW,
+                               &LARGE_REVIEW_ICON,
                                "Review typed message",
                                NULL,
                                g_finishMsg,

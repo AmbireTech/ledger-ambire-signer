@@ -51,7 +51,7 @@ bool ui_sign_7702_auth(void) {
 #ifndef FUZZ
     nbgl_useCaseReview(TYPE_OPERATION,
                        g_pairsList,
-                       &ICON_APP_REVIEW,
+                       &LARGE_REVIEW_ICON,
                        "Review authorization to upgrade into smart contract account?",
                        NULL,
 #ifdef SCREEN_SIZE_WALLET
