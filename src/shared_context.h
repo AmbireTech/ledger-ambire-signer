@@ -66,6 +66,7 @@ typedef struct transactionContext_t {
     union extraInfo_t extraInfo[MAX_ASSETS];
     bool assetSet[MAX_ASSETS];
     uint8_t currentAssetIndex;
+    uint8_t sign_mode;
 } transactionContext_t;
 
 typedef struct messageSigningContext_t {
