@@ -7,6 +7,9 @@
 static const uint8_t EIP_712_MAGIC[] = {0x19, 0x01};
 
 unsigned int ui_712_approve_cb(void) {
+    if (appState != APP_STATE_SIGNING_EIP712) {
+        return io_seproxyhal_send_status(APDU_RESPONSE_CONDITION_NOT_SATISFIED, 0, true, false);
+    }
     uint8_t hash[INT256_LENGTH];
 
     io_seproxyhal_io_heartbeat();

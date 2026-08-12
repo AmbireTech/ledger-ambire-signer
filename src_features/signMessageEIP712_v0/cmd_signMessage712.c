@@ -27,6 +27,7 @@ uint16_t handleSignEIP712Message_v0(uint8_t p1,
             workBuffer + KECCAK256_HASH_BYTESIZE,
             KECCAK256_HASH_BYTESIZE);
 
+    appState = APP_STATE_SIGNING_EIP712;
     ui_sign_712_v0();
 
     *flags |= IO_ASYNCH_REPLY;
