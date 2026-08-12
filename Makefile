@@ -42,38 +42,13 @@ APPVERSION = $(APPVERSION_M).$(APPVERSION_N).$(APPVERSION_P)
 
 # Application source files
 APP_SOURCE_PATH += src src_features src_plugins
-ifeq ($(TARGET_NAME),$(filter $(TARGET_NAME),TARGET_STAX TARGET_FLEX))
-    APP_SOURCE_PATH += src_nbgl
-else
-    APP_SOURCE_PATH += src_bagl
-endif
+APP_SOURCE_PATH += src_bagl
 APP_SOURCE_FILES += $(filter-out ./ethereum-plugin-sdk/src/main.c, $(wildcard ./ethereum-plugin-sdk/src/*.c))
 INCLUDES_PATH += ./ethereum-plugin-sdk/src
-
-ifeq ($(TARGET_NAME),$(filter $(TARGET_NAME),TARGET_STAX TARGET_FLEX))
-NETWORK_ICONS_FILE = $(GEN_SRC_DIR)/net_icons.gen.c
-NETWORK_ICONS_DIR = $(shell dirname "$(NETWORK_ICONS_FILE)")
-
-$(NETWORK_ICONS_FILE):
-	$(shell python3 tools/gen_networks.py "$(NETWORK_ICONS_DIR)")
-
-APP_SOURCE_FILES += $(NETWORK_ICONS_FILE)
-endif
 
 # Application icons following guidelines:
 # https://developers.ledger.com/docs/embedded-app/design-requirements/#device-icon
 ICON_NANOS = icons/nanos_app_chain_$(CHAIN_ID).gif
-ICON_NANOX = icons/nanox_app_chain_$(CHAIN_ID).gif
-ICON_NANOSP = icons/nanox_app_chain_$(CHAIN_ID).gif
-ICON_STAX = icons/stax_app_chain_$(CHAIN_ID).gif
-ICON_FLEX = icons/flex_app_chain_$(CHAIN_ID).gif
-
-#prepare hsm generation
-ifeq ($(TARGET_NAME),$(filter $(TARGET_NAME),TARGET_STAX TARGET_FLEX))
-    DEFINES += ICONGLYPH=C_chain_$(CHAIN_ID)_64px
-    DEFINES += ICONBITMAP=C_chain_$(CHAIN_ID)_64px_bitmap
-    DEFINES += ICONGLYPH_SMALL=C_chain_$(CHAIN_ID)
-endif
 
 # Don't define plugin function in the plugin SDK
 DEFINES += IS_NOT_A_PLUGIN
@@ -124,16 +99,8 @@ endif
 ########################################
 # Application communication interfaces #
 ########################################
-ENABLE_BLUETOOTH = 1
 ENABLE_SWAP = 1
 #ENABLE_NFC = 1
-
-########################################
-#         NBGL custom features         #
-########################################
-ENABLE_NBGL_QRCODE = 1
-#ENABLE_NBGL_KEYBOARD = 1
-#ENABLE_NBGL_KEYPAD = 1
 
 ########################################
 #          Features disablers          #
