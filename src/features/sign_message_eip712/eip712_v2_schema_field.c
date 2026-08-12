@@ -71,9 +71,6 @@ static bool handle_type_size(const tlv_data_t *data, s_field_712_ctx *context) {
     if (!get_uint8_t_from_tlv_data(data, &type_size)) {
         return false;
     }
-    if ((type_size < 1) || (type_size > 32)) {
-        return false;
-    }
     context->type_size = type_size;
     return true;
 }
