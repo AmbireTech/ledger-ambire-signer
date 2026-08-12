@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.16.2](../../compare/1.16.1...1.16.2) - 2026-08-12
+
+### Fixed
+
+- Security issues
+
 ## [1.16.1](../../compare/1.16.0...1.16.1-lns) - 2026-03-30
 
 ### Fixed
