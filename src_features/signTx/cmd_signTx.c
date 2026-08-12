@@ -21,7 +21,7 @@ static uint16_t handle_first_sign_chunk(const uint8_t *payload,
     uint8_t tx_type;
 
     if (appState != APP_STATE_IDLE) {
-        reset_app_context();
+        return APDU_RESPONSE_CONDITION_NOT_SATISFIED;
     }
     appState = APP_STATE_SIGNING_TX;
 
