@@ -210,7 +210,7 @@ void ui_display_safe_account(void) {
 #ifndef FUZZ
     nbgl_useCaseAddressReview(strings.tmp.tmp,
                               g_pairsList,
-                              &ICON_APP_MULTISIG,
+                              &LARGE_MULTISIG_ICON,
                               "Verify Safe address",
                               NULL,
                               review_cb);

@@ -638,7 +638,7 @@ static void set_gating_ui_screen(void) {
     generic_details.qrCode.centered = true;
 #endif
 
-    prelude_details.icon = &ICON_LEDGER;
+    prelude_details.icon = &LARGE_LEDGER_ICON;
 #ifdef SCREEN_SIZE_WALLET
     prelude_details.title = "There is a safer\nway to sign";
     prelude_details.description = GATING->intro_msg;

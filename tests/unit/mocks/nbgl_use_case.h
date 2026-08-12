@@ -21,10 +21,10 @@ typedef struct {
 // nbgl_icon_details_t comes from the SDK's nbgl_types.h, which is
 // transitively pulled in by network.h. Don't redefine it here.
 
-// Test-only stand-in for the C_ledger_14px icon used by ICON_LEDGER in
+// Test-only stand-in for the C_Ledger_14px icon used by LARGE_LEDGER_ICON in
 // ui_icons.h (no SCREEN_SIZE_WALLET in the unit-test build). Tests link
 // against a single uninitialised instance defined in the test TU.
-extern const struct nbgl_icon_details_s C_ledger_14px;
+extern const struct nbgl_icon_details_s C_Ledger_14px;
 
 typedef enum {
     NO_TYPE_WARNING = 0,

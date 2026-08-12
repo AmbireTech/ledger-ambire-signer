@@ -47,9 +47,9 @@
 s_eip712_v1_context g_eip712_storage;
 s_eip712_v1_context *eip712_v1_context = NULL;
 
-// ui_icons.h pulls in ICON_LEDGER → C_ledger_14px (no SCREEN_SIZE_WALLET
+// ui_icons.h pulls in LARGE_LEDGER_ICON → C_Ledger_14px (no SCREEN_SIZE_WALLET
 // in the test build). Stub the symbol so set_gating_ui_screen links.
-const nbgl_icon_details_t C_ledger_14px;
+const nbgl_icon_details_t C_Ledger_14px;
 
 // =============================================================================
 // Controllable stubs
