@@ -18,7 +18,7 @@
 
 #define BOOL_TO_STATE_STR(b) (b ? ENABLED_STR : DISABLED_STR)
 
-static void display_settings(const ux_flow_step_t* const start_step);
+static void display_settings(const ux_flow_step_t *const start_step);
 static void switch_settings_blind_signing(void);
 static void switch_settings_display_data(void);
 static void switch_settings_display_nonce(void);
@@ -112,7 +112,7 @@ UX_FLOW(ux_settings_flow,
         &ux_settings_flow_display_data_step,
         &ux_settings_flow_back_step);
 
-static void display_settings(const ux_flow_step_t* const start_step) {
+static void display_settings(const ux_flow_step_t *const start_step) {
     strlcpy(SETTING_BLIND_SIGNING_STATE, BOOL_TO_STATE_STR(N_storage.dataAllowed), BUF_INCREMENT);
     strlcpy(SETTING_DISPLAY_DATA_STATE,
             BOOL_TO_STATE_STR(N_storage.contractDetails),
@@ -122,9 +122,9 @@ static void display_settings(const ux_flow_step_t* const start_step) {
     ux_flow_init(0, ux_settings_flow, start_step);
 }
 
-static void toggle_setting(volatile bool* setting, const ux_flow_step_t* ui_step) {
+static void toggle_setting(volatile bool *setting, const ux_flow_step_t *ui_step) {
     bool value = !*setting;
-    nvm_write((void*) setting, (void*) &value, sizeof(value));
+    nvm_write((void *) setting, (void *) &value, sizeof(value));
     display_settings(ui_step);
 }
 

@@ -4,7 +4,7 @@
 
 #define ZERO(x) explicit_bzero(&x, sizeof(x))
 
-uint16_t handle_check_address(check_address_parameters_t* params, chain_config_t* chain_config) {
+uint16_t handle_check_address(check_address_parameters_t *params, chain_config_t *chain_config) {
     params->result = 0;
     PRINTF("Params on the address %d\n", (unsigned int) params);
     PRINTF("Address to check %s\n", params->address_to_check);
@@ -33,7 +33,7 @@ uint16_t handle_check_address(check_address_parameters_t* params, chain_config_t
                                          NULL,
                                          CX_SHA512));
 
-    getEthAddressStringFromRawKey((const uint8_t*) raw_pubkey, address, chain_config->chainId);
+    getEthAddressStringFromRawKey((const uint8_t *) raw_pubkey, address, chain_config->chainId);
 
     uint8_t offset_0x = 0;
     if (memcmp(params->address_to_check, "0x", 2) == 0) {

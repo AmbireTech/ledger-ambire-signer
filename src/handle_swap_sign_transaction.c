@@ -15,8 +15,8 @@ typedef enum extra_id_type_e {
     // There are others but they are not relevant for the Ethereum application
 } extra_id_type_t;
 
-bool copy_transaction_parameters(create_transaction_parameters_t* sign_transaction_params,
-                                 const chain_config_t* config) {
+bool copy_transaction_parameters(create_transaction_parameters_t *sign_transaction_params,
+                                 const chain_config_t *config) {
     // first copy parameters to stack, and then to global data.
     // We need this "trick" as the input data position can overlap with app-ethereum globals
     txStringProperties_t stack_data;
@@ -88,7 +88,7 @@ bool copy_transaction_parameters(create_transaction_parameters_t* sign_transacti
     PRINTF("chain_id = %d\n", (uint32_t) chain_id);
 
     // If the amount is a fee, its value is nominated in NATIVE even if we're doing an ERC20 swap
-    const char* native_ticker = get_displayable_ticker(&chain_id, config);
+    const char *native_ticker = get_displayable_ticker(&chain_id, config);
     uint8_t native_decimals = WEI_TO_ETHER;
     if (!amountToString(sign_transaction_params->fee_amount,
                         sign_transaction_params->fee_amount_length,
@@ -140,7 +140,7 @@ void __attribute__((noreturn)) swap_finalize_exchange_sign_transaction(bool is_s
     os_lib_end();
 }
 
-void __attribute__((noreturn)) handle_swap_sign_transaction(const chain_config_t* config) {
+void __attribute__((noreturn)) handle_swap_sign_transaction(const chain_config_t *config) {
     chainConfig = config;
     reset_app_context();
     G_called_from_swap = true;
@@ -158,6 +158,5 @@ void __attribute__((noreturn)) handle_swap_sign_transaction(const chain_config_t
 
     // Failsafe
     app_exit();
-    while (1)
-        ;
+    while (1);
 }
