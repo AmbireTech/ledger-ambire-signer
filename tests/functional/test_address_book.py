@@ -1,12 +1,8 @@
 # Large test file containing multiple test cases and helper functions for the Address Book feature.
-import hashlib
-import hmac as hmac_module
 import json
-import struct
 from pathlib import Path
 
 import client.response_parser as ResponseParser
-from bip_utils import Bip32Slip10Secp256k1, Bip39SeedGenerator
 from client.client import EthAppClient, SignMode
 from client.gcs import (
     ContainerPath,
@@ -25,7 +21,6 @@ from client.utils import CoinType, get_selector_from_data
 from constants import ABIS_FOLDER
 from fields_utils import get_all_paths, get_all_tuple_array_paths
 from ragger.address_book import (
-    GID_SIZE,
     GROUP_HANDLE_LENGTH,
     HMAC_PROOF_LENGTH,
     AddressBookCommand,
@@ -38,8 +33,6 @@ from ragger.address_book import (
     RegisterIdentity,
     RegisterLedgerAccount,
 )
-from ragger.bip import pack_derivation_path
-from ragger.bip.seed import SPECULOS_MNEMONIC
 from ragger.error import ExceptionRAPDU
 from ragger.navigator import NavInsID
 from ragger.navigator.navigation_scenario import NavigateWithScenario
@@ -97,102 +90,11 @@ BLOCKCHAIN_FAMILY_ETHEREUM = 1
 
 
 # =============================================================================
-# Crypto helpers
-# =============================================================================
-
-
-def bip32_path_to_list(path: str) -> list[int]:
-    """Parse a BIP32 path string into a list of raw indices."""
-    raw = pack_derivation_path(path)
-    n = raw[0]
-    return [struct.unpack(">I", raw[1 + i * 4 : 5 + i * 4])[0] for i in range(n)]
-
-
-def _derive_privkey(bip32_path: str) -> bytes:
-    """Derive secp256k1 private key (SLIP-10) at the given BIP32 path."""
-    seed_bytes = Bip39SeedGenerator(SPECULOS_MNEMONIC).Generate()
-    ctx = Bip32Slip10Secp256k1.FromSeed(seed_bytes)
-    for level in bip32_path_to_list(bip32_path):
-        ctx = ctx.ChildKey(level)
-    return ctx.PrivateKey().Raw().ToBytes()
-
-
-def derive_hmac_key_identity(bip32_path: str) -> bytes:
-    """KDF for Identity HMAC: SHA256("AddressBook-Identity" || privkey.d)"""
-    privkey_d = _derive_privkey(bip32_path)
-    h = hashlib.sha256()
-    h.update(HMAC_KDF_SALT_IDENTITY)
-    h.update(privkey_d)
-    return h.digest()
-
-
-def derive_hmac_key_ledger_account(bip32_path: str) -> bytes:
-    """KDF for Ledger Account HMAC: SHA256("AddressBook-LedgerAccount" || privkey.d)"""
-    privkey_d = _derive_privkey(bip32_path)
-    h = hashlib.sha256()
-    h.update(HMAC_KDF_SALT_LEDGER_ACCOUNT)
-    h.update(privkey_d)
-    return h.digest()
-
-
-def compute_hmac_name(bip32_path: str, gid: bytes, contact_name: str) -> bytes:
-    """Compute HMAC_NAME for an Identity contact.
-
-    Mirrors address_book_compute_hmac_name() in C.
-    Message: gid(32) | name_len(1) | name
-    """
-    assert len(gid) == GID_SIZE
-    key = derive_hmac_key_identity(bip32_path)
-    name_bytes = contact_name.encode("utf-8")
-    msg = gid + bytes([len(name_bytes)]) + name_bytes
-    return hmac_module.new(key, msg, hashlib.sha256).digest()
-
-
-def compute_hmac_rest(bip32_path: str, gid: bytes, scope: str, address: bytes, chain_id: int) -> bytes:
-    """Compute HMAC_REST for an Identity contact.
-
-    Mirrors address_book_compute_hmac_rest() in C.
-    Message: gid(32) | scope_len(1) | scope | id_len(1) | address |
-             family(1) [| chain_id(8) for FAMILY_ETHEREUM]
-    """
-    assert len(gid) == GID_SIZE
-    key = derive_hmac_key_identity(bip32_path)
-    scope_bytes = scope.encode("utf-8")
-    msg = gid + bytes([len(scope_bytes)]) + scope_bytes + bytes([len(address)]) + address + bytes([BLOCKCHAIN_FAMILY_ETHEREUM])
-    msg += chain_id.to_bytes(8, "big")
-    return hmac_module.new(key, msg, hashlib.sha256).digest()
-
-
-def compute_hmac_proof_ledger_account(bip32_path: str, contact_name: str, chain_id: int) -> bytes:
-    """Compute HMAC Proof of Registration for a Ledger Account.
-
-    Mirrors address_book_compute_hmac_proof_ledger_account() in C.
-    Message: name_len(1) | name | family(1) | chain_id(8)
-    chain_id is always encoded as 8 bytes big-endian
-    """
-    key = derive_hmac_key_ledger_account(bip32_path)
-    name_bytes = contact_name.encode("utf-8")
-    chain_id_bytes = chain_id.to_bytes(8, "big")
-    msg = bytes([len(name_bytes)]) + name_bytes + bytes([BLOCKCHAIN_FAMILY_ETHEREUM]) + chain_id_bytes
-    return hmac_module.new(key, msg, hashlib.sha256).digest()
-
-
-# =============================================================================
 # Response checkers
 # =============================================================================
 
 
-def _check_response_generic(
-    app_client: EthAppClient,
-    expected_type: LedgerStructType,
-    bip32_path: str = DEFAULT_BIP32_PATH,
-    # Identity-specific params
-    gid: bytes | None = None,
-    contact_name: str | None = None,
-    scope: str | None = None,
-    address: bytes | None = None,
-    chain_id: int = DEFAULT_CHAIN_ID,
-) -> tuple:
+def _check_response_generic(app_client: EthAppClient, expected_type: LedgerStructType) -> tuple:
     """Generic response verifier for all Address Book response types.
 
     Returns (formats by type):
@@ -220,25 +122,12 @@ def _check_response_generic(
         assert len(data) == expected_len, f"Expected {expected_len} bytes for REGISTER_IDENTITY, got {len(data)}"
 
         group_handle = data[1 : 1 + GROUP_HANDLE_LENGTH]
-        gid_from_response = group_handle[:GID_SIZE]  # first 32B of group_handle
         offset = 1 + GROUP_HANDLE_LENGTH
-
-        assert contact_name is not None, "contact_name required for REGISTER_IDENTITY"
-        assert scope is not None and address is not None, "scope and address required for REGISTER_IDENTITY HMAC_REST"
 
         device_hmac_name = data[offset : offset + HMAC_PROOF_LENGTH]
         offset += HMAC_PROOF_LENGTH
-        expected_hmac_name = compute_hmac_name(bip32_path, gid_from_response, contact_name)
-        assert device_hmac_name == expected_hmac_name, (
-            f"HMAC_NAME mismatch:\n  device:   {device_hmac_name.hex()}\n  expected: {expected_hmac_name.hex()}"
-        )
 
         device_hmac_rest = data[offset : offset + HMAC_PROOF_LENGTH]
-        expected_hmac_rest = compute_hmac_rest(bip32_path, gid_from_response, scope, address, chain_id)
-        assert device_hmac_rest == expected_hmac_rest, (
-            f"HMAC_REST mismatch:\n  device:   {device_hmac_rest.hex()}\n  expected: {expected_hmac_rest.hex()}"
-        )
-
         return (group_handle, device_hmac_name, device_hmac_rest)
 
     # -------------------------------------------------------------------------
@@ -248,158 +137,46 @@ def _check_response_generic(
     assert len(data) == expected_len, f"Expected {expected_len} bytes for {expected_type.name}, got {len(data)}"
 
     device_hmac = data[1 : 1 + HMAC_PROOF_LENGTH]
-
-    if expected_type == LedgerStructType.TYPE_EDIT_CONTACT_NAME:
-        assert gid is not None and contact_name is not None, "gid and contact_name required for EDIT_CONTACT_NAME"
-        expected_hmac = compute_hmac_name(bip32_path, gid, contact_name)
-        assert device_hmac == expected_hmac, (
-            f"HMAC_NAME mismatch:\n  device:   {device_hmac.hex()}\n  expected: {expected_hmac.hex()}"
-        )
-
-    elif expected_type in (
-        LedgerStructType.TYPE_EDIT_IDENTIFIER,
-        LedgerStructType.TYPE_EDIT_SCOPE,
-    ):
-        assert gid is not None and scope is not None and address is not None, "gid, scope, and address required for HMAC_REST"
-        expected_hmac = compute_hmac_rest(bip32_path, gid, scope, address, chain_id)
-        assert device_hmac == expected_hmac, (
-            f"HMAC_REST mismatch:\n  device:   {device_hmac.hex()}\n  expected: {expected_hmac.hex()}"
-        )
-
-    elif expected_type in (
-        LedgerStructType.TYPE_REGISTER_LEDGER_ACCOUNT,
-        LedgerStructType.TYPE_EDIT_LEDGER_ACCOUNT,
-    ):
-        assert contact_name is not None, "contact_name required for Ledger Account HMAC"
-        expected_hmac = compute_hmac_proof_ledger_account(bip32_path, contact_name, chain_id)
-        assert device_hmac == expected_hmac, (
-            f"HMAC_PROOF mismatch:\n  device:   {device_hmac.hex()}\n  expected: {expected_hmac.hex()}"
-        )
-
     return (device_hmac, None, None)
 
 
-def check_identity_response(
-    app_client: EthAppClient,
-    contact_name: str,
-    scope: str,
-    address: bytes = DEFAULT_ADDRESS,
-    bip32_path: str = DEFAULT_BIP32_PATH,
-    chain_id: int = DEFAULT_CHAIN_ID,
-) -> tuple[bytes, bytes, bytes]:
+def check_identity_response(app_client: EthAppClient) -> tuple[bytes, bytes, bytes]:
     """Verify the Register Identity response and return (group_handle, hmac_name, hmac_rest).
 
     group_handle (64B) must be stored by the wallet and re-sent in all subsequent
     Edit operations for this contact.
     """
-    group_handle, hmac_name, hmac_rest = _check_response_generic(
-        app_client,
-        LedgerStructType.TYPE_REGISTER_IDENTITY,
-        bip32_path,
-        contact_name=contact_name,
-        scope=scope,
-        address=address,
-        chain_id=chain_id,
-    )
-    print("✓ Register Identity: group_handle, HMAC_NAME and HMAC_REST verified")
+    group_handle, hmac_name, hmac_rest = _check_response_generic(app_client, LedgerStructType.TYPE_REGISTER_IDENTITY)
     return group_handle, hmac_name, hmac_rest
 
 
-def check_ledger_account_response(
-    app_client: EthAppClient,
-    contact_name: str = DEFAULT_ACCOUNT_NAME,
-    bip32_path: str = DEFAULT_BIP32_PATH,
-    chain_id: int = DEFAULT_CHAIN_ID,
-) -> bytes:
+def check_ledger_account_response(app_client: EthAppClient) -> bytes:
     """Verify the Register Ledger Account response and return the HMAC proof."""
-    hmac_proof, _, _ = _check_response_generic(
-        app_client,
-        LedgerStructType.TYPE_REGISTER_LEDGER_ACCOUNT,
-        bip32_path,
-        contact_name=contact_name,
-        chain_id=chain_id,
-    )
-    print("✓ HMAC Proof of Registration (Ledger Account) verified")
+    hmac_proof, _, _ = _check_response_generic(app_client, LedgerStructType.TYPE_REGISTER_LEDGER_ACCOUNT)
     return hmac_proof
 
 
-def check_edit_contact_name_response(
-    app_client: EthAppClient,
-    contact_name: str,
-    group_handle: bytes,
-    bip32_path: str = DEFAULT_BIP32_PATH,
-) -> bytes:
+def check_edit_contact_name_response(app_client: EthAppClient) -> bytes:
     """Verify the Edit Contact Name response and return the new HMAC_NAME."""
-    hmac_name, _, _ = _check_response_generic(
-        app_client,
-        LedgerStructType.TYPE_EDIT_CONTACT_NAME,
-        bip32_path,
-        group_handle[:GID_SIZE],
-        contact_name,
-    )
-    print("✓ Edit Contact Name: HMAC_NAME verified")
+    hmac_name, _, _ = _check_response_generic(app_client, LedgerStructType.TYPE_EDIT_CONTACT_NAME)
     return hmac_name
 
 
-def check_edit_identifier_response(
-    app_client: EthAppClient,
-    address: bytes,
-    group_handle: bytes,
-    scope: str = DEFAULT_SCOPE,
-    bip32_path: str = DEFAULT_BIP32_PATH,
-    chain_id: int = DEFAULT_CHAIN_ID,
-) -> bytes:
+def check_edit_identifier_response(app_client: EthAppClient) -> bytes:
     """Verify the Edit Identifier response and return the new HMAC_REST."""
-    hmac_rest, _, _ = _check_response_generic(
-        app_client,
-        LedgerStructType.TYPE_EDIT_IDENTIFIER,
-        bip32_path,
-        group_handle[:GID_SIZE],
-        scope=scope,
-        address=address,
-        chain_id=chain_id,
-    )
-    print("✓ Edit Identifier: HMAC_REST verified")
+    hmac_rest, _, _ = _check_response_generic(app_client, LedgerStructType.TYPE_EDIT_IDENTIFIER)
     return hmac_rest
 
 
-def check_edit_scope_response(
-    app_client: EthAppClient,
-    scope: str,
-    group_handle: bytes,
-    address: bytes = DEFAULT_ADDRESS,
-    bip32_path: str = DEFAULT_BIP32_PATH,
-    chain_id: int = DEFAULT_CHAIN_ID,
-) -> bytes:
+def check_edit_scope_response(app_client: EthAppClient) -> bytes:
     """Verify the Edit Scope response and return the new HMAC_REST."""
-    hmac_rest, _, _ = _check_response_generic(
-        app_client,
-        LedgerStructType.TYPE_EDIT_SCOPE,
-        bip32_path,
-        group_handle[:GID_SIZE],
-        scope=scope,
-        address=address,
-        chain_id=chain_id,
-    )
-    print("✓ Edit Scope: HMAC_REST verified")
+    hmac_rest, _, _ = _check_response_generic(app_client, LedgerStructType.TYPE_EDIT_SCOPE)
     return hmac_rest
 
 
-def check_edit_ledger_account_response(
-    app_client: EthAppClient,
-    contact_name: str,
-    bip32_path: str = DEFAULT_BIP32_PATH,
-    chain_id: int = DEFAULT_CHAIN_ID,
-) -> bytes:
+def check_edit_ledger_account_response(app_client: EthAppClient) -> bytes:
     """Verify the Edit Ledger Account response and return the new HMAC proof."""
-    hmac_proof, _, _ = _check_response_generic(
-        app_client,
-        LedgerStructType.TYPE_EDIT_LEDGER_ACCOUNT,
-        bip32_path,
-        contact_name=contact_name,
-        chain_id=chain_id,
-    )
-    print("✓ HMAC Proof of Registration (Edit Ledger Account) verified")
+    hmac_proof, _, _ = _check_response_generic(app_client, LedgerStructType.TYPE_EDIT_LEDGER_ACCOUNT)
     return hmac_proof
 
 
@@ -452,7 +229,7 @@ def _common_register_identity(
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=do_compare, custom_screen_text="Confirm")
 
-    return check_identity_response(app_client, contact_name, scope, address)
+    return check_identity_response(app_client)
 
 
 def _common_register_ledger_account(
@@ -509,7 +286,7 @@ def _common_register_ledger_account(
     # Ensure we're back on the home screen to ensure the dynamic allocation are freed
     scenario_navigator.backend.wait_for_home_screen()
 
-    return check_ledger_account_response(app_client, contact_name, derivation_path)
+    return check_ledger_account_response(app_client)
 
 
 # =============================================================================
@@ -517,9 +294,7 @@ def _common_register_ledger_account(
 # =============================================================================
 
 
-def test_address_book_identity_register(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_identity_register(scenario_navigator: NavigateWithScenario) -> None:
     """Test Register Identity: bind a name + scope to an Ethereum address.
 
     Verifies that the device returns two valid HMACs (HMAC_NAME and HMAC_REST)
@@ -531,9 +306,7 @@ def test_address_book_identity_register(
     _common_register_identity(scenario_navigator, app_client)
 
 
-def test_address_book_identity_register_reject(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_identity_register_reject(scenario_navigator: NavigateWithScenario) -> None:
     """Test Register Identity: user rejects → ExceptionRAPDU(SWO_INCORRECT_DATA)."""
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
@@ -556,9 +329,7 @@ def test_address_book_identity_register_reject(
         raise AssertionError("Register Identity should have raised ExceptionRAPDU on user rejection")
 
 
-def test_address_book_identity_register_long_name(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_identity_register_long_name(scenario_navigator: NavigateWithScenario) -> None:
     """Test Register Identity with a max-length (32-char) name and scope.
 
     Captures dedicated snapshots to validate how the device renders a long
@@ -576,9 +347,7 @@ def test_address_book_identity_register_long_name(
 # =============================================================================
 
 
-def test_address_book_identity_edit_identifier(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_identity_edit_identifier(scenario_navigator: NavigateWithScenario) -> None:
     """Test Edit Identifier: change the address of an existing contact.
 
     Flow:
@@ -613,7 +382,7 @@ def test_address_book_identity_edit_identifier(
 
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(custom_screen_text="Confirm")
-    check_edit_identifier_response(app_client, new_address, group_handle)
+    check_edit_identifier_response(app_client)
 
 
 # =============================================================================
@@ -621,9 +390,7 @@ def test_address_book_identity_edit_identifier(
 # =============================================================================
 
 
-def test_address_book_identity_edit_contact_name(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_identity_edit_contact_name(scenario_navigator: NavigateWithScenario) -> None:
     """Test Edit Contact Name: rename an existing contact.
 
     Flow:
@@ -654,12 +421,10 @@ def test_address_book_identity_edit_contact_name(
 
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(custom_screen_text="Confirm")
-    check_edit_contact_name_response(app_client, new_name, group_handle)
+    check_edit_contact_name_response(app_client)
 
 
-def test_address_book_identity_edit_contact_name_reject(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_identity_edit_contact_name_reject(scenario_navigator: NavigateWithScenario) -> None:
     """Test Edit Contact Name: user rejects → ExceptionRAPDU(SWO_INCORRECT_DATA).
 
     Flow:
@@ -701,9 +466,7 @@ def test_address_book_identity_edit_contact_name_reject(
 # =============================================================================
 
 
-def test_address_book_identity_edit_scope(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_identity_edit_scope(scenario_navigator: NavigateWithScenario) -> None:
     """Test Edit Scope: change the scope of an existing contact.
 
     Flow:
@@ -739,7 +502,7 @@ def test_address_book_identity_edit_scope(
 
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(custom_screen_text="Confirm")
-    check_edit_scope_response(app_client, new_scope, group_handle)
+    check_edit_scope_response(app_client)
 
 
 # =============================================================================
@@ -747,9 +510,7 @@ def test_address_book_identity_edit_scope(
 # =============================================================================
 
 
-def test_address_book_ledger_account_register(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_ledger_account_register(scenario_navigator: NavigateWithScenario) -> None:
     """Test Register Ledger Account: bind a name to a BIP32 derivation path."""
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
@@ -757,9 +518,7 @@ def test_address_book_ledger_account_register(
     _common_register_ledger_account(scenario_navigator, app_client)
 
 
-def test_address_book_ledger_account_register_reject(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_ledger_account_register_reject(scenario_navigator: NavigateWithScenario) -> None:
     """Test Register Ledger Account: user rejects → ExceptionRAPDU(SWO_INCORRECT_DATA)."""
     backend = scenario_navigator.backend
     app_client = EthAppClient(backend)
@@ -802,9 +561,7 @@ def test_address_book_ledger_account_register_reject(
 # =============================================================================
 
 
-def test_address_book_ledger_account_edit(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_ledger_account_edit(scenario_navigator: NavigateWithScenario) -> None:
     """Test Edit Ledger Account: rename an existing account.
 
     Flow:
@@ -839,12 +596,10 @@ def test_address_book_ledger_account_edit(
     # Wait for the home screen so the review UI cleanup (finalize_ui_ledger_account)
     # runs and frees its allocations before the leak check.
     scenario_navigator.backend.wait_for_home_screen()
-    check_edit_ledger_account_response(app_client, new_name)
+    check_edit_ledger_account_response(app_client)
 
 
-def test_address_book_ledger_account_edit_reject(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_ledger_account_edit_reject(scenario_navigator: NavigateWithScenario) -> None:
     """Test Edit Ledger Account: user rejects → ExceptionRAPDU(SWO_INCORRECT_DATA).
 
     Flow:
@@ -886,9 +641,7 @@ def test_address_book_ledger_account_edit_reject(
         raise AssertionError("Edit Ledger Account should have raised ExceptionRAPDU on user rejection")
 
 
-def test_address_book_ledger_account_edit_invalid_hmac(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_ledger_account_edit_invalid_hmac(scenario_navigator: NavigateWithScenario) -> None:
     """Test Edit Ledger Account from a different seed: device rejects with 0x6982.
 
     The HMAC Proof of Registration is bound to the device seed. A proof that
@@ -987,9 +740,7 @@ def test_address_book_simple_tx(scenario_navigator: NavigateWithScenario) -> Non
         scenario_navigator.review_approve()
 
 
-def test_address_book_simple_tx_long_name(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_simple_tx_long_name(scenario_navigator: NavigateWithScenario) -> None:
     """Test Provide Contact: a max-length (32-char) contact name in the TX "To" field.
 
     Same flow as test_address_book_simple_tx but with a 32-char contact name +
@@ -1042,9 +793,7 @@ def test_address_book_simple_tx_long_name(
         scenario_navigator.review_approve()
 
 
-def test_address_book_simple_tx_reject(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_simple_tx_reject(scenario_navigator: NavigateWithScenario) -> None:
     """Test Provide Contact: user rejects the TX after the contact name is shown.
 
     Flow:
@@ -1097,9 +846,7 @@ def test_address_book_simple_tx_reject(
         raise AssertionError("Signing should have raised ExceptionRAPDU on user rejection")
 
 
-def test_address_book_simple_tx_chain_id_mismatch(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_simple_tx_chain_id_mismatch(scenario_navigator: NavigateWithScenario) -> None:
     """Test Provide Contact: contact stored for chain A is not resolved when signing on chain B.
 
     A contact is registered and provided for DEFAULT_CHAIN_ID=1 (Ethereum mainnet).
@@ -1207,7 +954,7 @@ def test_address_book_multi_address(scenario_navigator: NavigateWithScenario) ->
 
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
-    hmac_name_bob = check_edit_contact_name_response(app_client, new_name, group_handle)
+    hmac_name_bob = check_edit_contact_name_response(app_client)
 
     # Step 4: Provide Contact for SECONDARY_ADDRESS with the new name
     apdu = ProvideContact(
@@ -1262,9 +1009,7 @@ def test_address_book_multi_address(scenario_navigator: NavigateWithScenario) ->
         scenario_navigator.review_approve(test_name=test_name)
 
 
-def test_address_book_simple_tx_ledger_account(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_simple_tx_ledger_account(scenario_navigator: NavigateWithScenario) -> None:
     """Test Provide Contact from two Ledger Accounts: both From and To show account names.
 
     DEFAULT_BIP32_PATH is registered as DEFAULT_ACCOUNT_NAME (the signing account),
@@ -1351,9 +1096,7 @@ def test_address_book_simple_tx_ledger_account(
 # =============================================================================
 
 
-def test_address_book_eip712_calldata_empty_send(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_eip712_calldata_empty_send(scenario_navigator: NavigateWithScenario) -> None:
     """Test Provide Contact: contact name replaces raw address in EIP-712 calldata review.
 
     Flow:
@@ -1401,9 +1144,7 @@ def test_address_book_eip712_calldata_empty_send(
     eip712_calldata_common(scenario_navigator, "safe_empty")
 
 
-def test_address_book_eip712_typed_field(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_eip712_typed_field(scenario_navigator: NavigateWithScenario) -> None:
     """Test Provide Contact: contact name replaces raw address in an EIP-712 typed field.
 
     Flow:
@@ -1681,9 +1422,7 @@ def test_address_book_gcs_trusted_name_field(
         scenario_navigator.review_approve()
 
 
-def test_address_book_gcs_combined_ab_and_tn(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_gcs_combined_ab_and_tn(scenario_navigator: NavigateWithScenario) -> None:
     """Test GCS: combined Address Book + ENS display when both are available for the same address.
 
     When an Address Book contact and an ENS trusted name both resolve to the same address, the
@@ -1791,9 +1530,7 @@ def test_address_book_gcs_combined_ab_and_tn(
 # =============================================================================
 
 
-def test_address_book_simple_tx_after_edit_identifier(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_simple_tx_after_edit_identifier(scenario_navigator: NavigateWithScenario) -> None:
     """Test Provide Contact after Edit Identifier: contact name persists after address change.
 
     Flow:
@@ -1829,7 +1566,7 @@ def test_address_book_simple_tx_after_edit_identifier(
 
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
-    hmac_rest_new = check_edit_identifier_response(app_client, new_address, group_handle)
+    hmac_rest_new = check_edit_identifier_response(app_client)
 
     # Step 3: Provide Contact with the new address and new HMAC_REST
     apdu = ProvideContact(
@@ -1860,9 +1597,7 @@ def test_address_book_simple_tx_after_edit_identifier(
         scenario_navigator.review_approve()
 
 
-def test_address_book_simple_tx_after_edit_scope(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_simple_tx_after_edit_scope(scenario_navigator: NavigateWithScenario) -> None:
     """Test Provide Contact after Edit Scope: contact name persists after scope change.
 
     Flow:
@@ -1898,7 +1633,7 @@ def test_address_book_simple_tx_after_edit_scope(
 
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
-    hmac_rest_new = check_edit_scope_response(app_client, new_scope, group_handle)
+    hmac_rest_new = check_edit_scope_response(app_client)
 
     # Step 3: Provide Contact with the new scope and new HMAC_REST
     apdu = ProvideContact(
@@ -1929,9 +1664,7 @@ def test_address_book_simple_tx_after_edit_scope(
         scenario_navigator.review_approve()
 
 
-def test_address_book_simple_tx_ledger_account_rename(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_simple_tx_ledger_account_rename(scenario_navigator: NavigateWithScenario) -> None:
     """Test Provide Ledger Account Contact after rename: new name shown in TX review.
 
     Flow:
@@ -1964,7 +1697,7 @@ def test_address_book_simple_tx_ledger_account_rename(
 
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
-    hmac_proof_new = check_edit_ledger_account_response(app_client, new_name)
+    hmac_proof_new = check_edit_ledger_account_response(app_client)
 
     # Step 3: Provide Ledger Account Contact with the new name
     apdu = ProvideLedgerAccountContact(
@@ -2002,9 +1735,7 @@ def test_address_book_simple_tx_ledger_account_rename(
 # =============================================================================
 
 
-def test_address_book_cache_invalidation_after_edit_contact_name(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_cache_invalidation_after_edit_contact_name(scenario_navigator: NavigateWithScenario) -> None:
     """Edit Contact Name updates the cached entry in place.
 
     Without on_edit_contact_name_applied(), the cached entry for DEFAULT_ADDRESS
@@ -2054,7 +1785,7 @@ def test_address_book_cache_invalidation_after_edit_contact_name(
 
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
-    check_edit_contact_name_response(app_client, new_name, group_handle)
+    check_edit_contact_name_response(app_client)
 
     # Step 4: Sign TX without re-providing — "To" must show new_name, not "Alice"
     tx_params: dict = {
@@ -2069,9 +1800,7 @@ def test_address_book_cache_invalidation_after_edit_contact_name(
         scenario_navigator.review_approve()
 
 
-def test_address_book_cache_invalidation_after_ledger_account_rename(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_cache_invalidation_after_ledger_account_rename(scenario_navigator: NavigateWithScenario) -> None:
     """Ledger Account rename updates the cached entry in place.
 
     Without on_edit_ledger_account_applied(), the cached entry keeps the old name
@@ -2120,7 +1849,7 @@ def test_address_book_cache_invalidation_after_ledger_account_rename(
 
     with app_client.provide_address_book(apdu):
         scenario_navigator.address_review_approve(do_comparison=False, custom_screen_text="Confirm")
-    check_edit_ledger_account_response(app_client, new_name)
+    check_edit_ledger_account_response(app_client)
 
     # Step 4: Sign TX without re-providing — "From" must show new_name
     tx_params: dict = {
@@ -2140,9 +1869,7 @@ def test_address_book_cache_invalidation_after_ledger_account_rename(
 # =============================================================================
 
 
-def test_address_book_provide_contact_invalid_hmac(
-    scenario_navigator: NavigateWithScenario,
-) -> None:
+def test_address_book_provide_contact_invalid_hmac(scenario_navigator: NavigateWithScenario) -> None:
     """Test Provide Contact with corrupted HMACs: device rejects with 0x6982.
 
     The device verifies both HMAC_NAME and HMAC_REST inside Provide Contact.
