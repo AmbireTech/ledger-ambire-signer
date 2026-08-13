@@ -25,9 +25,10 @@ static uint16_t handle_first_sign_chunk(const uint8_t *payload,
     uint8_t tx_type;
 
     if (appState != APP_STATE_IDLE) {
-        reset_app_context();
+        return SWO_COMMAND_NOT_ALLOWED;
     }
     appState = APP_STATE_SIGNING_TX;
+    tmpCtx.transactionContext.sign_mode = (uint8_t) mode;
 
     if (parseBip32(&payload[*offset], &length_tmp, &tmpCtx.transactionContext.bip32) == NULL) {
         return SWO_INCORRECT_DATA;
@@ -127,6 +128,10 @@ uint16_t handle_sign(uint8_t p1, uint8_t p2, const uint8_t *payload, uint8_t len
                         PRINTF("Signature not initialized\n");
                         return SWO_COMMAND_NOT_ALLOWED;
                     }
+                    if (p2 != (e_sign_mode) tmpCtx.transactionContext.sign_mode) {
+                        PRINTF("P2 mismatch on continuation chunk\n");
+                        return SWO_WRONG_P1_P2;
+                    }
                     break;
                 default:
                     return SWO_WRONG_P1_P2;
@@ -169,7 +174,7 @@ uint16_t handle_sign(uint8_t p1, uint8_t p2, const uint8_t *payload, uint8_t len
     }
     parserStatus_e pstatus = process_tx(&txContext, &payload[offset], length - offset);
     sw = handle_parsing_status(pstatus);
-    if (p2 == SIGN_MODE_BASIC) {
+    if ((e_sign_mode) tmpCtx.transactionContext.sign_mode == SIGN_MODE_BASIC) {
         if ((pstatus == USTREAM_FINISHED) && (sw == SWO_SUCCESS)) {
             // don't respond now, will be done after review
             sw = SWO_NO_RESPONSE;

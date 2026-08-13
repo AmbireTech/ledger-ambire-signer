@@ -225,6 +225,9 @@ bool ui_712_continue_or_finish(void) {
         if ((ui_ctx->filtering_mode == EIP712_FILTERING_BASIC) && !N_storage.dataAllowed &&
             !N_storage.verbose_eip712) {
             ui_error_blind_signing();
+            // An error screen is already displayed; only reset the state
+            // so the main loop's error handling does not overwrite it
+            appState = APP_STATE_IDLE;
             return false;
         }
         if (!ui_712_start(ui_ctx->filtering_mode)) {

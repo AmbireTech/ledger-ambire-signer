@@ -51,6 +51,9 @@ uint16_t handle_eip712_v1_struct_def(uint8_t p2, const uint8_t *cdata, uint8_t l
     uint16_t sw = SWO_PARAMETER_ERROR_NO_INFO;
 
     if (eip712_v1_context == NULL) {
+        if (appState != APP_STATE_IDLE) {
+            return SWO_COMMAND_NOT_ALLOWED;
+        }
         ret = eip712_v1_context_init();
     }
     if ((v1_get_root_type() != ROOT_NONE) ||
@@ -267,6 +270,9 @@ uint16_t handle_eip712_v1_sign(const uint8_t *cdata, uint8_t length) {
         if ((filt_mode == EIP712_FILTERING_BASIC) && !N_storage.dataAllowed &&
             !N_storage.verbose_eip712) {
             ui_error_blind_signing();
+            // An error screen is already displayed; only reset the state
+            // so the main loop's error handling does not overwrite it
+            appState = APP_STATE_IDLE;
             sw = SWO_INCORRECT_DATA;
         } else {
             bool should_start_ui = true;

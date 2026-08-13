@@ -22,6 +22,7 @@ static const uint8_t *const ERC721_SELECTORS[] = {
 
 void handle_init_contract_721(ethPluginInitContract_t *msg) {
     erc721_context_t *context = (erc721_context_t *) msg->pluginContext;
+    explicit_bzero(context, sizeof(*context));
 
     uint8_t i;
     for (i = 0; i < ARRAYLEN(ERC721_SELECTORS); i++) {
