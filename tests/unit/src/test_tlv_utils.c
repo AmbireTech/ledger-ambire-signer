@@ -116,10 +116,10 @@ static void test_get_hash_happy(void **state) {
     (void) state;
     uint8_t bytes[4] = {0xDE, 0xAD, 0xBE, 0xEF};
     tlv_data_t d = make_tlv(bytes, sizeof(bytes));
-    uint8_t out[16] = {0};
+    uint8_t out[4] = {0};
     assert_true(tlv_get_hash(&d, out, sizeof(out)));
     static const uint8_t expected[4] = {0xDE, 0xAD, 0xBE, 0xEF};
-    assert_memory_equal(out, expected, 4);
+    assert_memory_equal(out, expected, sizeof(expected));
 }
 
 static void test_get_hash_null_out_rejected(void **state) {
