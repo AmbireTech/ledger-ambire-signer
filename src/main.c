@@ -152,6 +152,10 @@ void app_main(void) {
             if ((sw & 0xF000) != 0x6000) {
                 sw = SWO_NOT_SUPPORTED_ERROR_NO_INFO | (sw & 0x7FF);
             }
+            if (appState != APP_STATE_IDLE) {
+                // Dismiss any ongoing review before its UI buffers are freed
+                ui_idle();
+            }
             reset_app_context();
         }
 

@@ -4,6 +4,9 @@
 #include "crypto_helpers.h"
 
 unsigned int auth_7702_ok_cb(void) {
+    if (appState != APP_STATE_SIGNING_EIP7702) {
+        return io_seproxyhal_send_status(SWO_CONDITIONS_NOT_SATISFIED, 0, true, false);
+    }
     uint32_t info = 0;
     CX_ASSERT(bip32_derive_ecdsa_sign_rs_hash_256(CX_CURVE_256K1,
                                                   tmpCtx.authSigningContext7702.bip32.path,
@@ -22,9 +25,9 @@ unsigned int auth_7702_ok_cb(void) {
     }
     // Reset to release the APP_STATE_SIGNING_EIP7702 lock and clear the
     // signing context so a new authorization can start from a clean slate.
-    return io_seproxyhal_send_status(SWO_SUCCESS, ECDSA_SIGNATURE_LENGTH, true, true);
+    return io_seproxyhal_send_status(SWO_SUCCESS, ECDSA_SIGNATURE_LENGTH, true, false);
 }
 
 unsigned int auth_7702_cancel_cb(void) {
-    return io_seproxyhal_send_status(SWO_CONDITIONS_NOT_SATISFIED, 0, true, true);
+    return io_seproxyhal_send_status(SWO_CONDITIONS_NOT_SATISFIED, 0, true, false);
 }

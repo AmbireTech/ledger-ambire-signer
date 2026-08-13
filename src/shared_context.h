@@ -101,6 +101,7 @@ typedef struct publicKeyContext_t {
 typedef struct transactionContext_t {
     bip32_path_t bip32;
     uint8_t hash[INT256_LENGTH];
+    uint8_t sign_mode;  // e_sign_mode captured at P1_FIRST, pinned for the lifetime of the flow
 } transactionContext_t;
 
 typedef struct messageSigningContext_t {
@@ -137,8 +138,11 @@ typedef union {
 
 typedef enum {
     APP_STATE_IDLE,
+    APP_STATE_VERIFYING_ADDRESS,
+    APP_STATE_PERFORMING_PRIVACY_OP,
     APP_STATE_SIGNING_TX,
     APP_STATE_SIGNING_MESSAGE,
+    APP_STATE_PREPARING_EIP712,  // STRUCT_DEF received, UI not yet started
     APP_STATE_SIGNING_EIP712,
     APP_STATE_SIGNING_EIP7702,
 } app_state_t;
