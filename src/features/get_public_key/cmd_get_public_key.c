@@ -16,7 +16,9 @@ uint16_t handle_get_public_key(uint8_t p1,
     cx_err_t error = CX_INTERNAL_ERROR;
 
     if (!G_called_from_swap) {
-        reset_app_context();
+        if (appState != APP_STATE_IDLE) {
+            return SWO_COMMAND_NOT_ALLOWED;
+        }
     }
 
     if ((p1 != P1_CONFIRM) && (p1 != P1_NON_CONFIRM)) {
@@ -63,6 +65,7 @@ uint16_t handle_get_public_key(uint8_t p1,
              "0x%.*s",
              40,
              tmpCtx.publicKeyContext.address);
+    appState = APP_STATE_VERIFYING_ADDRESS;
     // don't unnecessarily pass the current app's chain ID
     ui_display_public_key(chainConfig->chainId == chain_id ? NULL : &chain_id);
     *flags |= IO_ASYNCH_REPLY;
