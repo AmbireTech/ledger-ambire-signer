@@ -54,30 +54,24 @@ bool tlv_get_chain_id(const tlv_data_t *data, uint64_t *chain_id) {
  *
  * @param[in] data to handle
  * @param[out] out buffer to store the hash
- * @param[in] max_size of the hash
+ * @param[in] size exact expected size of the hash
  * @return whether the handling was successful
  */
-bool tlv_get_hash(const tlv_data_t *data, uint8_t *out, uint16_t max_size) {
+bool tlv_get_hash(const tlv_data_t *data, uint8_t *out, uint16_t size) {
     buffer_t hash = {0};
     if (!out) {
         PRINTF("HASH: null pointer provided\n");
         return false;
     }
-    if (!max_size) {
+    if (!size) {
         PRINTF("HASH: invalid size\n");
         return false;
     }
-    if (!get_buffer_from_tlv_data(data, &hash, 0, max_size)) {
+    if (!get_buffer_from_tlv_data(data, &hash, size, size)) {
         PRINTF("HASH: failed to extract\n");
         return false;
     }
-    if (hash.size > 0) {
-        if (hash.ptr == NULL) {
-            PRINTF("HASH: null value\n");
-            return false;
-        }
-        memmove((void *) out, hash.ptr, hash.size);
-    }
+    memmove((void *) out, hash.ptr, hash.size);
     return true;
 }
 
