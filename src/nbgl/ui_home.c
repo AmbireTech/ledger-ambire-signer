@@ -221,7 +221,6 @@ static void prepare_and_display_home(const char *appname, const char *tagline, u
     infoList.infoTypes = infoTypes;
     infoList.infoContents = infoContents;
 
-#ifndef FUZZ
     nbgl_useCaseHomeAndSettings(appname,
                                 get_home_icon(),
                                 tagline,
@@ -230,7 +229,6 @@ static void prepare_and_display_home(const char *appname, const char *tagline, u
                                 &infoList,
                                 NULL,
                                 app_quit);
-#endif
 }
 
 /**

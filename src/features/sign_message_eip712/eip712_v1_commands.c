@@ -96,8 +96,10 @@ uint16_t handle_eip712_v1_struct_impl(uint8_t p1,
     } else {
         switch (p2) {
             case P2_IMPL_NAME:
-                // make it NULL-terminated
-                memcpy(strings.tmp.tmp, cdata, length);
+                // make it NULL-terminated; an Lc of 0 leaves cdata NULL
+                if (length > 0) {
+                    memcpy(strings.tmp.tmp, cdata, length);
+                }
                 strings.tmp.tmp[length] = '\0';
                 ret = v1_set_root(strings.tmp.tmp);
                 if (ret) {

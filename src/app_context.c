@@ -1,0 +1,99 @@
+#include <stdint.h>
+#include <string.h>
+
+#include "shared_context.h"
+#include "eip712_v1_context.h"  // eip712_v1_context_deinit
+#include "bip32_utils.h"
+#include "bip32.h"
+#include "eth_swap_utils.h"
+#include "feature_sign_tx.h"
+#include "manage_asset_info.h"
+#include "sign_message.h"
+#include "trusted_name.h"
+#include "enum_value.h"
+#include "map_entry.h"
+#include "proxy_info.h"
+#include "tx_ctx.h"
+#include "ui_utils.h"
+#include "app_mem_utils.h"
+#include "cmd_safe_account.h"
+#include "cmd_get_gating.h"
+#include "network_info.h"
+#include "main_std_app.h"  // app_exit()
+
+#ifdef HAVE_ADDRESS_BOOK
+#include "handle_contacts.h"
+#endif
+
+#ifdef HAVE_ETH2
+#include "withdrawal_index.h"
+#endif
+
+void reset_app_context(void) {
+    if (appState == APP_STATE_SIGNING_MESSAGE) {
+        message_cleanup();
+    }
+    eip712_v1_context_deinit();
+    appState = APP_STATE_IDLE;
+    G_called_from_swap = false;
+    G_swap_response_ready = false;
+    G_swap_checked = false;
+    pluginType = PLUGIN_TYPE_NONE;
+#ifdef HAVE_ETH2
+    eth2WithdrawalIndex = 0;
+#endif
+    memset((uint8_t *) &tmpCtx, 0, sizeof(tmpCtx));
+    forget_known_assets();
+    if (txContext.store_calldata) {
+        gcs_cleanup();
+    }
+    trusted_name_cleanup();
+    enum_value_cleanup();
+    map_entry_cleanup();
+    // Release the tx-signing keccak context.
+    if (g_tx_hash_ctx != NULL) {
+        APP_MEM_FREE_AND_NULL((void **) &g_tx_hash_ctx);
+    }
+    memset((uint8_t *) &txContext, 0, sizeof(txContext));
+    memset((uint8_t *) &tmpContent, 0, sizeof(tmpContent));
+    clear_safe_account();
+    ui_all_cleanup();
+    proxy_cleanup();
+    clear_gating();
+}
+
+void app_quit(void) {
+    network_info_cleanup(NULL);
+#ifdef HAVE_ADDRESS_BOOK
+    address_book_contact_cleanup();
+#endif  // HAVE_ADDRESS_BOOK
+    reset_app_context();
+    app_exit();
+}
+
+const uint8_t *parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, bip32_path_t *bip32) {
+    if (*dataLength < 1) {
+        PRINTF("Invalid data\n");
+        return NULL;
+    }
+
+    bip32->length = *dataBuffer;
+
+    dataBuffer++;
+    (*dataLength)--;
+
+    if (*dataLength < sizeof(uint32_t) * (bip32->length)) {
+        PRINTF("Invalid data\n");
+        return NULL;
+    }
+
+    if (bip32_path_read(dataBuffer, (size_t) dataLength, bip32->path, (size_t) bip32->length) ==
+        false) {
+        PRINTF("Invalid Path data\n");
+        return NULL;
+    }
+    dataBuffer += bip32->length * sizeof(uint32_t);
+    *dataLength -= bip32->length * sizeof(uint32_t);
+
+    return dataBuffer;
+}

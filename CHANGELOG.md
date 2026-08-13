@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.23.0](../../compare/1.22.1...1.23.0) - Unreleased
+
+### Added
+
+- SDK-native stateful fuzzing framework (Absolution-based) exercising the real `handleApdu` entry point.
+
+### Fixed
+
+- Hardened the transaction parser, message signing and buffer utilities against malformed inputs (issues surfaced by fuzzing).
+
 ## [1.22.1](../../compare/1.22.0...1.22.1) - 2026-05-27
 
 ### Fixed

@@ -177,16 +177,12 @@ static void review_cb(bool confirm) {
     if (confirm) {
         // User confirmed the Safe Account
         _cleanup(SWO_SUCCESS);
-#ifndef FUZZ
         nbgl_useCaseStatus("Safe Address validated", true, ui_idle);
-#endif
         return;
     } else {
         // User rejected the Safe Account
         _cleanup(SWO_CONDITIONS_NOT_SATISFIED);
-#ifndef FUZZ
         nbgl_useCaseStatus("Safe Address rejected", false, ui_idle);
-#endif
     }
 }
 
@@ -207,12 +203,10 @@ void ui_display_safe_account(void) {
     // Setup data to display
     setTagValuePairs();
 
-#ifndef FUZZ
     nbgl_useCaseAddressReview(strings.tmp.tmp,
                               g_pairsList,
                               &LARGE_MULTISIG_ICON,
                               "Verify Safe address",
                               NULL,
                               review_cb);
-#endif
 }

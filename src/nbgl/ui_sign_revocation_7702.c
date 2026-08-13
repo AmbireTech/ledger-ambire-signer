@@ -8,14 +8,10 @@
 static void review7702Choice(bool confirm) {
     if (confirm) {
         auth_7702_ok_cb();
-#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_OPERATION_SIGNED, ui_idle);
-#endif
     } else {
         auth_7702_cancel_cb();
-#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_OPERATION_REJECTED, ui_idle);
-#endif
     }
     ui_pairs_cleanup();
 }
@@ -40,7 +36,6 @@ bool ui_sign_7702_revocation(void) {
         g_pairs[index++].value = strings.common.nonce;
     }
 
-#ifndef FUZZ
     nbgl_useCaseReview(TYPE_OPERATION,
                        g_pairsList,
                        &LARGE_REVIEW_ICON,
@@ -52,6 +47,5 @@ bool ui_sign_7702_revocation(void) {
                        "Sign operation",
 #endif
                        review7702Choice);
-#endif
     return true;
 }

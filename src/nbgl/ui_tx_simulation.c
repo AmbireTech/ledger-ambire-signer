@@ -44,9 +44,7 @@ static void ui_tx_simulation_explain(void) {
 
     layoutDescription.withLeftBorder = true;
     layoutDescription.onActionCallback = opt_in_explain_cb;
-#ifndef FUZZ
     layoutCtx = nbgl_layoutGet(&layoutDescription);
-#endif
     const char *rowTexts[HOW_TO_INFO_NB] = {
         "Transaction is checked for threats before signing.",
         "The result is displayed: Critical threat, potential risk or no threat.",
@@ -59,21 +57,17 @@ static void ui_tx_simulation_explain(void) {
     };
 
     // add header
-#ifndef FUZZ
     nbgl_layoutAddHeader(layoutCtx, &headerDesc);
-#endif
 
     // add title
     info.title = "How it works";
     info.nbRows = HOW_TO_INFO_NB;
     info.rowTexts = rowTexts;
     info.rowIcons = rowIcons;
-#ifndef FUZZ
     nbgl_layoutAddLeftContent(layoutCtx, &info);
 
     nbgl_layoutDraw(layoutCtx);
     nbgl_refresh();
-#endif
 }
 
 /**
@@ -84,9 +78,7 @@ static void ui_tx_simulation_explain(void) {
  */
 static void finalise_opt_in(bool confirm, nbgl_callback_t callback) {
     if (confirm) {
-#ifndef FUZZ
         nbgl_useCaseStatus("Transaction Check enabled", true, callback);
-#endif
     } else {
         callback();
     }
@@ -154,12 +146,10 @@ void ui_tx_simulation_opt_in(bool response_expected) {
     g_response_expected = response_expected;
     layoutDescription.withLeftBorder = true;
     layoutDescription.onActionCallback = opt_in_action_cb;
-#ifndef FUZZ
     layoutCtx = nbgl_layoutGet(&layoutDescription);
 
     // add header
     nbgl_layoutAddHeader(layoutCtx, &headerDesc);
-#endif
 
     // add main content
     info.title = "Enable\nTransaction Check?";
@@ -167,20 +157,16 @@ void ui_tx_simulation_opt_in(bool response_expected) {
         "Get real-time warnings about risky Ethereum transactions. "
         "Powered by service providers.";
     info.subText = "By enabling, you accept T&Cs: ledger.com/tx-check";
-#ifndef FUZZ
     nbgl_layoutAddContentCenter(layoutCtx, &info);
 
     // add button and footer on bottom
     nbgl_layoutAddChoiceButtons(layoutCtx, &buttonsInfo);
-#endif
 
 #ifdef HAVE_PIEZO_SOUND
     io_seproxyhal_play_tune(TUNE_LOOK_AT_ME);
 #endif  // HAVE_PIEZO_SOUND
-#ifndef FUZZ
     nbgl_layoutDraw(layoutCtx);
     nbgl_refresh();
-#endif
 }
 
 #endif  // HAVE_TRANSACTION_CHECKS

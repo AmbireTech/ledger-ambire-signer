@@ -120,7 +120,10 @@ bool td_leaf_write(s_struct_712_value *leaf, size_t offset, const uint8_t *data,
     if ((offset + length) > leaf->length) {
         return false;
     }
-    memcpy(&leaf->data[offset], data, length);
+    // A zero-length leaf has no buffer, and an empty APDU payload has no data.
+    if (length > 0) {
+        memcpy(&leaf->data[offset], data, length);
+    }
     return true;
 }
 

@@ -38,13 +38,13 @@ uint32_t io_seproxyhal_touch_tx_ok(void) {
             // this should be updated.
             uint32_t v = (uint32_t) u64_from_BE(tmpContent.txContent.v,
                                                 MIN(4, tmpContent.txContent.vLength));
-            G_io_tx_buffer[0] = (v * 2) + 35;
+            G_io_tx_buffer[0] = (uint8_t) (((uint64_t) v * 2) + 35);
         }
         if (info & CX_ECCINFO_PARITY_ODD) {
-            G_io_tx_buffer[0]++;
+            G_io_tx_buffer[0] = (uint8_t) (G_io_tx_buffer[0] + 1);
         }
         if (info & CX_ECCINFO_xGTn) {
-            G_io_tx_buffer[0] += 2;
+            G_io_tx_buffer[0] = (uint8_t) (G_io_tx_buffer[0] + 2);
         }
     }
 

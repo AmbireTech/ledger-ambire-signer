@@ -56,14 +56,10 @@ static void reviewChoice(bool confirm) {
     _cleanup();
     if (confirm) {
         io_seproxyhal_touch_tx_ok();
-#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_SIGNED, ui_idle);
-#endif
     } else {
         io_seproxyhal_touch_tx_cancel();
-#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_REJECTED, ui_idle);
-#endif
     }
 }
 
@@ -508,7 +504,6 @@ uint16_t ux_approve_tx(bool fromPlugin) {
         return sw;
     }
 
-#ifndef FUZZ
     nbgl_useCaseAdvancedReview(TYPE_TRANSACTION,
                                g_pairsList,
                                get_tx_icon(fromPlugin),
@@ -518,6 +513,5 @@ uint16_t ux_approve_tx(bool fromPlugin) {
                                NULL,
                                &warning,
                                reviewChoice);
-#endif
     return SWO_SUCCESS;
 }
