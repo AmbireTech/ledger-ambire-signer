@@ -97,6 +97,9 @@ void reset_app_context(void) {
     memset((uint8_t *) &txContext, 0, sizeof(txContext));
     memset((uint8_t *) &tmpContent, 0, sizeof(tmpContent));
     clear_safe_account();
+#ifdef HAVE_TRANSACTION_CHECKS
+    clear_tx_simulation();
+#endif
     ui_all_cleanup();
     proxy_cleanup();
 #ifdef HAVE_GATING_SUPPORT

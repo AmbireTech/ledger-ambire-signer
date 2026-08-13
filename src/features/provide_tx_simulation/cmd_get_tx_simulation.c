@@ -470,6 +470,15 @@ uint16_t handle_tx_simulation(uint8_t p1,
                 sw = SWO_COMMAND_CODE_NOT_SUPPORTED;
                 break;
             }
+            // Reject a second provisioning to prevent the host from overwriting
+            // the displayed warning after the review is on screen (finding 195).
+            // On master, tx_hash is zeroed by clear_tx_simulation() and set
+            // non-zero only after a successful TLV parse, so non-zero means received.
+            if (allzeroes((void *) TX_SIMULATION.tx_hash, HASH_SIZE) == 0) {
+                PRINTF("Error: TX simulation already received!\n");
+                sw = SWO_COMMAND_NOT_ALLOWED;
+                break;
+            }
             if (!tlv_from_apdu(p2 == P1_FIRST_CHUNK, length, data, &handle_tlv_payload)) {
                 sw = SWO_INCORRECT_DATA;
             } else {
@@ -477,7 +486,12 @@ uint16_t handle_tx_simulation(uint8_t p1,
             }
             break;
         case 0x01:
-            // TX Simulation Opt-In
+            // TX Simulation Opt-In: drawing a new screen while a review is on
+            // screen would overlay the live review (finding 199).
+            if (appState != APP_STATE_IDLE) {
+                sw = SWO_COMMAND_NOT_ALLOWED;
+                break;
+            }
             handle_tx_simulation_opt_in(true);
             *flags |= IO_ASYNCH_REPLY;
             sw = APDU_NO_RESPONSE;
