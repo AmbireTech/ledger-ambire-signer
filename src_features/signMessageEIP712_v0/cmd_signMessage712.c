@@ -11,7 +11,7 @@ uint16_t handleSignEIP712Message_v0(uint8_t p1,
         return APDU_RESPONSE_INVALID_P1_P2;
     }
     if (appState != APP_STATE_IDLE) {
-        reset_app_context();
+        return APDU_RESPONSE_CONDITION_NOT_SATISFIED;
     }
 
     if (!N_storage.dataAllowed) {
@@ -27,6 +27,7 @@ uint16_t handleSignEIP712Message_v0(uint8_t p1,
             workBuffer + KECCAK256_HASH_BYTESIZE,
             KECCAK256_HASH_BYTESIZE);
 
+    appState = APP_STATE_SIGNING_EIP712;
     ui_sign_712_v0();
 
     *flags |= IO_ASYNCH_REPLY;

@@ -3,6 +3,9 @@
 #include "feature_performPrivacyOperation.h"
 
 unsigned int io_seproxyhal_touch_privacy_ok(void) {
+    if (appState != APP_STATE_PERFORMING_PRIVACY_OP) {
+        return io_seproxyhal_send_status(APDU_RESPONSE_CONDITION_NOT_SATISFIED, 0, true, true);
+    }
     uint32_t tx = set_result_perform_privacy_operation();
     return io_seproxyhal_send_status(APDU_RESPONSE_OK, tx, true, true);
 }

@@ -9,6 +9,12 @@
 
 uint16_t handleSetExternalPlugin(const uint8_t *workBuffer, uint8_t dataLength) {
     PRINTF("Handling set Plugin\n");
+    if (appState != APP_STATE_IDLE) {
+        return APDU_RESPONSE_CONDITION_NOT_SATISFIED;
+    }
+    if (dataLength < 1) {
+        return APDU_RESPONSE_INVALID_DATA;
+    }
     uint8_t hash[INT256_LENGTH];
     uint8_t pluginNameLength = *workBuffer;
     uint32_t params[2];

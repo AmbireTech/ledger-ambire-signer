@@ -5,6 +5,9 @@
 #include "ui_callbacks.h"
 
 unsigned int io_seproxyhal_touch_eth2_address_ok(void) {
+    if (appState != APP_STATE_VERIFYING_ADDRESS) {
+        return io_seproxyhal_send_status(APDU_RESPONSE_CONDITION_NOT_SATISFIED, 0, true, true);
+    }
     uint32_t tx = set_result_get_eth2_publicKey();
     return io_seproxyhal_send_status(APDU_RESPONSE_OK, tx, true, true);
 }

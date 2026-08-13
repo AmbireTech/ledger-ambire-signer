@@ -183,8 +183,8 @@ eth_plugin_result_t eth_plugin_perform_init(uint8_t *contractAddress,
 }
 
 eth_plugin_result_t eth_plugin_call(int method, void *parameter) {
-    ethPluginSharedRW_t pluginRW;
-    ethPluginSharedRO_t pluginRO;
+    static ethPluginSharedRW_t pluginRW;
+    static ethPluginSharedRO_t pluginRO;
     char *alias;
     uint8_t i;
 

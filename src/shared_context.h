@@ -66,6 +66,7 @@ typedef struct transactionContext_t {
     union extraInfo_t extraInfo[MAX_ASSETS];
     bool assetSet[MAX_ASSETS];
     uint8_t currentAssetIndex;
+    uint8_t sign_mode;
 } transactionContext_t;
 
 typedef struct messageSigningContext_t {
@@ -99,6 +100,8 @@ typedef union {
 
 typedef enum {
     APP_STATE_IDLE,
+    APP_STATE_VERIFYING_ADDRESS,
+    APP_STATE_PERFORMING_PRIVACY_OP,
     APP_STATE_SIGNING_TX,
     APP_STATE_SIGNING_MESSAGE,
     APP_STATE_SIGNING_EIP712

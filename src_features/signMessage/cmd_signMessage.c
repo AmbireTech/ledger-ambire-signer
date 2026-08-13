@@ -98,7 +98,8 @@ static const uint8_t *first_apdu_data(const uint8_t *data, uint8_t *length, uint
     cx_err_t error = CX_INTERNAL_ERROR;
 
     if (appState != APP_STATE_IDLE) {
-        apdu_reply(APDU_RESPONSE_CONDITION_NOT_SATISFIED);
+        *sw = APDU_RESPONSE_CONDITION_NOT_SATISFIED;
+        return NULL;
     }
     appState = APP_STATE_SIGNING_MESSAGE;
     data = parseBip32(data, length, &tmpCtx.messageSigningContext.bip32);
@@ -239,7 +240,7 @@ uint16_t handleSignPersonalMessage(uint8_t p1,
     processed_size = 0;
     if (p1 == P1_FIRST) {
         if ((data = first_apdu_data(data, &length, &sw)) == NULL) {
-            if (sw != APDU_RESPONSE_INVALID_DATA) {
+            if (sw != APDU_RESPONSE_INVALID_DATA && sw != APDU_RESPONSE_CONDITION_NOT_SATISFIED) {
                 *flags |= IO_ASYNCH_REPLY;
             }
             return sw;

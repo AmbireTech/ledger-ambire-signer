@@ -37,7 +37,7 @@ include ./makefile_conf/chain/$(CHAIN).mk
 
 APPVERSION_M = 1
 APPVERSION_N = 16
-APPVERSION_P = 1
+APPVERSION_P = 2
 APPVERSION = $(APPVERSION_M).$(APPVERSION_N).$(APPVERSION_P)
 
 # Application source files
@@ -122,6 +122,10 @@ ENABLE_SWAP = 1
 ########################################
 
 DEFINES += APP_TICKER=\"$(TICKER)\" APP_CHAIN_ID=$(CHAIN_ID)
+
+# Workaround: newer clang treats unterminated string initializers in
+# CREATE_METADATA_STRING_ITEM (nanos-secure-sdk) as errors.
+CFLAGS += -Wno-unterminated-string-initialization
 
 # Enabled Features #
 include makefile_conf/features.mk
