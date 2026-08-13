@@ -22,17 +22,6 @@
 #define INS_PROVIDE_NFT_INFORMATION         0x14
 #define INS_SET_PLUGIN                      0x16
 #define INS_PERFORM_PRIVACY_OPERATION       0x18
-#define INS_EIP712_STRUCT_DEF               0x1A
-#define INS_EIP712_STRUCT_IMPL              0x1C
-#define INS_EIP712_FILTERING                0x1E
-#define INS_ENS_GET_CHALLENGE               0x20
-#define INS_ENS_PROVIDE_INFO                0x22
-#define INS_PROVIDE_ENUM_VALUE              0x24
-#define INS_GTP_TRANSACTION_INFO            0x26
-#define INS_GTP_FIELD                       0x28
-#define INS_PROVIDE_PROXY_INFO              0x2A
-#define INS_PROVIDE_NETWORK_CONFIGURATION   0x30
-#define INS_PROVIDE_TX_SIMULATION           0x32
 
 #define P1_CONFIRM              0x01
 #define P1_NON_CONFIRM          0x00
@@ -43,7 +32,6 @@
 #define P1_FIRST_CHUNK          0x01
 #define P1_FOLLOWING_CHUNK      0x00
 #define P2_EIP712_LEGACY_IMPLEM 0x00
-#define P2_EIP712_FULL_IMPLEM   0x01
 
 #define APDU_NO_RESPONSE                      0x0000
 #define APDU_RESPONSE_MODE_CHECK_FAILED       0x6001
@@ -74,9 +62,6 @@ uint16_t handleGetPublicKey(uint8_t p1,
 uint16_t handleProvideErc20TokenInformation(const uint8_t *workBuffer,
                                             uint8_t dataLength,
                                             unsigned int *tx);
-uint16_t handleProvideNFTInformation(const uint8_t *dataBuffer,
-                                     uint8_t dataLength,
-                                     unsigned int *tx);
 uint16_t handleSign(uint8_t p1,
                     uint8_t p2,
                     const uint8_t *dataBuffer,

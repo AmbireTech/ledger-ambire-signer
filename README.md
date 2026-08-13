@@ -7,7 +7,7 @@
   <h1 align="center">app-ethereum</h1>
 
   <p align="center">
-    Ethereum wallet application for Ledger Blue, Nano S, Nano S Plus and Nano X
+    Ethereum wallet application for Nano S
     <br />
     <a href="https://github.com/LedgerHQ/app-ethereum/tree/master/doc"><strong>« Explore the docs »</strong></a>
     <br />
@@ -40,7 +40,7 @@
 
 ## About the project
 
-Ethereum wallet application framework for Ledger Nano S, Ledger Nano S Plus, Ledger Nano X, Ledger Flex and Ledger Stax.
+Ethereum wallet application framework for Ledger Nano S.
 Ledger Blue is not maintained anymore, but the app can still be compiled for this target using the branch [`blue-final-release`](https://github.com/LedgerHQ/app-ethereum/tree/blue-final-release).
 
 ## Documentation
@@ -150,9 +150,6 @@ make DEBUG=1  # compile optionally with PRINTF
 You can choose which device to compile and load for by setting the `BOLOS_SDK` environment variable to the following values:
 
 - `BOLOS_SDK=$NANOS_SDK`
-- `BOLOS_SDK=$NANOX_SDK`
-- `BOLOS_SDK=$NANOSP_SDK`
-- `BOLOS_SDK=$STAX_SDK`
 
 ### Loading on a physical device
 

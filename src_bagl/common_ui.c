@@ -1,5 +1,3 @@
-#ifdef HAVE_BAGL
-
 #include "common_ui.h"
 #include "ux.h"
 #include "ui_flow.h"
@@ -64,5 +62,3 @@ unsigned int tx_cancel_cb(void) {
     ui_idle();
     return io_seproxyhal_touch_tx_cancel();
 }
-
-#endif  // HAVE_BAGL

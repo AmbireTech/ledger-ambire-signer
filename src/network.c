@@ -1,7 +1,6 @@
 #include "os_utils.h"
 #include "os_pic.h"
 #include "network.h"
-#include "network_info.h"
 #include "shared_context.h"
 #include "common_utils.h"
 
@@ -123,19 +122,6 @@ static const network_info_t NETWORK_MAPPING[] = {
 
 static const network_info_t *get_network_from_chain_id(const uint64_t *chain_id) {
     if (*chain_id != 0) {
-#ifdef HAVE_DYNAMIC_NETWORKS
-        // Look if the network is available
-        for (size_t i = 0; i < MAX_DYNAMIC_NETWORKS; i++) {
-            if (DYNAMIC_NETWORK_INFO[i].chain_id == *chain_id) {
-                PRINTF("[NETWORK] - Found dynamic \"%s\" in slot %u\n",
-                       DYNAMIC_NETWORK_INFO[i].name,
-                       i);
-                return (const network_info_t *) &DYNAMIC_NETWORK_INFO[i];
-            }
-        }
-#endif  // HAVE_DYNAMIC_NETWORKS
-
-        // Fallback to hardcoded table
         for (size_t i = 0; i < ARRAYLEN(NETWORK_MAPPING); i++) {
             if (NETWORK_MAPPING[i].chain_id == *chain_id) {
                 PRINTF("[NETWORK] - Fallback on hardcoded list. Found %s\n",

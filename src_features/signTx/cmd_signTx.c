@@ -4,9 +4,6 @@
 #include "eth_plugin_interface.h"
 #include "apdu_constants.h"
 #include "swap_error_code_helpers.h"
-#ifdef HAVE_GENERIC_TX_PARSER
-#include "gtp_tx_info.h"
-#endif
 #include "common_ui.h"
 #include "ui_callbacks.h"
 
@@ -111,9 +108,6 @@ uint16_t handleSign(uint8_t p1,
 
     switch (p2) {
         case SIGN_MODE_BASIC:
-#ifdef HAVE_GENERIC_TX_PARSER
-        case SIGN_MODE_STORE:
-#endif
             switch (p1) {
                 case P1_FIRST:
                     if ((sw = handle_first_sign_chunk(payload, length, &offset, p2)) !=
@@ -131,25 +125,6 @@ uint16_t handleSign(uint8_t p1,
                     return APDU_RESPONSE_INVALID_P1_P2;
             }
             break;
-#ifdef HAVE_GENERIC_TX_PARSER
-        case SIGN_MODE_START_FLOW:
-            if (appState != APP_STATE_SIGNING_TX) {
-                PRINTF("Signature not initialized\n");
-                return APDU_RESPONSE_CONDITION_NOT_SATISFIED;
-            }
-            if (length != 0) {
-                return APDU_RESPONSE_INVALID_DATA;
-            }
-            if (!validate_instruction_hash()) {
-                PRINTF("Error: instructions hash mismatch!\n");
-                return APDU_RESPONSE_INVALID_DATA;
-            }
-            if (!ui_gcs()) {
-                return APDU_RESPONSE_INTERNAL_ERROR;
-            }
-            *flags |= IO_ASYNCH_REPLY;
-            return APDU_NO_RESPONSE;
-#endif
         default:
             return APDU_RESPONSE_INVALID_P1_P2;
     }

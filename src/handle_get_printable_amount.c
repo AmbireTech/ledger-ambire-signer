@@ -3,8 +3,8 @@
 #include "network.h"
 #include "apdu_constants.h"
 
-uint16_t handle_get_printable_amount(get_printable_amount_parameters_t* params,
-                                     chain_config_t* config) {
+uint16_t handle_get_printable_amount(get_printable_amount_parameters_t *params,
+                                     chain_config_t *config) {
     char ticker[MAX_TICKER_LEN];
     uint8_t decimals;
     uint64_t chain_id = 0;

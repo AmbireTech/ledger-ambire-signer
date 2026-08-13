@@ -63,20 +63,11 @@ UX_STEP_INIT(
     });
 UX_STEP_CB(
     ux_191_step_theres_more,
-#ifdef TARGET_NANOS
     nn,
-#else
-    nnn,
-#endif
     G_ux.stack[0].button_push_callback = NULL; // disable button clicks
     skip_rest_of_message(),
     {
-#ifndef TARGET_NANOS
-      "Press right to",
-      "continue message",
-#else
       "Press right to read",
-#endif
       "Double-press to skip"
     });
 UX_STEP_INIT(

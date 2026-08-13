@@ -31,20 +31,8 @@
 #include "handle_get_printable_amount.h"
 #include "handle_check_address.h"
 #include "swap_entrypoints.h"
-#include "commands_712.h"
-#include "challenge.h"
-#include "cmd_trusted_name.h"
 #include "crypto_helpers.h"
 #include "manage_asset_info.h"
-#include "cmd_network_info.h"
-#ifdef HAVE_DYN_MEM_ALLOC
-#include "mem.h"
-#endif
-#include "cmd_enum_value.h"
-#include "cmd_tx_info.h"
-#include "cmd_field.h"
-#include "cmd_get_tx_simulation.h"
-#include "cmd_proxy_info.h"
 
 tmpCtx_t tmpCtx;
 txContext_t txContext;
@@ -66,9 +54,6 @@ uint32_t eth2WithdrawalIndex;
 
 const internalStorage_t N_storage_real;
 
-#ifdef HAVE_NBGL
-caller_app_t *caller_app = NULL;
-#endif
 const chain_config_t *chainConfig;
 
 void reset_app_context() {
@@ -82,11 +67,6 @@ void reset_app_context() {
 #endif
     memset((uint8_t *) &tmpCtx, 0, sizeof(tmpCtx));
     forget_known_assets();
-#ifdef HAVE_GENERIC_TX_PARSER
-    if (txContext.store_calldata) {
-        gcs_cleanup();
-    }
-#endif
     memset((uint8_t *) &txContext, 0, sizeof(txContext));
     memset((uint8_t *) &tmpContent, 0, sizeof(tmpContent));
 }
@@ -159,12 +139,6 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
             sw = handleProvideErc20TokenInformation(cmd->data, cmd->lc, tx);
             break;
 
-#ifdef HAVE_NFT_SUPPORT
-        case INS_PROVIDE_NFT_INFORMATION:
-            sw = handleProvideNFTInformation(cmd->data, cmd->lc, tx);
-            break;
-#endif  // HAVE_NFT_SUPPORT
-
         case INS_SET_EXTERNAL_PLUGIN:
             sw = handleSetExternalPlugin(cmd->data, cmd->lc);
             break;
@@ -196,11 +170,6 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
                     forget_known_assets();
                     sw = handleSignEIP712Message_v0(cmd->p1, cmd->data, cmd->lc, flags);
                     break;
-#ifdef HAVE_EIP712_FULL_SUPPORT
-                case P2_EIP712_FULL_IMPLEM:
-                    sw = handle_eip712_sign(cmd->data, cmd->lc, flags);
-                    break;
-#endif  // HAVE_EIP712_FULL_SUPPORT
                 default:
                     sw = APDU_RESPONSE_INVALID_P1_P2;
             }
@@ -216,64 +185,6 @@ static uint16_t handleApdu(command_t *cmd, uint32_t *flags, uint32_t *tx) {
             sw = handleSetEth2WithdrawalIndex(cmd->p1, cmd->p2, cmd->data, cmd->lc);
             break;
 #endif  // HAVE_ETH2
-
-#ifdef HAVE_EIP712_FULL_SUPPORT
-        case INS_EIP712_STRUCT_DEF:
-            sw = handle_eip712_struct_def(cmd->p2, cmd->data, cmd->lc);
-            break;
-
-        case INS_EIP712_STRUCT_IMPL:
-            sw = handle_eip712_struct_impl(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags);
-            break;
-
-        case INS_EIP712_FILTERING:
-            sw = handle_eip712_filtering(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags);
-            break;
-#endif  // HAVE_EIP712_FULL_SUPPORT
-
-#ifdef HAVE_TRUSTED_NAME
-        case INS_ENS_GET_CHALLENGE:
-            sw = handle_get_challenge(tx);
-            break;
-
-        case INS_ENS_PROVIDE_INFO:
-            sw = handle_trusted_name(cmd->p1, cmd->data, cmd->lc);
-            break;
-#endif  // HAVE_TRUSTED_NAME
-
-#ifdef HAVE_ENUM_VALUE
-        case INS_PROVIDE_ENUM_VALUE:
-            sw = handle_enum_value(cmd->p1, cmd->p2, cmd->lc, cmd->data);
-            break;
-#endif  // HAVE_ENUM_VALUE
-
-#ifdef HAVE_GENERIC_TX_PARSER
-        case INS_GTP_TRANSACTION_INFO:
-            sw = handle_tx_info(cmd->p1, cmd->p2, cmd->lc, cmd->data);
-            break;
-
-        case INS_GTP_FIELD:
-            sw = handle_field(cmd->p1, cmd->p2, cmd->lc, cmd->data);
-            break;
-#endif  // HAVE_GENERIC_TX_PARSER
-
-#if defined(HAVE_EIP712_FULL_SUPPORT) || defined(HAVE_GENERIC_TX_PARSER)
-        case INS_PROVIDE_PROXY_INFO:
-            sw = handle_proxy_info(cmd->p1, cmd->p2, cmd->lc, cmd->data);
-            break;
-#endif
-
-#ifdef HAVE_DYNAMIC_NETWORKS
-        case INS_PROVIDE_NETWORK_CONFIGURATION:
-            sw = handle_network_info(cmd->p1, cmd->p2, cmd->data, cmd->lc, tx);
-            break;
-#endif  // HAVE_DYNAMIC_NETWORKS
-
-#ifdef HAVE_WEB3_CHECKS
-        case INS_PROVIDE_TX_SIMULATION:
-            sw = handle_tx_simulation(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags);
-            break;
-#endif
 
         default:
             sw = APDU_RESPONSE_INVALID_INS;
@@ -388,15 +299,6 @@ void coin_main(eth_libargs_t *args) {
         if (args->chain_config != NULL) {
             chainConfig = args->chain_config;
         }
-#ifdef HAVE_NBGL
-        if ((caller_app = args->caller_app) != NULL) {
-            if (chainConfig != NULL) {
-                caller_app->type = CALLER_TYPE_CLONE;
-            } else {
-                caller_app->type = CALLER_TYPE_PLUGIN;
-            }
-        }
-#endif
     }
     if (chainConfig == NULL) {
         init_coin_config(&config);
@@ -409,14 +311,6 @@ void coin_main(eth_libargs_t *args) {
 
     io_init();
     ui_idle();
-#ifdef HAVE_DYN_MEM_ALLOC
-    mem_init();
-#endif
-
-#ifdef HAVE_TRUSTED_NAME
-    // to prevent it from having a fixed value at boot
-    roll_challenge();
-#endif  // HAVE_TRUSTED_NAME
 
     app_main();
 }
@@ -485,22 +379,7 @@ __attribute__((noreturn)) void clone_main(eth_libargs_t *args) {
     } else {
         // Clone called from Dashboard, start Ethereum
         libcall_params[2] = RUN_APPLICATION;
-// On Stax, forward our icon to Ethereum
-#ifdef HAVE_NBGL
-        const char app_name[] = APPNAME;
-        caller_app_t capp;
-        nbgl_icon_details_t icon_details;
-        uint8_t bitmap[sizeof(ICONBITMAP)];
-
-        memcpy(&icon_details, &ICONGLYPH, sizeof(ICONGLYPH));
-        memcpy(&bitmap, &ICONBITMAP, sizeof(bitmap));
-        icon_details.bitmap = (const uint8_t *) bitmap;
-        capp.name = app_name;
-        capp.icon = &icon_details;
-        libcall_params[4] = (uint32_t) &capp;
-#else
         libcall_params[4] = 0;
-#endif  // HAVE_NBGL
         os_lib_call((uint32_t *) &libcall_params);
         // Ethereum should not return to us
         app_exit();
