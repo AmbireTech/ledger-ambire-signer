@@ -385,6 +385,7 @@ bool filtering_calldata_spender(const uint8_t *payload,
     }
 
     // Handling
+    if (discarded) return true;
     if (get_calldata_info(index) == NULL) {
         PRINTF("Error: no matching calldata info (index=%u)\n", index);
         return false;
@@ -446,6 +447,7 @@ bool filtering_calldata_amount(const uint8_t *payload,
     }
 
     // Handling
+    if (discarded) return true;
     if (get_calldata_info(index) == NULL) {
         PRINTF("Error: no matching calldata info (index=%u)\n", index);
         return false;
@@ -507,6 +509,7 @@ bool filtering_calldata_selector(const uint8_t *payload,
     }
 
     // Handling
+    if (discarded) return true;
     if (get_calldata_info(index) == NULL) {
         PRINTF("Error: no matching calldata info (index=%u)\n", index);
         return false;
@@ -568,6 +571,7 @@ bool filtering_calldata_chain_id(const uint8_t *payload,
     }
 
     // Handling
+    if (discarded) return true;
     if (get_calldata_info(index) == NULL) {
         PRINTF("Error: no matching calldata info (index=%u)\n", index);
         return false;
@@ -629,6 +633,7 @@ bool filtering_calldata_callee(const uint8_t *payload,
     }
 
     // Handling
+    if (discarded) return true;
     if (get_calldata_info(index) == NULL) {
         PRINTF("Error: no matching calldata info (index=%u)\n", index);
         return false;
@@ -690,6 +695,7 @@ bool filtering_calldata_value(const uint8_t *payload,
     }
 
     // Handling
+    if (discarded) return true;
     if (get_calldata_info(index) == NULL) {
         PRINTF("Error: no matching calldata info (index=%u)\n", index);
         return false;
@@ -967,6 +973,7 @@ bool filtering_trusted_name(const uint8_t *payload,
     }
 
     // Handling
+    if (discarded) return true;
     if (!check_typename("address")) {
         return false;
     }
@@ -1034,6 +1041,7 @@ bool filtering_date_time(const uint8_t *payload,
     }
 
     // Handling
+    if (discarded) return true;
     if (!check_typename("uint")) {
         return false;
     }
@@ -1095,6 +1103,7 @@ bool filtering_amount_join_token(const uint8_t *payload,
     }
 
     // Handling
+    if (discarded) return true;
     if (!check_typename("address") || !check_token_index(token_idx)) {
         return false;
     }
@@ -1169,6 +1178,7 @@ bool filtering_amount_join_value(const uint8_t *payload,
     }
 
     // Handling
+    if (discarded) return true;
     if (token_idx == TOKEN_IDX_ADDR_IN_DOMAIN) {
         // Permit (ERC-2612)
         int resolved_idx = get_asset_index_by_addr(eip712_context->contract_addr);
