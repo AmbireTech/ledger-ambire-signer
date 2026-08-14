@@ -54,6 +54,7 @@ bool eip712_context_init(void) {
 
     struct_state = NOT_INITIALIZED;
 
+    appState = APP_STATE_PREPARING_EIP712;
     return true;
 }
 

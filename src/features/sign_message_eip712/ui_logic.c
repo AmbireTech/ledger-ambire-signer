@@ -1043,7 +1043,7 @@ bool ui_712_init(void) {
         apdu_response_code = SWO_INSUFFICIENT_MEMORY;
     } else {
         ui_712_set_filtering_mode(EIP712_FILTERING_BASIC);
-        explicit_bzero(&strings, sizeof(strings));
+        explicit_bzero(strings.tmp.tmp, sizeof(strings.tmp.tmp));
     }
     return ui_ctx != NULL;
 }
