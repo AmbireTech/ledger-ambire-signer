@@ -72,8 +72,6 @@ bool ui_712_feed_to_display(const s_struct_712_field *field_ptr,
                             const uint16_t *complete_length,
                             bool last);
 void ui_712_end_sign(void);
-void ui_712_approve(void);
-void ui_712_reject(void);
 void ui_712_set_intent(void);
 void ui_712_set_title(const char *str, size_t length);
 void ui_712_set_value(const char *str, size_t length);

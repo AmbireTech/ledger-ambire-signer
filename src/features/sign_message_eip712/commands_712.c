@@ -1,4 +1,5 @@
 #include "apdu_constants.h"  // APDU response codes
+#include "shared_context.h"  // reset_app_context
 #include "context_712.h"
 #include "field_hash.h"
 #include "path.h"
@@ -59,6 +60,7 @@ static void apdu_reply(bool success) {
             home = eip712_context->go_home_on_failure;
         }
         eip712_context_deinit();
+        reset_app_context();
         if (home) ui_idle();
     }
 }
