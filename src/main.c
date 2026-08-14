@@ -32,6 +32,7 @@
 #include "handle_check_address.h"
 #include "swap_entrypoints.h"
 #include "commands_712.h"
+#include "context_712.h"  // eip712_context_deinit
 #include "challenge.h"
 #include "cmd_trusted_name.h"
 #include "crypto_helpers.h"
@@ -81,6 +82,7 @@ void reset_app_context(void) {
     if (appState == APP_STATE_SIGNING_MESSAGE) {
         message_cleanup();
     }
+    eip712_context_deinit();
     G_called_from_swap = false;
     G_swap_response_ready = false;
     G_swap_checked = false;
@@ -89,6 +91,7 @@ void reset_app_context(void) {
     eth2WithdrawalIndex = 0;
 #endif
     memset((uint8_t *) &tmpCtx, 0, sizeof(tmpCtx));
+    memset((uint8_t *) &dataContext, 0, sizeof(dataContext));
     forget_known_assets();
     if (txContext.store_calldata) {
         gcs_cleanup();
