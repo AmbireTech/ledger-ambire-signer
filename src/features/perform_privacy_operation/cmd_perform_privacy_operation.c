@@ -127,5 +127,5 @@ end:
     explicit_bzero(privateKeyDataSwapped, sizeof(privateKeyDataSwapped));
     explicit_bzero(&privateKey, sizeof(privateKey));
     explicit_bzero(privateKeyData, sizeof(privateKeyData));
-    return error;
+    return (uint16_t) error;
 }

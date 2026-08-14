@@ -101,7 +101,7 @@ uint16_t handle_get_eth2_public_key(uint8_t p1,
     ui_display_public_eth2();
     *flags |= IO_ASYNCH_REPLY;
     // Return code will be sent after UI approve/cancel
-    error = 0;
+    error = SWO_NO_RESPONSE;
 end:
     return error;
 }
