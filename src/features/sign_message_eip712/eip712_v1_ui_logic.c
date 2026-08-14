@@ -979,6 +979,7 @@ static void delete_calldata_info(s_eip712_calldata_info *node) {
  * Deinit function that simply unsets the struct pointer to NULL
  */
 void ui_712_deinit(void) {
+    eip712_hash_strs_cleanup();
     if (ui_ctx != NULL) {
         if (ui_ctx->filters_crc != NULL) {
             flist_clear((flist_node_t **) &ui_ctx->filters_crc,

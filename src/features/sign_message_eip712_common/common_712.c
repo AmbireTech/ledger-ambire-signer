@@ -6,8 +6,12 @@
 #include "eip712_v1_ui_logic.h"
 #include "ui_nbgl.h"
 #include "cmd_get_tx_simulation.h"
+#include "app_mem_utils.h"
 
 static const uint8_t EIP_712_MAGIC[] = {0x19, 0x01};
+
+static char *s_domain_hash_str = NULL;
+static char *s_message_hash_str = NULL;
 
 void ui_712_approve_cb(void) {
     if (appState != APP_STATE_SIGNING_EIP712) {
@@ -65,26 +69,32 @@ void ui_712_reject_cb(void) {
     io_seproxyhal_send_status(SWO_CONDITIONS_NOT_SATISFIED, 0, true, false);
 }
 
-static char *format_hash(const uint8_t *hash, char *buffer, size_t buffer_size, size_t offset) {
-    array_bytes_string(buffer + offset, buffer_size - offset, hash, CX_KECCAK_256_SIZE);
-    return buffer + offset;
+void eip712_hash_strs_cleanup(void) {
+    APP_MEM_FREE_AND_NULL((void **) &s_domain_hash_str);
+    APP_MEM_FREE_AND_NULL((void **) &s_message_hash_str);
 }
 
 void eip712_format_hash(uint8_t index) {
-    if ((g_pairs == NULL) || (g_pairsList == NULL) || (index >= g_pairsList->nbPairs)) {
+    if ((g_pairs == NULL) || (g_pairsList == NULL) || (index + 1 >= g_pairsList->nbPairs)) {
         return;
     }
+    const size_t hash_str_size = 2 * CX_KECCAK_256_SIZE + 3;
+    if ((s_domain_hash_str == NULL) &&
+        !APP_MEM_CALLOC((void **) &s_domain_hash_str, hash_str_size)) {
+        return;
+    }
+    if ((s_message_hash_str == NULL) &&
+        !APP_MEM_CALLOC((void **) &s_message_hash_str, hash_str_size)) {
+        return;
+    }
+    messageSigningContext712_t *ctx = &tmpCtx.messageSigningContext712;
+    array_bytes_string(s_domain_hash_str, hash_str_size, ctx->domainHash, CX_KECCAK_256_SIZE);
+    array_bytes_string(s_message_hash_str, hash_str_size, ctx->messageHash, CX_KECCAK_256_SIZE);
     g_pairs[index].item = "Domain hash";
-    g_pairs[index].value = format_hash(tmpCtx.messageSigningContext712.domainHash,
-                                       strings.tmp.tmp,
-                                       sizeof(strings.tmp.tmp),
-                                       0);
+    g_pairs[index].value = s_domain_hash_str;
     index++;
     g_pairs[index].item = "Message hash";
-    g_pairs[index].value = format_hash(tmpCtx.messageSigningContext712.messageHash,
-                                       strings.tmp.tmp,
-                                       sizeof(strings.tmp.tmp),
-                                       70);
+    g_pairs[index].value = s_message_hash_str;
 }
 
 /**
