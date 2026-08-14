@@ -2,7 +2,6 @@
 #include "read.h"
 #include "eip712_v1_parse.h"
 #include "typed_data.h"
-#include "shared_context.h"  // strings.tmp.tmp
 
 static s_struct_712 *g_pending_struct = NULL;
 
@@ -18,11 +17,17 @@ bool v1_set_struct_name(uint8_t length, const uint8_t *name) {
         return false;
     }
 
-    // make NULL-terminated
-    memcpy(strings.tmp.tmp, name, length);
-    strings.tmp.tmp[length] = '\0';
+    char *name_tmp = APP_MEM_ALLOC(length + 1);
+    if (name_tmp == NULL) {
+        return false;
+    }
+    memcpy(name_tmp, name, length);
+    name_tmp[length] = '\0';
 
-    if ((g_pending_struct = td_create_struct_def(strings.tmp.tmp)) == NULL) {
+    g_pending_struct = td_create_struct_def(name_tmp);
+    APP_MEM_FREE_AND_NULL((void **) &name_tmp);
+
+    if (g_pending_struct == NULL) {
         return false;
     }
     return td_add_struct_def(g_pending_struct);
