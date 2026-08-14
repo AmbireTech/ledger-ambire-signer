@@ -99,7 +99,7 @@ uint16_t handle_get_eth2_public_key(uint8_t p1,
     appState = APP_STATE_VERIFYING_ADDRESS;
     ui_display_public_eth2();
     // Return code will be sent after UI approve/cancel
-    error = 0;
+    error = SWO_NO_RESPONSE;
 end:
     // A cx_err_t does not fit a status word; the low half is what the client sees.
     return (uint16_t) error;
