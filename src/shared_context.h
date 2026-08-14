@@ -56,6 +56,11 @@ typedef struct internalStorage_t {
 // chain_id). All real EVM chain IDs are > 0.
 #define PLUGIN_CHAIN_ID_ANY 0
 
+typedef enum {
+    PLUGIN_CTX_ADDR_SEL,  // contractAddress/methodSelector are valid (pre-INIT_CONTRACT)
+    PLUGIN_CTX_PLUGIN,    // pluginContext is active (post-INIT_CONTRACT)
+} plugin_ctx_mode_t;
+
 typedef struct tokenContext_t {
     char pluginName[PLUGIN_ID_LENGTH];
 
@@ -69,6 +74,9 @@ typedef struct tokenContext_t {
     uint8_t pluginUiMaxItems;
     uint8_t pluginUiCurrentItem;
     uint8_t pluginUiState;
+
+    // Discriminates the anonymous union below.
+    plugin_ctx_mode_t plugin_ctx_mode;
 
     union {
         struct {
