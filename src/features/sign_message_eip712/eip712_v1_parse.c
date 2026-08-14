@@ -467,6 +467,9 @@ bool v1_set_array(size_t count) {
     }
     if ((f->array_remaining > 0) && (f->array_levels_remaining > 0)) {
         levels_remaining_after = f->array_levels_remaining - 1;
+    } else if (f->array_remaining > 0) {
+        // leaf-level array still in progress — reject re-entry
+        return false;
     } else {
         if (elem_field->array_level_count == 0) {
             return false;
