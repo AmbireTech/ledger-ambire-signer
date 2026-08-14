@@ -67,8 +67,9 @@ uint16_t handle_network_info(uint8_t p1,
     switch (p2) {
         case P2_NETWORK_CONFIG:
             if (!tlv_from_apdu(p1 == P1_FIRST_CHUNK, length, data, &handle_network_tlv_payload)) {
-                // If there was an error, free the allocated memory
-                network_info_cleanup(g_last_added_network);
+                if (g_last_added_network != NULL) {
+                    network_info_cleanup(g_last_added_network);
+                }
                 sw = SWO_INCORRECT_DATA;
                 break;
             }
@@ -78,16 +79,18 @@ uint16_t handle_network_info(uint8_t p1,
         case P2_NETWORK_ICON:
             sw = handle_network_icon_chunks(p1, &buf);
             if (sw != SWO_SUCCESS) {
-                // If there was an error, free the allocated memory
-                network_info_cleanup(g_last_added_network);
+                if (g_last_added_network != NULL) {
+                    network_info_cleanup(g_last_added_network);
+                }
             }
             break;
 
         case P2_GET_INFO:
             if (p1 != 0x00) {
                 PRINTF("Error: Unexpected P1 (%u)!\n", p1);
-                // If there was an error, free the allocated memory
-                network_info_cleanup(g_last_added_network);
+                if (g_last_added_network != NULL) {
+                    network_info_cleanup(g_last_added_network);
+                }
                 sw = SWO_WRONG_P1_P2;
                 break;
             }
@@ -95,7 +98,9 @@ uint16_t handle_network_info(uint8_t p1,
             sw = SWO_SUCCESS;
             break;
         default:
-            network_info_cleanup(g_last_added_network);
+            if (g_last_added_network != NULL) {
+                network_info_cleanup(g_last_added_network);
+            }
             sw = SWO_WRONG_P1_P2;
             break;
     }
