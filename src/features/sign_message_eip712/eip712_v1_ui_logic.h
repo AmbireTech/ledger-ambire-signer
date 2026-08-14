@@ -65,8 +65,6 @@ typedef struct {
 bool ui_712_init(void);
 void ui_712_deinit(void);
 bool ui_712_end_sign(void);
-void ui_712_approve(void);
-void ui_712_reject(void);
 bool ui_712_set_intent(void);
 bool ui_712_set_title(const char *str, size_t length);
 bool ui_712_set_value(const char *str, size_t length);

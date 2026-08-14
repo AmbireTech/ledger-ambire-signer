@@ -1,5 +1,4 @@
 #include "ui_nbgl.h"
-#include "eip712_v1_ui_logic.h"
 #include "common_712.h"
 #include "common_ui.h"
 #include "ui_utils.h"
@@ -25,5 +24,5 @@ void ui_typed_message_review_choice_v0(bool confirm) {
 }
 
 void ui_typed_message_review_choice(bool confirm) {
-    ui_typed_message_review_choice_common(confirm, ui_712_approve, ui_712_reject);
+    ui_typed_message_review_choice_common(confirm, ui_712_approve_cb, ui_712_reject_cb);
 }

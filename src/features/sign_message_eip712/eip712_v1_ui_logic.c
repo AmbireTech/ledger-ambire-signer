@@ -1003,24 +1003,6 @@ void ui_712_deinit(void) {
 }
 
 /**
- * Approve button handling, calls the common handler function then
- * resets the app context (which tears down the EIP712 context as part of it).
- */
-void ui_712_approve(void) {
-    ui_712_approve_cb();
-    reset_app_context();
-}
-
-/**
- * Reject button handling, calls the common handler function then
- * resets the app context (which tears down the EIP712 context as part of it).
- */
-void ui_712_reject(void) {
-    ui_712_reject_cb();
-    reset_app_context();
-}
-
-/**
  * Set a structure field's UI flags
  *
  * @param[in] show if this field should be shown on the device
