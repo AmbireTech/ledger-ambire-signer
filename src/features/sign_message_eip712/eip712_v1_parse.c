@@ -426,7 +426,7 @@ bool v1_set_root(const char *name) {
         return false;
     }
 
-    if (strcmp(name, "EIP712Domain") == 0) {
+    if (strcmp(name, TD_DOMAIN_STRUCT_NAME) == 0) {
         ret = td_set_domain(node);
     } else {
         ret = td_set_message(node);

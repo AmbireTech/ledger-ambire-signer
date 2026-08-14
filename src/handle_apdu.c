@@ -17,6 +17,7 @@
 #include "eip712_v1_commands.h"
 #include "commands_7702.h"
 #include "cmd_eip712_v2_schema.h"
+#include "cmd_eip712_v2_values.h"
 
 #ifdef HAVE_ETH2
 #include "withdrawal_index.h"
@@ -81,6 +82,9 @@ uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
                 case P2_EIP712_V1_IMPLEM:
                     sw = handle_eip712_v1_sign(cmd->data, cmd->lc);
                     break;
+                case P2_EIP712_V2_IMPLEM:
+                    // TODO
+                    break;
                 default:
                     sw = SWO_WRONG_P1_P2;
             }
@@ -107,7 +111,11 @@ uint16_t handleApdu(command_t *cmd, uint32_t *tx) {
             break;
 
         case INS_EIP712_STRUCT_IMPL:
-            sw = handle_eip712_v1_struct_impl(cmd->p1, cmd->p2, cmd->data, cmd->lc);
+            if (cmd->p2 == P2_EIP712_V2_IMPLEM) {
+                sw = handle_eip712_v2_values(cmd->p1, cmd->p2, cmd->lc, cmd->data);
+            } else {
+                sw = handle_eip712_v1_struct_impl(cmd->p1, cmd->p2, cmd->data, cmd->lc);
+            }
             break;
 
         case INS_EIP712_FILTERING:

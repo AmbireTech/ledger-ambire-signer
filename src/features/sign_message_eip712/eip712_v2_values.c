@@ -1,0 +1,296 @@
+#include "tlv_library.h"
+#include "app_mem_utils.h"
+#include "bip32.h"
+#include "shared_context.h"
+#include "eip712_v2_values.h"
+#include "typed_data.h"
+
+typedef struct {
+    TLV_reception_t received_tags;
+    s_struct_712_value *node;  // container being filled
+    uint8_t levels_remaining;  // array dimensions left to open before the base type
+} s_value_seq_ctx;
+
+// forward declarations
+static bool handle_leaf(const tlv_data_t *data, s_value_seq_ctx *context);
+static bool handle_array(const tlv_data_t *data, s_value_seq_ctx *context);
+static bool handle_struct(const tlv_data_t *data, s_value_seq_ctx *context);
+static bool value_seq_common_handler(const tlv_data_t *data, s_value_seq_ctx *context);
+static bool handle_value_seq_struct(const buffer_t *buf,
+                                    s_struct_712_value *node,
+                                    uint8_t levels_remaining);
+
+// One entry per struct field or per array element, in schema-declared order
+#define VALUE_SEQ_TAGS(X)                                \
+    X(0x00, TAG_LEAF, handle_leaf, ALLOW_MULTIPLE_TAG)   \
+    X(0x01, TAG_ARRAY, handle_array, ALLOW_MULTIPLE_TAG) \
+    X(0x02, TAG_STRUCT, handle_struct, ALLOW_MULTIPLE_TAG)
+
+DEFINE_TLV_PARSER(VALUE_SEQ_TAGS, &value_seq_common_handler, value_seq_tlv_parser)
+
+/**
+ * Array dimensions still to be opened at the sequence's current position
+ *
+ * Inside a struct each value starts at its own field's outermost dimension; inside an
+ * array the count is whatever the enclosing dimension left to open.
+ *
+ * @param[in] context the value sequence context
+ * @param[in] field field the value must conform to
+ * @return number of dimensions left to open
+ */
+static uint8_t levels_at_position(const s_value_seq_ctx *context, const s_struct_712_field *field) {
+    if (context->node->kind == VAL_STRUCT) {
+        return field->array_level_count;
+    }
+    return context->levels_remaining;
+}
+
+/**
+ * Tag the schema expects for the next value of a sequence
+ *
+ * @param[in] context the value sequence context
+ * @param[in] field field the value must conform to
+ * @return the only tag accepted at this position
+ */
+static TLV_tag_t expected_tag(const s_value_seq_ctx *context, const s_struct_712_field *field) {
+    if (levels_at_position(context, field) > 0) {
+        return TAG_ARRAY;
+    }
+    if (field->type == TYPE_STRUCT) {
+        return TAG_STRUCT;
+    }
+    return TAG_LEAF;
+}
+
+/**
+ * Common handler rejecting any value whose kind contradicts the schema
+ *
+ * @param[in] data the tlv data
+ * @param[in] context the value sequence context
+ * @return whether the value is expected at this position
+ */
+static bool value_seq_common_handler(const tlv_data_t *data, s_value_seq_ctx *context) {
+    const s_struct_712_field *field = td_value_expected_field(context->node);
+
+    // no field left means more values were sent than the schema declares
+    if (field == NULL) {
+        return false;
+    }
+    return data->tag == expected_tag(context, field);
+}
+
+static bool handle_leaf(const tlv_data_t *data, s_value_seq_ctx *context) {
+    const s_struct_712_field *field = td_value_expected_field(context->node);
+    s_struct_712_value *leaf;
+
+    if ((leaf = td_create_leaf(field, data->value.size)) == NULL) {
+        return false;
+    }
+    if (!td_leaf_write(leaf, 0, data->value.ptr, data->value.size)) {
+        td_discard_leaf(leaf);
+        return false;
+    }
+    if (!td_append_child(context->node, leaf)) {
+        td_discard_leaf(leaf);
+        return false;
+    }
+    return true;
+}
+
+static bool handle_array(const tlv_data_t *data, s_value_seq_ctx *context) {
+    const s_struct_712_field *field = td_value_expected_field(context->node);
+    s_struct_712_value *array;
+
+    if ((array = td_create_array(field)) == NULL) {
+        return false;
+    }
+    // elements of this dimension are the base type once every dimension has been opened
+    if (!handle_value_seq_struct(&data->value, array, levels_at_position(context, field) - 1)) {
+        td_discard_container_value(array);
+        return false;
+    }
+    if (!td_append_child(context->node, array)) {
+        td_discard_container_value(array);
+        return false;
+    }
+    return true;
+}
+
+static bool handle_struct(const tlv_data_t *data, s_value_seq_ctx *context) {
+    const s_struct_712_field *field = td_value_expected_field(context->node);
+    const s_struct_712 *struct_type;
+    s_struct_712_value *nested;
+
+    if ((struct_type = td_find_struct(td_get_struct_field_typename(field))) == NULL) {
+        return false;
+    }
+    if ((nested = td_create_struct(struct_type)) == NULL) {
+        return false;
+    }
+    if (!handle_value_seq_struct(&data->value, nested, 0)) {
+        td_discard_container_value(nested);
+        return false;
+    }
+    if (!td_append_child(context->node, nested)) {
+        td_discard_container_value(nested);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Check a sequence holds exactly the values the schema declares
+ *
+ * @param[in] context the value sequence context
+ * @return whether the sequence is complete
+ */
+static bool verify_value_seq_struct(const s_value_seq_ctx *context) {
+    const s_struct_712_field *field;
+
+    if (context->node->kind == VAL_STRUCT) {
+        // every declared field must have been given a value
+        return td_value_expected_field(context->node) == NULL;
+    }
+
+    // a node holding values whose dimensions-left-to-open is N is itself dimension N,
+    // the schema declaring dimensions innermost first
+    field = context->node->field;
+    if (context->levels_remaining >= field->array_level_count) {
+        return false;
+    }
+    if (field->array_levels[context->levels_remaining].type == ARRAY_FIXED_SIZE) {
+        return td_value_child_count(context->node) ==
+               field->array_levels[context->levels_remaining].size;
+    }
+    return true;
+}
+
+static bool handle_value_seq_struct(const buffer_t *buf,
+                                    s_struct_712_value *node,
+                                    uint8_t levels_remaining) {
+    s_value_seq_ctx context = {0};
+
+    context.node = node;
+    context.levels_remaining = levels_remaining;
+    if (!value_seq_tlv_parser(buf, &context, &context.received_tags)) {
+        return false;
+    }
+    return verify_value_seq_struct(&context);
+}
+
+typedef struct {
+    TLV_reception_t received_tags;
+    char primary_type[TD_MAX_STRUCT_NAME_LENGTH + 1];
+    bip32_path_t deriv_path;
+} s_values_ctx;
+
+// forward declarations
+static bool handle_version(const tlv_data_t *data, s_values_ctx *context);
+static bool handle_primary_type(const tlv_data_t *data, s_values_ctx *context);
+static bool handle_derivation_path(const tlv_data_t *data, s_values_ctx *context);
+static bool handle_eip712_domain(const tlv_data_t *data, s_values_ctx *context);
+static bool handle_eip712_message(const tlv_data_t *data, s_values_ctx *context);
+
+#define EIP712_VALUES_TAGS(X)                                                \
+    X(0x00, TAG_VERSION, handle_version, ENFORCE_UNIQUE_TAG)                 \
+    X(0x01, TAG_PRIMARY_TYPE, handle_primary_type, ENFORCE_UNIQUE_TAG)       \
+    X(0x02, TAG_DERIVATION_PATH, handle_derivation_path, ENFORCE_UNIQUE_TAG) \
+    X(0x03, TAG_EIP712_DOMAIN, handle_eip712_domain, ENFORCE_UNIQUE_TAG)     \
+    X(0x04, TAG_EIP712_MESSAGE, handle_eip712_message, ENFORCE_UNIQUE_TAG)
+
+DEFINE_TLV_PARSER(EIP712_VALUES_TAGS, NULL, eip712_values_tlv_parser)
+
+static bool handle_version(const tlv_data_t *data, s_values_ctx *context) {
+    uint8_t version;
+
+    (void) context;
+    if (!get_uint8_t_from_tlv_data(data, &version)) {
+        return false;
+    }
+    return version == 1;
+}
+
+static bool handle_primary_type(const tlv_data_t *data, s_values_ctx *context) {
+    if (!get_string_from_tlv_data(data, context->primary_type, 1, sizeof(context->primary_type))) {
+        return false;
+    }
+    return true;
+}
+
+static bool handle_derivation_path(const tlv_data_t *data, s_values_ctx *context) {
+    if ((data->value.size == 0) || ((data->value.size % sizeof(*context->deriv_path.path)) != 0)) {
+        return false;
+    }
+    context->deriv_path.length = data->value.size / sizeof(*context->deriv_path.path);
+    if (!bip32_path_read(data->value.ptr,
+                         data->value.size,
+                         context->deriv_path.path,
+                         context->deriv_path.length)) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Build a root value tree and hand it over to the typed data module
+ *
+ * @param[in] data the tlv data holding the root sequence
+ * @param[in] type_name name of the struct type the root is an instance of
+ * @param[in] setter typed data function taking ownership of the built root
+ * @return whether the tree was built and accepted
+ */
+static bool handle_root(const tlv_data_t *data,
+                        const char *type_name,
+                        bool (*setter)(s_struct_712_value *)) {
+    const s_struct_712 *struct_type;
+    s_struct_712_value *root;
+
+    if ((struct_type = td_find_struct(type_name)) == NULL) {
+        return false;
+    }
+    if ((root = td_create_struct(struct_type)) == NULL) {
+        return false;
+    }
+    if (!handle_value_seq_struct(&data->value, root, 0)) {
+        td_discard_container_value(root);
+        return false;
+    }
+    // the setter takes ownership of the root, whether it accepts it or not
+    return setter(root);
+}
+
+static bool handle_eip712_domain(const tlv_data_t *data, s_values_ctx *context) {
+    (void) context;
+    return handle_root(data, TD_DOMAIN_STRUCT_NAME, td_set_domain);
+}
+
+static bool handle_eip712_message(const tlv_data_t *data, s_values_ctx *context) {
+    // the message root's type is named by PRIMARY_TYPE, so it must have been received first
+    if (!TLV_CHECK_RECEIVED_TAGS(context->received_tags, TAG_PRIMARY_TYPE)) {
+        return false;
+    }
+    return handle_root(data, context->primary_type, td_set_message);
+}
+
+static bool verify_eip712_v2_values_struct(const s_values_ctx *context) {
+    return TLV_CHECK_RECEIVED_TAGS(context->received_tags,
+                                   TAG_VERSION,
+                                   TAG_PRIMARY_TYPE,
+                                   TAG_DERIVATION_PATH,
+                                   TAG_EIP712_DOMAIN,
+                                   TAG_EIP712_MESSAGE);
+}
+
+bool handle_eip712_v2_values_struct(const buffer_t *buf) {
+    s_values_ctx context = {0};
+
+    if (!eip712_values_tlv_parser(buf, &context, &context.received_tags)) {
+        return false;
+    }
+    if (!verify_eip712_v2_values_struct(&context)) {
+        return false;
+    }
+    // only commit the signing path once the whole payload has been accepted
+    tmpCtx.messageSigningContext712.bip32 = context.deriv_path;
+    return true;
+}
