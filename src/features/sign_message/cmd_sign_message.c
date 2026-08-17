@@ -262,6 +262,12 @@ uint16_t handle_sign_personal_message(uint8_t p1, const uint8_t *const payload, 
         set_idle();
         return SWO_INCORRECT_DATA;
     }
+    // NULL hash context: final_process() already ran, signMsgCtx is still live for the UI.
+    if (g_msg_hash_ctx == NULL) {
+        PRINTF("Error: Hash context already finalized!\n");
+        set_idle();
+        return SWO_INCORRECT_DATA;
+    }
     // Check if the received chunk data is too long
     if ((length + signMsgCtx->processed_size) > signMsgCtx->msg_length) {
         PRINTF("Error: Length mismatch ! (%u > %u)!\n",
