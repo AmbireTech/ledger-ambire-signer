@@ -3,11 +3,23 @@
 #include "common_712.h"
 #include "ui_nbgl.h"
 #include "ui_icons.h"
-#include "ui_message_signing.h"
 #include "cmd_get_tx_simulation.h"
 #include "ui_utils.h"
 #include "mem_utils.h"
 #include "cmd_get_gating.h"
+#include "proxy_info.h"
+
+static void ui_typed_message_review_choice(bool confirm) {
+    if (confirm) {
+        ui_712_approve_cb();
+        nbgl_useCaseReviewStatus(STATUS_TYPE_MESSAGE_SIGNED, ui_idle);
+    } else {
+        ui_712_reject_cb();
+        nbgl_useCaseReviewStatus(STATUS_TYPE_MESSAGE_REJECTED, ui_idle);
+    }
+    ui_all_cleanup();
+    proxy_cleanup();
+}
 
 /**
  * @brief Trigger the EIP712 review flow
@@ -105,8 +117,6 @@ bool ui_sign_712_v0(void) {
     // Initialize the tag/value pairs
     eip712_format_hash(0);
 
-    ui_712_start_review(EIP712_FILTERING_BASIC,
-                        TYPE_TRANSACTION,
-                        ui_typed_message_review_choice_v0);
+    ui_712_start_review(EIP712_FILTERING_BASIC, TYPE_TRANSACTION, ui_typed_message_review_choice);
     return true;
 }
