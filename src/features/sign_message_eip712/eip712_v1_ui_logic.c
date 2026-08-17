@@ -966,7 +966,7 @@ bool ui_712_init(void) {
     if (APP_MEM_CALLOC((void **) &ui_ctx, sizeof(*ui_ctx)) == false) {
     } else {
         ui_712_set_filtering_mode(EIP712_FILTERING_BASIC);
-        explicit_bzero(&strings, sizeof(strings));
+        explicit_bzero(strings.tmp.tmp, sizeof(strings.tmp.tmp));
     }
     return ui_ctx != NULL;
 }
@@ -979,6 +979,7 @@ static void delete_calldata_info(s_eip712_calldata_info *node) {
  * Deinit function that simply unsets the struct pointer to NULL
  */
 void ui_712_deinit(void) {
+    eip712_hash_strs_cleanup();
     if (ui_ctx != NULL) {
         if (ui_ctx->filters_crc != NULL) {
             flist_clear((flist_node_t **) &ui_ctx->filters_crc,
@@ -999,24 +1000,6 @@ void ui_712_deinit(void) {
         ui_712_clear_discarded_path();
         APP_MEM_FREE_AND_NULL((void **) &ui_ctx);
     }
-}
-
-/**
- * Approve button handling, calls the common handler function then
- * resets the app context (which tears down the EIP712 context as part of it).
- */
-void ui_712_approve(void) {
-    ui_712_approve_cb();
-    reset_app_context();
-}
-
-/**
- * Reject button handling, calls the common handler function then
- * resets the app context (which tears down the EIP712 context as part of it).
- */
-void ui_712_reject(void) {
-    ui_712_reject_cb();
-    reset_app_context();
 }
 
 /**

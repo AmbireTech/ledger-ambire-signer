@@ -42,6 +42,7 @@ void reset_app_context(void) {
     eth2WithdrawalIndex = 0;
 #endif
     memset((uint8_t *) &tmpCtx, 0, sizeof(tmpCtx));
+    memset((uint8_t *) &dataContext, 0, sizeof(dataContext));
     forget_known_assets();
     if (txContext.store_calldata) {
         gcs_cleanup();

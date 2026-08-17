@@ -21,6 +21,13 @@ static void _cleanup(void) {
 }
 
 void ui_pairs_cleanup(void) {
+    // Zero out the list header before freeing the backing array so that any
+    // NBGL render callback still in flight sees an empty list rather than a
+    // dangling pairs pointer.
+    if (g_pairsList != NULL) {
+        g_pairsList->pairs = NULL;
+        g_pairsList->nbPairs = 0;
+    }
     APP_MEM_FREE_AND_NULL((void **) &g_pairs);
     APP_MEM_FREE_AND_NULL((void **) &g_pairsList);
 }

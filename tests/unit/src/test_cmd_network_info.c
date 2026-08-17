@@ -145,11 +145,22 @@ static void test_network_icon_failure_cleans_up(void **state) {
 static void test_get_info_invalid_p1_rejected(void **state) {
     (void) state;
     unsigned int tx = 0;
+    network_info_t partial = {0};
+    g_last_added_network = &partial;
     uint16_t sw = handle_network_info(/*p1*/ 0xFF, /*p2*/ 0x02, (uint8_t *) "", 0, &tx);
     assert_int_equal(sw, SWO_WRONG_P1_P2);
-    // Cleanup MUST still fire so an in-flight network from a previous
-    // sequence isn't left dangling when the host sends a bogus P1.
     assert_int_equal(g_cleanup_calls, 1);
+    assert_ptr_equal(g_cleanup_last_arg, &partial);
+}
+
+static void test_get_info_invalid_p1_no_in_flight_no_cleanup(void **state) {
+    (void) state;
+    unsigned int tx = 0;
+    // g_last_added_network == NULL: no in-flight network to free.
+    // cleanup(NULL) would wipe the entire dynamic list -- must not be called.
+    uint16_t sw = handle_network_info(/*p1*/ 0xFF, /*p2*/ 0x02, (uint8_t *) "", 0, &tx);
+    assert_int_equal(sw, SWO_WRONG_P1_P2);
+    assert_int_equal(g_cleanup_calls, 0);
 }
 
 static void test_get_info_empty_list_returns_zero_count(void **state) {
@@ -265,6 +276,7 @@ int main(void) {
         cmocka_unit_test_setup(test_network_icon_success_returns_success, reset),
         cmocka_unit_test_setup(test_network_icon_failure_cleans_up, reset),
         cmocka_unit_test_setup(test_get_info_invalid_p1_rejected, reset),
+        cmocka_unit_test_setup(test_get_info_invalid_p1_no_in_flight_no_cleanup, reset),
         cmocka_unit_test_setup(test_get_info_empty_list_returns_zero_count, reset),
         cmocka_unit_test_setup(test_get_info_single_network_writes_chain_id_be, reset),
         cmocka_unit_test_setup(test_get_info_walks_multi_network_list, reset),

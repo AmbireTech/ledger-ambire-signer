@@ -2,7 +2,6 @@
 #include "read.h"
 #include "eip712_v1_parse.h"
 #include "typed_data.h"
-#include "shared_context.h"  // strings.tmp.tmp
 
 static s_struct_712 *g_pending_struct = NULL;
 
@@ -18,11 +17,17 @@ bool v1_set_struct_name(uint8_t length, const uint8_t *name) {
         return false;
     }
 
-    // make NULL-terminated
-    memcpy(strings.tmp.tmp, name, length);
-    strings.tmp.tmp[length] = '\0';
+    char *name_tmp = APP_MEM_ALLOC(length + 1);
+    if (name_tmp == NULL) {
+        return false;
+    }
+    memcpy(name_tmp, name, length);
+    name_tmp[length] = '\0';
 
-    if ((g_pending_struct = td_create_struct_def(strings.tmp.tmp)) == NULL) {
+    g_pending_struct = td_create_struct_def(name_tmp);
+    APP_MEM_FREE_AND_NULL((void **) &name_tmp);
+
+    if (g_pending_struct == NULL) {
         return false;
     }
     return td_add_struct_def(g_pending_struct);
@@ -467,6 +472,9 @@ bool v1_set_array(size_t count) {
     }
     if ((f->array_remaining > 0) && (f->array_levels_remaining > 0)) {
         levels_remaining_after = f->array_levels_remaining - 1;
+    } else if (f->array_remaining > 0) {
+        // leaf-level array still in progress — reject re-entry
+        return false;
     } else {
         if (elem_field->array_level_count == 0) {
             return false;
