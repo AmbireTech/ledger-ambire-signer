@@ -262,14 +262,12 @@ const s_struct_712 *td_find_struct(const char *name) {
     return td_find_struct_if(match_struct_name, (const void *) name);
 }
 
-s_struct_712 *td_create_struct_def(const char *name) {
+s_struct_712 *td_create_struct_def(const uint8_t *name, size_t length) {
     s_struct_712 *def;
-    size_t length;
 
     if (name == NULL) {
         return NULL;
     }
-    length = strlen(name);
 
     if ((def = APP_MEM_ALLOC(sizeof(*def))) == NULL) {
         return NULL;

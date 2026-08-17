@@ -82,10 +82,10 @@ typedef struct {
 /**
  * Create a new, empty struct type definition
  *
- * @param[in] name struct type name
+ * @param[in] name struct type name (not required to be NUL-terminated)
  * @return pointer to the new struct definition, or NULL on failure
  */
-s_struct_712 *td_create_struct_def(const char *name);
+s_struct_712 *td_create_struct_def(const uint8_t *name, size_t length);
 
 /**
  * Register a struct definition as usable for future field/value declarations
