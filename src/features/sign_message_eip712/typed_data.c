@@ -157,6 +157,9 @@ bool td_field_set_type_size(s_struct_712_field *field, size_t type_size) {
     if (field->type == TYPE_STRUCT) {
         return false;
     }
+    if ((type_size == 0) || (type_size > 32)) {
+        return false;
+    }
     field->type_size = type_size;
     return true;
 }

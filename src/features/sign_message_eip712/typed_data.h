@@ -212,7 +212,7 @@ s_struct_712_field *td_create_field_def(e_type type);
  * Set the byte size of a native (non-struct) field type
  *
  * @param[in,out] field field definition to update
- * @param[in] type_size size in bytes
+ * @param[in] type_size size in bytes, 1..32
  * @return whether the size was set (fails for TYPE_STRUCT fields)
  */
 bool td_field_set_type_size(s_struct_712_field *field, size_t type_size);
