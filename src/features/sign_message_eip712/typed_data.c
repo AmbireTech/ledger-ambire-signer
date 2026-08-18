@@ -119,6 +119,42 @@ bool td_append_child(s_struct_712_value *parent, const s_struct_712_value *child
     return true;
 }
 
+uint16_t td_value_child_count(const s_struct_712_value *node) {
+    uint16_t count = 0;
+
+    if ((node == NULL) || (node->kind == VAL_ATOMIC)) {
+        return 0;
+    }
+    for (const s_struct_712_value *child = node->children; child != NULL;
+         child = (const s_struct_712_value *) ((const flist_node_t *) child)->next) {
+        count += 1;
+    }
+    return count;
+}
+
+const s_struct_712_field *td_value_expected_field(const s_struct_712_value *node) {
+    const s_struct_712_field *field;
+    const s_struct_712_value *child;
+
+    if (node == NULL) {
+        return NULL;
+    }
+    // every element of an array conforms to the array's own field
+    if (node->kind == VAL_ARRAY) {
+        return node->field;
+    }
+    if ((node->kind != VAL_STRUCT) || (node->struct_type == NULL)) {
+        return NULL;
+    }
+    // walk both lists in lockstep: the nth value fills the nth declared field
+    field = node->struct_type->fields;
+    for (child = node->children; (child != NULL) && (field != NULL);
+         child = (const s_struct_712_value *) ((const flist_node_t *) child)->next) {
+        field = (const s_struct_712_field *) ((const flist_node_t *) field)->next;
+    }
+    return field;
+}
+
 bool td_leaf_write(s_struct_712_value *leaf, size_t offset, const uint8_t *data, size_t length) {
     if ((leaf == NULL) || (leaf->kind != VAL_ATOMIC)) {
         return false;
