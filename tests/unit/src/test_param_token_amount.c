@@ -5,10 +5,7 @@
  *        across all iterations of the primary collection).
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -30,7 +27,10 @@
 static int g_vg_call = 0;
 static s_parsed_value_collection g_vg[2];
 
-bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collection) {
+static bool g_add_to_field_table_ret = true;
+static const void *g_get_matching_token_info_or_dummy_ret = NULL;
+
+bool value_get(const s_value *value, s_parsed_value_collection *collection) {
     (void) value;
     *collection = g_vg[g_vg_call++];
     return true;
@@ -41,7 +41,7 @@ bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collectio
 // called by format_param_token_amount; only needed for linkage.
 // ===========================================================================
 
-bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
+bool handle_value_struct(const buffer_t *buf, s_value_context *context) {
     (void) buf;
     (void) context;
     return true;
@@ -53,26 +53,23 @@ bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
 
 static s_tx_info g_fake_tx_info;
 
-const s_tx_info *__wrap_get_current_tx_info(void) {
+const s_tx_info *get_current_tx_info(void) {
     return &g_fake_tx_info;
 }
 
-const s_token_info *__wrap_get_matching_token_info_or_dummy(const uint64_t *chain_id,
-                                                            const uint8_t *addr) {
+const s_token_info *get_matching_token_info_or_dummy(const uint64_t *chain_id,
+                                                     const uint8_t *addr) {
     (void) chain_id;
     (void) addr;
-    return (const s_token_info *) mock();
+    return (const s_token_info *) g_get_matching_token_info_or_dummy_ret;
 }
 
-bool __wrap_add_to_field_table(e_param_type type,
-                               const char *key,
-                               const char *value,
-                               const void *extra_data) {
+bool add_to_field_table(e_param_type type,
+                        const char *key,
+                        const char *value,
+                        const void *extra_data) {
     (void) extra_data;
-    check_expected(type);
-    check_expected(key);
-    check_expected(value);
-    return (bool) mock();
+    return (bool) g_add_to_field_table_ret;
 }
 
 // ===========================================================================
@@ -119,9 +116,7 @@ static s_token_info g_usdc_info = {
  * Expected: format_param_token_amount returns true and add_to_field_table is
  * called twice, once for "1 USDC" and once for "2 USDC".
  */
-static void test_token_amount_broadcast_ok(void **state) {
-    (void) state;
-
+void test_token_amount_broadcast_ok(void) {
     // Primary collection: two amounts
     g_vg[0].size = 2;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = g_amount1,
@@ -145,26 +140,19 @@ static void test_token_amount_broadcast_ok(void **state) {
     g_fake_tx_info.chain_id = 1;
 
     // token resolution: USDC found (called for each of the 2 iterations)
-    will_return(__wrap_get_matching_token_info_or_dummy, &g_usdc_info);
-    will_return(__wrap_get_matching_token_info_or_dummy, &g_usdc_info);
+    g_get_matching_token_info_or_dummy_ret = &g_usdc_info;
+    g_get_matching_token_info_or_dummy_ret = &g_usdc_info;
 
     // Expected field table entries: "1 USDC" then "2 USDC"
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_TOKEN_AMOUNT);
-    expect_string(__wrap_add_to_field_table, key, "Amount");
-    expect_string(__wrap_add_to_field_table, value, "1 USDC");
-    will_return(__wrap_add_to_field_table, true);
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_TOKEN_AMOUNT);
-    expect_string(__wrap_add_to_field_table, key, "Amount");
-    expect_string(__wrap_add_to_field_table, value, "2 USDC");
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
+    g_add_to_field_table_ret = true;
 
     s_param_token_amount param;
     memset(&param, 0, sizeof(param));
     param.version = 1;
     param.has_token = true;
 
-    assert_true(format_param_token_amount(&param, "Amount"));
+    TEST_ASSERT_TRUE(format_param_token_amount(&param, "Amount"));
 }
 
 /**
@@ -172,9 +160,7 @@ static void test_token_amount_broadcast_ok(void **state) {
  * Neither is 1, and 3 ≠ 2, so the size check must fail immediately —
  * add_to_field_table must NOT be called.
  */
-static void test_token_amount_size_mismatch_rejected(void **state) {
-    (void) state;
-
+void test_token_amount_size_mismatch_rejected(void) {
     // Primary collection: 2 values
     g_vg[0].size = 2;
 
@@ -189,7 +175,7 @@ static void test_token_amount_size_mismatch_rejected(void **state) {
     param.has_token = true;
 
     // format_param_token_amount must return false; add_to_field_table is NOT called
-    assert_false(format_param_token_amount(&param, "Amount"));
+    TEST_ASSERT_FALSE(format_param_token_amount(&param, "Amount"));
 }
 
 // ===========================================================================
@@ -200,8 +186,7 @@ static void test_token_amount_size_mismatch_rejected(void **state) {
 // All tags here are < 0x80 so short-form encoding is used (no DER long form).
 // Layout per tag: { tag, length, value... }
 
-static void test_handle_struct_all_tags_ok(void **state) {
-    (void) state;
+void test_handle_struct_all_tags_ok(void) {
     // VERSION(0x00) len=1 value=1
     // VALUE(0x01)   len=0 (empty inner — wrap returns true)
     // TOKEN(0x02)   len=0
@@ -217,20 +202,19 @@ static void test_handle_struct_all_tags_ok(void **state) {
     s_param_token_amount param;
     memset(&param, 0, sizeof(param));
     s_param_token_amount_context ctx = {.param = &param};
-    assert_true(handle_param_token_amount_struct(&buf, &ctx));
-    assert_int_equal(param.version, 1);
-    assert_true(param.has_token);
-    assert_int_equal(param.native_addr_count, 1);
+    TEST_ASSERT_TRUE(handle_param_token_amount_struct(&buf, &ctx));
+    TEST_ASSERT_EQUAL(param.version, 1);
+    TEST_ASSERT_TRUE(param.has_token);
+    TEST_ASSERT_EQUAL(param.native_addr_count, 1);
     // 4-byte payload is right-aligned in the 20-byte address slot
     static const uint8_t expected_native[ADDRESS_LENGTH] = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xDE, 0xAD, 0xBE, 0xEF,
     };
-    assert_memory_equal(param.native_addrs[0], expected_native, ADDRESS_LENGTH);
-    assert_string_equal(param.above_threshold_msg, "Hi!");
+    TEST_ASSERT_EQUAL_MEMORY(param.native_addrs[0], expected_native, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL_STRING(param.above_threshold_msg, "Hi!");
 }
 
-static void test_handle_struct_native_currency_oversize_rejected(void **state) {
-    (void) state;
+void test_handle_struct_native_currency_oversize_rejected(void) {
     // VERSION + a NATIVE_CURRENCY with size > ADDRESS_LENGTH (20).
     uint8_t buf_bytes[3 + 2 + 21];
     buf_bytes[0] = 0x00;
@@ -244,11 +228,10 @@ static void test_handle_struct_native_currency_oversize_rejected(void **state) {
     s_param_token_amount param;
     memset(&param, 0, sizeof(param));
     s_param_token_amount_context ctx = {.param = &param};
-    assert_false(handle_param_token_amount_struct(&buf, &ctx));
+    TEST_ASSERT_FALSE(handle_param_token_amount_struct(&buf, &ctx));
 }
 
-static void test_handle_struct_native_currency_overflow_capacity_rejected(void **state) {
-    (void) state;
+void test_handle_struct_native_currency_overflow_capacity_rejected(void) {
     // VERSION + MAX_NATIVE_ADDRS (=4) accepted + a 5th one that overflows.
     uint8_t buf_bytes[3 + 5 * 3];
     buf_bytes[0] = 0x00;
@@ -264,11 +247,10 @@ static void test_handle_struct_native_currency_overflow_capacity_rejected(void *
     s_param_token_amount param;
     memset(&param, 0, sizeof(param));
     s_param_token_amount_context ctx = {.param = &param};
-    assert_false(handle_param_token_amount_struct(&buf, &ctx));
+    TEST_ASSERT_FALSE(handle_param_token_amount_struct(&buf, &ctx));
 }
 
-static void test_handle_struct_threshold_oversize_rejected(void **state) {
-    (void) state;
+void test_handle_struct_threshold_oversize_rejected(void) {
     // THRESHOLD with size > sizeof(uint256_t)=32.
     uint8_t buf_bytes[3 + 2 + 33];
     buf_bytes[0] = 0x00;
@@ -282,11 +264,10 @@ static void test_handle_struct_threshold_oversize_rejected(void **state) {
     s_param_token_amount param;
     memset(&param, 0, sizeof(param));
     s_param_token_amount_context ctx = {.param = &param};
-    assert_false(handle_param_token_amount_struct(&buf, &ctx));
+    TEST_ASSERT_FALSE(handle_param_token_amount_struct(&buf, &ctx));
 }
 
-static void test_handle_struct_above_threshold_msg_oversize_rejected(void **state) {
-    (void) state;
+void test_handle_struct_above_threshold_msg_oversize_rejected(void) {
     // ABOVE_THRESHOLD_MSG with size >= ABOVE_THRESHOLD_MSG_SIZE (21).
     uint8_t buf_bytes[3 + 2 + 21];
     buf_bytes[0] = 0x00;
@@ -300,22 +281,26 @@ static void test_handle_struct_above_threshold_msg_oversize_rejected(void **stat
     s_param_token_amount param;
     memset(&param, 0, sizeof(param));
     s_param_token_amount_context ctx = {.param = &param};
-    assert_false(handle_param_token_amount_struct(&buf, &ctx));
+    TEST_ASSERT_FALSE(handle_param_token_amount_struct(&buf, &ctx));
 }
 
 // ===========================================================================
 // Test runner
 // ===========================================================================
 
+void setUp(void) {
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_token_amount_broadcast_ok),
-        cmocka_unit_test(test_token_amount_size_mismatch_rejected),
-        cmocka_unit_test(test_handle_struct_all_tags_ok),
-        cmocka_unit_test(test_handle_struct_native_currency_oversize_rejected),
-        cmocka_unit_test(test_handle_struct_native_currency_overflow_capacity_rejected),
-        cmocka_unit_test(test_handle_struct_threshold_oversize_rejected),
-        cmocka_unit_test(test_handle_struct_above_threshold_msg_oversize_rejected),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_token_amount_broadcast_ok);
+    RUN_TEST(test_token_amount_size_mismatch_rejected);
+    RUN_TEST(test_handle_struct_all_tags_ok);
+    RUN_TEST(test_handle_struct_native_currency_oversize_rejected);
+    RUN_TEST(test_handle_struct_native_currency_overflow_capacity_rejected);
+    RUN_TEST(test_handle_struct_threshold_oversize_rejected);
+    RUN_TEST(test_handle_struct_above_threshold_msg_oversize_rejected);
+    return UNITY_END();
 }

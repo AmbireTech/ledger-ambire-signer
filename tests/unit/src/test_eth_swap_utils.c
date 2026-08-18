@@ -19,10 +19,7 @@
  *     is therefore not exercised here.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -40,9 +37,9 @@
 // =============================================================================
 
 static const char *g_displayable_ticker_ret = "ETH";
-const char *__wrap_get_displayable_ticker(const uint64_t *chain_id,
-                                          const chain_config_t *config,
-                                          bool mainnet_only) {
+const char *get_displayable_ticker(const uint64_t *chain_id,
+                                   const chain_config_t *config,
+                                   bool mainnet_only) {
     (void) chain_id;
     (void) config;
     (void) mainnet_only;
@@ -71,7 +68,7 @@ void send_swap_error_with_buffers(uint16_t status_word,
 // it to abort the test process rather than silently fall through to
 // unreachable code.
 __attribute__((noreturn)) void app_exit(void) {
-    fail_msg("app_exit() reached unexpectedly");
+    TEST_FAIL_MESSAGE("app_exit() reached unexpectedly");
     while (1) {
     }
 }
@@ -80,19 +77,16 @@ __attribute__((noreturn)) void app_exit(void) {
 // Fixture
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&strings, 0, sizeof(strings));
     g_displayable_ticker_ret = "ETH";
-    return 0;
 }
 
 // =============================================================================
 // parse_swap_config — happy paths
 // =============================================================================
 
-static void test_parse_with_asset_chain_and_fees(void **state) {
-    (void) state;
+void test_parse_with_asset_chain_and_fees(void) {
     // asset_ticker_len=3, "ETH", decimals=18, chain_id=1 (BE),
     // fees_ticker_len=3, "ETH", decimals=18 (WEI_TO_ETHER)
     const uint8_t config[] = {
@@ -116,16 +110,15 @@ static void test_parse_with_asset_chain_and_fees(void **state) {
         0x12,  // fees
     };
     swap_context_t ctx;
-    assert_true(parse_swap_config(config, sizeof(config), &ctx));
-    assert_string_equal(ctx.swapped_asset_info.ticker, "ETH");
-    assert_int_equal(ctx.swapped_asset_info.decimals, 18);
-    assert_int_equal(ctx.chain_id, 1);
-    assert_string_equal(ctx.fees_asset_info.ticker, "ETH");
-    assert_int_equal(ctx.fees_asset_info.decimals, 18);
+    TEST_ASSERT_TRUE(parse_swap_config(config, sizeof(config), &ctx));
+    TEST_ASSERT_EQUAL_STRING(ctx.swapped_asset_info.ticker, "ETH");
+    TEST_ASSERT_EQUAL(ctx.swapped_asset_info.decimals, 18);
+    TEST_ASSERT_EQUAL(ctx.chain_id, 1);
+    TEST_ASSERT_EQUAL_STRING(ctx.fees_asset_info.ticker, "ETH");
+    TEST_ASSERT_EQUAL(ctx.fees_asset_info.decimals, 18);
 }
 
-static void test_parse_without_fees_section_defaults_fees(void **state) {
-    (void) state;
+void test_parse_without_fees_section_defaults_fees(void) {
     // No fees block — the parser leaves the default fees ticker empty
     // (so get_asset_info_on_network falls back to get_displayable_ticker)
     // and default fees decimals = WEI_TO_ETHER (set up by explicit_bzero
@@ -147,69 +140,62 @@ static void test_parse_without_fees_section_defaults_fees(void **state) {
         0x89,  // chain_id = 137
     };
     swap_context_t ctx;
-    assert_true(parse_swap_config(config, sizeof(config), &ctx));
-    assert_string_equal(ctx.swapped_asset_info.ticker, "USDC");
-    assert_int_equal(ctx.swapped_asset_info.decimals, 6);
-    assert_int_equal(ctx.chain_id, 137);
-    assert_int_equal(ctx.fees_asset_info.ticker[0], '\0');
-    assert_int_equal(ctx.fees_asset_info.decimals, 18 /* WEI_TO_ETHER */);
+    TEST_ASSERT_TRUE(parse_swap_config(config, sizeof(config), &ctx));
+    TEST_ASSERT_EQUAL_STRING(ctx.swapped_asset_info.ticker, "USDC");
+    TEST_ASSERT_EQUAL(ctx.swapped_asset_info.decimals, 6);
+    TEST_ASSERT_EQUAL(ctx.chain_id, 137);
+    TEST_ASSERT_EQUAL(ctx.fees_asset_info.ticker[0], '\0');
+    TEST_ASSERT_EQUAL(ctx.fees_asset_info.decimals, 18 /* WEI_TO_ETHER */);
 }
 
 // =============================================================================
 // parse_swap_config — input validation
 // =============================================================================
 
-static void test_parse_null_inputs_rejected(void **state) {
-    (void) state;
+void test_parse_null_inputs_rejected(void) {
     swap_context_t ctx;
     const uint8_t buf[1] = {0};
-    assert_false(parse_swap_config(NULL, 1, &ctx));
-    assert_false(parse_swap_config(buf, 0, &ctx));
-    assert_false(parse_swap_config(buf, 1, NULL));
+    TEST_ASSERT_FALSE(parse_swap_config(NULL, 1, &ctx));
+    TEST_ASSERT_FALSE(parse_swap_config(buf, 0, &ctx));
+    TEST_ASSERT_FALSE(parse_swap_config(buf, 1, NULL));
 }
 
-static void test_parse_ticker_len_zero_rejected(void **state) {
-    (void) state;
+void test_parse_ticker_len_zero_rejected(void) {
     const uint8_t config[] = {0x00};
     swap_context_t ctx;
-    assert_false(parse_swap_config(config, sizeof(config), &ctx));
+    TEST_ASSERT_FALSE(parse_swap_config(config, sizeof(config), &ctx));
 }
 
-static void test_parse_ticker_len_oversized_rejected(void **state) {
-    (void) state;
+void test_parse_ticker_len_oversized_rejected(void) {
     // MAX_TICKER_LEN == 51, the parser rejects (MAX_TICKER_LEN - 2)+ which
     // is 50+. A ticker length of 50 is also rejected per the > check.
     const uint8_t config[] = {50};
     swap_context_t ctx;
-    assert_false(parse_swap_config(config, sizeof(config), &ctx));
+    TEST_ASSERT_FALSE(parse_swap_config(config, sizeof(config), &ctx));
 }
 
-static void test_parse_truncated_ticker_rejected(void **state) {
-    (void) state;
+void test_parse_truncated_ticker_rejected(void) {
     // Declares 5 bytes of ticker but only 2 actually follow.
     const uint8_t config[] = {0x05, 'A', 'B'};
     swap_context_t ctx;
-    assert_false(parse_swap_config(config, sizeof(config), &ctx));
+    TEST_ASSERT_FALSE(parse_swap_config(config, sizeof(config), &ctx));
 }
 
-static void test_parse_missing_decimals_rejected(void **state) {
-    (void) state;
+void test_parse_missing_decimals_rejected(void) {
     // Ticker is fine but no decimals byte after.
     const uint8_t config[] = {0x03, 'E', 'T', 'H'};
     swap_context_t ctx;
-    assert_false(parse_swap_config(config, sizeof(config), &ctx));
+    TEST_ASSERT_FALSE(parse_swap_config(config, sizeof(config), &ctx));
 }
 
-static void test_parse_missing_chain_id_rejected(void **state) {
-    (void) state;
+void test_parse_missing_chain_id_rejected(void) {
     // Asset complete, but no 8-byte chain_id.
     const uint8_t config[] = {0x03, 'E', 'T', 'H', 0x12, 0x00, 0x00, 0x00};
     swap_context_t ctx;
-    assert_false(parse_swap_config(config, sizeof(config), &ctx));
+    TEST_ASSERT_FALSE(parse_swap_config(config, sizeof(config), &ctx));
 }
 
-static void test_parse_invalid_fees_decimals_rejected(void **state) {
-    (void) state;
+void test_parse_invalid_fees_decimals_rejected(void) {
     // Fees decimals != WEI_TO_ETHER → security reject. The Exchange app
     // is supposed to send fees in native units (18 decimals).
     const uint8_t config[] = {
@@ -233,15 +219,14 @@ static void test_parse_invalid_fees_decimals_rejected(void **state) {
         0x06,  // fees decimals = 6 (wrong!)
     };
     swap_context_t ctx;
-    assert_false(parse_swap_config(config, sizeof(config), &ctx));
+    TEST_ASSERT_FALSE(parse_swap_config(config, sizeof(config), &ctx));
 }
 
 // =============================================================================
 // get_asset_info_on_network
 // =============================================================================
 
-static void test_asset_info_non_fee_uses_swapped(void **state) {
-    (void) state;
+void test_asset_info_non_fee_uses_swapped(void) {
     swap_context_t ctx;
     memset(&ctx, 0, sizeof(ctx));
     strlcpy(ctx.swapped_asset_info.ticker, "USDC", sizeof(ctx.swapped_asset_info.ticker));
@@ -250,12 +235,11 @@ static void test_asset_info_non_fee_uses_swapped(void **state) {
     char *ticker = NULL;
     uint8_t decimals = 0;
     get_asset_info_on_network(false, &ctx, &g_chainConfig, &ticker, &decimals);
-    assert_string_equal(ticker, "USDC");
-    assert_int_equal(decimals, 6);
+    TEST_ASSERT_EQUAL_STRING(ticker, "USDC");
+    TEST_ASSERT_EQUAL(decimals, 6);
 }
 
-static void test_asset_info_fee_with_fees_ticker_uses_it(void **state) {
-    (void) state;
+void test_asset_info_fee_with_fees_ticker_uses_it(void) {
     swap_context_t ctx;
     memset(&ctx, 0, sizeof(ctx));
     strlcpy(ctx.fees_asset_info.ticker, "MATIC", sizeof(ctx.fees_asset_info.ticker));
@@ -264,12 +248,11 @@ static void test_asset_info_fee_with_fees_ticker_uses_it(void **state) {
     char *ticker = NULL;
     uint8_t decimals = 0;
     get_asset_info_on_network(true, &ctx, &g_chainConfig, &ticker, &decimals);
-    assert_string_equal(ticker, "MATIC");
-    assert_int_equal(decimals, 18);
+    TEST_ASSERT_EQUAL_STRING(ticker, "MATIC");
+    TEST_ASSERT_EQUAL(decimals, 18);
 }
 
-static void test_asset_info_fee_empty_ticker_uses_displayable(void **state) {
-    (void) state;
+void test_asset_info_fee_empty_ticker_uses_displayable(void) {
     swap_context_t ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.chain_id = 137;
@@ -278,11 +261,10 @@ static void test_asset_info_fee_empty_ticker_uses_displayable(void **state) {
 
     char *ticker = NULL;
     get_asset_info_on_network(true, &ctx, &g_chainConfig, &ticker, NULL);
-    assert_string_equal(ticker, "POL");
+    TEST_ASSERT_EQUAL_STRING(ticker, "POL");
 }
 
-static void test_asset_info_fee_empty_ticker_zero_chain_id_falls_back_to_config(void **state) {
-    (void) state;
+void test_asset_info_fee_empty_ticker_zero_chain_id_falls_back_to_config(void) {
     swap_context_t ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.chain_id = 0;  // missing
@@ -293,75 +275,73 @@ static void test_asset_info_fee_empty_ticker_zero_chain_id_falls_back_to_config(
     get_asset_info_on_network(true, &ctx, &g_chainConfig, &ticker, NULL);
     // The parser must have copied g_chainConfig.chain_id into ctx.chain_id
     // as a fallback (so subsequent calls can reuse it).
-    assert_int_equal(ctx.chain_id, 1);
-    assert_string_equal(ticker, "ETH");
+    TEST_ASSERT_EQUAL(ctx.chain_id, 1);
+    TEST_ASSERT_EQUAL_STRING(ticker, "ETH");
 }
 
 // =============================================================================
 // swap_check_destination / amount / fee — NULL + match
 // =============================================================================
 
-static void test_swap_check_destination_null_rejected(void **state) {
-    (void) state;
-    assert_false(swap_check_destination(NULL));
+void test_swap_check_destination_null_rejected(void) {
+    TEST_ASSERT_FALSE(swap_check_destination(NULL));
 }
 
-static void test_swap_check_destination_match(void **state) {
-    (void) state;
+void test_swap_check_destination_match(void) {
     strlcpy(strings.common.toAddress, "0xAbC123", sizeof(strings.common.toAddress));
     // Case-insensitive via the local strcasecmp_workaround.
-    assert_true(swap_check_destination("0xabc123"));
-    assert_true(swap_check_destination("0xABC123"));
+    TEST_ASSERT_TRUE(swap_check_destination("0xabc123"));
+    TEST_ASSERT_TRUE(swap_check_destination("0xABC123"));
 }
 
-static void test_swap_check_amount_null_rejected(void **state) {
-    (void) state;
-    assert_false(swap_check_amount(NULL));
+void test_swap_check_amount_null_rejected(void) {
+    TEST_ASSERT_FALSE(swap_check_amount(NULL));
 }
 
-static void test_swap_check_amount_match(void **state) {
-    (void) state;
+void test_swap_check_amount_match(void) {
     strlcpy(strings.common.fullAmount, "1 ETH", sizeof(strings.common.fullAmount));
-    assert_true(swap_check_amount("1 ETH"));
+    TEST_ASSERT_TRUE(swap_check_amount("1 ETH"));
 }
 
-static void test_swap_check_fee_null_rejected(void **state) {
-    (void) state;
-    assert_false(swap_check_fee(NULL));
+void test_swap_check_fee_null_rejected(void) {
+    TEST_ASSERT_FALSE(swap_check_fee(NULL));
 }
 
-static void test_swap_check_fee_match(void **state) {
-    (void) state;
+void test_swap_check_fee_match(void) {
     strlcpy(strings.common.maxFee, "0.001 ETH", sizeof(strings.common.maxFee));
-    assert_true(swap_check_fee("0.001 ETH"));
+    TEST_ASSERT_TRUE(swap_check_fee("0.001 ETH"));
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_parse_with_asset_chain_and_fees, reset),
-        cmocka_unit_test_setup(test_parse_without_fees_section_defaults_fees, reset),
-        cmocka_unit_test_setup(test_parse_null_inputs_rejected, reset),
-        cmocka_unit_test_setup(test_parse_ticker_len_zero_rejected, reset),
-        cmocka_unit_test_setup(test_parse_ticker_len_oversized_rejected, reset),
-        cmocka_unit_test_setup(test_parse_truncated_ticker_rejected, reset),
-        cmocka_unit_test_setup(test_parse_missing_decimals_rejected, reset),
-        cmocka_unit_test_setup(test_parse_missing_chain_id_rejected, reset),
-        cmocka_unit_test_setup(test_parse_invalid_fees_decimals_rejected, reset),
-        cmocka_unit_test_setup(test_asset_info_non_fee_uses_swapped, reset),
-        cmocka_unit_test_setup(test_asset_info_fee_with_fees_ticker_uses_it, reset),
-        cmocka_unit_test_setup(test_asset_info_fee_empty_ticker_uses_displayable, reset),
-        cmocka_unit_test_setup(test_asset_info_fee_empty_ticker_zero_chain_id_falls_back_to_config,
-                               reset),
-        cmocka_unit_test_setup(test_swap_check_destination_null_rejected, reset),
-        cmocka_unit_test_setup(test_swap_check_destination_match, reset),
-        cmocka_unit_test_setup(test_swap_check_amount_null_rejected, reset),
-        cmocka_unit_test_setup(test_swap_check_amount_match, reset),
-        cmocka_unit_test_setup(test_swap_check_fee_null_rejected, reset),
-        cmocka_unit_test_setup(test_swap_check_fee_match, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_parse_with_asset_chain_and_fees);
+    RUN_TEST(test_parse_without_fees_section_defaults_fees);
+    RUN_TEST(test_parse_null_inputs_rejected);
+    RUN_TEST(test_parse_ticker_len_zero_rejected);
+    RUN_TEST(test_parse_ticker_len_oversized_rejected);
+    RUN_TEST(test_parse_truncated_ticker_rejected);
+    RUN_TEST(test_parse_missing_decimals_rejected);
+    RUN_TEST(test_parse_missing_chain_id_rejected);
+    RUN_TEST(test_parse_invalid_fees_decimals_rejected);
+    RUN_TEST(test_asset_info_non_fee_uses_swapped);
+    RUN_TEST(test_asset_info_fee_with_fees_ticker_uses_it);
+    RUN_TEST(test_asset_info_fee_empty_ticker_uses_displayable);
+    RUN_TEST(test_asset_info_fee_empty_ticker_zero_chain_id_falls_back_to_config);
+    RUN_TEST(test_swap_check_destination_null_rejected);
+    RUN_TEST(test_swap_check_destination_match);
+    RUN_TEST(test_swap_check_amount_null_rejected);
+    RUN_TEST(test_swap_check_amount_match);
+    RUN_TEST(test_swap_check_fee_null_rejected);
+    RUN_TEST(test_swap_check_fee_match);
+    return UNITY_END();
 }

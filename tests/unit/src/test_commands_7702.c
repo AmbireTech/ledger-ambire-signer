@@ -25,10 +25,7 @@
  * differs from the one shown on screen.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -74,7 +71,7 @@ void reset_app_context(void) {
 uint32_t cx_keccak_init_no_throw(cx_sha3_t *hash, size_t size) {
     (void) hash;
     (void) size;
-    return 0;
+    return CX_OK;
 }
 uint32_t cx_hash_no_throw(cx_hash_t *hash,
                           uint32_t mode,
@@ -88,15 +85,16 @@ uint32_t cx_hash_no_throw(cx_hash_t *hash,
     (void) in_len;
     (void) out;
     (void) out_len;
-    return 0;
+    return CX_OK;
 }
-// Honour the shared g_finalize_hash_ret (wraps.h) so tests can drive
+static bool s_finalize_hash_ret = true;
+// Honour s_finalize_hash_ret so tests can drive
 // the post-hash failure path in handle_auth7702_tlv.
-bool __wrap_finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
+bool finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
     (void) hash_ctx;
     (void) out;
     (void) out_len;
-    return g_finalize_hash_ret;
+    return s_finalize_hash_ret;
 }
 
 // Wrap mem_utils_calloc (--wrap in cmake) to drive Nth-call failure.
@@ -104,11 +102,7 @@ bool __wrap_finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
 // false (0 = first, 1 = second, ...). Default -1 = never fail.
 static int g_calloc_fail_at_call_n = -1;
 static int g_calloc_call_count = 0;
-bool __wrap_mem_utils_calloc(void **buffer,
-                             uint16_t size,
-                             bool permanent,
-                             const char *file,
-                             int line) {
+bool mem_utils_calloc(void **buffer, uint16_t size, bool permanent, const char *file, int line) {
     (void) permanent;
     (void) file;
     (void) line;
@@ -136,7 +130,7 @@ uint32_t get_public_key_string(bip32_path_t *bip32,
     (void) chainCode;
     (void) chainId;
     if (address != NULL) address[0] = '\0';
-    return 0;
+    return CX_OK;
 }
 
 const char *get_network_name_from_chain_id(const uint64_t *chain_id) {
@@ -183,8 +177,7 @@ static const uint8_t g_simple7702_account[ADDRESS_LENGTH] = {
 // Fixture
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     appState = APP_STATE_IDLE;
     g_parsebip32_ok = true;
     g_ui_auth_calls = 0;
@@ -194,12 +187,11 @@ static int reset(void **state) {
     memset(&tmpCtx, 0, sizeof(tmpCtx));
     memset(&strings, 0, sizeof(strings));
     g_n_storage_writable.eip7702_enable = true;
-    g_finalize_hash_ret = true;
+    s_finalize_hash_ret = true;
     g_calloc_fail_at_call_n = -1;
     g_calloc_call_count = 0;
     // tlv_apdu carries internal state across calls — clear it.
     tlv_from_apdu(false, 0, NULL, NULL);
-    return 0;
 }
 
 // =============================================================================
@@ -230,7 +222,7 @@ static size_t build_tlv_payload(uint8_t *out,
     tlv[off++] = 0x01;
     tlv[off++] = nonce;
 
-    assert_true(out_size >= off + 2);
+    TEST_ASSERT_TRUE(out_size >= off + 2);
     out[0] = (uint8_t) (off >> 8);
     out[1] = (uint8_t) (off & 0xFF);
     memcpy(out + 2, tlv, off);
@@ -241,38 +233,34 @@ static size_t build_tlv_payload(uint8_t *out,
 // Entry-point dispatch tests
 // =============================================================================
 
-static void test_first_chunk_when_not_idle_rejected(void **state) {
-    (void) state;
+void test_first_chunk_when_not_idle_rejected(void) {
     appState = APP_STATE_SIGNING_TX;
     uint8_t payload[16] = {0};
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, sizeof(payload));
-    assert_int_equal(sw, SWO_COMMAND_NOT_ALLOWED);
-    assert_int_equal(appState, APP_STATE_SIGNING_TX);
+    TEST_ASSERT_EQUAL(sw, SWO_COMMAND_NOT_ALLOWED);
+    TEST_ASSERT_EQUAL(appState, APP_STATE_SIGNING_TX);
 }
 
-static void test_first_chunk_parseBip32_failure_resets_app_context(void **state) {
-    (void) state;
+void test_first_chunk_parseBip32_failure_resets_app_context(void) {
     g_parsebip32_ok = false;
     uint8_t payload[16] = {0};
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, sizeof(payload));
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
-    assert_int_equal(appState, APP_STATE_IDLE);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(appState, APP_STATE_IDLE);
 }
 
-static void test_continuation_chunk_outside_session_rejected(void **state) {
-    (void) state;
+void test_continuation_chunk_outside_session_rejected(void) {
     appState = APP_STATE_IDLE;
     uint8_t payload[16] = {0};
     uint16_t sw = handle_sign_eip7702_authorization(0x00, payload, sizeof(payload));
-    assert_int_equal(sw, SWO_COMMAND_NOT_ALLOWED);
+    TEST_ASSERT_EQUAL(sw, SWO_COMMAND_NOT_ALLOWED);
 }
 
 // =============================================================================
 // handle_auth7702_tlv branches (driven through real tlv_apdu)
 // =============================================================================
 
-static void test_happy_path_drives_auth_review(void **state) {
-    (void) state;
+void test_happy_path_drives_auth_review(void) {
     uint8_t payload[80];
     size_t len = build_tlv_payload(payload,
                                    sizeof(payload),
@@ -281,39 +269,36 @@ static void test_happy_path_drives_auth_review(void **state) {
                                    /*chain_id=*/1,
                                    /*nonce=*/0x07);
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
-    assert_int_equal(sw, SWO_NO_RESPONSE);
-    assert_int_equal(g_ui_auth_calls, 1);
-    assert_int_equal(g_ui_revocation_calls, 0);
+    TEST_ASSERT_EQUAL(sw, SWO_NO_RESPONSE);
+    TEST_ASSERT_EQUAL(g_ui_auth_calls, 1);
+    TEST_ASSERT_EQUAL(g_ui_revocation_calls, 0);
     // Delegate name (Simple7702Account) was copied to the review buffer.
-    assert_string_equal(strings.common.toAddress, "Simple7702Account");
+    TEST_ASSERT_EQUAL_STRING(strings.common.toAddress, "Simple7702Account");
 }
 
-static void test_revocation_path_drives_revocation_review(void **state) {
-    (void) state;
+void test_revocation_path_drives_revocation_review(void) {
     // Delegate = 20 zero bytes triggers the revocation branch (no
     // whitelist lookup — the user is revoking the active delegation).
     static const uint8_t zero_delegate[ADDRESS_LENGTH] = {0};
     uint8_t payload[80];
     size_t len = build_tlv_payload(payload, sizeof(payload), 0x01, zero_delegate, 1, 0x00);
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
-    assert_int_equal(sw, SWO_NO_RESPONSE);
-    assert_int_equal(g_ui_revocation_calls, 1);
-    assert_int_equal(g_ui_auth_calls, 0);
+    TEST_ASSERT_EQUAL(sw, SWO_NO_RESPONSE);
+    TEST_ASSERT_EQUAL(g_ui_revocation_calls, 1);
+    TEST_ASSERT_EQUAL(g_ui_auth_calls, 0);
 }
 
-static void test_eip7702_disabled_rejected(void **state) {
-    (void) state;
+void test_eip7702_disabled_rejected(void) {
     g_n_storage_writable.eip7702_enable = false;
     uint8_t payload[80];
     size_t len = build_tlv_payload(payload, sizeof(payload), 0x01, g_simple7702_account, 1, 0x00);
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
-    assert_int_equal(sw, SWO_COMMAND_NOT_ALLOWED);
-    assert_int_equal(g_ui_error_no_7702_calls, 1);
-    assert_int_equal(g_ui_auth_calls, 0);
+    TEST_ASSERT_EQUAL(sw, SWO_COMMAND_NOT_ALLOWED);
+    TEST_ASSERT_EQUAL(g_ui_error_no_7702_calls, 1);
+    TEST_ASSERT_EQUAL(g_ui_auth_calls, 0);
 }
 
-static void test_delegate_not_in_whitelist_rejected(void **state) {
-    (void) state;
+void test_delegate_not_in_whitelist_rejected(void) {
     // An address that's not Simple7702Account and not all zeros must
     // be rejected via ui_error_no_7702_whitelist.
     static const uint8_t random_delegate[ADDRESS_LENGTH] = {
@@ -323,13 +308,12 @@ static void test_delegate_not_in_whitelist_rejected(void **state) {
     uint8_t payload[80];
     size_t len = build_tlv_payload(payload, sizeof(payload), 0x01, random_delegate, 1, 0x00);
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
-    assert_int_equal(sw, SWO_COMMAND_NOT_ALLOWED);
-    assert_int_equal(g_ui_error_whitelist_calls, 1);
-    assert_int_equal(g_ui_auth_calls, 0);
+    TEST_ASSERT_EQUAL(sw, SWO_COMMAND_NOT_ALLOWED);
+    TEST_ASSERT_EQUAL(g_ui_error_whitelist_calls, 1);
+    TEST_ASSERT_EQUAL(g_ui_auth_calls, 0);
 }
 
-static void test_invalid_version_rejected(void **state) {
-    (void) state;
+void test_invalid_version_rejected(void) {
     // The auth_7702 parser enforces STRUCT_VERSION == 0x01.
     uint8_t payload[80];
     size_t len = build_tlv_payload(payload,
@@ -339,36 +323,34 @@ static void test_invalid_version_rejected(void **state) {
                                    1,
                                    0x00);
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
-    assert_int_equal(g_ui_auth_calls, 0);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(g_ui_auth_calls, 0);
 }
 
-static void test_chain_id_all_uses_wildcard_display(void **state) {
-    (void) state;
+void test_chain_id_all_uses_wildcard_display(void) {
     // CHAIN_ID_ALL (= 0) lands on the "All" wildcard label rather
     // than calling get_network_name_from_chain_id / format_u64.
     uint8_t payload[80];
     size_t len =
         build_tlv_payload(payload, sizeof(payload), 0x01, g_simple7702_account, CHAIN_ID_ALL, 0x00);
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
-    assert_int_equal(sw, SWO_NO_RESPONSE);
-    assert_string_equal(strings.common.network_name, "All");
+    TEST_ASSERT_EQUAL(sw, SWO_NO_RESPONSE);
+    TEST_ASSERT_EQUAL_STRING(strings.common.network_name, "All");
 }
 
-static void test_finalize_hash_failure_short_circuits_review(void **state) {
-    (void) state;
+void test_finalize_hash_failure_short_circuits_review(void) {
     // finalize_hash returns false (e.g. lib_cxng failure) -> handle_auth7702_
     // tlv jumps to `end` without ever calling ui_sign_7702_auth /
     // ui_sign_7702_revocation. The SW surfaced to the host is the
     // SWO_PARAMETER_ERROR_NO_INFO seeded at function entry (no later
     // assignment runs).
-    g_finalize_hash_ret = false;
+    s_finalize_hash_ret = false;
     uint8_t payload[80];
     size_t len = build_tlv_payload(payload, sizeof(payload), 0x01, g_simple7702_account, 1, 0x07);
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
-    assert_int_equal(sw, SWO_PARAMETER_ERROR_NO_INFO);
-    assert_int_equal(g_ui_auth_calls, 0);
-    assert_int_equal(g_ui_revocation_calls, 0);
+    TEST_ASSERT_EQUAL(sw, SWO_PARAMETER_ERROR_NO_INFO);
+    TEST_ASSERT_EQUAL(g_ui_auth_calls, 0);
+    TEST_ASSERT_EQUAL(g_ui_revocation_calls, 0);
 }
 
 // hashRLP is non-static; call it directly to pin the rlpEncodeNumber-
@@ -376,16 +358,14 @@ static void test_finalize_hash_failure_short_circuits_review(void **state) {
 // buffer is too small to hold the encoded form -- pass rlpTmpLength=0.
 uint16_t hashRLP(const uint8_t *data, uint8_t dataLength, uint8_t *rlpTmp, uint8_t rlpTmpLength);
 
-static void test_hashRLP_with_too_small_buffer_returns_parameter_error(void **state) {
-    (void) state;
+void test_hashRLP_with_too_small_buffer_returns_parameter_error(void) {
     uint8_t data[1] = {0x42};
     uint8_t rlpTmp[1];
     uint16_t sw = hashRLP(data, sizeof(data), rlpTmp, 0);
-    assert_int_equal(sw, SWO_PARAMETER_ERROR_NO_INFO);
+    TEST_ASSERT_EQUAL(sw, SWO_PARAMETER_ERROR_NO_INFO);
 }
 
-static void test_hash_ctx_alloc_failure_short_circuits_review(void **state) {
-    (void) state;
+void test_hash_ctx_alloc_failure_short_circuits_review(void) {
     // APP_MEM_CALLOC for g_7702_hash_ctx (the first calloc in
     // handle_auth7702_tlv) fails -> goto end without setting g_7702_sw
     // -> SW remains the SWO_PARAMETER_ERROR_NO_INFO seeded at function
@@ -394,28 +374,33 @@ static void test_hash_ctx_alloc_failure_short_circuits_review(void **state) {
     uint8_t payload[80];
     size_t len = build_tlv_payload(payload, sizeof(payload), 0x01, g_simple7702_account, 1, 0x07);
     uint16_t sw = handle_sign_eip7702_authorization(P1_FIRST_CHUNK, payload, (uint8_t) len);
-    assert_int_equal(sw, SWO_PARAMETER_ERROR_NO_INFO);
-    assert_int_equal(g_ui_auth_calls, 0);
+    TEST_ASSERT_EQUAL(sw, SWO_PARAMETER_ERROR_NO_INFO);
+    TEST_ASSERT_EQUAL(g_ui_auth_calls, 0);
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_first_chunk_when_not_idle_rejected, reset),
-        cmocka_unit_test_setup(test_first_chunk_parseBip32_failure_resets_app_context, reset),
-        cmocka_unit_test_setup(test_continuation_chunk_outside_session_rejected, reset),
-        cmocka_unit_test_setup(test_happy_path_drives_auth_review, reset),
-        cmocka_unit_test_setup(test_revocation_path_drives_revocation_review, reset),
-        cmocka_unit_test_setup(test_eip7702_disabled_rejected, reset),
-        cmocka_unit_test_setup(test_delegate_not_in_whitelist_rejected, reset),
-        cmocka_unit_test_setup(test_invalid_version_rejected, reset),
-        cmocka_unit_test_setup(test_chain_id_all_uses_wildcard_display, reset),
-        cmocka_unit_test_setup(test_finalize_hash_failure_short_circuits_review, reset),
-        cmocka_unit_test_setup(test_hashRLP_with_too_small_buffer_returns_parameter_error, reset),
-        cmocka_unit_test_setup(test_hash_ctx_alloc_failure_short_circuits_review, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_first_chunk_when_not_idle_rejected);
+    RUN_TEST(test_first_chunk_parseBip32_failure_resets_app_context);
+    RUN_TEST(test_continuation_chunk_outside_session_rejected);
+    RUN_TEST(test_happy_path_drives_auth_review);
+    RUN_TEST(test_revocation_path_drives_revocation_review);
+    RUN_TEST(test_eip7702_disabled_rejected);
+    RUN_TEST(test_delegate_not_in_whitelist_rejected);
+    RUN_TEST(test_invalid_version_rejected);
+    RUN_TEST(test_chain_id_all_uses_wildcard_display);
+    RUN_TEST(test_finalize_hash_failure_short_circuits_review);
+    RUN_TEST(test_hashRLP_with_too_small_buffer_returns_parameter_error);
+    RUN_TEST(test_hash_ctx_alloc_failure_short_circuits_review);
+    return UNITY_END();
 }

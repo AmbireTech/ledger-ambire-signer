@@ -13,3 +13,8 @@
 
 extern nbgl_icon_details_t test_glyph;
 extern nbgl_icon_details_t test_home_glyph;
+
+// LARGE_LEDGER_ICON maps to C_Ledger_64px (SCREEN_SIZE_WALLET) or
+// C_Ledger_14px (Nano). Declare both; the test TU defines whichever applies.
+extern const nbgl_icon_details_t C_Ledger_64px;
+extern const nbgl_icon_details_t C_Ledger_14px;

@@ -20,10 +20,7 @@
  * the signed digest, not the digest itself.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -31,8 +28,7 @@
 #include "shared_context.h"
 #include "eth_ustream.h"
 #include "feature_sign_tx.h"
-#include "wraps.h"  // g_tx_chain_id
-#include "network.h"
+#include "Mocknetwork.h"
 #include "tx_ctx.h"
 #include "calldata.h"
 
@@ -116,8 +112,7 @@ void calldata_delete(s_calldata *node) {
 // Fixture
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&txContext, 0, sizeof(txContext));
     memset(&tmpContent, 0, sizeof(tmpContent));
     memset(&s_sdk, 0, sizeof(s_sdk));
@@ -126,8 +121,6 @@ static int reset(void **state) {
     g_custom_status = CUSTOM_NOT_HANDLED;
     g_tx_ctx_init_ok = true;
     g_parked_calldata = NULL;
-    g_tx_chain_id = 0;  // ustream parses bytes before chain_id is observed
-    return 0;
 }
 
 // =============================================================================
@@ -235,173 +228,162 @@ static const uint8_t g_eip1559_nonzero_value[] = {
 // Tests — typed-tx happy paths
 // =============================================================================
 
-static void test_eip2930_happy_path(void **state) {
-    (void) state;
+void test_eip2930_happy_path(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
     ctx.txType = EIP2930;
 
     parserStatus_e r = process_tx(&ctx, g_eip2930_tx, sizeof(g_eip2930_tx));
-    assert_int_equal(r, USTREAM_FINISHED);
-    assert_int_equal(content.chainID.length, 1);
-    assert_int_equal(content.chainID.value[0], 0x01);
-    assert_int_equal(content.startgas.length, 2);
-    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(content.chainID.length, 1);
+    TEST_ASSERT_EQUAL(content.chainID.value[0], 0x01);
+    TEST_ASSERT_EQUAL(content.startgas.length, 2);
+    TEST_ASSERT_EQUAL(content.destinationLength, ADDRESS_LENGTH);
 }
 
-static void test_eip1559_happy_path(void **state) {
-    (void) state;
+void test_eip1559_happy_path(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
     ctx.txType = EIP1559;
 
     parserStatus_e r = process_tx(&ctx, g_eip1559_tx, sizeof(g_eip1559_tx));
-    assert_int_equal(r, USTREAM_FINISHED);
-    assert_int_equal(content.chainID.length, 1);
-    assert_int_equal(content.startgas.length, 2);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(content.chainID.length, 1);
+    TEST_ASSERT_EQUAL(content.startgas.length, 2);
 }
 
-static void test_eip7702_happy_path(void **state) {
-    (void) state;
+void test_eip7702_happy_path(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
     ctx.txType = EIP7702;
 
     parserStatus_e r = process_tx(&ctx, g_eip7702_tx, sizeof(g_eip7702_tx));
-    assert_int_equal(r, USTREAM_FINISHED);
-    assert_int_equal(content.chainID.length, 1);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(content.chainID.length, 1);
 }
 
 // =============================================================================
 // Tests — failure paths inside the typed dispatchers
 // =============================================================================
 
-static void test_unknown_tx_type_returns_fault(void **state) {
-    (void) state;
+void test_unknown_tx_type_returns_fault(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = 0x42;  // not LEGACY/2930/1559/7702
 
     parserStatus_e r = process_tx(&ctx, g_eip1559_tx, sizeof(g_eip1559_tx));
-    assert_int_equal(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
 }
 
-static void test_chain_id_wider_than_uint64_rejected(void **state) {
-    (void) state;
+void test_chain_id_wider_than_uint64_rejected(void) {
     // 9-byte chainID must trip the CWE-197 / EIP-2294 guard in
     // process_chain_id (sizeof(uint64_t) = 8 maximum).
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = EIP1559;
 
     parserStatus_e r =
         process_tx(&ctx, g_eip1559_chain_id_too_wide, sizeof(g_eip1559_chain_id_too_wide));
-    assert_int_equal(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
 }
 
 // =============================================================================
 // Tests — copy-loop coverage for process_value
 // =============================================================================
 
-static void test_process_value_nonzero_copy_loop(void **state) {
-    (void) state;
+void test_process_value_nonzero_copy_loop(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = EIP1559;
 
     parserStatus_e r = process_tx(&ctx, g_eip1559_nonzero_value, sizeof(g_eip1559_nonzero_value));
-    assert_int_equal(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
     // The value 0x80 must end up in content.value as a single byte.
-    assert_int_equal(content.value.length, 1);
-    assert_int_equal(content.value.value[0], 0x80);
+    TEST_ASSERT_EQUAL(content.value.length, 1);
+    TEST_ASSERT_EQUAL(content.value.value[0], 0x80);
 }
 
 // =============================================================================
 // Tests — custom_processor non-NOT_HANDLED outcomes
 // =============================================================================
 
-static void test_custom_processor_suspended(void **state) {
-    (void) state;
+void test_custom_processor_suspended(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = LEGACY;
     g_custom_status = CUSTOM_SUSPENDED;
 
     parserStatus_e r = process_tx(&ctx, g_eip1559_tx, sizeof(g_eip1559_tx));
-    assert_int_equal(r, USTREAM_SUSPENDED);
+    TEST_ASSERT_EQUAL(r, USTREAM_SUSPENDED);
 }
 
-static void test_custom_processor_fault(void **state) {
-    (void) state;
+void test_custom_processor_fault(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = LEGACY;
     g_custom_status = CUSTOM_FAULT;
 
     parserStatus_e r = process_tx(&ctx, g_eip1559_tx, sizeof(g_eip1559_tx));
-    assert_int_equal(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
 }
 
-static void test_custom_processor_unknown_status(void **state) {
-    (void) state;
+void test_custom_processor_unknown_status(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = LEGACY;
     g_custom_status = (customStatus_e) 0xFF;  // invalid
 
     parserStatus_e r = process_tx(&ctx, g_eip1559_tx, sizeof(g_eip1559_tx));
-    assert_int_equal(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
 }
 
 // =============================================================================
 // Tests — continue_tx after a partial process_tx
 // =============================================================================
 
-static void test_continue_tx_resumes_partial_parse(void **state) {
-    (void) state;
+void test_continue_tx_resumes_partial_parse(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = EIP1559;
 
     // Feed half the payload first; continue_tx with no fresh data must
     // return PROCESSING (the buffer is exhausted), not FAULT.
     const size_t half = sizeof(g_eip1559_tx) / 2;
     parserStatus_e r = process_tx(&ctx, g_eip1559_tx, half);
-    assert_int_equal(r, USTREAM_PROCESSING);
+    TEST_ASSERT_EQUAL(r, USTREAM_PROCESSING);
 
     // Re-feed the second half via process_tx (the call sets the work
     // buffer); continue_tx without new bytes would loop forever on the
     // empty buffer, but with the rest installed it must finish.
     r = process_tx(&ctx, g_eip1559_tx + half, sizeof(g_eip1559_tx) - half);
-    assert_int_equal(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
 }
 
-static void test_continue_tx_on_empty_buffer_reports_processing(void **state) {
-    (void) state;
+void test_continue_tx_on_empty_buffer_reports_processing(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = EIP1559;
 
     // process_tx with the full payload first — succeeds.
@@ -411,19 +393,18 @@ static void test_continue_tx_on_empty_buffer_reports_processing(void **state) {
     // continue_tx; it must short-circuit on the PARSING_IS_DONE branch
     // and report USTREAM_FINISHED, exercising the continue_tx wrapper.
     parserStatus_e r = continue_tx(&ctx);
-    assert_int_equal(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
 }
 
 // =============================================================================
 // Tests — tx_ctx_init failure on calldata storage
 // =============================================================================
 
-static void test_tx_ctx_init_failure_returns_fault(void **state) {
-    (void) state;
+void test_tx_ctx_init_failure_returns_fault(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
     ctx.txType = EIP1559;
     g_tx_ctx_init_ok = false;  // force the finalize path to fail
 
@@ -436,28 +417,37 @@ static void test_tx_ctx_init_failure_returns_fault(void **state) {
     // USTREAM_PROCESSING) from this branch rather than USTREAM_FAULT,
     // pin the actual value so a future cleanup doesn't silently flip
     // semantics.
-    assert_int_equal(r, (parserStatus_e) false);
-    assert_null(g_parked_calldata);
+    TEST_ASSERT_EQUAL(r, (parserStatus_e) false);
+    TEST_ASSERT_NULL(g_parked_calldata);
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    Mocknetwork_Init();
+    get_tx_chain_id_IgnoreAndReturn(0);
+    reset();
+}
+void tearDown(void) {
+    Mocknetwork_Verify();
+    Mocknetwork_Destroy();
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_eip2930_happy_path, reset),
-        cmocka_unit_test_setup(test_eip1559_happy_path, reset),
-        cmocka_unit_test_setup(test_eip7702_happy_path, reset),
-        cmocka_unit_test_setup(test_unknown_tx_type_returns_fault, reset),
-        cmocka_unit_test_setup(test_chain_id_wider_than_uint64_rejected, reset),
-        cmocka_unit_test_setup(test_process_value_nonzero_copy_loop, reset),
-        cmocka_unit_test_setup(test_custom_processor_suspended, reset),
-        cmocka_unit_test_setup(test_custom_processor_fault, reset),
-        cmocka_unit_test_setup(test_custom_processor_unknown_status, reset),
-        cmocka_unit_test_setup(test_continue_tx_resumes_partial_parse, reset),
-        cmocka_unit_test_setup(test_continue_tx_on_empty_buffer_reports_processing, reset),
-        cmocka_unit_test_setup(test_tx_ctx_init_failure_returns_fault, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_eip2930_happy_path);
+    RUN_TEST(test_eip1559_happy_path);
+    RUN_TEST(test_eip7702_happy_path);
+    RUN_TEST(test_unknown_tx_type_returns_fault);
+    RUN_TEST(test_chain_id_wider_than_uint64_rejected);
+    RUN_TEST(test_process_value_nonzero_copy_loop);
+    RUN_TEST(test_custom_processor_suspended);
+    RUN_TEST(test_custom_processor_fault);
+    RUN_TEST(test_custom_processor_unknown_status);
+    RUN_TEST(test_continue_tx_resumes_partial_parse);
+    RUN_TEST(test_continue_tx_on_empty_buffer_reports_processing);
+    RUN_TEST(test_tx_ctx_init_failure_returns_fault);
+    return UNITY_END();
 }

@@ -23,10 +23,7 @@
  *   - handler-returning-false propagation as TLV_APDU_ERROR.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -56,8 +53,7 @@ static bool other_handler(const buffer_t *buf) {
     return true;
 }
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     // Reset internal tlv_apdu state by calling with NULL inputs.
     // The NULL-payload guard runs reset_state() internally.
     tlv_from_apdu(false, 0, NULL, NULL);
@@ -65,120 +61,115 @@ static int reset(void **state) {
     g_handler_return = true;
     g_handler_seen_size = 0;
     memset(g_handler_seen_bytes, 0, sizeof(g_handler_seen_bytes));
-    return 0;
 }
 
 // =============================================================================
 // Guards
 // =============================================================================
 
-static void test_null_payload_rejected(void **state) {
-    (void) state;
-    assert_int_equal(tlv_from_apdu(true, 5, NULL, &fake_handler), TLV_APDU_ERROR);
+void test_null_payload_rejected(void) {
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, 5, NULL, &fake_handler), TLV_APDU_ERROR);
 }
 
-static void test_null_handler_rejected(void **state) {
-    (void) state;
+void test_null_handler_rejected(void) {
     uint8_t payload[3] = {0};
-    assert_int_equal(tlv_from_apdu(true, 3, payload, NULL), TLV_APDU_ERROR);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, 3, payload, NULL), TLV_APDU_ERROR);
 }
 
-static void test_first_chunk_too_short_for_length_prefix(void **state) {
-    (void) state;
+void test_first_chunk_too_short_for_length_prefix(void) {
     uint8_t payload[1] = {0};
     // lc=1 but the size prefix needs 2 bytes.
-    assert_int_equal(tlv_from_apdu(true, 1, payload, &fake_handler), TLV_APDU_ERROR);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, 1, payload, &fake_handler), TLV_APDU_ERROR);
 }
 
-static void test_first_chunk_while_session_in_progress_rejected(void **state) {
-    (void) state;
+void test_first_chunk_while_session_in_progress_rejected(void) {
     // First chunk declares size=10 — multi-chunk reassembly starts.
     uint8_t first[] = {0x00, 0x0A, 0x11};  // size=10, 1 byte of data
-    assert_int_equal(tlv_from_apdu(true, sizeof(first), first, &fake_handler), TLV_APDU_PENDING);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, sizeof(first), first, &fake_handler), TLV_APDU_PENDING);
     // Sending another first_chunk now must fail — the previous session
     // is still in progress.
     uint8_t replay[] = {0x00, 0x02, 0x22, 0x33};
-    assert_int_equal(tlv_from_apdu(true, sizeof(replay), replay, &fake_handler), TLV_APDU_ERROR);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, sizeof(replay), replay, &fake_handler), TLV_APDU_ERROR);
 }
 
-static void test_followup_chunk_handler_mismatch_rejected(void **state) {
-    (void) state;
+void test_followup_chunk_handler_mismatch_rejected(void) {
     uint8_t first[] = {0x00, 0x0A, 0x11};
-    assert_int_equal(tlv_from_apdu(true, sizeof(first), first, &fake_handler), TLV_APDU_PENDING);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, sizeof(first), first, &fake_handler), TLV_APDU_PENDING);
     // Use a different handler on the follow-up chunk → must reject.
     uint8_t followup[2] = {0x22, 0x33};
-    assert_int_equal(tlv_from_apdu(false, sizeof(followup), followup, &other_handler),
-                     TLV_APDU_ERROR);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(false, sizeof(followup), followup, &other_handler),
+                      TLV_APDU_ERROR);
 }
 
-static void test_zero_length_payload_rejected(void **state) {
-    (void) state;
+void test_zero_length_payload_rejected(void) {
     uint8_t bytes[] = {0x00, 0x00};  // size = 0
-    assert_int_equal(tlv_from_apdu(true, sizeof(bytes), bytes, &fake_handler), TLV_APDU_ERROR);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, sizeof(bytes), bytes, &fake_handler), TLV_APDU_ERROR);
 }
 
-static void test_chunk_overflows_declared_size(void **state) {
-    (void) state;
+void test_chunk_overflows_declared_size(void) {
     // Declared size = 2, but the first chunk carries 5 data bytes.
     uint8_t bytes[] = {0x00, 0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
-    assert_int_equal(tlv_from_apdu(true, sizeof(bytes), bytes, &fake_handler), TLV_APDU_ERROR);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, sizeof(bytes), bytes, &fake_handler), TLV_APDU_ERROR);
 }
 
 // =============================================================================
 // Happy paths
 // =============================================================================
 
-static void test_single_chunk_invokes_handler_with_apdu_buffer(void **state) {
-    (void) state;
+void test_single_chunk_invokes_handler_with_apdu_buffer(void) {
     // Declared size 3, data {0xAA, 0xBB, 0xCC} fits entirely in this chunk.
     uint8_t bytes[] = {0x00, 0x03, 0xAA, 0xBB, 0xCC};
-    assert_int_equal(tlv_from_apdu(true, sizeof(bytes), bytes, &fake_handler), TLV_APDU_SUCCESS);
-    assert_int_equal(g_handler_calls, 1);
-    assert_int_equal(g_handler_seen_size, 3);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, sizeof(bytes), bytes, &fake_handler), TLV_APDU_SUCCESS);
+    TEST_ASSERT_EQUAL(g_handler_calls, 1);
+    TEST_ASSERT_EQUAL(g_handler_seen_size, 3);
     static const uint8_t expected[] = {0xAA, 0xBB, 0xCC};
-    assert_memory_equal(g_handler_seen_bytes, expected, 3);
+    TEST_ASSERT_EQUAL_MEMORY(g_handler_seen_bytes, expected, 3);
 }
 
-static void test_multi_chunk_reassembles_and_invokes_handler(void **state) {
-    (void) state;
+void test_multi_chunk_reassembles_and_invokes_handler(void) {
     // size=5, split across two chunks: first carries 2 bytes, second
     // carries 3.
     uint8_t first[] = {0x00, 0x05, 0xAA, 0xBB};
-    assert_int_equal(tlv_from_apdu(true, sizeof(first), first, &fake_handler), TLV_APDU_PENDING);
-    assert_int_equal(g_handler_calls, 0);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, sizeof(first), first, &fake_handler), TLV_APDU_PENDING);
+    TEST_ASSERT_EQUAL(g_handler_calls, 0);
 
     uint8_t second[] = {0xCC, 0xDD, 0xEE};
-    assert_int_equal(tlv_from_apdu(false, sizeof(second), second, &fake_handler), TLV_APDU_SUCCESS);
-    assert_int_equal(g_handler_calls, 1);
-    assert_int_equal(g_handler_seen_size, 5);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(false, sizeof(second), second, &fake_handler),
+                      TLV_APDU_SUCCESS);
+    TEST_ASSERT_EQUAL(g_handler_calls, 1);
+    TEST_ASSERT_EQUAL(g_handler_seen_size, 5);
     static const uint8_t expected[] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
-    assert_memory_equal(g_handler_seen_bytes, expected, 5);
+    TEST_ASSERT_EQUAL_MEMORY(g_handler_seen_bytes, expected, 5);
 }
 
-static void test_handler_failure_propagates_as_error(void **state) {
-    (void) state;
+void test_handler_failure_propagates_as_error(void) {
     uint8_t bytes[] = {0x00, 0x02, 0xAA, 0xBB};
     g_handler_return = false;
-    assert_int_equal(tlv_from_apdu(true, sizeof(bytes), bytes, &fake_handler), TLV_APDU_ERROR);
-    assert_int_equal(g_handler_calls, 1);
+    TEST_ASSERT_EQUAL(tlv_from_apdu(true, sizeof(bytes), bytes, &fake_handler), TLV_APDU_ERROR);
+    TEST_ASSERT_EQUAL(g_handler_calls, 1);
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_null_payload_rejected, reset),
-        cmocka_unit_test_setup(test_null_handler_rejected, reset),
-        cmocka_unit_test_setup(test_first_chunk_too_short_for_length_prefix, reset),
-        cmocka_unit_test_setup(test_first_chunk_while_session_in_progress_rejected, reset),
-        cmocka_unit_test_setup(test_followup_chunk_handler_mismatch_rejected, reset),
-        cmocka_unit_test_setup(test_zero_length_payload_rejected, reset),
-        cmocka_unit_test_setup(test_chunk_overflows_declared_size, reset),
-        cmocka_unit_test_setup(test_single_chunk_invokes_handler_with_apdu_buffer, reset),
-        cmocka_unit_test_setup(test_multi_chunk_reassembles_and_invokes_handler, reset),
-        cmocka_unit_test_setup(test_handler_failure_propagates_as_error, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_null_payload_rejected);
+    RUN_TEST(test_null_handler_rejected);
+    RUN_TEST(test_first_chunk_too_short_for_length_prefix);
+    RUN_TEST(test_first_chunk_while_session_in_progress_rejected);
+    RUN_TEST(test_followup_chunk_handler_mismatch_rejected);
+    RUN_TEST(test_zero_length_payload_rejected);
+    RUN_TEST(test_chunk_overflows_declared_size);
+    RUN_TEST(test_single_chunk_invokes_handler_with_apdu_buffer);
+    RUN_TEST(test_multi_chunk_reassembles_and_invokes_handler);
+    RUN_TEST(test_handler_failure_propagates_as_error);
+    return UNITY_END();
 }

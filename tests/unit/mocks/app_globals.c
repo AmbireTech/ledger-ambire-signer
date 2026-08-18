@@ -45,8 +45,7 @@ WEAK tmpContent_t tmpContent;
 WEAK tmpCtx_t tmpCtx;
 WEAK dataContext_t dataContext;
 WEAK uint8_t appState = APP_STATE_IDLE;
-// Size matches BOLOS_SDK os_io.h (OS_IO_BUFFER_SIZE + 1 == 273).
-WEAK uint8_t G_io_tx_buffer[273];
+WEAK uint8_t G_io_tx_buffer[OS_IO_BUFFER_SIZE + 1];
 WEAK pluginType_t pluginType;
 WEAK uint32_t eth2WithdrawalIndex;
 WEAK const caller_app_t *g_caller_app = NULL;

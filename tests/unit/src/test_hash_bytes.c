@@ -18,10 +18,7 @@
  *    is set so cx_hash_no_throw emits the final digest
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -38,96 +35,104 @@ static struct {
     int calls;
     uint32_t last_mode;
     const uint8_t *last_in;
+    uint8_t last_in_val; /* copy of in[0] captured before caller's stack unwinds */
     size_t last_in_len;
     uint8_t *last_out;
     size_t last_out_len;
 } g_cap;
 
-cx_err_t __wrap_cx_hash_no_throw(cx_hash_t *hash,
-                                 uint32_t mode,
-                                 const uint8_t *in,
-                                 size_t in_len,
-                                 uint8_t *out,
-                                 size_t out_len) {
+static cx_err_t g_cx_hash_ret = CX_OK;
+
+cx_err_t cx_hash_no_throw(cx_hash_t *hash,
+                          uint32_t mode,
+                          const uint8_t *in,
+                          size_t in_len,
+                          uint8_t *out,
+                          size_t out_len) {
     (void) hash;
     g_cap.calls++;
     g_cap.last_mode = mode;
     g_cap.last_in = in;
+    g_cap.last_in_val = (in != NULL && in_len > 0) ? in[0] : 0;
     g_cap.last_in_len = in_len;
     g_cap.last_out = out;
     g_cap.last_out_len = out_len;
-    return (cx_err_t) mock();
+    return g_cx_hash_ret;
 }
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&g_cap, 0, sizeof(g_cap));
-    return 0;
+    g_cx_hash_ret = CX_OK;
 }
 
 // =============================================================================
 // hash_nbytes
 // =============================================================================
 
-static void test_hash_nbytes_forwards_arguments_with_mode_zero(void **state) {
-    (void) state;
+void test_hash_nbytes_forwards_arguments_with_mode_zero(void) {
+    reset();
     uint8_t data[5] = {1, 2, 3, 4, 5};
-    will_return(__wrap_cx_hash_no_throw, CX_OK);
+    g_cx_hash_ret = CX_OK;
     hash_nbytes(data, sizeof(data), (cx_hash_t *) 0xDEAD);
-    assert_int_equal(g_cap.calls, 1);
+    TEST_ASSERT_EQUAL(g_cap.calls, 1);
     // mode == 0 (CX_HASH_DEFAULT) -- not a finalising call.
-    assert_int_equal(g_cap.last_mode, 0);
-    assert_ptr_equal(g_cap.last_in, data);
-    assert_int_equal(g_cap.last_in_len, sizeof(data));
-    assert_null(g_cap.last_out);
-    assert_int_equal(g_cap.last_out_len, 0);
+    TEST_ASSERT_EQUAL(g_cap.last_mode, 0);
+    TEST_ASSERT_EQUAL_PTR(g_cap.last_in, data);
+    TEST_ASSERT_EQUAL(g_cap.last_in_len, sizeof(data));
+    TEST_ASSERT_NULL(g_cap.last_out);
+    TEST_ASSERT_EQUAL(g_cap.last_out_len, 0);
 }
 
 // =============================================================================
 // hash_byte
 // =============================================================================
 
-static void test_hash_byte_passes_single_byte_with_len_one(void **state) {
-    (void) state;
-    will_return(__wrap_cx_hash_no_throw, CX_OK);
+void test_hash_byte_passes_single_byte_with_len_one(void) {
+    reset();
+    g_cx_hash_ret = CX_OK;
     hash_byte(0x42, (cx_hash_t *) 0xBEEF);
-    assert_int_equal(g_cap.calls, 1);
-    assert_int_equal(g_cap.last_in_len, 1);
+    TEST_ASSERT_EQUAL(g_cap.calls, 1);
+    TEST_ASSERT_EQUAL(g_cap.last_in_len, 1);
     // hash_byte forwards the byte by address-of a local; the value must
     // round-trip correctly.
-    assert_non_null(g_cap.last_in);
-    assert_int_equal(g_cap.last_in[0], 0x42);
+    TEST_ASSERT_NOT_NULL(g_cap.last_in);
+    TEST_ASSERT_EQUAL(0x42, g_cap.last_in_val);
 }
 
 // =============================================================================
 // finalize_hash
 // =============================================================================
 
-static void test_finalize_hash_success_returns_true_with_cx_last_flag(void **state) {
-    (void) state;
+void test_finalize_hash_success_returns_true_with_cx_last_flag(void) {
+    reset();
     uint8_t digest[32] = {0};
-    will_return(__wrap_cx_hash_no_throw, CX_OK);
-    assert_true(finalize_hash((cx_hash_t *) 0xCAFE, digest, sizeof(digest)));
+    g_cx_hash_ret = CX_OK;
+    TEST_ASSERT_TRUE(finalize_hash((cx_hash_t *) 0xCAFE, digest, sizeof(digest)));
     // CX_LAST flag must be set on the underlying call so the SDK emits
     // the final digest rather than treating this as another update.
-    assert_int_equal(g_cap.last_mode, CX_LAST);
-    assert_ptr_equal(g_cap.last_out, digest);
-    assert_int_equal(g_cap.last_out_len, sizeof(digest));
+    TEST_ASSERT_EQUAL(g_cap.last_mode, CX_LAST);
+    TEST_ASSERT_EQUAL_PTR(g_cap.last_out, digest);
+    TEST_ASSERT_EQUAL(g_cap.last_out_len, sizeof(digest));
 }
 
-static void test_finalize_hash_failure_returns_false(void **state) {
-    (void) state;
+void test_finalize_hash_failure_returns_false(void) {
+    reset();
     uint8_t digest[32] = {0};
-    will_return(__wrap_cx_hash_no_throw, CX_INVALID_PARAMETER);
-    assert_false(finalize_hash((cx_hash_t *) 0xCAFE, digest, sizeof(digest)));
+    g_cx_hash_ret = CX_INVALID_PARAMETER;
+    TEST_ASSERT_FALSE(finalize_hash((cx_hash_t *) 0xCAFE, digest, sizeof(digest)));
+}
+
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_hash_nbytes_forwards_arguments_with_mode_zero, reset),
-        cmocka_unit_test_setup(test_hash_byte_passes_single_byte_with_len_one, reset),
-        cmocka_unit_test_setup(test_finalize_hash_success_returns_true_with_cx_last_flag, reset),
-        cmocka_unit_test_setup(test_finalize_hash_failure_returns_false, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_hash_nbytes_forwards_arguments_with_mode_zero);
+    RUN_TEST(test_hash_byte_passes_single_byte_with_len_one);
+    RUN_TEST(test_finalize_hash_success_returns_true_with_cx_last_flag);
+    RUN_TEST(test_finalize_hash_failure_returns_false);
+    return UNITY_END();
 }

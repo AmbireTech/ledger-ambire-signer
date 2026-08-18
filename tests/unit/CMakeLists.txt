@@ -1,16 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
+project(unit_tests VERSION 0.1 DESCRIPTION "Unit tests for Ledger Ethereum application" LANGUAGES C)
 
-if(${CMAKE_VERSION} VERSION_LESS 3.10)
-    cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
-endif()
-
-# project information
-project(unit_tests
-        VERSION 0.1
-	      DESCRIPTION "Unit tests for Ledger Ethereum application"
-        LANGUAGES C)
-
-# Check for BOLOS_SDK (optional for unit tests, provides SDK headers if available)
 if(NOT DEFINED BOLOS_SDK)
   set(BOLOS_SDK "/opt/ledger-secure-sdk")
   message(STATUS "BOLOS_SDK not defined, using default: ${BOLOS_SDK}")
@@ -18,35 +8,21 @@ else()
   message(STATUS "Using BOLOS_SDK: ${BOLOS_SDK}")
 endif()
 
-# guard against bad build-type strings
-if (NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "Debug")
-endif()
+set(SDK_DIR ${BOLOS_SDK})
+include(${SDK_DIR}/cmake/LedgerUT.cmake)
 
-# guard against in-source builds
-if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
-  message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. You may need to remove CMakeCache.txt. ")
-endif()
-
-include(CTest)
-ENABLE_TESTING()
-
-# specify C standard
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED True)
+set(APP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../src")
+set(MOCK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mocks")
+set(PLUGIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../ethereum-plugin-sdk/src")
 
 # Find libbsd for BSD string functions (strlcpy, strlcat)
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
   pkg_check_modules(LIBBSD libbsd)
 endif()
-
-# Fallback if pkg-config or libbsd not found via pkg-config
 if(NOT LIBBSD_FOUND)
-  # Try to find libbsd manually
   find_path(LIBBSD_INCLUDE_DIR bsd/string.h)
   find_library(LIBBSD_LIBRARY NAMES bsd)
-
   if(LIBBSD_INCLUDE_DIR AND LIBBSD_LIBRARY)
     set(LIBBSD_FOUND TRUE)
     set(LIBBSD_INCLUDE_DIRS ${LIBBSD_INCLUDE_DIR})
@@ -59,23 +35,28 @@ if(NOT LIBBSD_FOUND)
   endif()
 endif()
 
-add_compile_options(-Wall -Wextra -g -pedantic --coverage)
-# Flag depending on the Build Type
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}-O3")
+# =============================================================================
+# Shared helper variables – referenced from every tests_*.cmake
+# =============================================================================
 
-set(GCC_COVERAGE_LINK_FLAGS "--coverage -lgcov")
-set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}")
+# Sources compiled into every test binary.
+set(COMMON_SOURCES
+  ${MOCK_DIR}/sdk_stubs.c
+  ${MOCK_DIR}/system_stubs.c
+  ${BOLOS_SDK}/lib_standard_app/format.c
+  ${BOLOS_SDK}/lib_standard_app/read.c
+  ${BOLOS_SDK}/lib_standard_app/write.c
+  ${BOLOS_SDK}/lib_tlv/tlv_library.c
+)
 
-set(APP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../src")
-set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
-set(MOCK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mocks")
-set(PLUGIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../ethereum-plugin-sdk/src")
+# Sources for tests that need shared app globals (all non-NO_GLOBALS tests).
+set(COMMON_SOURCES_WITH_GLOBALS
+  ${COMMON_SOURCES}
+  ${MOCK_DIR}/app_globals.c
+)
 
-add_compile_definitions(TEST)
-
-include_directories(
+# Include directories added to every test target.
+set(COMMON_INCLUDE_DIRS
   ${APP_DIR}
   ${PLUGIN_DIR}
   ${APP_DIR}/features/generic_tx_parser
@@ -89,6 +70,7 @@ include_directories(
   ${APP_DIR}/features/sign_authorization_eip7702
   ${APP_DIR}/features/sign_message_eip712
   ${APP_DIR}/features/get_challenge
+  ${APP_DIR}/features/provide_network_info
   ${APP_DIR}/nbgl
   ${APP_DIR}/utils
   ${MOCK_DIR}
@@ -99,56 +81,37 @@ include_directories(
   ${BOLOS_SDK}/lib_standard_app
   ${BOLOS_SDK}/lib_tlv
   ${BOLOS_SDK}/lib_alloc
+  ${BOLOS_SDK}/lib_ux_nbgl
+  ${BOLOS_SDK}/lib_u2f/include
   ${BOLOS_SDK}/include
   ${LIBBSD_INCLUDE_DIRS}
 )
 
-# =============================================================================
-# Test infrastructure: shared libraries + helper function
-# =============================================================================
-
-# Stubs that compile standalone (forward-declares all SDK opaque types,
-# so HAVE_SHA256 etc. are not required).
-add_library(eth_tests_mocks STATIC ${MOCK_DIR}/mock.c)
-
-# Shared app-side globals (txContext, tmpContent, g_chainConfig, ...).
-# Layout of internalStorage_t depends on HAVE_TRANSACTION_CHECKS so we
-# widen the compile defs here to the union of every consumer's view --
-# the library and all callers then agree on struct sizes.
-add_library(eth_tests_app_globals STATIC ${MOCK_DIR}/app_globals.c)
-target_compile_definitions(eth_tests_app_globals PRIVATE
-  HAVE_ECDSA HAVE_HASH HAVE_SHA256 HAVE_SHA3 HAVE_ECC HAVE_MATH
+# Compile definitions added to every test target.
+# UT_COMPILE_DEFS_SDK is provided by the SDK but not auto-applied by
+# ledger_unit_tests_add_test(); forward it here so all test targets
+# inherit the full SDK-standard set. HAVE_TRANSACTION_CHECKS is app-specific.
+set(COMMON_COMPILE_DEFS
+  ${UT_COMPILE_DEFS_SDK}
   HAVE_TRANSACTION_CHECKS
 )
-target_include_directories(eth_tests_app_globals PRIVATE
-  ${APP_DIR}/features/provide_network_info
-)
 
-# SDK helpers used by 50+ targets.
-add_library(eth_tests_sdk_helpers STATIC
-  ${BOLOS_SDK}/lib_standard_app/format.c
-  ${BOLOS_SDK}/lib_standard_app/read.c
-  ${BOLOS_SDK}/lib_standard_app/write.c
-  ${BOLOS_SDK}/lib_tlv/tlv_library.c
-)
-set_source_files_properties(
-  ${BOLOS_SDK}/lib_tlv/tlv_library.c
-  PROPERTIES COMPILE_FLAGS "-Wno-pedantic"
-)
-# tlv_library.c calls pic() from eth_tests_mocks; declare the dependency so
-# CMake lists the libraries in an order the single-pass linker can resolve.
-target_link_libraries(eth_tests_sdk_helpers PUBLIC eth_tests_mocks)
+# Link libbsd via link_libraries() so it appears AFTER object files in the link
+# command (GNU ld processes -l flags left-to-right; libraries must come after
+# the objects that reference them).
+if(LIBBSD_LIBRARIES)
+  link_directories(${LIBBSD_LIBRARY_DIRS})
+  link_libraries(bsd)
+endif()
 
-include(cmake/add_eth_unit_test.cmake)
+# COMMON_LINK_OPTIONS carries only any remaining raw linker flags (empty for now).
+set(COMMON_LINK_OPTIONS "")
 
 # =============================================================================
-# Test targets (grouped by feature -- one .cmake file per group)
+# Test targets (grouped by feature)
 # =============================================================================
 
-include(cmake/tests_low_level.cmake)
-include(cmake/tests_gtp.cmake)
-include(cmake/tests_descriptors.cmake)
-include(cmake/tests_sign.cmake)
-include(cmake/tests_plugins.cmake)
-include(cmake/tests_nbgl.cmake)
-include(cmake/tests_address_book.cmake)
+# Test sources live in src/; ledger_unit_tests_init() is called there so that
+# CMAKE_CURRENT_SOURCE_DIR resolves to src/ when ledger_unit_tests_add_test()
+# looks up ${NAME}.c.
+add_subdirectory(src)

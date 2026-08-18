@@ -20,10 +20,7 @@
  * exercised by test_param_datetime).
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -35,72 +32,65 @@
 // time_format_to_yyyymmdd
 // =============================================================================
 
-static void test_yyyymmdd_formats_epoch(void **state) {
-    (void) state;
+void test_yyyymmdd_formats_epoch(void) {
     time_t t = 0;  // 1970-01-01 UTC
     char out[16] = {0};
-    assert_true(time_format_to_yyyymmdd(&t, out, sizeof(out)));
-    assert_string_equal(out, "1970-01-01");
+    TEST_ASSERT_TRUE(time_format_to_yyyymmdd(&t, out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING(out, "1970-01-01");
 }
 
-static void test_yyyymmdd_formats_known_date(void **state) {
-    (void) state;
+void test_yyyymmdd_formats_known_date(void) {
     // 2026-06-02 00:00:00 UTC -- corresponds to epoch 1780358400.
     time_t t = 1780358400;
     char out[16] = {0};
-    assert_true(time_format_to_yyyymmdd(&t, out, sizeof(out)));
-    assert_string_equal(out, "2026-06-02");
+    TEST_ASSERT_TRUE(time_format_to_yyyymmdd(&t, out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING(out, "2026-06-02");
 }
 
 // =============================================================================
 // time_format_to_utc -- AM/PM clock edges
 // =============================================================================
 
-static void test_utc_midnight_renders_as_12am(void **state) {
-    (void) state;
+void test_utc_midnight_renders_as_12am(void) {
     // 1970-01-01 00:00:00 UTC. The "12-hour clock at midnight" rule means
     // shown_hour = 12, AM (NOT 00 AM, NOT 12 PM).
     time_t t = 0;
     char out[64] = {0};
-    assert_true(time_format_to_utc(&t, out, sizeof(out)));
-    assert_non_null(strstr(out, "12:00:00 AM UTC"));
-    assert_non_null(strstr(out, "1970-01-01"));
+    TEST_ASSERT_TRUE(time_format_to_utc(&t, out, sizeof(out)));
+    TEST_ASSERT_NOT_NULL(strstr(out, "12:00:00 AM UTC"));
+    TEST_ASSERT_NOT_NULL(strstr(out, "1970-01-01"));
 }
 
-static void test_utc_noon_renders_as_12pm(void **state) {
-    (void) state;
+void test_utc_noon_renders_as_12pm(void) {
     // 1970-01-01 12:00:00 UTC: hour == 12 so the loop keeps shown_hour=12
     // but flips AM->PM at the tm_hour < 12 branch.
     time_t t = 12 * 3600;
     char out[64] = {0};
-    assert_true(time_format_to_utc(&t, out, sizeof(out)));
-    assert_non_null(strstr(out, "12:00:00 PM UTC"));
+    TEST_ASSERT_TRUE(time_format_to_utc(&t, out, sizeof(out)));
+    TEST_ASSERT_NOT_NULL(strstr(out, "12:00:00 PM UTC"));
 }
 
-static void test_utc_morning_keeps_am(void **state) {
-    (void) state;
+void test_utc_morning_keeps_am(void) {
     // 1970-01-01 09:30:45 UTC.
     time_t t = 9 * 3600 + 30 * 60 + 45;
     char out[64] = {0};
-    assert_true(time_format_to_utc(&t, out, sizeof(out)));
-    assert_non_null(strstr(out, "09:30:45 AM UTC"));
+    TEST_ASSERT_TRUE(time_format_to_utc(&t, out, sizeof(out)));
+    TEST_ASSERT_NOT_NULL(strstr(out, "09:30:45 AM UTC"));
 }
 
-static void test_utc_afternoon_subtracts_twelve_and_flips_pm(void **state) {
-    (void) state;
+void test_utc_afternoon_subtracts_twelve_and_flips_pm(void) {
     // 1970-01-01 15:45:30 UTC -> shown_hour = 3, PM.
     time_t t = 15 * 3600 + 45 * 60 + 30;
     char out[64] = {0};
-    assert_true(time_format_to_utc(&t, out, sizeof(out)));
-    assert_non_null(strstr(out, "03:45:30 PM UTC"));
+    TEST_ASSERT_TRUE(time_format_to_utc(&t, out, sizeof(out)));
+    TEST_ASSERT_NOT_NULL(strstr(out, "03:45:30 PM UTC"));
 }
 
 // =============================================================================
 // gmtime_r failure -- both helpers MUST return false
 // =============================================================================
 
-static void test_yyyymmdd_returns_false_on_gmtime_failure(void **state) {
-    (void) state;
+void test_yyyymmdd_returns_false_on_gmtime_failure(void) {
     // INT64_MAX overflows libc gmtime_r on glibc and returns NULL. The
     // helper MUST propagate that as `false` so callers don't render a
     // garbage buffer onto the UI.
@@ -110,30 +100,33 @@ static void test_yyyymmdd_returns_false_on_gmtime_failure(void **state) {
     if (ok) {
         // If a future libc starts accepting INT64_MAX, just sanity-check
         // we didn't leave the buffer untouched.
-        skip();
+        TEST_IGNORE();
     }
-    assert_false(ok);
+    TEST_ASSERT_FALSE(ok);
 }
 
-static void test_utc_returns_false_on_gmtime_failure(void **state) {
-    (void) state;
+void test_utc_returns_false_on_gmtime_failure(void) {
     time_t t = (time_t) INT64_MAX;
     char out[64] = {0};
     bool ok = time_format_to_utc(&t, out, sizeof(out));
-    if (ok) skip();
-    assert_false(ok);
+    if (ok) TEST_IGNORE();
+    TEST_ASSERT_FALSE(ok);
+}
+
+void setUp(void) {
+}
+void tearDown(void) {
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_yyyymmdd_formats_epoch),
-        cmocka_unit_test(test_yyyymmdd_formats_known_date),
-        cmocka_unit_test(test_utc_midnight_renders_as_12am),
-        cmocka_unit_test(test_utc_noon_renders_as_12pm),
-        cmocka_unit_test(test_utc_morning_keeps_am),
-        cmocka_unit_test(test_utc_afternoon_subtracts_twelve_and_flips_pm),
-        cmocka_unit_test(test_yyyymmdd_returns_false_on_gmtime_failure),
-        cmocka_unit_test(test_utc_returns_false_on_gmtime_failure),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_yyyymmdd_formats_epoch);
+    RUN_TEST(test_yyyymmdd_formats_known_date);
+    RUN_TEST(test_utc_midnight_renders_as_12am);
+    RUN_TEST(test_utc_noon_renders_as_12pm);
+    RUN_TEST(test_utc_morning_keeps_am);
+    RUN_TEST(test_utc_afternoon_subtracts_twelve_and_flips_pm);
+    RUN_TEST(test_yyyymmdd_returns_false_on_gmtime_failure);
+    RUN_TEST(test_utc_returns_false_on_gmtime_failure);
+    return UNITY_END();
 }

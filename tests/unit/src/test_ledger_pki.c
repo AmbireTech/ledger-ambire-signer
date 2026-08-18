@@ -26,10 +26,7 @@
  * outcome per test case.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -37,6 +34,10 @@
 #include "buffer.h"
 #include "ledger_pki.h"   // SDK lib_pki header: status enum + check_signature_with_pki proto
 #include "public_keys.h"  // check_signature_with_pubkey prototype
+
+static int g_check_signature_with_pki_ret = 0;
+static bool g_cx_ecdsa_verify_no_throw_ret = true;
+static cx_err_t g_cx_ecfp_init_public_key_no_throw_ret = 0;
 
 // =============================================================================
 // Stubs / wraps
@@ -52,7 +53,7 @@ check_signature_with_pki_status_t check_signature_with_pki(const buffer_t hash,
     (void) expected_key_usage;
     (void) expected_curve;
     (void) signature;
-    return (check_signature_with_pki_status_t) mock();
+    return (check_signature_with_pki_status_t) g_check_signature_with_pki_ret;
 }
 
 // lib_cxng init + verify -- the legacy fallback path.
@@ -64,7 +65,7 @@ cx_err_t cx_ecfp_init_public_key_no_throw(cx_curve_t curve,
     (void) rawkey;
     (void) key_len;
     (void) key;
-    return (cx_err_t) mock();
+    return (cx_err_t) g_cx_ecfp_init_public_key_no_throw_ret;
 }
 
 bool cx_ecdsa_verify_no_throw(const cx_ecfp_public_key_t *pukey,
@@ -77,7 +78,7 @@ bool cx_ecdsa_verify_no_throw(const cx_ecfp_public_key_t *pukey,
     (void) hash_len;
     (void) sig;
     (void) sig_len;
-    return (bool) mock();
+    return (bool) g_cx_ecdsa_verify_no_throw_ret;
 }
 
 // =============================================================================
@@ -93,12 +94,10 @@ static uint8_t g_sig[71];
 
 #define KEY_USAGE_TRUSTED_NAME 0x01
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(g_hash, 0xAA, sizeof(g_hash));
     memset(g_pubkey, 0xBB, sizeof(g_pubkey));
     memset(g_sig, 0xCC, sizeof(g_sig));
-    return 0;
 }
 
 static bool call_check(void) {
@@ -115,93 +114,90 @@ static bool call_check(void) {
 // PKI success short-circuits the legacy path
 // =============================================================================
 
-static void test_pki_success_returns_true(void **state) {
-    (void) state;
-    will_return(check_signature_with_pki, CHECK_SIGNATURE_WITH_PKI_SUCCESS);
+void test_pki_success_returns_true(void) {
+    g_check_signature_with_pki_ret = CHECK_SIGNATURE_WITH_PKI_SUCCESS;
     // Legacy stubs MUST NOT be reached. cmocka will fail the test if any
     // unconsumed will_return remains queued, so leaving them empty here
     // proves the short-circuit.
-    assert_true(call_check());
+    TEST_ASSERT_TRUE(call_check());
 }
 
 // =============================================================================
 // Missing/Wrong certificate -> legacy ECDSA fallback
 // =============================================================================
 
-static void test_pki_missing_cert_legacy_verify_succeeds(void **state) {
-    (void) state;
-    will_return(check_signature_with_pki, CHECK_SIGNATURE_WITH_PKI_MISSING_CERTIFICATE);
-    will_return(cx_ecfp_init_public_key_no_throw, CX_OK);
-    will_return(cx_ecdsa_verify_no_throw, true);
-    assert_true(call_check());
+void test_pki_missing_cert_legacy_verify_succeeds(void) {
+    g_check_signature_with_pki_ret = CHECK_SIGNATURE_WITH_PKI_MISSING_CERTIFICATE;
+    g_cx_ecfp_init_public_key_no_throw_ret = CX_OK;
+    g_cx_ecdsa_verify_no_throw_ret = true;
+    TEST_ASSERT_TRUE(call_check());
 }
 
-static void test_pki_missing_cert_legacy_verify_fails(void **state) {
-    (void) state;
-    will_return(check_signature_with_pki, CHECK_SIGNATURE_WITH_PKI_MISSING_CERTIFICATE);
-    will_return(cx_ecfp_init_public_key_no_throw, CX_OK);
-    will_return(cx_ecdsa_verify_no_throw, false);
-    assert_false(call_check());
+void test_pki_missing_cert_legacy_verify_fails(void) {
+    g_check_signature_with_pki_ret = CHECK_SIGNATURE_WITH_PKI_MISSING_CERTIFICATE;
+    g_cx_ecfp_init_public_key_no_throw_ret = CX_OK;
+    g_cx_ecdsa_verify_no_throw_ret = false;
+    TEST_ASSERT_FALSE(call_check());
 }
 
-static void test_pki_missing_cert_key_init_fails_returns_false(void **state) {
-    (void) state;
-    will_return(check_signature_with_pki, CHECK_SIGNATURE_WITH_PKI_MISSING_CERTIFICATE);
-    will_return(cx_ecfp_init_public_key_no_throw, CX_INVALID_PARAMETER);
+void test_pki_missing_cert_key_init_fails_returns_false(void) {
+    g_check_signature_with_pki_ret = CHECK_SIGNATURE_WITH_PKI_MISSING_CERTIFICATE;
+    g_cx_ecfp_init_public_key_no_throw_ret = CX_INVALID_PARAMETER;
     // cx_ecdsa_verify MUST NOT be reached after a failed key init.
-    assert_false(call_check());
+    TEST_ASSERT_FALSE(call_check());
 }
 
 // CHECK_SIGNATURE_WITH_PKI_WRONG_CERTIFICATE_USAGE falls into the same legacy
 // path as CHECK_SIGNATURE_WITH_PKI_MISSING_CERTIFICATE; pin a representative
 // happy case so a future refactor doesn't accidentally split the two branches.
-static void test_pki_wrong_usage_falls_back_to_legacy(void **state) {
-    (void) state;
-    will_return(check_signature_with_pki, CHECK_SIGNATURE_WITH_PKI_WRONG_CERTIFICATE_USAGE);
-    will_return(cx_ecfp_init_public_key_no_throw, CX_OK);
-    will_return(cx_ecdsa_verify_no_throw, true);
-    assert_true(call_check());
+void test_pki_wrong_usage_falls_back_to_legacy(void) {
+    g_check_signature_with_pki_ret = CHECK_SIGNATURE_WITH_PKI_WRONG_CERTIFICATE_USAGE;
+    g_cx_ecfp_init_public_key_no_throw_ret = CX_OK;
+    g_cx_ecdsa_verify_no_throw_ret = true;
+    TEST_ASSERT_TRUE(call_check());
 }
 
 // =============================================================================
 // Hard-fail PKI statuses -- legacy path NOT entered
 // =============================================================================
 
-static void test_pki_wrong_curve_returns_false(void **state) {
-    (void) state;
-    will_return(check_signature_with_pki, CHECK_SIGNATURE_WITH_PKI_WRONG_CERTIFICATE_CURVE);
+void test_pki_wrong_curve_returns_false(void) {
+    g_check_signature_with_pki_ret = CHECK_SIGNATURE_WITH_PKI_WRONG_CERTIFICATE_CURVE;
     // Legacy stubs MUST NOT be reached -- a wrong-curve certificate is a
     // strong refusal, NOT an invitation to retry with the raw pubkey
     // (which is the whole point of CWE-347 in this module).
-    assert_false(call_check());
+    TEST_ASSERT_FALSE(call_check());
 }
 
-static void test_pki_wrong_signature_returns_false(void **state) {
-    (void) state;
-    will_return(check_signature_with_pki, CHECK_SIGNATURE_WITH_PKI_WRONG_SIGNATURE);
+void test_pki_wrong_signature_returns_false(void) {
+    g_check_signature_with_pki_ret = CHECK_SIGNATURE_WITH_PKI_WRONG_SIGNATURE;
     // Same as above: a signature that doesn't verify under the loaded
     // certificate must not silently fall back to the raw-pubkey path.
-    assert_false(call_check());
+    TEST_ASSERT_FALSE(call_check());
 }
 
-static void test_pki_unknown_status_returns_false(void **state) {
-    (void) state;
+void test_pki_unknown_status_returns_false(void) {
     // Push a value outside the defined enum range to exercise the `default:`
     // fall-through. The function MUST fail closed.
-    will_return(check_signature_with_pki, 0xFF);
-    assert_false(call_check());
+    g_check_signature_with_pki_ret = 0xFF;
+    TEST_ASSERT_FALSE(call_check());
+}
+
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_pki_success_returns_true, reset),
-        cmocka_unit_test_setup(test_pki_missing_cert_legacy_verify_succeeds, reset),
-        cmocka_unit_test_setup(test_pki_missing_cert_legacy_verify_fails, reset),
-        cmocka_unit_test_setup(test_pki_missing_cert_key_init_fails_returns_false, reset),
-        cmocka_unit_test_setup(test_pki_wrong_usage_falls_back_to_legacy, reset),
-        cmocka_unit_test_setup(test_pki_wrong_curve_returns_false, reset),
-        cmocka_unit_test_setup(test_pki_wrong_signature_returns_false, reset),
-        cmocka_unit_test_setup(test_pki_unknown_status_returns_false, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_pki_success_returns_true);
+    RUN_TEST(test_pki_missing_cert_legacy_verify_succeeds);
+    RUN_TEST(test_pki_missing_cert_legacy_verify_fails);
+    RUN_TEST(test_pki_missing_cert_key_init_fails_returns_false);
+    RUN_TEST(test_pki_wrong_usage_falls_back_to_legacy);
+    RUN_TEST(test_pki_wrong_curve_returns_false);
+    RUN_TEST(test_pki_wrong_signature_returns_false);
+    RUN_TEST(test_pki_unknown_status_returns_false);
+    return UNITY_END();
 }

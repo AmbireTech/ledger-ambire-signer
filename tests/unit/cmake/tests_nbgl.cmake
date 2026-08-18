@@ -1,65 +1,62 @@
-# tests_nbgl.cmake -- NBGL UI helpers (icon selection, pair-list memory).
-#
-# The src/nbgl/ directory mostly holds widget code that's exercised by the
-# Ragger suite, but the helpers in ui_icons.c and ui_utils.c are pure
-# decision / memory logic. They're worth pinning at host level so a
-# regression in icon routing or allocator bookkeeping doesn't have to
-# wait for a Ragger flake to surface.
-#
-# get_network_icon_from_chain_id and get_clone_network_icon used to live
-# in network_icons.c but were folded into ui_icons.c upstream; the
-# test_network_icons target still exists as a focused pin of those two
-# helpers, linking ui_icons.c directly.
+# tests_nbgl.cmake
 
-add_eth_unit_test(test_network_icons
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_network_icons
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/nbgl/ui_icons.c
-  INCLUDES
+    ${MOCK_DIR}/net_icons_stub.c
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/nbgl
     ${APP_DIR}/features/provide_network_info
     ${APP_DIR}/plugins
     ${BOLOS_SDK}/lib_nbgl/include
     ${BOLOS_SDK}/lib_ux_nbgl
-    ${MOCK_DIR}/glyphs
-  DEFS
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
     HAVE_NBGL
     ICONGLYPH=test_glyph
     ICONHOME=test_home_glyph
-  WRAPS
-    find_dynamic_network_by_chain_id
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_ui_icons
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_ui_icons
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/nbgl/ui_icons.c
-  INCLUDES
+    ${MOCK_DIR}/net_icons_stub.c
+  MOCK_HEADERS
+    ${APP_DIR}/network.h
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/nbgl
     ${APP_DIR}/features/provide_network_info
     ${APP_DIR}/plugins
     ${BOLOS_SDK}/lib_nbgl/include
     ${BOLOS_SDK}/lib_ux_nbgl
-    ${MOCK_DIR}/glyphs
-  DEFS
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
     HAVE_NBGL
     ICONGLYPH=test_glyph
     ICONHOME=test_home_glyph
-  WRAPS
-    get_tx_chain_id
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_ui_utils
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_ui_utils
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/nbgl/ui_utils.c
-  INCLUDES
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/nbgl
     ${BOLOS_SDK}/lib_nbgl/include
     ${BOLOS_SDK}/lib_ux_nbgl
     ${BOLOS_SDK}/lib_alloc
-    ${MOCK_DIR}/glyphs
-  DEFS
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
     HAVE_NBGL
-  WRAPS
-    mem_utils_calloc
-    mem_utils_free_and_null
-    io_seproxyhal_send_status
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )

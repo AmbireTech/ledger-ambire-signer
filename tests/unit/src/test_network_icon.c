@@ -47,10 +47,7 @@
  *    - frees both g_icon_bitmap and g_network_icon_hash
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -60,6 +57,10 @@
 #include "tlv_apdu.h"
 #include "network_info.h"
 #include "network_icon.h"
+
+static cx_err_t g_cx_sha256_hash_iovec_err = CX_OK;
+static const uint8_t *g_cx_sha256_hash_iovec_out = NULL;
+static bool g_mem_utils_calloc_ret = true;
 
 // =============================================================================
 // Wraps
@@ -71,33 +72,25 @@
 // that needs the call to succeed silently; this strong override wins on
 // link.
 
-struct cx_iovec_s;
-
-cx_err_t __wrap_cx_sha256_hash_iovec(const struct cx_iovec_s *iovec,
-                                     size_t iovec_len,
-                                     uint8_t *digest) {
+cx_err_t cx_sha256_hash_iovec(const cx_iovec_t *iovec,
+                              size_t iovec_len,
+                              uint8_t digest[CX_SHA256_SIZE]) {
     (void) iovec;
     (void) iovec_len;
-    cx_err_t err = (cx_err_t) mock();
-    const uint8_t *out = (const uint8_t *) mock();
-    if (err == CX_OK && digest != NULL && out != NULL) {
-        memcpy(digest, out, 32);
+    if (g_cx_sha256_hash_iovec_err == CX_OK && g_cx_sha256_hash_iovec_out != NULL) {
+        memcpy(digest, g_cx_sha256_hash_iovec_out, CX_SHA256_SIZE);
     }
-    return err;
+    return g_cx_sha256_hash_iovec_err;
 }
 
 // mem_utils_calloc backs APP_MEM_PERMANENT. The wrap lets us simulate an
 // out-of-memory scenario without touching the real allocator (mocks/mock.c
 // otherwise delegates to malloc which never fails in test).
-bool __wrap_mem_utils_calloc(void **buffer,
-                             uint16_t size,
-                             bool permanent,
-                             const char *file,
-                             int line) {
+bool mem_utils_calloc(void **buffer, uint16_t size, bool permanent, const char *file, int line) {
     (void) permanent;
     (void) file;
     (void) line;
-    bool ok = (bool) mock();
+    bool ok = (bool) g_mem_utils_calloc_ret;
     if (!ok) return false;
     if (size == 0) return true;
     *buffer = malloc(size);
@@ -119,7 +112,21 @@ uint8_t *g_network_icon_hash;
 // Fixture helpers
 // =============================================================================
 
-#define EXPECTED_PX 14  // matches network_icon.c's expected_px without SCREEN_SIZE_WALLET
+// Mirror network_icon.c's expected_px logic.
+#ifdef SCREEN_SIZE_WALLET
+#ifdef TARGET_APEX
+#define EXPECTED_PX 48
+#else
+#define EXPECTED_PX 64
+#endif
+// 64x64 1bpp: 64*64/8 = 512 bytes.
+#define ICON_PAYLOAD_BYTES 512
+#else
+#define EXPECTED_PX        14
+// 14x14 1bpp: ceil(14*14/8) = 25 bytes.
+#define ICON_PAYLOAD_BYTES 25
+#endif
+#define ICON_TOTAL_BYTES (8 + ICON_PAYLOAD_BYTES)
 
 // Build the 8-byte image header in `out`. width/height as LE u16, BPP packed
 // in upper 4 bits of byte 4, payload size as LE u24 across bytes 5..7.
@@ -134,15 +141,10 @@ static void write_header(uint8_t *out, uint16_t w, uint16_t h, uint8_t bpp, uint
     out[7] = (uint8_t) ((pay >> 16) & 0xFF);
 }
 
-// 14x14 1bpp icon: header (8) + payload (25 bytes -> 200 bits ~= 14*14 padded).
-#define ICON_PAYLOAD_BYTES 25
-#define ICON_TOTAL_BYTES   (8 + ICON_PAYLOAD_BYTES)
-
 static uint8_t s_icon_buf[ICON_TOTAL_BYTES];
 static network_info_t s_net;
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     // clear_icon() frees the static g_icon_bitmap and g_network_icon_hash
     // via mem_utils_free_and_null -> free(). Both pointers must point at
     // heap memory (or be NULL) or free() will SIGSEGV. We always pass
@@ -162,208 +164,200 @@ static int reset(void **state) {
     // Heap-alloc so clear_icon can free it safely between tests.
     g_network_icon_hash = malloc(32);
     memset(g_network_icon_hash, 0xAB, 32);
-    return 0;
+
+    g_mem_utils_calloc_ret = true;
+    g_cx_sha256_hash_iovec_err = CX_OK;
+    g_cx_sha256_hash_iovec_out = NULL;
 }
 
 // =============================================================================
 // Pre-condition rejects
 // =============================================================================
 
-static void test_no_network_rejected(void **state) {
-    (void) state;
+void test_no_network_rejected(void) {
     g_last_added_network = NULL;
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
 }
 
-static void test_null_hash_rejected(void **state) {
-    (void) state;
+void test_null_hash_rejected(void) {
     g_network_icon_hash = NULL;
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
 }
 
-static void test_zero_hash_rejected(void **state) {
-    (void) state;
+void test_zero_hash_rejected(void) {
     memset(g_network_icon_hash, 0, 32);
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
 }
 
 // =============================================================================
 // First-chunk header rejects
 // =============================================================================
 
-static void test_first_chunk_too_short_rejected(void **state) {
-    (void) state;
+void test_first_chunk_too_short_rejected(void) {
     buffer_t buf = {.ptr = s_icon_buf, .size = 4, .offset = 0};  // 4 < 8
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
 }
 
-static void test_first_chunk_wrong_dimensions_rejected(void **state) {
-    (void) state;
+void test_first_chunk_wrong_dimensions_rejected(void) {
     // Set width to 32 instead of 14. The check rejects any mismatch.
     write_header(s_icon_buf, /*w*/ 32, /*h*/ EXPECTED_PX, 1, ICON_PAYLOAD_BYTES);
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
 }
 
-static void test_first_chunk_total_size_overflow_rejected(void **state) {
-    (void) state;
+void test_first_chunk_total_size_overflow_rejected(void) {
     // Pack a payload size that pushes total over UINT16_MAX (~65528). The
     // header itself is 8 bytes, so any payload >= 65528 overflows.
     write_header(s_icon_buf, EXPECTED_PX, EXPECTED_PX, 1, /*pay*/ 0x010000U);  // 65536
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
 }
 
-static void test_first_chunk_alloc_failure_returns_insufficient_memory(void **state) {
-    (void) state;
+void test_first_chunk_alloc_failure_returns_insufficient_memory(void) {
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    will_return(__wrap_mem_utils_calloc, false);
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INSUFFICIENT_MEMORY);
+    g_mem_utils_calloc_ret = false;
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INSUFFICIENT_MEMORY);
 }
 
 // =============================================================================
 // p1 routing
 // =============================================================================
 
-static void test_invalid_p1_rejected(void **state) {
-    (void) state;
+void test_invalid_p1_rejected(void) {
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    assert_int_equal(handle_network_icon_chunks(/*p1*/ 0xEE, &buf), SWO_WRONG_P1_P2);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(/*p1*/ 0xEE, &buf), SWO_WRONG_P1_P2);
 }
 
 // =============================================================================
 // Next-chunk failures
 // =============================================================================
 
-static void test_following_chunk_before_first_rejected(void **state) {
-    (void) state;
+void test_following_chunk_before_first_rejected(void) {
     // Skip the FIRST chunk entirely -- g_icon_bitmap stays NULL, so the
     // FOLLOWING chunk handler must refuse rather than dereferencing NULL.
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    assert_int_equal(handle_network_icon_chunks(P1_FOLLOWING_CHUNK, &buf), SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FOLLOWING_CHUNK, &buf), SWO_INCORRECT_DATA);
 }
 
-static void test_following_chunk_overflow_rejected(void **state) {
-    (void) state;
+void test_following_chunk_overflow_rejected(void) {
     // Send a full first chunk (allocates buffer of size ICON_TOTAL_BYTES,
     // copies the same bytes into received_size=ICON_TOTAL_BYTES which is
     // also expected_size). Then send another FOLLOWING chunk that would
     // push received_size past expected_size -- refused.
-    will_return(__wrap_mem_utils_calloc, true);
+    g_mem_utils_calloc_ret = true;
     buffer_t first = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    will_return(__wrap_cx_sha256_hash_iovec, CX_OK);
-    will_return(__wrap_cx_sha256_hash_iovec, g_network_icon_hash);
+    g_cx_sha256_hash_iovec_err = CX_OK;
+    g_cx_sha256_hash_iovec_out = g_network_icon_hash;
     // First call completes the icon so parse_icon_buffer runs and ownership
     // transfers; subsequent calls should still refuse extra bytes.
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &first), SWO_SUCCESS);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &first), SWO_SUCCESS);
     // Send another byte: received now empty (ownership transferred), but
     // expected_size still tracks the size -- received + 1 > expected.
     uint8_t extra = 0x00;
     buffer_t over = {.ptr = &extra, .size = 1, .offset = 0};
-    assert_int_equal(handle_network_icon_chunks(P1_FOLLOWING_CHUNK, &over), SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FOLLOWING_CHUNK, &over), SWO_INCORRECT_DATA);
 }
 
 // =============================================================================
 // Full reception -- hash verification
 // =============================================================================
 
-static void test_full_reception_hash_mismatch_rejected(void **state) {
-    (void) state;
-    will_return(__wrap_mem_utils_calloc, true);
+void test_full_reception_hash_mismatch_rejected(void) {
+    g_mem_utils_calloc_ret = true;
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
     // SHA-256 succeeds but the digest doesn't match g_network_icon_hash.
     static uint8_t wrong[32] = {0xDE, 0xAD};
-    will_return(__wrap_cx_sha256_hash_iovec, CX_OK);
-    will_return(__wrap_cx_sha256_hash_iovec, wrong);
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
+    g_cx_sha256_hash_iovec_err = CX_OK;
+    g_cx_sha256_hash_iovec_out = wrong;
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
 }
 
-static void test_full_reception_hash_compute_failure_rejected(void **state) {
-    (void) state;
-    will_return(__wrap_mem_utils_calloc, true);
+void test_full_reception_hash_compute_failure_rejected(void) {
+    g_mem_utils_calloc_ret = true;
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    will_return(__wrap_cx_sha256_hash_iovec, CX_INVALID_PARAMETER);
-    will_return(__wrap_cx_sha256_hash_iovec, NULL);
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
+    g_cx_sha256_hash_iovec_err = CX_INVALID_PARAMETER;
+    g_cx_sha256_hash_iovec_out = NULL;
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_INCORRECT_DATA);
 }
 
-static void test_full_reception_hash_ok_transfers_ownership(void **state) {
-    (void) state;
-    will_return(__wrap_mem_utils_calloc, true);
+void test_full_reception_hash_ok_transfers_ownership(void) {
+    g_mem_utils_calloc_ret = true;
     buffer_t buf = {.ptr = s_icon_buf, .size = ICON_TOTAL_BYTES, .offset = 0};
-    will_return(__wrap_cx_sha256_hash_iovec, CX_OK);
-    will_return(__wrap_cx_sha256_hash_iovec, g_network_icon_hash);
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_SUCCESS);
+    g_cx_sha256_hash_iovec_err = CX_OK;
+    g_cx_sha256_hash_iovec_out = g_network_icon_hash;
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &buf), SWO_SUCCESS);
     // Ownership transferred: the network's icon now holds the parsed
     // metadata from the header.
-    assert_int_equal(s_net.icon.width, EXPECTED_PX);
-    assert_int_equal(s_net.icon.height, EXPECTED_PX);
-    assert_int_equal(s_net.icon.bpp, 1);
-    assert_true(s_net.icon.isFile);
-    assert_non_null(s_net.icon.bitmap);
+    TEST_ASSERT_EQUAL(s_net.icon.width, EXPECTED_PX);
+    TEST_ASSERT_EQUAL(s_net.icon.height, EXPECTED_PX);
+    TEST_ASSERT_EQUAL(s_net.icon.bpp, 1);
+    TEST_ASSERT_TRUE(s_net.icon.isFile);
+    TEST_ASSERT_NOT_NULL(s_net.icon.bitmap);
     // g_network_icon_hash is freed after verification (replay defense:
     // can't reuse the same digest for the next icon).
-    assert_null(g_network_icon_hash);
+    TEST_ASSERT_NULL(g_network_icon_hash);
 }
 
 // =============================================================================
 // Multi-chunk reception
 // =============================================================================
 
-static void test_two_chunks_complete_icon(void **state) {
-    (void) state;
-    // Same shape as the one-shot success but split the payload into a
-    // FIRST chunk (header + 10 bytes) and a FOLLOWING chunk (remaining 15
-    // bytes). The dispatcher accumulates both into the temp buffer before
-    // finalising.
-    will_return(__wrap_mem_utils_calloc, true);
+void test_two_chunks_complete_icon(void) {
+    // Split payload into a FIRST chunk (header + 10 bytes) and a FOLLOWING
+    // chunk (remaining ICON_PAYLOAD_BYTES - 10 bytes). The dispatcher
+    // accumulates both before finalising.
+    g_mem_utils_calloc_ret = true;
     buffer_t first = {.ptr = s_icon_buf, .size = 8 + 10, .offset = 0};
-    assert_int_equal(handle_network_icon_chunks(P1_FIRST_CHUNK, &first), SWO_SUCCESS);
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FIRST_CHUNK, &first), SWO_SUCCESS);
     // No hash run yet -- the icon is incomplete.
-    assert_non_null(g_network_icon_hash);
+    TEST_ASSERT_NOT_NULL(g_network_icon_hash);
 
-    buffer_t next = {.ptr = s_icon_buf + 8 + 10, .size = 15, .offset = 0};
-    will_return(__wrap_cx_sha256_hash_iovec, CX_OK);
-    will_return(__wrap_cx_sha256_hash_iovec, g_network_icon_hash);
-    assert_int_equal(handle_network_icon_chunks(P1_FOLLOWING_CHUNK, &next), SWO_SUCCESS);
-    assert_int_equal(s_net.icon.width, EXPECTED_PX);
+    buffer_t next = {.ptr = s_icon_buf + 8 + 10, .size = ICON_PAYLOAD_BYTES - 10, .offset = 0};
+    g_cx_sha256_hash_iovec_err = CX_OK;
+    g_cx_sha256_hash_iovec_out = g_network_icon_hash;
+    TEST_ASSERT_EQUAL(handle_network_icon_chunks(P1_FOLLOWING_CHUNK, &next), SWO_SUCCESS);
+    TEST_ASSERT_EQUAL(s_net.icon.width, EXPECTED_PX);
 }
 
 // =============================================================================
 // clear_icon
 // =============================================================================
 
-static void test_clear_icon_frees_both_globals(void **state) {
-    (void) state;
+void test_clear_icon_frees_both_globals(void) {
     // Seed both globals with heap-allocated buffers and confirm
     // clear_icon() nulls them out (mocks/mem_utils_free_and_null is the
     // observable side effect via the wrap).
     g_network_icon_hash = malloc(32);
-    assert_non_null(g_network_icon_hash);
+    TEST_ASSERT_NOT_NULL(g_network_icon_hash);
     clear_icon();
-    assert_null(g_network_icon_hash);
+    TEST_ASSERT_NULL(g_network_icon_hash);
+}
+
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_no_network_rejected, reset),
-        cmocka_unit_test_setup(test_null_hash_rejected, reset),
-        cmocka_unit_test_setup(test_zero_hash_rejected, reset),
-        cmocka_unit_test_setup(test_first_chunk_too_short_rejected, reset),
-        cmocka_unit_test_setup(test_first_chunk_wrong_dimensions_rejected, reset),
-        cmocka_unit_test_setup(test_first_chunk_total_size_overflow_rejected, reset),
-        cmocka_unit_test_setup(test_first_chunk_alloc_failure_returns_insufficient_memory, reset),
-        cmocka_unit_test_setup(test_invalid_p1_rejected, reset),
-        cmocka_unit_test_setup(test_following_chunk_before_first_rejected, reset),
-        cmocka_unit_test_setup(test_following_chunk_overflow_rejected, reset),
-        cmocka_unit_test_setup(test_full_reception_hash_mismatch_rejected, reset),
-        cmocka_unit_test_setup(test_full_reception_hash_compute_failure_rejected, reset),
-        cmocka_unit_test_setup(test_full_reception_hash_ok_transfers_ownership, reset),
-        cmocka_unit_test_setup(test_two_chunks_complete_icon, reset),
-        cmocka_unit_test_setup(test_clear_icon_frees_both_globals, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_no_network_rejected);
+    RUN_TEST(test_null_hash_rejected);
+    RUN_TEST(test_zero_hash_rejected);
+    RUN_TEST(test_first_chunk_too_short_rejected);
+    RUN_TEST(test_first_chunk_wrong_dimensions_rejected);
+    RUN_TEST(test_first_chunk_total_size_overflow_rejected);
+    RUN_TEST(test_first_chunk_alloc_failure_returns_insufficient_memory);
+    RUN_TEST(test_invalid_p1_rejected);
+    RUN_TEST(test_following_chunk_before_first_rejected);
+    RUN_TEST(test_following_chunk_overflow_rejected);
+    RUN_TEST(test_full_reception_hash_mismatch_rejected);
+    RUN_TEST(test_full_reception_hash_compute_failure_rejected);
+    RUN_TEST(test_full_reception_hash_ok_transfers_ownership);
+    RUN_TEST(test_two_chunks_complete_icon);
+    RUN_TEST(test_clear_icon_frees_both_globals);
+    return UNITY_END();
 }

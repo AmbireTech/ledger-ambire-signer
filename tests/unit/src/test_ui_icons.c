@@ -32,10 +32,7 @@
  *     - fromPlugin=false, NULL caller, chain != config    -> network icon
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -43,7 +40,7 @@
 #include "shared_context.h"
 #include "caller_app.h"
 #include "nbgl_types.h"
-#include "network.h"  // find_dynamic_network_by_chain_id
+#include "Mocknetwork.h"  // find_dynamic_network_by_chain_id
 #include "ui_icons.h"
 #include "wraps.h"
 
@@ -70,128 +67,122 @@ static nbgl_icon_details_t s_caller_icon = {.width = 128};
 // branch point g_dyn_net_ret at a network with a non-NULL bitmap;
 // tests that want the not-found branch leave it at NULL.
 static network_info_t *g_dyn_net_ret = NULL;
-network_info_t *find_dynamic_network_by_chain_id(uint64_t chain_id) {
+static network_info_t *find_dynamic_network_by_chain_id_stub(uint64_t chain_id,
+                                                             int cmock_num_calls) {
     (void) chain_id;
+    (void) cmock_num_calls;
     return g_dyn_net_ret;
+}
+
+static uint64_t s_tx_chain_id = 1;
+static uint64_t get_tx_chain_id_stub(int cmock_num_calls) {
+    (void) cmock_num_calls;
+    return s_tx_chain_id;
 }
 
 // =============================================================================
 // Fixture
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     g_caller_app = NULL;
     pluginType = PLUGIN_TYPE_OLD_INTERNAL;
     memset(&strings, 0, sizeof(strings));
     // g_chain_config points to g_chainConfig (in app_globals.c) with
-    // chain_id == 1. Tests that need a mismatch flip g_tx_chain_id.
+    // chain_id == 1. Tests that need a mismatch flip s_tx_chain_id.
     g_chainConfig.chain_id = 1;
-    g_tx_chain_id = 1;
+    s_tx_chain_id = 1;
     g_dyn_net_ret = NULL;
-    return 0;
 }
 
 // =============================================================================
 // get_app_icon
 // =============================================================================
 
-static void test_app_icon_no_caller_icon_returns_iconglyph(void **state) {
-    (void) state;
-    assert_ptr_equal(get_app_icon(false), &test_glyph);
+void test_app_icon_no_caller_icon_returns_iconglyph(void) {
+    TEST_ASSERT_EQUAL_PTR(get_app_icon(false), &test_glyph);
 }
 
-static void test_app_icon_caller_requested_null_caller_returns_iconglyph(void **state) {
-    (void) state;
+void test_app_icon_caller_requested_null_caller_returns_iconglyph(void) {
     g_caller_app = NULL;
-    assert_ptr_equal(get_app_icon(true), &test_glyph);
+    TEST_ASSERT_EQUAL_PTR(get_app_icon(true), &test_glyph);
 }
 
-static void test_app_icon_caller_has_no_icon_returns_iconglyph(void **state) {
-    (void) state;
+void test_app_icon_caller_has_no_icon_returns_iconglyph(void) {
     caller_app_t caller = {.name = "Plugin", .icon = NULL};
     g_caller_app = &caller;
-    assert_ptr_equal(get_app_icon(true), &test_glyph);
+    TEST_ASSERT_EQUAL_PTR(get_app_icon(true), &test_glyph);
 }
 
-static void test_app_icon_caller_has_icon_returns_caller_icon(void **state) {
-    (void) state;
+void test_app_icon_caller_has_icon_returns_caller_icon(void) {
     caller_app_t caller = {.name = "Plugin", .icon = &s_caller_icon};
     g_caller_app = &caller;
-    assert_ptr_equal(get_app_icon(true), &s_caller_icon);
+    TEST_ASSERT_EQUAL_PTR(get_app_icon(true), &s_caller_icon);
 }
 
 // =============================================================================
 // get_home_icon
 // =============================================================================
 
-static void test_home_icon_null_caller_returns_iconhome(void **state) {
-    (void) state;
+void test_home_icon_null_caller_returns_iconhome(void) {
     g_caller_app = NULL;
-    assert_ptr_equal(get_home_icon(), &test_home_glyph);
+    TEST_ASSERT_EQUAL_PTR(get_home_icon(), &test_home_glyph);
 }
 
-static void test_home_icon_caller_without_icon_returns_iconhome(void **state) {
-    (void) state;
+void test_home_icon_caller_without_icon_returns_iconhome(void) {
     caller_app_t caller = {.icon = NULL};
     g_caller_app = &caller;
-    assert_ptr_equal(get_home_icon(), &test_home_glyph);
+    TEST_ASSERT_EQUAL_PTR(get_home_icon(), &test_home_glyph);
 }
 
-static void test_home_icon_caller_with_icon_returns_caller_icon(void **state) {
-    (void) state;
+void test_home_icon_caller_with_icon_returns_caller_icon(void) {
     caller_app_t caller = {.icon = &s_caller_icon};
     g_caller_app = &caller;
-    assert_ptr_equal(get_home_icon(), &s_caller_icon);
+    TEST_ASSERT_EQUAL_PTR(get_home_icon(), &s_caller_icon);
 }
 
 // =============================================================================
 // get_tx_icon
 // =============================================================================
 
-static void test_tx_icon_plugin_external_matching_name_returns_caller_icon(void **state) {
-    (void) state;
+void test_tx_icon_plugin_external_matching_name_returns_caller_icon(void) {
     caller_app_t caller = {.name = "MyPlugin", .icon = &s_caller_icon};
     g_caller_app = &caller;
     pluginType = PLUGIN_TYPE_EXTERNAL;
     strlcpy(strings.common.toAddress, "MyPlugin", sizeof(strings.common.toAddress));
-    assert_ptr_equal(get_tx_icon(true), &s_caller_icon);
+    TEST_ASSERT_EQUAL_PTR(get_tx_icon(true), &s_caller_icon);
 }
 
-static void test_tx_icon_plugin_external_no_name_match_returns_null(void **state) {
-    (void) state;
+void test_tx_icon_plugin_external_no_name_match_returns_null(void) {
     caller_app_t caller = {.name = "MyPlugin", .icon = &s_caller_icon};
     g_caller_app = &caller;
     pluginType = PLUGIN_TYPE_EXTERNAL;
     strlcpy(strings.common.toAddress, "SomethingElse", sizeof(strings.common.toAddress));
-    assert_null(get_tx_icon(true));
+    TEST_ASSERT_NULL(get_tx_icon(true));
 }
 
-static void test_tx_icon_clone_returns_caller_icon(void **state) {
-    (void) state;
+void test_tx_icon_clone_returns_caller_icon(void) {
     // fromPlugin=false but caller present == clone case (Ethereum running
     // under a clone app). Use the caller's icon.
     caller_app_t caller = {.icon = &s_caller_icon};
     g_caller_app = &caller;
-    assert_ptr_equal(get_tx_icon(false), &s_caller_icon);
+    TEST_ASSERT_EQUAL_PTR(get_tx_icon(false), &s_caller_icon);
 }
 
-static void test_tx_icon_standard_matching_chain_returns_app_iconglyph(void **state) {
-    (void) state;
+void test_tx_icon_standard_matching_chain_returns_app_iconglyph(void) {
     g_caller_app = NULL;
-    g_tx_chain_id = 1;
+    s_tx_chain_id = 1;
     g_chainConfig.chain_id = 1;
-    assert_ptr_equal(get_tx_icon(false), &test_glyph);
+    TEST_ASSERT_EQUAL_PTR(get_tx_icon(false), &test_glyph);
 }
 
-static void test_tx_icon_standard_other_chain_returns_network_icon(void **state) {
-    (void) state;
+void test_tx_icon_standard_other_chain_returns_network_icon(void) {
     // No caller, chain mismatch -> get_tx_icon delegates to
     // get_network_icon_from_chain_id. Drive the latter through its
     // dynamic-network lookup: hand back a network with a non-NULL
     // bitmap so the helper returns &net.icon.
     g_caller_app = NULL;
-    g_tx_chain_id = 137;
+    s_tx_chain_id = 137;
     g_chainConfig.chain_id = 1;
     static uint8_t s_bitmap_bytes[8];
     static network_info_t s_net;
@@ -199,24 +190,33 @@ static void test_tx_icon_standard_other_chain_returns_network_icon(void **state)
     s_net.icon.bitmap = s_bitmap_bytes;
     s_net.icon.width = 32;
     g_dyn_net_ret = &s_net;
-    assert_ptr_equal(get_tx_icon(false), &s_net.icon);
+    TEST_ASSERT_EQUAL_PTR(get_tx_icon(false), &s_net.icon);
+}
+
+void setUp(void) {
+    Mocknetwork_Init();
+    get_tx_chain_id_StubWithCallback(get_tx_chain_id_stub);
+    find_dynamic_network_by_chain_id_StubWithCallback(find_dynamic_network_by_chain_id_stub);
+    reset();
+}
+void tearDown(void) {
+    Mocknetwork_Verify();
+    Mocknetwork_Destroy();
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_app_icon_no_caller_icon_returns_iconglyph, reset),
-        cmocka_unit_test_setup(test_app_icon_caller_requested_null_caller_returns_iconglyph, reset),
-        cmocka_unit_test_setup(test_app_icon_caller_has_no_icon_returns_iconglyph, reset),
-        cmocka_unit_test_setup(test_app_icon_caller_has_icon_returns_caller_icon, reset),
-        cmocka_unit_test_setup(test_home_icon_null_caller_returns_iconhome, reset),
-        cmocka_unit_test_setup(test_home_icon_caller_without_icon_returns_iconhome, reset),
-        cmocka_unit_test_setup(test_home_icon_caller_with_icon_returns_caller_icon, reset),
-        cmocka_unit_test_setup(test_tx_icon_plugin_external_matching_name_returns_caller_icon,
-                               reset),
-        cmocka_unit_test_setup(test_tx_icon_plugin_external_no_name_match_returns_null, reset),
-        cmocka_unit_test_setup(test_tx_icon_clone_returns_caller_icon, reset),
-        cmocka_unit_test_setup(test_tx_icon_standard_matching_chain_returns_app_iconglyph, reset),
-        cmocka_unit_test_setup(test_tx_icon_standard_other_chain_returns_network_icon, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_app_icon_no_caller_icon_returns_iconglyph);
+    RUN_TEST(test_app_icon_caller_requested_null_caller_returns_iconglyph);
+    RUN_TEST(test_app_icon_caller_has_no_icon_returns_iconglyph);
+    RUN_TEST(test_app_icon_caller_has_icon_returns_caller_icon);
+    RUN_TEST(test_home_icon_null_caller_returns_iconhome);
+    RUN_TEST(test_home_icon_caller_without_icon_returns_iconhome);
+    RUN_TEST(test_home_icon_caller_with_icon_returns_caller_icon);
+    RUN_TEST(test_tx_icon_plugin_external_matching_name_returns_caller_icon);
+    RUN_TEST(test_tx_icon_plugin_external_no_name_match_returns_null);
+    RUN_TEST(test_tx_icon_clone_returns_caller_icon);
+    RUN_TEST(test_tx_icon_standard_matching_chain_returns_app_iconglyph);
+    RUN_TEST(test_tx_icon_standard_other_chain_returns_network_icon);
+    return UNITY_END();
 }

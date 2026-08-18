@@ -17,3 +17,4 @@ jobs:
       codecov_token: ${{ secrets.CODECOV_TOKEN }}
     with:
       coverage_exclude_paths: '*/ethereum-plugin-sdk/*'
+      use_cmake_ut_framework: true

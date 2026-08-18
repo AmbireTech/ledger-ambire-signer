@@ -23,17 +23,15 @@
  * compares it against the descriptor's owner address.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 #include "shared_context.h"
 #include "trusted_name.h"
-#include "wraps.h"
+#include "Mockpublic_keys.h"
+#include "Mockhash_bytes.h"
 
 // =============================================================================
 // Globals the module reads
@@ -43,14 +41,41 @@
 // Controllable stubs
 // =============================================================================
 
-// check_signature_with_pubkey / finalize_hash / hash_nbytes are
-// wrapped in mocks/mock.c; state via g_sig_check_ret /
-// g_finalize_hash_ret from wraps.h.
+// check_signature_with_pubkey and finalize_hash are CMock-generated mocks.
+// Control their return values via the local static variables below.
+static bool s_sig_check_ret = true;
+static bool sig_check_stub(uint8_t *buffer,
+                           const uint8_t bufLen,
+                           const uint8_t *PubKey,
+                           const uint8_t keyLen,
+                           const uint8_t keyUsageExp,
+                           const uint8_t *signature,
+                           const uint8_t sigLen,
+                           int num_calls) {
+    (void) buffer;
+    (void) bufLen;
+    (void) PubKey;
+    (void) keyLen;
+    (void) keyUsageExp;
+    (void) signature;
+    (void) sigLen;
+    (void) num_calls;
+    return s_sig_check_ret;
+}
+
+static bool s_finalize_hash_ret = true;
+static bool finalize_hash_stub(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len, int num_calls) {
+    (void) hash_ctx;
+    (void) out;
+    (void) out_len;
+    (void) num_calls;
+    return s_finalize_hash_ret;
+}
 
 // chain_is_ethereum_compatible is read on the STRUCT_VERSION_1 lookup
 // path. Make it controllable so we can test both branches.
 static bool g_chain_compatible_ret = true;
-bool __wrap_chain_is_ethereum_compatible(const uint64_t *chain_id) {
+bool chain_is_ethereum_compatible(const uint64_t *chain_id) {
     (void) chain_id;
     return g_chain_compatible_ret;
 }
@@ -58,9 +83,9 @@ bool __wrap_chain_is_ethereum_compatible(const uint64_t *chain_id) {
 // get_implem_contract is the proxy resolver. TN_TYPE_CONTRACT/TOKEN
 // lookups consult it to remap a proxy address to its implementation.
 static const uint8_t *g_implem_contract_ret = NULL;
-const uint8_t *__wrap_get_implem_contract(const uint64_t *chain_id,
-                                          const uint8_t *addr,
-                                          const uint8_t *selector) {
+const uint8_t *get_implem_contract(const uint64_t *chain_id,
+                                   const uint8_t *addr,
+                                   const uint8_t *selector) {
     (void) chain_id;
     (void) addr;
     (void) selector;
@@ -76,15 +101,15 @@ const uint8_t *__wrap_get_implem_contract(const uint64_t *chain_id,
 // 20-byte address it derives matches g_derived_addr.
 static uint8_t g_derived_addr[ADDRESS_LENGTH];
 static uint32_t g_derive_ret = 0;  // CX_OK
-uint32_t __wrap_bip32_derive_with_seed_get_pubkey_256(uint32_t derivation_mode,
-                                                      uint32_t curve,
-                                                      const uint32_t *path,
-                                                      size_t path_len,
-                                                      uint8_t *raw_pubkey,
-                                                      uint8_t *chain_code,
-                                                      uint32_t hash_id,
-                                                      const uint8_t *seed,
-                                                      size_t seed_len) {
+uint32_t bip32_derive_with_seed_get_pubkey_256(uint32_t derivation_mode,
+                                               uint32_t curve,
+                                               const uint32_t *path,
+                                               size_t path_len,
+                                               uint8_t *raw_pubkey,
+                                               uint8_t *chain_code,
+                                               uint32_t hash_id,
+                                               const uint8_t *seed,
+                                               size_t seed_len) {
     (void) derivation_mode;
     (void) curve;
     (void) path;
@@ -104,18 +129,6 @@ uint32_t __wrap_bip32_derive_with_seed_get_pubkey_256(uint32_t derivation_mode,
     return g_derive_ret;
 }
 
-// Wrap the Keccak hash routine getEthAddressFromRawKey uses so the
-// 20-byte "derived address" passes through directly.
-uint32_t __wrap_cx_keccak_256_hash(const uint8_t *in, size_t in_len, uint8_t *out) {
-    (void) in;
-    (void) in_len;
-    // After Keccak, getEthAddressFromRawKey takes out[12..31] as the
-    // address. Position g_derived_addr there.
-    memset(out, 0, 32);
-    memcpy(out + 12, g_derived_addr, ADDRESS_LENGTH);
-    return 0;
-}
-
 // =============================================================================
 // Fixture
 // =============================================================================
@@ -126,16 +139,14 @@ static const uint8_t g_addr[ADDRESS_LENGTH] = {
     0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
 };
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     trusted_name_cleanup();
-    g_sig_check_ret = true;
-    g_finalize_hash_ret = true;
+    s_sig_check_ret = true;
+    s_finalize_hash_ret = true;
     g_chain_compatible_ret = true;
     g_implem_contract_ret = NULL;
     g_derive_ret = 0;
     memset(g_derived_addr, 0, sizeof(g_derived_addr));
-    return 0;
 }
 
 // =============================================================================
@@ -220,7 +231,7 @@ static size_t build_v2_account_tlv(uint8_t *out, size_t out_size, s_tlv_opts opt
     w_byte(out, &off, (uint8_t) (opts.signer_algo & 0xFF));
     // TRUSTED_NAME (string)
     size_t name_len = strlen(opts.name);
-    assert_true(name_len <= 30);
+    TEST_ASSERT_TRUE(name_len <= 30);
     w_byte(out, &off, 0x20);
     w_byte(out, &off, (uint8_t) name_len);
     memcpy(out + off, opts.name, name_len);
@@ -283,7 +294,7 @@ static size_t build_v2_account_tlv(uint8_t *out, size_t out_size, s_tlv_opts opt
     w_byte(out, &off, opts.sig_len);
     memset(out + off, 0x42, opts.sig_len);
     off += opts.sig_len;
-    assert_true(off <= out_size);
+    TEST_ASSERT_TRUE(off <= out_size);
     return off;
 }
 
@@ -298,8 +309,7 @@ static bool run_parse_and_verify(const uint8_t *tlv, size_t len) {
 // Happy paths
 // =============================================================================
 
-static void test_v2_ens_account_happy_path_registers(void **state) {
-    (void) state;
+void test_v2_ens_account_happy_path_registers(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -310,18 +320,17 @@ static void test_v2_ens_account_happy_path_registers(void **state) {
                        .name = "alice.eth",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_true(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_TRUE(run_parse_and_verify(tlv, len));
     // Lookup by (type=ACCOUNT, source=ENS, chain=1, addr) returns it.
     e_name_type types[] = {TN_TYPE_ACCOUNT};
     e_name_source sources[] = {TN_SOURCE_ENS};
     uint64_t chain = 1;
     const s_trusted_name *tn = get_trusted_name(1, types, 1, sources, &chain, g_addr);
-    assert_non_null(tn);
-    assert_string_equal(tn->name, "alice.eth");
+    TEST_ASSERT_NOT_NULL(tn);
+    TEST_ASSERT_EQUAL_STRING(tn->name, "alice.eth");
 }
 
-static void test_v2_cal_contract_happy_path_registers(void **state) {
-    (void) state;
+void test_v2_cal_contract_happy_path_registers(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -332,21 +341,20 @@ static void test_v2_cal_contract_happy_path_registers(void **state) {
                        .name = "Uniswap V3",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_true(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_TRUE(run_parse_and_verify(tlv, len));
     e_name_type types[] = {TN_TYPE_CONTRACT};
     e_name_source sources[] = {TN_SOURCE_CAL};
     uint64_t chain = 1;
     const s_trusted_name *tn = get_trusted_name(1, types, 1, sources, &chain, g_addr);
-    assert_non_null(tn);
-    assert_string_equal(tn->name, "Uniswap V3");
+    TEST_ASSERT_NOT_NULL(tn);
+    TEST_ASSERT_EQUAL_STRING(tn->name, "Uniswap V3");
 }
 
 // =============================================================================
 // Validation gates
 // =============================================================================
 
-static void test_invalid_struct_type_rejected(void **state) {
-    (void) state;
+void test_invalid_struct_type_rejected(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0xFF,  // not 0x03
                        .struct_version = 0x02,
@@ -357,11 +365,10 @@ static void test_invalid_struct_type_rejected(void **state) {
                        .name = "alice.eth",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
-static void test_invalid_struct_version_rejected(void **state) {
-    (void) state;
+void test_invalid_struct_version_rejected(void) {
     uint8_t tlv[400];
     // STRUCT_VERSION 0xFF is not 0x01 or 0x02.
     s_tlv_opts opts = {.struct_type = 0x03,
@@ -373,11 +380,10 @@ static void test_invalid_struct_version_rejected(void **state) {
                        .name = "alice.eth",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
-static void test_signer_algo_not_secp256k1_rejected(void **state) {
-    (void) state;
+void test_signer_algo_not_secp256k1_rejected(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -388,11 +394,10 @@ static void test_signer_algo_not_secp256k1_rejected(void **state) {
                        .name = "alice.eth",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
-static void test_account_from_cal_source_rejected(void **state) {
-    (void) state;
+void test_account_from_cal_source_rejected(void) {
     // An ACCOUNT name can't be issued from the CAL — CAL is for
     // contracts/tokens only.
     uint8_t tlv[400];
@@ -405,11 +410,10 @@ static void test_account_from_cal_source_rejected(void **state) {
                        .name = "alice.eth",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
-static void test_contract_from_non_cal_source_rejected(void **state) {
-    (void) state;
+void test_contract_from_non_cal_source_rejected(void) {
     // Symmetric to the above: a CONTRACT name must come from CAL.
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
@@ -421,11 +425,10 @@ static void test_contract_from_non_cal_source_rejected(void **state) {
                        .name = "Uniswap V3",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
-static void test_ens_account_name_without_eth_suffix_rejected(void **state) {
-    (void) state;
+void test_ens_account_name_without_eth_suffix_rejected(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -436,11 +439,10 @@ static void test_ens_account_name_without_eth_suffix_rejected(void **state) {
                        .name = "alice.com",  // not ".eth"
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
-static void test_ens_account_uppercase_charset_rejected(void **state) {
-    (void) state;
+void test_ens_account_uppercase_charset_rejected(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -451,12 +453,11 @@ static void test_ens_account_uppercase_charset_rejected(void **state) {
                        .name = "Alice.eth",  // uppercase
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
-static void test_signature_check_failure_rejects(void **state) {
-    (void) state;
-    g_sig_check_ret = false;
+void test_signature_check_failure_rejects(void) {
+    s_sig_check_ret = false;
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -467,16 +468,15 @@ static void test_signature_check_failure_rejects(void **state) {
                        .name = "alice.eth",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
     // No descriptor registered.
     e_name_type types[] = {TN_TYPE_ACCOUNT};
     e_name_source sources[] = {TN_SOURCE_ENS};
     uint64_t chain = 1;
-    assert_null(get_trusted_name(1, types, 1, sources, &chain, g_addr));
+    TEST_ASSERT_NULL(get_trusted_name(1, types, 1, sources, &chain, g_addr));
 }
 
-static void test_signature_too_short_rejected(void **state) {
-    (void) state;
+void test_signature_too_short_rejected(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -487,15 +487,14 @@ static void test_signature_too_short_rejected(void **state) {
                        .name = "alice.eth",
                        .sig_len = 4};  // < CX_ECDSA_SHA256_SIG_MIN_ASN1_LENGTH
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
 // =============================================================================
 // MAB source — owner re-derivation
 // =============================================================================
 
-static void test_v2_mab_source_matching_owner_accepted(void **state) {
-    (void) state;
+void test_v2_mab_source_matching_owner_accepted(void) {
     // Set the address the BIP32 derive stub will "produce". Use the
     // same bytes as the OWNER tag so the memcmp inside
     // verify_trusted_name_struct succeeds.
@@ -512,7 +511,7 @@ static void test_v2_mab_source_matching_owner_accepted(void **state) {
                        .include_owner_deriv_path = true,
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
     // Wait — TN_SOURCE_MAB with TN_TYPE_CONTRACT fails the type/source
     // cross-check (CONTRACT must be from CAL). The test below is the
     // documented failure path. The MAB-with-matching-owner happy path
@@ -523,8 +522,7 @@ static void test_v2_mab_source_matching_owner_accepted(void **state) {
     // for ACCOUNT names where verify_fields then enforces CHALLENGE.
 }
 
-static void test_v2_mab_source_mismatching_owner_rejected(void **state) {
-    (void) state;
+void test_v2_mab_source_mismatching_owner_rejected(void) {
     // Owner address in TLV (0x99...) vs derived address (0x77...) — mismatch.
     memset(g_derived_addr, 0x77, ADDRESS_LENGTH);
     uint8_t tlv[400];
@@ -562,15 +560,14 @@ static void test_v2_mab_source_mismatching_owner_rejected(void **state) {
     // Now flip what the runtime stub returns so the post-build derive
     // mismatches the OWNER bytes baked into the TLV.
     memset(g_derived_addr, 0x77, ADDRESS_LENGTH);
-    assert_false(run_parse_and_verify(tlv, len2));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len2));
 }
 
 // =============================================================================
 // Lookup behavior
 // =============================================================================
 
-static void test_lookup_type_mismatch_returns_null(void **state) {
-    (void) state;
+void test_lookup_type_mismatch_returns_null(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -581,16 +578,15 @@ static void test_lookup_type_mismatch_returns_null(void **state) {
                        .name = "alice.eth",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_true(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_TRUE(run_parse_and_verify(tlv, len));
     // Lookup asks for TOKEN — registered descriptor is ACCOUNT.
     e_name_type types[] = {TN_TYPE_TOKEN};
     e_name_source sources[] = {TN_SOURCE_ENS};
     uint64_t chain = 1;
-    assert_null(get_trusted_name(1, types, 1, sources, &chain, g_addr));
+    TEST_ASSERT_NULL(get_trusted_name(1, types, 1, sources, &chain, g_addr));
 }
 
-static void test_lookup_chain_id_mismatch_returns_null(void **state) {
-    (void) state;
+void test_lookup_chain_id_mismatch_returns_null(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -601,15 +597,14 @@ static void test_lookup_chain_id_mismatch_returns_null(void **state) {
                        .name = "alice.eth",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_true(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_TRUE(run_parse_and_verify(tlv, len));
     e_name_type types[] = {TN_TYPE_ACCOUNT};
     e_name_source sources[] = {TN_SOURCE_ENS};
     uint64_t wrong_chain = 137;
-    assert_null(get_trusted_name(1, types, 1, sources, &wrong_chain, g_addr));
+    TEST_ASSERT_NULL(get_trusted_name(1, types, 1, sources, &wrong_chain, g_addr));
 }
 
-static void test_lookup_contract_consults_proxy_resolver(void **state) {
-    (void) state;
+void test_lookup_contract_consults_proxy_resolver(void) {
     // Register a CONTRACT trusted name for the *implementation*
     // address. Then look up the *proxy* address — get_implem_contract
     // remaps proxy -> impl, so the lookup matches.
@@ -629,14 +624,14 @@ static void test_lookup_contract_consults_proxy_resolver(void **state) {
     // g_addr in build_v2_account_tlv is the impl_addr; lookup with
     // proxy_addr + g_implem_contract_ret -> impl_addr should resolve.
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_true(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_TRUE(run_parse_and_verify(tlv, len));
     g_implem_contract_ret = g_addr;  // proxy -> impl mapping
     e_name_type types[] = {TN_TYPE_CONTRACT};
     e_name_source sources[] = {TN_SOURCE_CAL};
     uint64_t chain = 1;
     uint8_t any_proxy[ADDRESS_LENGTH] = {0xCC};
     const s_trusted_name *tn = get_trusted_name(1, types, 1, sources, &chain, any_proxy);
-    assert_non_null(tn);
+    TEST_ASSERT_NOT_NULL(tn);
 }
 
 // =============================================================================
@@ -644,8 +639,7 @@ static void test_lookup_contract_consults_proxy_resolver(void **state) {
 // NAME_SOURCE TLVs, lookup uses chain_is_ethereum_compatible).
 // =============================================================================
 
-static void test_v1_happy_path_registers(void **state) {
-    (void) state;
+void test_v1_happy_path_registers(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x01,
@@ -655,18 +649,17 @@ static void test_v1_happy_path_registers(void **state) {
                        .coin_type = 60,
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_true(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_TRUE(run_parse_and_verify(tlv, len));
     // V1 lookup needs TN_TYPE_ACCOUNT in types[] and an Ethereum-compatible chain.
     e_name_type types[] = {TN_TYPE_ACCOUNT};
     e_name_source sources[] = {TN_SOURCE_ENS};  // unused in V1 matching
     uint64_t chain = 1;
     const s_trusted_name *tn = get_trusted_name(1, types, 1, sources, &chain, g_addr);
-    assert_non_null(tn);
-    assert_int_equal(tn->struct_version, 0x01);
+    TEST_ASSERT_NOT_NULL(tn);
+    TEST_ASSERT_EQUAL(tn->struct_version, 0x01);
 }
 
-static void test_v1_lookup_non_eth_compatible_chain_returns_null(void **state) {
-    (void) state;
+void test_v1_lookup_non_eth_compatible_chain_returns_null(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x01,
@@ -676,17 +669,16 @@ static void test_v1_lookup_non_eth_compatible_chain_returns_null(void **state) {
                        .coin_type = 60,
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_true(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_TRUE(run_parse_and_verify(tlv, len));
     // Lookup on a non-ETH chain: chain_is_ethereum_compatible=false → NULL.
     g_chain_compatible_ret = false;
     e_name_type types[] = {TN_TYPE_ACCOUNT};
     e_name_source sources[] = {TN_SOURCE_ENS};
     uint64_t chain = 137;
-    assert_null(get_trusted_name(1, types, 1, sources, &chain, g_addr));
+    TEST_ASSERT_NULL(get_trusted_name(1, types, 1, sources, &chain, g_addr));
 }
 
-static void test_v1_lookup_without_account_type_returns_null(void **state) {
-    (void) state;
+void test_v1_lookup_without_account_type_returns_null(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x01,
@@ -696,16 +688,15 @@ static void test_v1_lookup_without_account_type_returns_null(void **state) {
                        .coin_type = 60,
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_true(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_TRUE(run_parse_and_verify(tlv, len));
     // Caller asks for TOKEN — V1 only matches ACCOUNT.
     e_name_type types[] = {TN_TYPE_TOKEN};
     e_name_source sources[] = {TN_SOURCE_CAL};
     uint64_t chain = 1;
-    assert_null(get_trusted_name(1, types, 1, sources, &chain, g_addr));
+    TEST_ASSERT_NULL(get_trusted_name(1, types, 1, sources, &chain, g_addr));
 }
 
-static void test_v1_coin_type_mismatch_rejected(void **state) {
-    (void) state;
+void test_v1_coin_type_mismatch_rejected(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x01,
@@ -715,15 +706,14 @@ static void test_v1_coin_type_mismatch_rejected(void **state) {
                        .coin_type = 999,  // not 60 (g_chain_config->coin_type)
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
 // =============================================================================
 // Validation gates that the bootstrap suite didn't reach.
 // =============================================================================
 
-static void test_unsupported_name_type_nft_collection_rejected(void **state) {
-    (void) state;
+void test_unsupported_name_type_nft_collection_rejected(void) {
     // TN_TYPE_NFT_COLLECTION, WALLET, CONTEXT_ADDRESS land on the
     // explicit default-reject branch in handle_trusted_name_type.
     uint8_t tlv[400];
@@ -736,11 +726,10 @@ static void test_unsupported_name_type_nft_collection_rejected(void **state) {
                        .name = "BoredApes",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
-static void test_unsupported_name_source_lab_rejected(void **state) {
-    (void) state;
+void test_unsupported_name_source_lab_rejected(void) {
     // TN_SOURCE_LAB / UD / FN / DNS / DYNAMIC_RESOLVER land on the
     // explicit default-reject branch in handle_trusted_name_source.
     uint8_t tlv[400];
@@ -753,14 +742,13 @@ static void test_unsupported_name_source_lab_rejected(void **state) {
                        .name = "alice.eth",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
 // Generic (non-ENS) names go through generic_trusted_name_charset
 // which forbids control characters but allows uppercase / digits /
 // spaces. Use a value that fails the more-permissive check.
-static void test_generic_charset_rejects_control_char(void **state) {
-    (void) state;
+void test_generic_charset_rejects_control_char(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -775,13 +763,12 @@ static void test_generic_charset_rejects_control_char(void **state) {
                        .name = "Uniswap@V3",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
 // NFT_ID is an optional V2 tag that drives handle_nft_id. Include it
 // in a CAL+CONTRACT happy path so the handler is exercised.
-static void test_nft_id_tag_is_parsed(void **state) {
-    (void) state;
+void test_nft_id_tag_is_parsed(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -795,18 +782,17 @@ static void test_nft_id_tag_is_parsed(void **state) {
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
     s_trusted_name_ctx ctx = {0};
     buffer_t buf = {.ptr = tlv, .size = len, .offset = 0};
-    assert_true(handle_trusted_name_tlv_payload(&buf, &ctx));
+    TEST_ASSERT_TRUE(handle_trusted_name_tlv_payload(&buf, &ctx));
     // nft_id was stored, right-aligned in the 32-byte slot.
-    assert_int_equal(ctx.trusted_name.nft_id[31], 0x04);
-    assert_int_equal(ctx.trusted_name.nft_id[30], 0x03);
-    assert_int_equal(ctx.trusted_name.nft_id[29], 0x02);
-    assert_int_equal(ctx.trusted_name.nft_id[28], 0x01);
+    TEST_ASSERT_EQUAL(ctx.trusted_name.nft_id[31], 0x04);
+    TEST_ASSERT_EQUAL(ctx.trusted_name.nft_id[30], 0x03);
+    TEST_ASSERT_EQUAL(ctx.trusted_name.nft_id[29], 0x02);
+    TEST_ASSERT_EQUAL(ctx.trusted_name.nft_id[28], 0x01);
 }
 
 // V2 ACCOUNT names require a CHALLENGE tag (anti-replay anchor). Omit
 // it and verify_fields must reject.
-static void test_v2_account_without_challenge_rejected(void **state) {
-    (void) state;
+void test_v2_account_without_challenge_rejected(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -818,12 +804,11 @@ static void test_v2_account_without_challenge_rejected(void **state) {
                        .omit_challenge = true,
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
 // V1 also requires a CHALLENGE tag — omit it.
-static void test_v1_without_challenge_rejected(void **state) {
-    (void) state;
+void test_v1_without_challenge_rejected(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x01,
@@ -834,13 +819,12 @@ static void test_v1_without_challenge_rejected(void **state) {
                        .omit_challenge = true,
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
 // MAB source without OWNER + OWNER_DERIV_PATH must be rejected by
 // verify_fields (additional V2 MAB requirements).
-static void test_v2_mab_without_owner_rejected(void **state) {
-    (void) state;
+void test_v2_mab_without_owner_rejected(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -852,13 +836,12 @@ static void test_v2_mab_without_owner_rejected(void **state) {
                        .sig_len = 16};
     // include_owner and include_owner_deriv_path left false.
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
 // bip32_derive_with_seed_get_pubkey_256 returning non-CX_OK must
 // reject the MAB descriptor before the memcmp.
-static void test_v2_mab_bip32_derive_failure_rejected(void **state) {
-    (void) state;
+void test_v2_mab_bip32_derive_failure_rejected(void) {
     g_derive_ret = 1;  // non-CX_OK
     memset(g_derived_addr, 0xAB, ADDRESS_LENGTH);
     uint8_t tlv[400];
@@ -873,11 +856,10 @@ static void test_v2_mab_bip32_derive_failure_rejected(void **state) {
                        .include_owner_deriv_path = true,
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_false(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, len));
 }
 
-static void test_not_valid_after_expired_rejected(void **state) {
-    (void) state;
+void test_not_valid_after_expired_rejected(void) {
     // Build a TLV manually with NOT_VALID_AFTER {0, 0, 0} which is
     // older than the linked APPVERSION (99.99.99) → expired → reject.
     uint8_t tlv[400];
@@ -893,15 +875,14 @@ static void test_not_valid_after_expired_rejected(void **state) {
     tlv[off++] = 0x00;
     tlv[off++] = 0x00;
     tlv[off++] = 0x00;
-    assert_false(run_parse_and_verify(tlv, off));
+    TEST_ASSERT_FALSE(run_parse_and_verify(tlv, off));
 }
 
 // =============================================================================
 // Cleanup
 // =============================================================================
 
-static void test_trusted_name_cleanup_releases_list(void **state) {
-    (void) state;
+void test_trusted_name_cleanup_releases_list(void) {
     uint8_t tlv[400];
     s_tlv_opts opts = {.struct_type = 0x03,
                        .struct_version = 0x02,
@@ -912,51 +893,67 @@ static void test_trusted_name_cleanup_releases_list(void **state) {
                        .name = "bob.eth",
                        .sig_len = 16};
     size_t len = build_v2_account_tlv(tlv, sizeof(tlv), opts);
-    assert_true(run_parse_and_verify(tlv, len));
+    TEST_ASSERT_TRUE(run_parse_and_verify(tlv, len));
     e_name_type types[] = {TN_TYPE_ACCOUNT};
     e_name_source sources[] = {TN_SOURCE_ENS};
     uint64_t chain = 1;
-    assert_non_null(get_trusted_name(1, types, 1, sources, &chain, g_addr));
+    TEST_ASSERT_NOT_NULL(get_trusted_name(1, types, 1, sources, &chain, g_addr));
     trusted_name_cleanup();
-    assert_null(get_trusted_name(1, types, 1, sources, &chain, g_addr));
+    TEST_ASSERT_NULL(get_trusted_name(1, types, 1, sources, &chain, g_addr));
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    Mockpublic_keys_Init();
+    check_signature_with_pubkey_StubWithCallback(sig_check_stub);
+    Mockhash_bytes_Init();
+    finalize_hash_StubWithCallback(finalize_hash_stub);
+    hash_nbytes_Ignore();
+    hash_byte_Ignore();
+    reset();
+}
+
+void tearDown(void) {
+    Mockpublic_keys_Verify();
+    Mockpublic_keys_Destroy();
+    Mockhash_bytes_Verify();
+    Mockhash_bytes_Destroy();
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_v2_ens_account_happy_path_registers, reset),
-        cmocka_unit_test_setup(test_v2_cal_contract_happy_path_registers, reset),
-        cmocka_unit_test_setup(test_invalid_struct_type_rejected, reset),
-        cmocka_unit_test_setup(test_invalid_struct_version_rejected, reset),
-        cmocka_unit_test_setup(test_signer_algo_not_secp256k1_rejected, reset),
-        cmocka_unit_test_setup(test_account_from_cal_source_rejected, reset),
-        cmocka_unit_test_setup(test_contract_from_non_cal_source_rejected, reset),
-        cmocka_unit_test_setup(test_ens_account_name_without_eth_suffix_rejected, reset),
-        cmocka_unit_test_setup(test_ens_account_uppercase_charset_rejected, reset),
-        cmocka_unit_test_setup(test_signature_check_failure_rejects, reset),
-        cmocka_unit_test_setup(test_signature_too_short_rejected, reset),
-        cmocka_unit_test_setup(test_v2_mab_source_matching_owner_accepted, reset),
-        cmocka_unit_test_setup(test_v2_mab_source_mismatching_owner_rejected, reset),
-        cmocka_unit_test_setup(test_lookup_type_mismatch_returns_null, reset),
-        cmocka_unit_test_setup(test_lookup_chain_id_mismatch_returns_null, reset),
-        cmocka_unit_test_setup(test_lookup_contract_consults_proxy_resolver, reset),
-        cmocka_unit_test_setup(test_trusted_name_cleanup_releases_list, reset),
-        cmocka_unit_test_setup(test_v1_happy_path_registers, reset),
-        cmocka_unit_test_setup(test_v1_lookup_non_eth_compatible_chain_returns_null, reset),
-        cmocka_unit_test_setup(test_v1_lookup_without_account_type_returns_null, reset),
-        cmocka_unit_test_setup(test_v1_coin_type_mismatch_rejected, reset),
-        cmocka_unit_test_setup(test_unsupported_name_type_nft_collection_rejected, reset),
-        cmocka_unit_test_setup(test_unsupported_name_source_lab_rejected, reset),
-        cmocka_unit_test_setup(test_generic_charset_rejects_control_char, reset),
-        cmocka_unit_test_setup(test_not_valid_after_expired_rejected, reset),
-        cmocka_unit_test_setup(test_nft_id_tag_is_parsed, reset),
-        cmocka_unit_test_setup(test_v2_account_without_challenge_rejected, reset),
-        cmocka_unit_test_setup(test_v1_without_challenge_rejected, reset),
-        cmocka_unit_test_setup(test_v2_mab_without_owner_rejected, reset),
-        cmocka_unit_test_setup(test_v2_mab_bip32_derive_failure_rejected, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_v2_ens_account_happy_path_registers);
+    RUN_TEST(test_v2_cal_contract_happy_path_registers);
+    RUN_TEST(test_invalid_struct_type_rejected);
+    RUN_TEST(test_invalid_struct_version_rejected);
+    RUN_TEST(test_signer_algo_not_secp256k1_rejected);
+    RUN_TEST(test_account_from_cal_source_rejected);
+    RUN_TEST(test_contract_from_non_cal_source_rejected);
+    RUN_TEST(test_ens_account_name_without_eth_suffix_rejected);
+    RUN_TEST(test_ens_account_uppercase_charset_rejected);
+    RUN_TEST(test_signature_check_failure_rejects);
+    RUN_TEST(test_signature_too_short_rejected);
+    RUN_TEST(test_v2_mab_source_matching_owner_accepted);
+    RUN_TEST(test_v2_mab_source_mismatching_owner_rejected);
+    RUN_TEST(test_lookup_type_mismatch_returns_null);
+    RUN_TEST(test_lookup_chain_id_mismatch_returns_null);
+    RUN_TEST(test_lookup_contract_consults_proxy_resolver);
+    RUN_TEST(test_v1_happy_path_registers);
+    RUN_TEST(test_v1_lookup_non_eth_compatible_chain_returns_null);
+    RUN_TEST(test_v1_lookup_without_account_type_returns_null);
+    RUN_TEST(test_v1_coin_type_mismatch_rejected);
+    RUN_TEST(test_unsupported_name_type_nft_collection_rejected);
+    RUN_TEST(test_unsupported_name_source_lab_rejected);
+    RUN_TEST(test_generic_charset_rejects_control_char);
+    RUN_TEST(test_nft_id_tag_is_parsed);
+    RUN_TEST(test_v2_account_without_challenge_rejected);
+    RUN_TEST(test_v1_without_challenge_rejected);
+    RUN_TEST(test_v2_mab_without_owner_rejected);
+    RUN_TEST(test_v2_mab_bip32_derive_failure_rejected);
+    RUN_TEST(test_not_valid_after_expired_rejected);
+    RUN_TEST(test_trusted_name_cleanup_releases_list);
+    return UNITY_END();
 }

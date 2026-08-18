@@ -24,10 +24,7 @@
  *     version, signature failure, and the happy path.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -36,27 +33,51 @@
 #include "shared_context.h"
 #include "tx_ctx.h"
 #include "calldata.h"
-#include "wraps.h"
-
-// =============================================================================
-// Globals the module reads
-// =============================================================================
+#include "Mockpublic_keys.h"
+#include "Mockhash_bytes.h"
 
 // =============================================================================
 // Wrapped collaborators
 // =============================================================================
 
-// check_signature_with_pubkey / finalize_hash / hash_nbytes are
-// wrapped in mocks/mock.c; state via g_sig_check_ret /
-// g_finalize_hash_ret from wraps.h.
+// check_signature_with_pubkey and finalize_hash are CMock-generated mocks.
+// Control their return values via the local static variables below.
+static bool s_sig_check_ret = true;
+static bool sig_check_stub(uint8_t *buffer,
+                           const uint8_t bufLen,
+                           const uint8_t *PubKey,
+                           const uint8_t keyLen,
+                           const uint8_t keyUsageExp,
+                           const uint8_t *signature,
+                           const uint8_t sigLen,
+                           int num_calls) {
+    (void) buffer;
+    (void) bufLen;
+    (void) PubKey;
+    (void) keyLen;
+    (void) keyUsageExp;
+    (void) signature;
+    (void) sigLen;
+    (void) num_calls;
+    return s_sig_check_ret;
+}
 
-static uint16_t g_tx_ctx_count = 0;
-uint16_t __wrap_get_tx_ctx_count(void) {
+static bool s_finalize_hash_ret = true;
+static bool finalize_hash_stub(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len, int num_calls) {
+    (void) hash_ctx;
+    (void) out;
+    (void) out_len;
+    (void) num_calls;
+    return s_finalize_hash_ret;
+}
+
+static size_t g_tx_ctx_count = 0;
+size_t get_tx_ctx_count(void) {
     return g_tx_ctx_count;
 }
 
 static const uint8_t *g_selector_ret = NULL;
-const uint8_t *__wrap_calldata_get_selector(const s_calldata *calldata) {
+const uint8_t *calldata_get_selector(const s_calldata *calldata) {
     (void) calldata;
     return g_selector_ret;
 }
@@ -65,47 +86,42 @@ const uint8_t *__wrap_calldata_get_selector(const s_calldata *calldata) {
 // Fixtures
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
-    g_finalize_hash_ret = true;
-    g_sig_check_ret = true;
+static void reset(void) {
+    s_finalize_hash_ret = true;
+    s_sig_check_ret = true;
     g_tx_ctx_count = 1;  // Skip the selector-match by default; tests that
                          // want to exercise the match set it to 0.
     g_selector_ret = NULL;
-    return 0;
 }
 
 // =============================================================================
 // Getters — NULL guard + empty-string guard
 // =============================================================================
 
-static void test_getters_null_tx_info_returns_null(void **state) {
-    (void) state;
-    assert_null(get_operation_type(NULL));
-    assert_null(get_creator_name(NULL));
-    assert_null(get_creator_legal_name(NULL));
-    assert_null(get_creator_url(NULL));
-    assert_null(get_contract_name(NULL));
-    assert_null(get_deploy_date(NULL));
-    assert_null(get_contract_addr(NULL));
+void test_getters_null_tx_info_returns_null(void) {
+    TEST_ASSERT_NULL(get_operation_type(NULL));
+    TEST_ASSERT_NULL(get_creator_name(NULL));
+    TEST_ASSERT_NULL(get_creator_legal_name(NULL));
+    TEST_ASSERT_NULL(get_creator_url(NULL));
+    TEST_ASSERT_NULL(get_contract_name(NULL));
+    TEST_ASSERT_NULL(get_deploy_date(NULL));
+    TEST_ASSERT_NULL(get_contract_addr(NULL));
 }
 
-static void test_getters_empty_string_returns_null(void **state) {
-    (void) state;
+void test_getters_empty_string_returns_null(void) {
     s_tx_info info = {0};
-    assert_null(get_operation_type(&info));
-    assert_null(get_creator_name(&info));
-    assert_null(get_creator_legal_name(&info));
-    assert_null(get_creator_url(&info));
-    assert_null(get_contract_name(&info));
-    assert_null(get_deploy_date(&info));
+    TEST_ASSERT_NULL(get_operation_type(&info));
+    TEST_ASSERT_NULL(get_creator_name(&info));
+    TEST_ASSERT_NULL(get_creator_legal_name(&info));
+    TEST_ASSERT_NULL(get_creator_url(&info));
+    TEST_ASSERT_NULL(get_contract_name(&info));
+    TEST_ASSERT_NULL(get_deploy_date(&info));
     // get_contract_addr only NULL-guards on tx_info, not on the address
     // bytes — it returns the (possibly zero) address as-is.
-    assert_ptr_equal(get_contract_addr(&info), info.contract_addr);
+    TEST_ASSERT_EQUAL_PTR(get_contract_addr(&info), info.contract_addr);
 }
 
-static void test_getters_return_populated_fields(void **state) {
-    (void) state;
+void test_getters_return_populated_fields(void) {
     s_tx_info info = {0};
     strlcpy(info.operation_type, "Approve", sizeof(info.operation_type));
     strlcpy(info.creator_name, "Aave", sizeof(info.creator_name));
@@ -114,12 +130,12 @@ static void test_getters_return_populated_fields(void **state) {
     strlcpy(info.contract_name, "Pool", sizeof(info.contract_name));
     strlcpy(info.deploy_date, "2024-01-01", sizeof(info.deploy_date));
 
-    assert_string_equal(get_operation_type(&info), "Approve");
-    assert_string_equal(get_creator_name(&info), "Aave");
-    assert_string_equal(get_creator_legal_name(&info), "Aave DAO");
-    assert_string_equal(get_creator_url(&info), "aave.com");
-    assert_string_equal(get_contract_name(&info), "Pool");
-    assert_string_equal(get_deploy_date(&info), "2024-01-01");
+    TEST_ASSERT_EQUAL_STRING(get_operation_type(&info), "Approve");
+    TEST_ASSERT_EQUAL_STRING(get_creator_name(&info), "Aave");
+    TEST_ASSERT_EQUAL_STRING(get_creator_legal_name(&info), "Aave DAO");
+    TEST_ASSERT_EQUAL_STRING(get_creator_url(&info), "aave.com");
+    TEST_ASSERT_EQUAL_STRING(get_contract_name(&info), "Pool");
+    TEST_ASSERT_EQUAL_STRING(get_deploy_date(&info), "2024-01-01");
 }
 
 // =============================================================================
@@ -133,8 +149,7 @@ static bool run_tlv(const uint8_t *bytes, size_t size, s_tx_info_ctx *ctx) {
     return handle_tx_info_struct(&buf, ctx);
 }
 
-static void test_tlv_happy_path_populates_fields(void **state) {
-    (void) state;
+void test_tlv_happy_path_populates_fields(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
 
@@ -226,29 +241,28 @@ static void test_tlv_happy_path_populates_fields(void **state) {
         0xBB,
         0xCC,  // DER long-form for tag 0xFF
     };
-    assert_true(run_tlv(bytes, sizeof(bytes), &ctx));
-    assert_int_equal(info.version, 1);
-    assert_int_equal(info.chain_id, 1);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_EQUAL(info.version, 1);
+    TEST_ASSERT_EQUAL(info.chain_id, 1);
     static const uint8_t expected_addr[ADDRESS_LENGTH] = {
         0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22, 0x33, 0x44,
         0x55, 0x66, 0x77, 0x88, 0x99, 0x00, 0xAA, 0xBB, 0xCC, 0xDD,
     };
-    assert_memory_equal(info.contract_addr, expected_addr, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL_MEMORY(info.contract_addr, expected_addr, ADDRESS_LENGTH);
     static const uint8_t expected_selector[4] = {0xDE, 0xAD, 0xBE, 0xEF};
-    assert_memory_equal(info.selector, expected_selector, sizeof(expected_selector));
-    assert_string_equal(info.operation_type, "Approve");
-    assert_string_equal(info.creator_name, "Aave");
-    assert_string_equal(info.contract_name, "Pool");
-    assert_string_equal(info.deploy_date, "2024-01-01");
-    assert_int_equal(info.signature_len, 3);
+    TEST_ASSERT_EQUAL_MEMORY(info.selector, expected_selector, sizeof(expected_selector));
+    TEST_ASSERT_EQUAL_STRING(info.operation_type, "Approve");
+    TEST_ASSERT_EQUAL_STRING(info.creator_name, "Aave");
+    TEST_ASSERT_EQUAL_STRING(info.contract_name, "Pool");
+    TEST_ASSERT_EQUAL_STRING(info.deploy_date, "2024-01-01");
+    TEST_ASSERT_EQUAL(info.signature_len, 3);
 }
 
 // =============================================================================
 // handle_selector — security-critical match against parked calldata
 // =============================================================================
 
-static void test_tlv_selector_match_against_parked_calldata(void **state) {
-    (void) state;
+void test_tlv_selector_match_against_parked_calldata(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
 
@@ -266,12 +280,11 @@ static void test_tlv_selector_match_against_parked_calldata(void **state) {
         0xBE,
         0xEF,  // matching selector
     };
-    assert_true(run_tlv(bytes, sizeof(bytes), &ctx));
-    assert_memory_equal(info.selector, parked, sizeof(parked));
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_EQUAL_MEMORY(info.selector, parked, sizeof(parked));
 }
 
-static void test_tlv_selector_mismatch_rejected(void **state) {
-    (void) state;
+void test_tlv_selector_mismatch_rejected(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 0;
@@ -286,11 +299,10 @@ static void test_tlv_selector_mismatch_rejected(void **state) {
         0xBA,
         0xBE,  // does NOT match parked
     };
-    assert_false(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &ctx));
 }
 
-static void test_tlv_selector_no_parked_calldata_rejected(void **state) {
-    (void) state;
+void test_tlv_selector_no_parked_calldata_rejected(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 0;
@@ -304,15 +316,14 @@ static void test_tlv_selector_no_parked_calldata_rejected(void **state) {
         0xBE,
         0xEF,
     };
-    assert_false(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &ctx));
 }
 
 // =============================================================================
 // Size guards
 // =============================================================================
 
-static void test_tlv_fields_hash_oversized_rejected(void **state) {
-    (void) state;
+void test_tlv_fields_hash_oversized_rejected(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 1;
@@ -322,11 +333,10 @@ static void test_tlv_fields_hash_oversized_rejected(void **state) {
     bytes[0] = 0x04;
     bytes[1] = 33;
     memset(&bytes[2], 0xAA, 33);
-    assert_false(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &ctx));
 }
 
-static void test_tlv_deploy_date_oversized_rejected(void **state) {
-    (void) state;
+void test_tlv_deploy_date_oversized_rejected(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 1;
@@ -336,11 +346,10 @@ static void test_tlv_deploy_date_oversized_rejected(void **state) {
     bytes[0] = 0x0A;
     bytes[1] = 5;
     memset(&bytes[2], 0, 5);
-    assert_false(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &ctx));
 }
 
-static void test_tlv_selector_oversize_rejected(void **state) {
-    (void) state;
+void test_tlv_selector_oversize_rejected(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 1;
@@ -352,11 +361,10 @@ static void test_tlv_selector_oversize_rejected(void **state) {
     bytes[0] = 0x03;
     bytes[1] = 5;
     memset(&bytes[2], 0xAA, 5);
-    assert_false(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &ctx));
 }
 
-static void test_tlv_signature_oversize_rejected(void **state) {
-    (void) state;
+void test_tlv_signature_oversize_rejected(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 1;
@@ -371,8 +379,8 @@ static void test_tlv_signature_oversize_rejected(void **state) {
     bytes[1] = 0xFF;
     bytes[2] = 73;  // length, < 128 so single byte
     memset(&bytes[3], 0x42, 73);
-    assert_false(run_tlv(bytes, sizeof(bytes), &ctx));
-    assert_int_equal(info.signature_len, 0);  // nothing copied through.
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_EQUAL(info.signature_len, 0);  // nothing copied through.
 }
 
 // Exercise the under-tested optional metadata tags (creator_legal_name,
@@ -381,8 +389,7 @@ static void test_tlv_signature_oversize_rejected(void **state) {
 // what's displayed in the operation summary, so even though they're
 // non-cryptographic, an unexercised truncation path is a UX-trust
 // surface.
-static void test_tlv_optional_metadata_tags_populated(void **state) {
-    (void) state;
+void test_tlv_optional_metadata_tags_populated(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 1;
@@ -395,20 +402,19 @@ static void test_tlv_optional_metadata_tags_populated(void **state) {
         0x09, 0x05, 'P',  'o',  'o',  'l',  'A',  // CONTRACT_NAME
         0x0A, 0x04, 0x65, 0x92, 0x00, 0x80,       // DEPLOY_DATE (2024-01-01)
     };
-    assert_true(run_tlv(bytes, sizeof(bytes), &ctx));
-    assert_string_equal(info.creator_name, "Aa Inc.");
-    assert_string_equal(info.creator_legal_name, "Aa Inc. LP");
-    assert_string_equal(info.creator_url, "https://aa.io/?q");
-    assert_string_equal(info.contract_name, "PoolA");
-    assert_string_equal(info.deploy_date, "2024-01-01");
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_EQUAL_STRING(info.creator_name, "Aa Inc.");
+    TEST_ASSERT_EQUAL_STRING(info.creator_legal_name, "Aa Inc. LP");
+    TEST_ASSERT_EQUAL_STRING(info.creator_url, "https://aa.io/?q");
+    TEST_ASSERT_EQUAL_STRING(info.contract_name, "PoolA");
+    TEST_ASSERT_EQUAL_STRING(info.deploy_date, "2024-01-01");
 }
 
 // delete_tx_info is the dual of APP_MEM_CALLOC in cmd_tx_info — must
 // not crash on a heap-allocated node (mocks use real malloc/free).
-static void test_delete_tx_info_frees_node(void **state) {
-    (void) state;
+void test_delete_tx_info_frees_node(void) {
     s_tx_info *node = calloc(1, sizeof(*node));
-    assert_non_null(node);
+    TEST_ASSERT_NOT_NULL(node);
     delete_tx_info(node);  // no crash, no leak.
 }
 
@@ -426,93 +432,103 @@ static const uint8_t g_valid_v1_tlv[] = {
                                                                        // for tag 0xFF)
 };
 
-static void test_verify_missing_version_rejected(void **state) {
-    (void) state;
+void test_verify_missing_version_rejected(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     // Empty TLV → no tag set → TAG_VERSION not received.
-    assert_true(run_tlv(NULL, 0, &ctx));
-    assert_false(verify_tx_info_struct(&ctx));
+    TEST_ASSERT_TRUE(run_tlv(NULL, 0, &ctx));
+    TEST_ASSERT_FALSE(verify_tx_info_struct(&ctx));
 }
 
 // VERSION = 1 but other required tags (CHAIN_ID, CONTRACT_ADDR,
 // SELECTOR, FIELDS_HASH, OPERATION_TYPE, SIGNATURE) absent. The switch
 // in verify_tx_info_struct routes to case 1 which fails the
 // multi-tag presence check — separate code path from "missing VERSION".
-static void test_verify_missing_required_field_with_version_present(void **state) {
-    (void) state;
+void test_verify_missing_required_field_with_version_present(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 1;
     const uint8_t bytes[] = {0x00, 0x01, 0x01};  // VERSION = 1, nothing else
-    assert_true(run_tlv(bytes, sizeof(bytes), &ctx));
-    assert_false(verify_tx_info_struct(&ctx));
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_FALSE(verify_tx_info_struct(&ctx));
 }
 
-static void test_verify_unsupported_version_rejected(void **state) {
-    (void) state;
+void test_verify_unsupported_version_rejected(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 1;
     const uint8_t bytes[] = {0x00, 0x01, 0x99};  // VERSION = 0x99 (not 1)
-    assert_true(run_tlv(bytes, sizeof(bytes), &ctx));
-    assert_false(verify_tx_info_struct(&ctx));
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &ctx));
+    TEST_ASSERT_FALSE(verify_tx_info_struct(&ctx));
 }
 
-static void test_verify_happy_path(void **state) {
-    (void) state;
+void test_verify_happy_path(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 1;
-    assert_true(run_tlv(g_valid_v1_tlv, sizeof(g_valid_v1_tlv), &ctx));
-    assert_true(verify_tx_info_struct(&ctx));
+    TEST_ASSERT_TRUE(run_tlv(g_valid_v1_tlv, sizeof(g_valid_v1_tlv), &ctx));
+    TEST_ASSERT_TRUE(verify_tx_info_struct(&ctx));
 }
 
-static void test_verify_signature_check_failure_rejected(void **state) {
-    (void) state;
+void test_verify_signature_check_failure_rejected(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 1;
-    assert_true(run_tlv(g_valid_v1_tlv, sizeof(g_valid_v1_tlv), &ctx));
-    g_sig_check_ret = false;
-    assert_false(verify_tx_info_struct(&ctx));
+    TEST_ASSERT_TRUE(run_tlv(g_valid_v1_tlv, sizeof(g_valid_v1_tlv), &ctx));
+    s_sig_check_ret = false;
+    TEST_ASSERT_FALSE(verify_tx_info_struct(&ctx));
 }
 
-static void test_verify_finalize_hash_failure_rejected(void **state) {
-    (void) state;
+void test_verify_finalize_hash_failure_rejected(void) {
     s_tx_info info = {0};
     s_tx_info_ctx ctx = {.tx_info = &info};
     g_tx_ctx_count = 1;
-    assert_true(run_tlv(g_valid_v1_tlv, sizeof(g_valid_v1_tlv), &ctx));
-    g_finalize_hash_ret = false;
-    assert_false(verify_tx_info_struct(&ctx));
+    TEST_ASSERT_TRUE(run_tlv(g_valid_v1_tlv, sizeof(g_valid_v1_tlv), &ctx));
+    s_finalize_hash_ret = false;
+    TEST_ASSERT_FALSE(verify_tx_info_struct(&ctx));
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    Mockpublic_keys_Init();
+    check_signature_with_pubkey_StubWithCallback(sig_check_stub);
+    Mockhash_bytes_Init();
+    finalize_hash_StubWithCallback(finalize_hash_stub);
+    hash_nbytes_Ignore();
+    hash_byte_Ignore();
+    reset();
+}
+
+void tearDown(void) {
+    Mockpublic_keys_Verify();
+    Mockpublic_keys_Destroy();
+    Mockhash_bytes_Verify();
+    Mockhash_bytes_Destroy();
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_getters_null_tx_info_returns_null, reset),
-        cmocka_unit_test_setup(test_getters_empty_string_returns_null, reset),
-        cmocka_unit_test_setup(test_getters_return_populated_fields, reset),
-        cmocka_unit_test_setup(test_tlv_happy_path_populates_fields, reset),
-        cmocka_unit_test_setup(test_tlv_selector_match_against_parked_calldata, reset),
-        cmocka_unit_test_setup(test_tlv_selector_mismatch_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_selector_no_parked_calldata_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_fields_hash_oversized_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_deploy_date_oversized_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_selector_oversize_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_signature_oversize_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_optional_metadata_tags_populated, reset),
-        cmocka_unit_test_setup(test_delete_tx_info_frees_node, reset),
-        cmocka_unit_test_setup(test_verify_missing_version_rejected, reset),
-        cmocka_unit_test_setup(test_verify_missing_required_field_with_version_present, reset),
-        cmocka_unit_test_setup(test_verify_unsupported_version_rejected, reset),
-        cmocka_unit_test_setup(test_verify_happy_path, reset),
-        cmocka_unit_test_setup(test_verify_signature_check_failure_rejected, reset),
-        cmocka_unit_test_setup(test_verify_finalize_hash_failure_rejected, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_getters_null_tx_info_returns_null);
+    RUN_TEST(test_getters_empty_string_returns_null);
+    RUN_TEST(test_getters_return_populated_fields);
+    RUN_TEST(test_tlv_happy_path_populates_fields);
+    RUN_TEST(test_tlv_selector_match_against_parked_calldata);
+    RUN_TEST(test_tlv_selector_mismatch_rejected);
+    RUN_TEST(test_tlv_selector_no_parked_calldata_rejected);
+    RUN_TEST(test_tlv_fields_hash_oversized_rejected);
+    RUN_TEST(test_tlv_deploy_date_oversized_rejected);
+    RUN_TEST(test_tlv_selector_oversize_rejected);
+    RUN_TEST(test_tlv_signature_oversize_rejected);
+    RUN_TEST(test_tlv_optional_metadata_tags_populated);
+    RUN_TEST(test_delete_tx_info_frees_node);
+    RUN_TEST(test_verify_missing_version_rejected);
+    RUN_TEST(test_verify_missing_required_field_with_version_present);
+    RUN_TEST(test_verify_unsupported_version_rejected);
+    RUN_TEST(test_verify_happy_path);
+    RUN_TEST(test_verify_signature_check_failure_rejected);
+    RUN_TEST(test_verify_finalize_hash_failure_rejected);
+    return UNITY_END();
 }

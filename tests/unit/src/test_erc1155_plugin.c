@@ -28,10 +28,7 @@
  * Pin every one of these.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -53,7 +50,10 @@
 // Helpers
 // =============================================================================
 
-bool __wrap_getEthDisplayableAddress(uint8_t *addr, char *out, size_t out_size, uint64_t chain) {
+bool __wrap_getEthDisplayableAddress(const uint8_t *addr,
+                                     char *out,
+                                     size_t out_size,
+                                     uint64_t chain) {
     (void) addr;
     (void) chain;
     if (out == NULL || out_size < 3) return false;
@@ -106,26 +106,24 @@ static void feed_param(erc1155_context_t *ctx, uint8_t *param, uint32_t offset) 
 // Tests — INIT
 // =============================================================================
 
-static void test_init_recognises_three_selectors(void **state) {
-    (void) state;
+void test_init_recognises_three_selectors(void) {
     erc1155_context_t ctx = {0};
     run_init(&ctx, SEL_APPROVE_FOR_ALL);
-    assert_int_equal(ctx.selectorIndex, SET_APPROVAL_FOR_ALL);
-    assert_int_equal(ctx.next_param, OPERATOR);
+    TEST_ASSERT_EQUAL(ctx.selectorIndex, SET_APPROVAL_FOR_ALL);
+    TEST_ASSERT_EQUAL(ctx.next_param, OPERATOR);
 
     memset(&ctx, 0, sizeof(ctx));
     run_init(&ctx, SEL_SAFE_TRANSFER);
-    assert_int_equal(ctx.selectorIndex, SAFE_TRANSFER);
-    assert_int_equal(ctx.next_param, FROM);
+    TEST_ASSERT_EQUAL(ctx.selectorIndex, SAFE_TRANSFER);
+    TEST_ASSERT_EQUAL(ctx.next_param, FROM);
 
     memset(&ctx, 0, sizeof(ctx));
     run_init(&ctx, SEL_SAFE_BATCH);
-    assert_int_equal(ctx.selectorIndex, SAFE_BATCH_TRANSFER);
-    assert_int_equal(ctx.next_param, FROM);
+    TEST_ASSERT_EQUAL(ctx.selectorIndex, SAFE_BATCH_TRANSFER);
+    TEST_ASSERT_EQUAL(ctx.next_param, FROM);
 }
 
-static void test_init_unknown_selector_falls_back(void **state) {
-    (void) state;
+void test_init_unknown_selector_falls_back(void) {
     erc1155_context_t ctx = {0};
     static const uint8_t unknown[] = {0xFF, 0xFF, 0xFF, 0xFF};
     txContent_t tx = {0};
@@ -135,51 +133,48 @@ static void test_init_unknown_selector_falls_back(void **state) {
     msg.selector = unknown;
     msg.txContent = &tx;
     erc1155_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_FALLBACK);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_FALLBACK);
 }
 
 // =============================================================================
 // Tests — PROVIDE_PARAMETER safeTransferFrom
 // =============================================================================
 
-static void test_init_zeroes_stale_context(void **state) {
-    (void) state;
+void test_init_zeroes_stale_context(void) {
     erc1155_context_t ctx;
     memset(&ctx, 0xCC, sizeof(ctx));
     run_init(&ctx, SEL_SAFE_BATCH);
-    assert_int_equal(ctx.selectorIndex, SAFE_BATCH_TRANSFER);
-    assert_int_equal(ctx.next_param, FROM);
-    assert_int_equal(ctx.batch_displayed, 0);
-    assert_false(ctx.batch_truncated);
+    TEST_ASSERT_EQUAL(ctx.selectorIndex, SAFE_BATCH_TRANSFER);
+    TEST_ASSERT_EQUAL(ctx.next_param, FROM);
+    TEST_ASSERT_EQUAL(ctx.batch_displayed, 0);
+    TEST_ASSERT_FALSE(ctx.batch_truncated);
 }
 
-static void test_safe_transfer_walk(void **state) {
-    (void) state;
+void test_safe_transfer_walk(void) {
     erc1155_context_t ctx = {0};
     run_init(&ctx, SEL_SAFE_TRANSFER);
 
     uint8_t param[PARAMETER_LENGTH];
     make_abi_address(param, 0xAA);
     feed_param(&ctx, param, 0);  // FROM (consumed, not stored)
-    assert_int_equal(ctx.next_param, TO);
+    TEST_ASSERT_EQUAL(ctx.next_param, TO);
 
     make_abi_address(param, 0xBB);
     feed_param(&ctx, param, 0);  // TO
-    assert_int_equal(ctx.next_param, TOKEN_ID);
-    for (int i = 0; i < 20; i++) assert_int_equal(ctx.address[i], 0xBB);
+    TEST_ASSERT_EQUAL(ctx.next_param, TOKEN_ID);
+    for (int i = 0; i < 20; i++) TEST_ASSERT_EQUAL(ctx.address[i], 0xBB);
 
     make_abi_u32(param, 42);
     feed_param(&ctx, param, 0);  // TOKEN_ID
-    assert_int_equal(ctx.next_param, VALUE);
+    TEST_ASSERT_EQUAL(ctx.next_param, VALUE);
 
     make_abi_u32(param, 7);
     feed_param(&ctx, param, 0);  // VALUE
-    assert_int_equal(ctx.next_param, NONE);
-    assert_int_equal(LOWER(LOWER(ctx.value)), 7);
+    TEST_ASSERT_EQUAL(ctx.next_param, NONE);
+    TEST_ASSERT_EQUAL(LOWER(LOWER(ctx.value)), 7);
 }
 
-static void test_safe_transfer_extra_params_tolerated(void **state) {
-    (void) state;
+void test_safe_transfer_extra_params_tolerated(void) {
     erc1155_context_t ctx = {0};
     run_init(&ctx, SEL_SAFE_TRANSFER);
     uint8_t param[PARAMETER_LENGTH];
@@ -189,7 +184,7 @@ static void test_safe_transfer_extra_params_tolerated(void **state) {
     make_abi_u32(param, 1);
     feed_param(&ctx, param, 0);
     feed_param(&ctx, param, 0);
-    assert_int_equal(ctx.next_param, NONE);
+    TEST_ASSERT_EQUAL(ctx.next_param, NONE);
     // Extra param past NONE: handler must not error (encoded `data`
     // field of safeTransferFrom is allowed).
     ethPluginProvideParameter_t msg = {0};
@@ -197,7 +192,7 @@ static void test_safe_transfer_extra_params_tolerated(void **state) {
     msg.parameter = param;
     msg.result = ETH_PLUGIN_RESULT_SUCCESSFUL;
     erc1155_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_SUCCESSFUL);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_SUCCESSFUL);
 }
 
 // =============================================================================
@@ -237,39 +232,37 @@ static void run_batch_head(erc1155_context_t *ctx,
     feed_param(ctx, param, 100);
 }
 
-static void test_batch_empty_ids_skips_to_value_length(void **state) {
-    (void) state;
+void test_batch_empty_ids_skips_to_value_length(void) {
     erc1155_context_t ctx = {0};
     run_init(&ctx, SEL_SAFE_BATCH);
     run_batch_head(&ctx, 128, 224);
-    assert_int_equal(ctx.next_param, TOKEN_IDS_LENGTH);
+    TEST_ASSERT_EQUAL(ctx.next_param, TOKEN_IDS_LENGTH);
 
     uint8_t param[PARAMETER_LENGTH];
     // ids array length = 0: must go to VALUE_LENGTH to avoid --ids_array_len
     // underflow (uint16_t wraps to 65535).
     make_abi_u32(param, 0);
     feed_param(&ctx, param, 132);
-    assert_int_equal(ctx.next_param, VALUE_LENGTH);
-    assert_int_equal(ctx.ids_array_len, 0);
+    TEST_ASSERT_EQUAL(ctx.next_param, VALUE_LENGTH);
+    TEST_ASSERT_EQUAL(ctx.ids_array_len, 0);
 }
 
-static void test_batch_two_pair_walk(void **state) {
-    (void) state;
+void test_batch_two_pair_walk(void) {
     erc1155_context_t ctx = {0};
     run_init(&ctx, SEL_SAFE_BATCH);
     // ids[] at offset 128 (4 head params after the 5 args head — keeping
     // the example simple); values[] at offset 128 + 32 + 2*32 = 224.
     run_batch_head(&ctx, /*ids_offset_args=*/128, /*values_offset_args=*/224);
-    assert_int_equal(ctx.next_param, TOKEN_IDS_LENGTH);
+    TEST_ASSERT_EQUAL(ctx.next_param, TOKEN_IDS_LENGTH);
 
     uint8_t param[PARAMETER_LENGTH];
     // ids array length = 2
     make_abi_u32(param, 2);
     feed_param(&ctx, param, 132);  // = ids_offset_args + 4
-    assert_int_equal(ctx.next_param, TOKEN_ID);
-    assert_int_equal(ctx.ids_array_len, 2);
-    assert_int_equal(ctx.batch_displayed, 2);
-    assert_false(ctx.batch_truncated);
+    TEST_ASSERT_EQUAL(ctx.next_param, TOKEN_ID);
+    TEST_ASSERT_EQUAL(ctx.ids_array_len, 2);
+    TEST_ASSERT_EQUAL(ctx.batch_displayed, 2);
+    TEST_ASSERT_FALSE(ctx.batch_truncated);
 
     // ids[0] = 7
     make_abi_u32(param, 7);
@@ -277,12 +270,12 @@ static void test_batch_two_pair_walk(void **state) {
     // ids[1] = 9 → after this, next_param flips to VALUE_LENGTH
     make_abi_u32(param, 9);
     feed_param(&ctx, param, 196);
-    assert_int_equal(ctx.next_param, VALUE_LENGTH);
+    TEST_ASSERT_EQUAL(ctx.next_param, VALUE_LENGTH);
 
     // values array length = 2
     make_abi_u32(param, 2);
     feed_param(&ctx, param, 228);  // = values_offset_args + 4
-    assert_int_equal(ctx.next_param, VALUE);
+    TEST_ASSERT_EQUAL(ctx.next_param, VALUE);
 
     // values[0] = 100
     make_abi_u32(param, 100);
@@ -290,20 +283,19 @@ static void test_batch_two_pair_walk(void **state) {
     // values[1] = 50
     make_abi_u32(param, 50);
     feed_param(&ctx, param, 292);
-    assert_int_equal(ctx.next_param, NONE);
+    TEST_ASSERT_EQUAL(ctx.next_param, NONE);
     // total quantity = 100 + 50 = 150
-    assert_int_equal(LOWER(LOWER(ctx.value)), 150);
+    TEST_ASSERT_EQUAL(LOWER(LOWER(ctx.value)), 150);
 
     // batch_ids / batch_values captured the first two pairs.
-    assert_int_equal(ctx.batch_displayed, 2);
-    assert_int_equal(ctx.batch_ids[0][PARAMETER_LENGTH - 1], 7);
-    assert_int_equal(ctx.batch_ids[1][PARAMETER_LENGTH - 1], 9);
-    assert_int_equal(ctx.batch_values[0][PARAMETER_LENGTH - 1], 100);
-    assert_int_equal(ctx.batch_values[1][PARAMETER_LENGTH - 1], 50);
+    TEST_ASSERT_EQUAL(ctx.batch_displayed, 2);
+    TEST_ASSERT_EQUAL(ctx.batch_ids[0][PARAMETER_LENGTH - 1], 7);
+    TEST_ASSERT_EQUAL(ctx.batch_ids[1][PARAMETER_LENGTH - 1], 9);
+    TEST_ASSERT_EQUAL(ctx.batch_values[0][PARAMETER_LENGTH - 1], 100);
+    TEST_ASSERT_EQUAL(ctx.batch_values[1][PARAMETER_LENGTH - 1], 50);
 }
 
-static void test_batch_truncates_beyond_display_max(void **state) {
-    (void) state;
+void test_batch_truncates_beyond_display_max(void) {
     erc1155_context_t ctx = {0};
     run_init(&ctx, SEL_SAFE_BATCH);
     run_batch_head(&ctx, 128, 32 + 32 * (ERC1155_BATCH_DISPLAY_MAX + 1));
@@ -312,12 +304,11 @@ static void test_batch_truncates_beyond_display_max(void **state) {
     // 5 ids -> > ERC1155_BATCH_DISPLAY_MAX (3) -> batch_truncated.
     make_abi_u32(param, 5);
     feed_param(&ctx, param, 132);
-    assert_int_equal(ctx.batch_displayed, ERC1155_BATCH_DISPLAY_MAX);
-    assert_true(ctx.batch_truncated);
+    TEST_ASSERT_EQUAL(ctx.batch_displayed, ERC1155_BATCH_DISPLAY_MAX);
+    TEST_ASSERT_TRUE(ctx.batch_truncated);
 }
 
-static void test_batch_offset_mismatch_rejected(void **state) {
-    (void) state;
+void test_batch_offset_mismatch_rejected(void) {
     erc1155_context_t ctx = {0};
     run_init(&ctx, SEL_SAFE_BATCH);
     run_batch_head(&ctx, 128, 224);
@@ -331,11 +322,10 @@ static void test_batch_offset_mismatch_rejected(void **state) {
     msg.parameter = param;
     msg.parameterOffset = 999;  // far past ids_offset
     erc1155_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_batch_arrays_length_mismatch_rejected(void **state) {
-    (void) state;
+void test_batch_arrays_length_mismatch_rejected(void) {
     erc1155_context_t ctx = {0};
     run_init(&ctx, SEL_SAFE_BATCH);
     run_batch_head(&ctx, 128, 224);
@@ -355,11 +345,10 @@ static void test_batch_arrays_length_mismatch_rejected(void **state) {
     msg.parameter = param;
     msg.parameterOffset = 228;
     erc1155_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_batch_aggregate_quantity_overflow_rejected(void **state) {
-    (void) state;
+void test_batch_aggregate_quantity_overflow_rejected(void) {
     // Two values: 2^255 + 2^255 wraps uint256 → handler must reject so
     // the "total quantity" line shown to the user does not lie.
     erc1155_context_t ctx = {0};
@@ -387,55 +376,52 @@ static void test_batch_aggregate_quantity_overflow_rejected(void **state) {
     msg.parameter = param;
     msg.parameterOffset = 292;
     erc1155_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
 // =============================================================================
 // Tests — PROVIDE_PARAMETER setApprovalForAll
 // =============================================================================
 
-static void test_approval_for_all_walk(void **state) {
-    (void) state;
+void test_approval_for_all_walk(void) {
     erc1155_context_t ctx = {0};
     run_init(&ctx, SEL_APPROVE_FOR_ALL);
 
     uint8_t param[PARAMETER_LENGTH];
     make_abi_address(param, 0xAA);
     feed_param(&ctx, param, 0);  // OPERATOR
-    assert_int_equal(ctx.next_param, APPROVED);
+    TEST_ASSERT_EQUAL(ctx.next_param, APPROVED);
 
     memset(param, 0, sizeof(param));
     param[PARAMETER_LENGTH - 1] = 1;
     feed_param(&ctx, param, 0);  // APPROVED = true
-    assert_int_equal(ctx.next_param, NONE);
-    assert_true(ctx.approved);
+    TEST_ASSERT_EQUAL(ctx.next_param, NONE);
+    TEST_ASSERT_TRUE(ctx.approved);
 
     // Extra param after NONE → error.
     ethPluginProvideParameter_t msg = {0};
     msg.pluginContext = (uint8_t *) &ctx;
     msg.parameter = param;
     erc1155_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
 // =============================================================================
 // Tests — FINALIZE
 // =============================================================================
 
-static void test_finalize_safe_transfer_five_screens(void **state) {
-    (void) state;
+void test_finalize_safe_transfer_five_screens(void) {
     erc1155_context_t ctx = {.selectorIndex = SAFE_TRANSFER};
     txContent_t tx = {0};
     ethPluginFinalize_t msg = {0};
     msg.pluginContext = (uint8_t *) &ctx;
     msg.txContent = &tx;
     erc1155_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_int_equal(msg.numScreens, 5);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(msg.numScreens, 5);
 }
 
-static void test_finalize_batch_screens_formula(void **state) {
-    (void) state;
+void test_finalize_batch_screens_formula(void) {
     // 4 fixed + 2 * batch_displayed + 1 if truncated.
     erc1155_context_t ctx = {.selectorIndex = SAFE_BATCH_TRANSFER,
                              .batch_displayed = ERC1155_BATCH_DISPLAY_MAX,
@@ -445,22 +431,20 @@ static void test_finalize_batch_screens_formula(void **state) {
     msg.pluginContext = (uint8_t *) &ctx;
     msg.txContent = &tx;
     erc1155_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.numScreens, 4 + 2 * ERC1155_BATCH_DISPLAY_MAX + 1);
+    TEST_ASSERT_EQUAL(msg.numScreens, 4 + 2 * ERC1155_BATCH_DISPLAY_MAX + 1);
 }
 
-static void test_finalize_approval_three_screens(void **state) {
-    (void) state;
+void test_finalize_approval_three_screens(void) {
     erc1155_context_t ctx = {.selectorIndex = SET_APPROVAL_FOR_ALL};
     txContent_t tx = {0};
     ethPluginFinalize_t msg = {0};
     msg.pluginContext = (uint8_t *) &ctx;
     msg.txContent = &tx;
     erc1155_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.numScreens, 3);
+    TEST_ASSERT_EQUAL(msg.numScreens, 3);
 }
 
-static void test_finalize_eth_attached_rejected(void **state) {
-    (void) state;
+void test_finalize_eth_attached_rejected(void) {
     // None of the three ERC-1155 selectors are payable. Any non-zero
     // ETH value attached to the tx means the calldata is hostile.
     erc1155_context_t ctx = {.selectorIndex = SAFE_TRANSFER};
@@ -471,22 +455,20 @@ static void test_finalize_eth_attached_rejected(void **state) {
     msg.pluginContext = (uint8_t *) &ctx;
     msg.txContent = &tx;
     erc1155_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_finalize_unknown_selector_rejects(void **state) {
-    (void) state;
+void test_finalize_unknown_selector_rejects(void) {
     erc1155_context_t ctx = {.selectorIndex = 0x7F};
     txContent_t tx = {0};
     ethPluginFinalize_t msg = {0};
     msg.pluginContext = (uint8_t *) &ctx;
     msg.txContent = &tx;
     erc1155_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_query_id_unknown_selector_rejects(void **state) {
-    (void) state;
+void test_query_id_unknown_selector_rejects(void) {
     erc1155_context_t ctx = {.selectorIndex = 0x7F};
     char name[32] = {0};
     char version[16] = {0};
@@ -497,24 +479,22 @@ static void test_query_id_unknown_selector_rejects(void **state) {
     msg.version = version;
     msg.versionLength = sizeof(version);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_provide_info_returns_ok(void **state) {
-    (void) state;
+void test_provide_info_returns_ok(void) {
     // handle_provide_info_1155 just sets result = OK; pin the dispatch
     // path through erc1155_plugin_call too.
     ethPluginProvideInfo_t msg = {0};
     erc1155_plugin_call(ETH_PLUGIN_PROVIDE_INFO, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
 }
 
 // =============================================================================
 // Tests — QUERY_CONTRACT_ID
 // =============================================================================
 
-static void test_query_contract_id_per_selector(void **state) {
-    (void) state;
+void test_query_contract_id_per_selector(void) {
     char name[32], version[16];
 
     erc1155_context_t ctx_approve = {.selectorIndex = SET_APPROVAL_FOR_ALL};
@@ -527,24 +507,24 @@ static void test_query_contract_id_per_selector(void **state) {
     memset(name, 0, sizeof(name));
     memset(version, 0, sizeof(version));
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &msg);
-    assert_string_equal(name, "NFT allowance");
-    assert_string_equal(version, "manage");
+    TEST_ASSERT_EQUAL_STRING(name, "NFT allowance");
+    TEST_ASSERT_EQUAL_STRING(version, "manage");
 
     erc1155_context_t ctx_transfer = {.selectorIndex = SAFE_TRANSFER};
     msg.pluginContext = (uint8_t *) &ctx_transfer;
     memset(name, 0, sizeof(name));
     memset(version, 0, sizeof(version));
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &msg);
-    assert_string_equal(name, "NFT");
-    assert_string_equal(version, "Transfer");
+    TEST_ASSERT_EQUAL_STRING(name, "NFT");
+    TEST_ASSERT_EQUAL_STRING(version, "Transfer");
 
     erc1155_context_t ctx_batch = {.selectorIndex = SAFE_BATCH_TRANSFER};
     msg.pluginContext = (uint8_t *) &ctx_batch;
     memset(name, 0, sizeof(name));
     memset(version, 0, sizeof(version));
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &msg);
-    assert_string_equal(name, "NFT");
-    assert_string_equal(version, "Batch Transfer");
+    TEST_ASSERT_EQUAL_STRING(name, "NFT");
+    TEST_ASSERT_EQUAL_STRING(version, "Batch Transfer");
 }
 
 // =============================================================================
@@ -559,8 +539,7 @@ static void prep_nft_info(void) {
     memset(g_nft_info.nft.contractAddress, 0xBB, ADDRESS_LENGTH);
 }
 
-static void test_ui_null_item1_rejected(void **state) {
-    (void) state;
+void test_ui_null_item1_rejected(void) {
     erc1155_context_t ctx = {.selectorIndex = SAFE_TRANSFER};
     char title[32], body[64];
     ethQueryContractUI_t msg = {0};
@@ -571,11 +550,10 @@ static void test_ui_null_item1_rejected(void **state) {
     msg.msg = body;
     msg.msgLength = sizeof(body);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_ui_safe_transfer_screen0(void **state) {
-    (void) state;
+void test_ui_safe_transfer_screen0(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_TRANSFER};
     char title[32], body[64];
@@ -588,12 +566,11 @@ static void test_ui_safe_transfer_screen0(void **state) {
     msg.msgLength = sizeof(body);
     msg.screenIndex = 0;
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "To");
-    assert_string_equal(body, "0xADDR");
+    TEST_ASSERT_EQUAL_STRING(title, "To");
+    TEST_ASSERT_EQUAL_STRING(body, "0xADDR");
 }
 
-static void test_ui_batch_total_quantity_screen(void **state) {
-    (void) state;
+void test_ui_batch_total_quantity_screen(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_BATCH_TRANSFER, .array_index = 2};
     LOWER(LOWER(ctx.value)) = 150;
@@ -607,12 +584,11 @@ static void test_ui_batch_total_quantity_screen(void **state) {
     msg.msgLength = sizeof(body);
     msg.screenIndex = 3;  // BATCH_SCREEN_TOTAL_QUANTITY
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "Total Quantity");
-    assert_string_equal(body, "150 from 2 NFT IDs");
+    TEST_ASSERT_EQUAL_STRING(title, "Total Quantity");
+    TEST_ASSERT_EQUAL_STRING(body, "150 from 2 NFT IDs");
 }
 
-static void test_ui_batch_truncation_warning_screen(void **state) {
-    (void) state;
+void test_ui_batch_truncation_warning_screen(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_BATCH_TRANSFER,
                              .batch_displayed = ERC1155_BATCH_DISPLAY_MAX,
@@ -629,8 +605,8 @@ static void test_ui_batch_truncation_warning_screen(void **state) {
     // Warning sits after the 4 fixed screens + 2*display pair screens.
     msg.screenIndex = (uint8_t) (4 + 2 * ERC1155_BATCH_DISPLAY_MAX);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "WARNING");
-    assert_string_equal(body, "Only first 3 of 7 IDs shown");
+    TEST_ASSERT_EQUAL_STRING(title, "WARNING");
+    TEST_ASSERT_EQUAL_STRING(body, "Only first 3 of 7 IDs shown");
 }
 
 // =============================================================================
@@ -654,32 +630,29 @@ static void prep_ui_msg(ethQueryContractUI_t *msg,
 
 // SAFE_TRANSFER sub-screens
 
-static void test_ui_safe_transfer_screen1_collection(void **state) {
-    (void) state;
+void test_ui_safe_transfer_screen1_collection(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_TRANSFER};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 1);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "Collection Name");
-    assert_string_equal(body, "Wares");
+    TEST_ASSERT_EQUAL_STRING(title, "Collection Name");
+    TEST_ASSERT_EQUAL_STRING(body, "Wares");
 }
 
-static void test_ui_safe_transfer_screen2_nft_address(void **state) {
-    (void) state;
+void test_ui_safe_transfer_screen2_nft_address(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_TRANSFER};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 2);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "NFT Address");
-    assert_string_equal(body, "0xADDR");
+    TEST_ASSERT_EQUAL_STRING(title, "NFT Address");
+    TEST_ASSERT_EQUAL_STRING(body, "0xADDR");
 }
 
-static void test_ui_safe_transfer_screen3_nft_id(void **state) {
-    (void) state;
+void test_ui_safe_transfer_screen3_nft_id(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_TRANSFER};
     ctx.tokenId[31] = 99;
@@ -687,12 +660,11 @@ static void test_ui_safe_transfer_screen3_nft_id(void **state) {
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 3);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "NFT ID");
-    assert_string_equal(body, "99");
+    TEST_ASSERT_EQUAL_STRING(title, "NFT ID");
+    TEST_ASSERT_EQUAL_STRING(body, "99");
 }
 
-static void test_ui_safe_transfer_screen4_quantity(void **state) {
-    (void) state;
+void test_ui_safe_transfer_screen4_quantity(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_TRANSFER};
     LOWER(LOWER(ctx.value)) = 1234;
@@ -700,119 +672,109 @@ static void test_ui_safe_transfer_screen4_quantity(void **state) {
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 4);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "Quantity");
-    assert_string_equal(body, "1234");
+    TEST_ASSERT_EQUAL_STRING(title, "Quantity");
+    TEST_ASSERT_EQUAL_STRING(body, "1234");
 }
 
-static void test_ui_safe_transfer_unknown_screen_rejected(void **state) {
-    (void) state;
+void test_ui_safe_transfer_unknown_screen_rejected(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_TRANSFER};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 99);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
 // SET_APPROVAL_FOR_ALL sub-screens
 
-static void test_ui_approval_for_all_screen0_allow(void **state) {
-    (void) state;
+void test_ui_approval_for_all_screen0_allow(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SET_APPROVAL_FOR_ALL, .approved = true};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 0);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "Allow");
-    assert_string_equal(body, "0xADDR");
+    TEST_ASSERT_EQUAL_STRING(title, "Allow");
+    TEST_ASSERT_EQUAL_STRING(body, "0xADDR");
 }
 
-static void test_ui_approval_for_all_screen0_revoke(void **state) {
-    (void) state;
+void test_ui_approval_for_all_screen0_revoke(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SET_APPROVAL_FOR_ALL, .approved = false};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 0);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "Revoke");
+    TEST_ASSERT_EQUAL_STRING(title, "Revoke");
 }
 
-static void test_ui_approval_for_all_screen1_to_manage_all(void **state) {
-    (void) state;
+void test_ui_approval_for_all_screen1_to_manage_all(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SET_APPROVAL_FOR_ALL, .approved = true};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 1);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "To Manage ALL");
-    assert_string_equal(body, "Wares");
+    TEST_ASSERT_EQUAL_STRING(title, "To Manage ALL");
+    TEST_ASSERT_EQUAL_STRING(body, "Wares");
 }
 
-static void test_ui_approval_for_all_screen2_nft_address(void **state) {
-    (void) state;
+void test_ui_approval_for_all_screen2_nft_address(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SET_APPROVAL_FOR_ALL, .approved = true};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 2);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "NFT Address");
-    assert_string_equal(body, "0xADDR");
+    TEST_ASSERT_EQUAL_STRING(title, "NFT Address");
+    TEST_ASSERT_EQUAL_STRING(body, "0xADDR");
 }
 
-static void test_ui_approval_for_all_unknown_screen_rejected(void **state) {
-    (void) state;
+void test_ui_approval_for_all_unknown_screen_rejected(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SET_APPROVAL_FOR_ALL, .approved = true};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 99);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
 // SAFE_BATCH_TRANSFER sub-screens
 
-static void test_ui_batch_screen0_to(void **state) {
-    (void) state;
+void test_ui_batch_screen0_to(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_BATCH_TRANSFER};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 0);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "To");
+    TEST_ASSERT_EQUAL_STRING(title, "To");
 }
 
-static void test_ui_batch_screen1_collection(void **state) {
-    (void) state;
+void test_ui_batch_screen1_collection(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_BATCH_TRANSFER};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 1);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "Collection Name");
-    assert_string_equal(body, "Wares");
+    TEST_ASSERT_EQUAL_STRING(title, "Collection Name");
+    TEST_ASSERT_EQUAL_STRING(body, "Wares");
 }
 
-static void test_ui_batch_screen2_nft_address(void **state) {
-    (void) state;
+void test_ui_batch_screen2_nft_address(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_BATCH_TRANSFER};
     char title[32], body[64];
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 2);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "NFT Address");
+    TEST_ASSERT_EQUAL_STRING(title, "NFT Address");
 }
 
-static void test_ui_batch_pair_nft_id_screen(void **state) {
-    (void) state;
+void test_ui_batch_pair_nft_id_screen(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_BATCH_TRANSFER, .batch_displayed = 2};
     ctx.batch_ids[0][31] = 7;
@@ -821,12 +783,11 @@ static void test_ui_batch_pair_nft_id_screen(void **state) {
     // Pair base is at index 4. Even offset = NFT ID, odd = Quantity.
     prep_ui_msg(&msg, &ctx, title, body, 4);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "NFT ID #1");
-    assert_string_equal(body, "7");
+    TEST_ASSERT_EQUAL_STRING(title, "NFT ID #1");
+    TEST_ASSERT_EQUAL_STRING(body, "7");
 }
 
-static void test_ui_batch_pair_quantity_screen(void **state) {
-    (void) state;
+void test_ui_batch_pair_quantity_screen(void) {
     prep_nft_info();
     erc1155_context_t ctx = {.selectorIndex = SAFE_BATCH_TRANSFER, .batch_displayed = 2};
     ctx.batch_values[0][31] = 42;
@@ -834,12 +795,11 @@ static void test_ui_batch_pair_quantity_screen(void **state) {
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 5);  // Pair 0, value half
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_string_equal(title, "Quantity #1");
-    assert_string_equal(body, "42");
+    TEST_ASSERT_EQUAL_STRING(title, "Quantity #1");
+    TEST_ASSERT_EQUAL_STRING(body, "42");
 }
 
-static void test_ui_batch_unsupported_screen_rejected(void **state) {
-    (void) state;
+void test_ui_batch_unsupported_screen_rejected(void) {
     prep_nft_info();
     // batch_displayed = 1 so the pair range is [4..5]; index 6 falls
     // in the no-truncation gap and must error.
@@ -850,55 +810,59 @@ static void test_ui_batch_unsupported_screen_rejected(void **state) {
     ethQueryContractUI_t msg;
     prep_ui_msg(&msg, &ctx, title, body, 99);
     erc1155_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_init_recognises_three_selectors),
-        cmocka_unit_test(test_init_unknown_selector_falls_back),
-        cmocka_unit_test(test_init_zeroes_stale_context),
-        cmocka_unit_test(test_batch_empty_ids_skips_to_value_length),
-        cmocka_unit_test(test_safe_transfer_walk),
-        cmocka_unit_test(test_safe_transfer_extra_params_tolerated),
-        cmocka_unit_test(test_batch_two_pair_walk),
-        cmocka_unit_test(test_batch_truncates_beyond_display_max),
-        cmocka_unit_test(test_batch_offset_mismatch_rejected),
-        cmocka_unit_test(test_batch_arrays_length_mismatch_rejected),
-        cmocka_unit_test(test_batch_aggregate_quantity_overflow_rejected),
-        cmocka_unit_test(test_approval_for_all_walk),
-        cmocka_unit_test(test_finalize_safe_transfer_five_screens),
-        cmocka_unit_test(test_finalize_batch_screens_formula),
-        cmocka_unit_test(test_finalize_approval_three_screens),
-        cmocka_unit_test(test_finalize_eth_attached_rejected),
-        cmocka_unit_test(test_finalize_unknown_selector_rejects),
-        cmocka_unit_test(test_query_id_unknown_selector_rejects),
-        cmocka_unit_test(test_provide_info_returns_ok),
-        cmocka_unit_test(test_query_contract_id_per_selector),
-        cmocka_unit_test(test_ui_null_item1_rejected),
-        cmocka_unit_test(test_ui_safe_transfer_screen0),
-        cmocka_unit_test(test_ui_batch_total_quantity_screen),
-        cmocka_unit_test(test_ui_batch_truncation_warning_screen),
-        cmocka_unit_test(test_ui_safe_transfer_screen1_collection),
-        cmocka_unit_test(test_ui_safe_transfer_screen2_nft_address),
-        cmocka_unit_test(test_ui_safe_transfer_screen3_nft_id),
-        cmocka_unit_test(test_ui_safe_transfer_screen4_quantity),
-        cmocka_unit_test(test_ui_safe_transfer_unknown_screen_rejected),
-        cmocka_unit_test(test_ui_approval_for_all_screen0_allow),
-        cmocka_unit_test(test_ui_approval_for_all_screen0_revoke),
-        cmocka_unit_test(test_ui_approval_for_all_screen1_to_manage_all),
-        cmocka_unit_test(test_ui_approval_for_all_screen2_nft_address),
-        cmocka_unit_test(test_ui_approval_for_all_unknown_screen_rejected),
-        cmocka_unit_test(test_ui_batch_screen0_to),
-        cmocka_unit_test(test_ui_batch_screen1_collection),
-        cmocka_unit_test(test_ui_batch_screen2_nft_address),
-        cmocka_unit_test(test_ui_batch_pair_nft_id_screen),
-        cmocka_unit_test(test_ui_batch_pair_quantity_screen),
-        cmocka_unit_test(test_ui_batch_unsupported_screen_rejected),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_init_recognises_three_selectors);
+    RUN_TEST(test_init_unknown_selector_falls_back);
+    RUN_TEST(test_init_zeroes_stale_context);
+    RUN_TEST(test_batch_empty_ids_skips_to_value_length);
+    RUN_TEST(test_safe_transfer_walk);
+    RUN_TEST(test_safe_transfer_extra_params_tolerated);
+    RUN_TEST(test_batch_two_pair_walk);
+    RUN_TEST(test_batch_truncates_beyond_display_max);
+    RUN_TEST(test_batch_offset_mismatch_rejected);
+    RUN_TEST(test_batch_arrays_length_mismatch_rejected);
+    RUN_TEST(test_batch_aggregate_quantity_overflow_rejected);
+    RUN_TEST(test_approval_for_all_walk);
+    RUN_TEST(test_finalize_safe_transfer_five_screens);
+    RUN_TEST(test_finalize_batch_screens_formula);
+    RUN_TEST(test_finalize_approval_three_screens);
+    RUN_TEST(test_finalize_eth_attached_rejected);
+    RUN_TEST(test_finalize_unknown_selector_rejects);
+    RUN_TEST(test_query_id_unknown_selector_rejects);
+    RUN_TEST(test_provide_info_returns_ok);
+    RUN_TEST(test_query_contract_id_per_selector);
+    RUN_TEST(test_ui_null_item1_rejected);
+    RUN_TEST(test_ui_safe_transfer_screen0);
+    RUN_TEST(test_ui_batch_total_quantity_screen);
+    RUN_TEST(test_ui_batch_truncation_warning_screen);
+    RUN_TEST(test_ui_safe_transfer_screen1_collection);
+    RUN_TEST(test_ui_safe_transfer_screen2_nft_address);
+    RUN_TEST(test_ui_safe_transfer_screen3_nft_id);
+    RUN_TEST(test_ui_safe_transfer_screen4_quantity);
+    RUN_TEST(test_ui_safe_transfer_unknown_screen_rejected);
+    RUN_TEST(test_ui_approval_for_all_screen0_allow);
+    RUN_TEST(test_ui_approval_for_all_screen0_revoke);
+    RUN_TEST(test_ui_approval_for_all_screen1_to_manage_all);
+    RUN_TEST(test_ui_approval_for_all_screen2_nft_address);
+    RUN_TEST(test_ui_approval_for_all_unknown_screen_rejected);
+    RUN_TEST(test_ui_batch_screen0_to);
+    RUN_TEST(test_ui_batch_screen1_collection);
+    RUN_TEST(test_ui_batch_screen2_nft_address);
+    RUN_TEST(test_ui_batch_pair_nft_id_screen);
+    RUN_TEST(test_ui_batch_pair_quantity_screen);
+    RUN_TEST(test_ui_batch_unsupported_screen_rejected);
+    return UNITY_END();
 }

@@ -18,10 +18,7 @@
  * the same index).
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -29,7 +26,7 @@
 #include "apdu_constants.h"
 #include "nft_info.h"
 #include "asset_info.h"  // COLLECTION_NAME_MAX_LEN
-#include "wraps.h"
+#include "Mockpublic_keys.h"
 
 // =============================================================================
 // Globals required by linked translation units
@@ -39,11 +36,30 @@
 // Wraps
 // =============================================================================
 
-// check_signature_with_pubkey is wrapped in mocks/mock.c; state via
-// g_sig_check_ret + g_sig_check_calls from wraps.h.
+// check_signature_with_pubkey is a CMock-generated mock.
+// Control its return value via s_sig_check_ret below.
+static bool s_sig_check_ret = true;
+static bool sig_check_stub(uint8_t *buffer,
+                           const uint8_t bufLen,
+                           const uint8_t *PubKey,
+                           const uint8_t keyLen,
+                           const uint8_t keyUsageExp,
+                           const uint8_t *signature,
+                           const uint8_t sigLen,
+                           int num_calls) {
+    (void) buffer;
+    (void) bufLen;
+    (void) PubKey;
+    (void) keyLen;
+    (void) keyUsageExp;
+    (void) signature;
+    (void) sigLen;
+    (void) num_calls;
+    return s_sig_check_ret;
+}
 
 static bool g_chain_compatible = true;
-bool __wrap_app_compatible_with_chain_id(const uint64_t *chain_id) {
+bool app_compatible_with_chain_id(const uint64_t *chain_id) {
     (void) chain_id;
     return g_chain_compatible;
 }
@@ -125,7 +141,7 @@ static size_t build_apdu(uint8_t *out, size_t out_size, const s_opts *opts) {
     if (opts->extra_trailing_byte) {
         out[off++] = 0xCC;
     }
-    assert_true(off <= out_size);
+    TEST_ASSERT_TRUE(off <= out_size);
     return off;
 }
 
@@ -133,68 +149,60 @@ static size_t build_apdu(uint8_t *out, size_t out_size, const s_opts *opts) {
 // Fixture
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     clear_nft_infos();
-    g_sig_check_ret = true;
-    g_sig_check_calls = 0;
+    s_sig_check_ret = true;
     g_chain_compatible = true;
     memset(G_io_tx_buffer, 0, sizeof(G_io_tx_buffer));
-    return 0;
 }
 
 // =============================================================================
 // Tests — entry-point guards
 // =============================================================================
 
-static void test_p1_nonzero_rejected(void **state) {
-    (void) state;
+void test_p1_nonzero_rejected(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(/*p1=*/1, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_P1_P2);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_P1_P2);
 }
 
-static void test_p2_nonzero_rejected(void **state) {
-    (void) state;
+void test_p2_nonzero_rejected(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, /*p2=*/1, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_P1_P2);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_P1_P2);
 }
 
 // =============================================================================
 // Tests — header validation
 // =============================================================================
 
-static void test_type_invalid_rejected(void **state) {
-    (void) state;
+void test_type_invalid_rejected(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     opts.type = 0x05;
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
-static void test_version_invalid_rejected(void **state) {
-    (void) state;
+void test_version_invalid_rejected(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     opts.version = 0x02;
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
-static void test_collection_name_too_long_rejected(void **state) {
-    (void) state;
+void test_collection_name_too_long_rejected(void) {
     // The struct field is COLLECTION_NAME_MAX_LEN + 1 wide and the guard
     // is `name_len + 1 > sizeof(info.collection_name)`. So a name of
     // COLLECTION_NAME_MAX_LEN + 1 bytes spills the NUL-terminator slot.
@@ -205,11 +213,10 @@ static void test_collection_name_too_long_rejected(void **state) {
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
-static void test_collection_name_at_max_accepted(void **state) {
-    (void) state;
+void test_collection_name_at_max_accepted(void) {
     // name_len = COLLECTION_NAME_MAX_LEN must succeed (boundary case).
     uint8_t apdu[256];
     s_opts opts = default_opts();
@@ -218,102 +225,93 @@ static void test_collection_name_at_max_accepted(void **state) {
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_SUCCESS);
+    TEST_ASSERT_EQUAL(sw, SWO_SUCCESS);
 }
 
-static void test_unsupported_chain_id_rejected(void **state) {
-    (void) state;
+void test_unsupported_chain_id_rejected(void) {
     g_chain_compatible = false;
     uint8_t apdu[200];
     s_opts opts = default_opts();
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
     // No signature check for an unsupported chain.
-    assert_int_equal(g_sig_check_calls, 0);
+    TEST_ASSERT_EQUAL(check_signature_with_pubkey_CallCount(), 0);
 }
 
-static void test_unexpected_key_id_rejected(void **state) {
-    (void) state;
+void test_unexpected_key_id_rejected(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     opts.key_id = 0x05;  // not STAGING (0) or PROD (1)
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
-static void test_unexpected_algo_id_rejected(void **state) {
-    (void) state;
+void test_unexpected_algo_id_rejected(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     opts.algo_id = 0x02;
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
 // =============================================================================
 // Tests — truncation guards
 // =============================================================================
 
-static void test_truncated_missing_type(void **state) {
-    (void) state;
+void test_truncated_missing_type(void) {
     uint8_t apdu[1] = {0};
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, /*lc=*/0, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
-static void test_truncated_missing_version(void **state) {
-    (void) state;
+void test_truncated_missing_version(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     opts.truncate_at = 0;  // emit just `type`
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
-static void test_truncated_missing_address(void **state) {
-    (void) state;
+void test_truncated_missing_address(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     opts.truncate_at = 3;  // type, version, name_len, name only
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
-static void test_truncated_missing_chain_id(void **state) {
-    (void) state;
+void test_truncated_missing_chain_id(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     opts.truncate_at = 4;
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
-static void test_truncated_missing_signature_length(void **state) {
-    (void) state;
+void test_truncated_missing_signature_length(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     opts.truncate_at = 7;  // up to algo_id, then stop
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
-static void test_truncated_signature_underflow(void **state) {
-    (void) state;
+void test_truncated_signature_underflow(void) {
     // Declare sig_len = 64 but stop after the length byte.
     uint8_t apdu[200];
     s_opts opts = default_opts();
@@ -322,81 +320,76 @@ static void test_truncated_signature_underflow(void **state) {
     // Trim the buffer length down to just below the signature payload.
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) (len - opts.sig_len), apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
-static void test_extra_trailing_bytes_rejected(void **state) {
-    (void) state;
+void test_extra_trailing_bytes_rejected(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     opts.extra_trailing_byte = true;
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
 }
 
 // =============================================================================
 // Tests — signature & storage
 // =============================================================================
 
-static void test_signature_failure_does_not_store(void **state) {
-    (void) state;
-    g_sig_check_ret = false;
+void test_signature_failure_does_not_store(void) {
+    s_sig_check_ret = false;
     uint8_t apdu[200];
     s_opts opts = default_opts();
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_INCORRECT_DATA);
+    TEST_ASSERT_EQUAL(sw, SWO_INCORRECT_DATA);
     // get_matching_nft_info must NOT find the (chain, address) pair.
     uint8_t addr[20];
     memset(addr, 0xAA, sizeof(addr));
     uint64_t chain = 1;
-    assert_null(get_matching_nft_info(&chain, addr));
+    TEST_ASSERT_NULL(get_matching_nft_info(&chain, addr));
 }
 
-static void test_happy_path_stores_and_returns_index(void **state) {
-    (void) state;
+void test_happy_path_stores_and_returns_index(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_SUCCESS);
-    assert_int_equal(tx, 1);
-    assert_int_equal(G_io_tx_buffer[0], 0);  // first insert → index 0
+    TEST_ASSERT_EQUAL(sw, SWO_SUCCESS);
+    TEST_ASSERT_EQUAL(tx, 1);
+    TEST_ASSERT_EQUAL(G_io_tx_buffer[0], 0);  // first insert → index 0
     // Round-trip through the public getter.
     uint8_t addr[20];
     memset(addr, 0xAA, sizeof(addr));
     uint64_t chain = 1;
     const s_nft_info *got = get_matching_nft_info(&chain, addr);
-    assert_non_null(got);
-    assert_memory_equal(got->collection_name, "Boop", 4);
-    assert_int_equal(got->chain_id, 1);
+    TEST_ASSERT_NOT_NULL(got);
+    TEST_ASSERT_EQUAL_MEMORY(got->collection_name, "Boop", 4);
+    TEST_ASSERT_EQUAL(got->chain_id, 1);
 }
 
-static void test_duplicate_insert_returns_same_index(void **state) {
-    (void) state;
+void test_duplicate_insert_returns_same_index(void) {
     uint8_t apdu[200];
     s_opts opts = default_opts();
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
 
     unsigned int tx = 0;
     (void) handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(G_io_tx_buffer[0], 0);
+    TEST_ASSERT_EQUAL(G_io_tx_buffer[0], 0);
 
     // Re-send the same descriptor — must hit the existing-node branch
     // in set_nft_info and report the same index.
     tx = 0;
     memset(G_io_tx_buffer, 0xCC, 4);  // sentinel to detect overwrite
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_SUCCESS);
-    assert_int_equal(G_io_tx_buffer[0], 0);
+    TEST_ASSERT_EQUAL(sw, SWO_SUCCESS);
+    TEST_ASSERT_EQUAL(G_io_tx_buffer[0], 0);
 }
 
-static void test_second_descriptor_gets_next_index(void **state) {
-    (void) state;
+void test_second_descriptor_gets_next_index(void) {
     uint8_t apdu[200];
 
     // First descriptor on chain 1, address 0xAA.
@@ -404,7 +397,7 @@ static void test_second_descriptor_gets_next_index(void **state) {
     size_t len = build_apdu(apdu, sizeof(apdu), &opts);
     unsigned int tx = 0;
     (void) handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(G_io_tx_buffer[0], 0);
+    TEST_ASSERT_EQUAL(G_io_tx_buffer[0], 0);
 
     // Second descriptor on chain 1, address 0xBB → distinct slot.
     opts.address_byte = 0xBB;
@@ -413,36 +406,46 @@ static void test_second_descriptor_gets_next_index(void **state) {
     len = build_apdu(apdu, sizeof(apdu), &opts);
     tx = 0;
     uint16_t sw = handle_provide_nft_information(0, 0, (uint8_t) len, apdu, &tx);
-    assert_int_equal(sw, SWO_SUCCESS);
-    assert_int_equal(G_io_tx_buffer[0], 1);
+    TEST_ASSERT_EQUAL(sw, SWO_SUCCESS);
+    TEST_ASSERT_EQUAL(G_io_tx_buffer[0], 1);
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    Mockpublic_keys_Init();
+    check_signature_with_pubkey_StubWithCallback(sig_check_stub);
+    reset();
+}
+
+void tearDown(void) {
+    Mockpublic_keys_Verify();
+    Mockpublic_keys_Destroy();
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_p1_nonzero_rejected, reset),
-        cmocka_unit_test_setup(test_p2_nonzero_rejected, reset),
-        cmocka_unit_test_setup(test_type_invalid_rejected, reset),
-        cmocka_unit_test_setup(test_version_invalid_rejected, reset),
-        cmocka_unit_test_setup(test_collection_name_too_long_rejected, reset),
-        cmocka_unit_test_setup(test_collection_name_at_max_accepted, reset),
-        cmocka_unit_test_setup(test_unsupported_chain_id_rejected, reset),
-        cmocka_unit_test_setup(test_unexpected_key_id_rejected, reset),
-        cmocka_unit_test_setup(test_unexpected_algo_id_rejected, reset),
-        cmocka_unit_test_setup(test_truncated_missing_type, reset),
-        cmocka_unit_test_setup(test_truncated_missing_version, reset),
-        cmocka_unit_test_setup(test_truncated_missing_address, reset),
-        cmocka_unit_test_setup(test_truncated_missing_chain_id, reset),
-        cmocka_unit_test_setup(test_truncated_missing_signature_length, reset),
-        cmocka_unit_test_setup(test_truncated_signature_underflow, reset),
-        cmocka_unit_test_setup(test_extra_trailing_bytes_rejected, reset),
-        cmocka_unit_test_setup(test_signature_failure_does_not_store, reset),
-        cmocka_unit_test_setup(test_happy_path_stores_and_returns_index, reset),
-        cmocka_unit_test_setup(test_duplicate_insert_returns_same_index, reset),
-        cmocka_unit_test_setup(test_second_descriptor_gets_next_index, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_p1_nonzero_rejected);
+    RUN_TEST(test_p2_nonzero_rejected);
+    RUN_TEST(test_type_invalid_rejected);
+    RUN_TEST(test_version_invalid_rejected);
+    RUN_TEST(test_collection_name_too_long_rejected);
+    RUN_TEST(test_collection_name_at_max_accepted);
+    RUN_TEST(test_unsupported_chain_id_rejected);
+    RUN_TEST(test_unexpected_key_id_rejected);
+    RUN_TEST(test_unexpected_algo_id_rejected);
+    RUN_TEST(test_truncated_missing_type);
+    RUN_TEST(test_truncated_missing_version);
+    RUN_TEST(test_truncated_missing_address);
+    RUN_TEST(test_truncated_missing_chain_id);
+    RUN_TEST(test_truncated_missing_signature_length);
+    RUN_TEST(test_truncated_signature_underflow);
+    RUN_TEST(test_extra_trailing_bytes_rejected);
+    RUN_TEST(test_signature_failure_does_not_store);
+    RUN_TEST(test_happy_path_stores_and_returns_index);
+    RUN_TEST(test_duplicate_insert_returns_same_index);
+    RUN_TEST(test_second_descriptor_gets_next_index);
+    return UNITY_END();
 }

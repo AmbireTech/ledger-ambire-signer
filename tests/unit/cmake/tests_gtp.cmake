@@ -1,7 +1,8 @@
-# tests_gtp.cmake -- generated test definitions
+# tests_gtp.cmake
 
-add_eth_unit_test(test_param_network
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_network
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_value.c
     ${APP_DIR}/features/generic_tx_parser/gtp_param_network.c
     ${APP_DIR}/tlv_apdu.c
@@ -11,15 +12,19 @@ add_eth_unit_test(test_param_network
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  DEFS
-    HAVE_SPRINTF
-  WRAPS
-    get_network_as_string_from_chain_id
-    add_to_field_table
+  MOCK_HEADERS
+    ${APP_DIR}/network.h
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_trusted_name
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_trusted_name
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_value.c
     ${APP_DIR}/features/generic_tx_parser/gtp_param_trusted_name.c
     ${APP_DIR}/tlv_apdu.c
@@ -29,17 +34,20 @@ add_eth_unit_test(test_param_trusted_name
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  WRAPS
-    get_trusted_name
-    get_address_display_name
-    get_public_key
-    get_current_tx_chain_id
-    add_to_field_table
-    get_network_as_string_from_chain_id
+  MOCK_HEADERS
+    ${APP_DIR}/features/provide_trusted_name/trusted_name.h
+    ${APP_DIR}/network.h
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_raw
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_raw
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_value.c
     ${APP_DIR}/features/generic_tx_parser/gtp_param_raw.c
     ${APP_DIR}/tlv_apdu.c
@@ -49,19 +57,19 @@ add_eth_unit_test(test_param_raw
     ${APP_DIR}/uint128.c
     ${APP_DIR}/utils/utils.c
     ${PLUGIN_DIR}/common_utils.c
-  SDK_SOURCES
     ${BOLOS_SDK}/src/os_printf.c
-  DEFS
-    HAVE_SPRINTF
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
     HAVE_SNPRINTF
-    HAVE_SNPRINTF_FORMAT_U
-  WRAPS
-    add_to_field_table
-    get_matching_map_entry
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_group
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_group
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_param_group.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
@@ -70,20 +78,19 @@ add_eth_unit_test(test_param_group
     ${APP_DIR}/uint256.c
     ${APP_DIR}/uint128.c
     ${PLUGIN_DIR}/common_utils.c
-  SDK_SOURCES
     ${BOLOS_SDK}/lib_lists/lists.c
-  WRAPS
-    format_field
-    handle_field_struct
-    verify_field_struct
-    cleanup_field
-    cleanup_field_constraints
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_token_amount
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_token_amount
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_param_token_amount.c
-    ${APP_DIR}/features/provide_erc20_token_information/token_info.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/mem_utils.c
@@ -91,25 +98,20 @@ add_eth_unit_test(test_param_token_amount
     ${APP_DIR}/uint128.c
     ${APP_DIR}/utils/utils.c
     ${PLUGIN_DIR}/common_utils.c
-  SDK_SOURCES
     ${BOLOS_SDK}/src/os_printf.c
     ${BOLOS_SDK}/lib_lists/lists.c
-  DEFS
-    HAVE_SPRINTF
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
     HAVE_SNPRINTF
-    HAVE_SNPRINTF_FORMAT_U
-  WRAPS
-    value_get
-    value_cleanup
-    handle_value_struct
-    get_current_tx_info
-    get_matching_token_info_or_dummy
-    add_to_field_table
-    get_displayable_ticker
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_calldata
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_calldata
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_param_calldata.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
@@ -118,23 +120,19 @@ add_eth_unit_test(test_param_calldata
     ${APP_DIR}/uint256.c
     ${APP_DIR}/uint128.c
     ${PLUGIN_DIR}/common_utils.c
-  DEFS
-    HAVE_SPRINTF
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
     HAVE_SNPRINTF
-  WRAPS
-    value_get
-    value_cleanup
-    handle_value_struct
-    tx_ctx_init
-    calldata_init
-    calldata_append
-    calldata_delete
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_amount
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_amount
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_param_amount.c
-    ${APP_DIR}/features/generic_tx_parser/gtp_value.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/mem_utils.c
@@ -142,19 +140,18 @@ add_eth_unit_test(test_param_amount
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  WRAPS
-    value_get
-    value_cleanup
-    handle_value_struct
-    get_current_tx_info
-    get_displayable_ticker
-    add_to_field_table
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_datetime
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_datetime
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_param_datetime.c
-    ${APP_DIR}/features/generic_tx_parser/gtp_value.c
     ${APP_DIR}/utils/time_format.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
@@ -163,17 +160,18 @@ add_eth_unit_test(test_param_datetime
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  WRAPS
-    value_get
-    value_cleanup
-    handle_value_struct
-    add_to_field_table
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_duration
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_duration
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_param_duration.c
-    ${APP_DIR}/features/generic_tx_parser/gtp_value.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/mem_utils.c
@@ -181,17 +179,18 @@ add_eth_unit_test(test_param_duration
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  WRAPS
-    value_get
-    value_cleanup
-    handle_value_struct
-    add_to_field_table
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_unit
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_unit
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_param_unit.c
-    ${APP_DIR}/features/generic_tx_parser/gtp_value.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/mem_utils.c
@@ -199,17 +198,18 @@ add_eth_unit_test(test_param_unit
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  WRAPS
-    value_get
-    value_cleanup
-    handle_value_struct
-    add_to_field_table
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_enum
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_enum
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_param_enum.c
-    ${APP_DIR}/features/generic_tx_parser/gtp_value.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/mem_utils.c
@@ -217,24 +217,19 @@ add_eth_unit_test(test_param_enum
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  INCLUDES
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/features/provide_enum_value
-  WRAPS
-    value_get
-    value_cleanup
-    handle_value_struct
-    add_to_field_table
-    get_current_tx_info
-    get_current_calldata
-    calldata_get_selector
-    get_matching_enum
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_token
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_token
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_param_token.c
-    ${APP_DIR}/features/generic_tx_parser/gtp_value.c
-    ${APP_DIR}/features/provide_erc20_token_information/token_info.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/mem_utils.c
@@ -242,22 +237,19 @@ add_eth_unit_test(test_param_token
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  SDK_SOURCES
     ${BOLOS_SDK}/lib_lists/lists.c
-  WRAPS
-    value_get
-    value_cleanup
-    handle_value_struct
-    add_to_field_table
-    get_current_tx_info
-    get_matching_token_info_or_dummy
-    get_displayable_ticker
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_param_nft
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_param_nft
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_param_nft.c
-    ${APP_DIR}/features/generic_tx_parser/gtp_value.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/mem_utils.c
@@ -265,19 +257,18 @@ add_eth_unit_test(test_param_nft
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  INCLUDES
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/features/provide_nft_information
-  WRAPS
-    value_get
-    value_cleanup
-    handle_value_struct
-    add_to_field_table
-    get_current_tx_info
-    get_matching_nft_info
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_field_validation
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_field_validation
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_field.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
@@ -286,24 +277,36 @@ add_eth_unit_test(test_field_validation
     ${APP_DIR}/uint256.c
     ${APP_DIR}/uint128.c
     ${PLUGIN_DIR}/common_utils.c
-    ${MOCK_DIR}/field_validation_mocks.c
-  SDK_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_field_validation_stubs.c
     ${BOLOS_SDK}/lib_lists/lists.c
-  COMPILE_OPTIONS -fshort-enums
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  COMPILE_OPTIONS
+    -fshort-enums
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_field_table
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_field_table
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_field_table.c
-  SDK_SOURCES
     ${BOLOS_SDK}/lib_lists/lists.c
-  INCLUDES
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/features/sign_message_eip712
     ${APP_DIR}/features/provide_trusted_name
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_tx_info
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_tx_info
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_tx_info.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
@@ -313,44 +316,42 @@ add_eth_unit_test(test_tx_info
     ${APP_DIR}/uint256.c
     ${APP_DIR}/utils/time_format.c
     ${PLUGIN_DIR}/common_utils.c
-  SDK_SOURCES
     ${BOLOS_SDK}/lib_lists/lists.c
-  INCLUDES
+  MOCK_HEADERS
+    ${APP_DIR}/public_keys.h
+    ${APP_DIR}/utils/hash_bytes.h
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/features/provide_proxy_info
     ${APP_DIR}/features/provide_trusted_name
-  WRAPS
-    hash_nbytes
-    finalize_hash
-    check_signature_with_pubkey
-    get_tx_ctx_count
-    calldata_get_selector
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_tx_ctx
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_tx_ctx
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/tx_ctx.c
     ${APP_DIR}/features/generic_tx_parser/calldata.c
     ${APP_DIR}/utils/mem_utils.c
-  SDK_SOURCES
     ${BOLOS_SDK}/lib_lists/lists.c
-  INCLUDES
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/features/provide_proxy_info
     ${APP_DIR}/features/provide_trusted_name
     ${APP_DIR}/features/sign_message_eip712
     ${APP_DIR}/features/get_public_key
-  WRAPS
-    get_public_key
-    get_address_display_name
-    finalize_hash
-    ui_gcs_cleanup
-    delete_tx_info
-    field_table_init
-    field_table_cleanup
-    get_implem_contract
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_data_path
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_data_path
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_data_path.c
     ${APP_DIR}/features/generic_tx_parser/gtp_path_array.c
     ${APP_DIR}/features/generic_tx_parser/gtp_path_slice.c
@@ -361,13 +362,17 @@ add_eth_unit_test(test_data_path
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  WRAPS
-    get_current_calldata
-    calldata_get_chunk
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_value
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_value
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/gtp_value.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
@@ -376,21 +381,18 @@ add_eth_unit_test(test_value
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  INCLUDES
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/features/provide_map_entry
-  WRAPS
-    data_path_get
-    data_path_cleanup
-    handle_data_path_struct
-    get_current_tx_from
-    get_current_tx_to
-    get_current_tx_amount
-    get_current_tx_info
-    get_matching_map_entry
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_provide_map_entry
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_provide_map_entry
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/provide_map_entry/map_entry.c
     ${APP_DIR}/tlv_apdu.c
     ${APP_DIR}/utils/tlv_utils.c
@@ -399,55 +401,65 @@ add_eth_unit_test(test_provide_map_entry
     ${APP_DIR}/uint256.c
     ${APP_DIR}/uint128.c
     ${PLUGIN_DIR}/common_utils.c
-  SDK_SOURCES
     ${BOLOS_SDK}/lib_lists/lists.c
     ${BOLOS_SDK}/src/os_printf.c
-  WRAPS
-    hash_nbytes
-    finalize_hash
-    check_signature_with_pubkey
-    get_current_tx_info
-    get_current_calldata
-    calldata_get_selector
-    get_implem_contract
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_enum_value
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_enum_value
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/provide_enum_value/enum_value.c
     ${APP_DIR}/utils/tlv_utils.c
     ${APP_DIR}/utils/utils.c
     ${APP_DIR}/uint128.c
     ${APP_DIR}/uint256.c
     ${PLUGIN_DIR}/common_utils.c
-  SDK_SOURCES
     ${BOLOS_SDK}/lib_lists/lists.c
-  INCLUDES
+  MOCK_HEADERS
+    ${APP_DIR}/public_keys.h
+    ${APP_DIR}/utils/hash_bytes.h
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/features/provide_enum_value
     ${APP_DIR}/features/provide_proxy_info
-  WRAPS
-    check_signature_with_pubkey
-    finalize_hash
-    hash_nbytes
-    get_implem_contract
-  COMPILE_OPTIONS "SHELL:-include os_pic.h"
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_cmd_field_tx_info
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_cmd_field_tx_info
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/generic_tx_parser/cmd_field.c
     ${APP_DIR}/features/generic_tx_parser/cmd_tx_info.c
-  WRAPS
-    tlv_from_apdu
-    get_current_tx_info
-    gcs_cleanup
+  MOCK_HEADERS
+    ${APP_DIR}/tlv_apdu.h
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )
 
-add_eth_unit_test(test_cmd_map_entry
-  APP_SOURCES
+ledger_unit_tests_add_test(NAME test_cmd_map_entry
+  SOURCES
+    ${COMMON_SOURCES_WITH_GLOBALS}
     ${APP_DIR}/features/provide_map_entry/cmd_map_entry.c
-  INCLUDES
+  MOCK_HEADERS
+    ${APP_DIR}/tlv_apdu.h
+  INCLUDE_DIRS
+    ${COMMON_INCLUDE_DIRS}
     ${APP_DIR}/features/provide_map_entry
-  WRAPS
-    tlv_from_apdu
+  COMPILE_DEFS
+    ${COMMON_COMPILE_DEFS}
+  LINK_OPTIONS
+    ${COMMON_LINK_OPTIONS}
 )

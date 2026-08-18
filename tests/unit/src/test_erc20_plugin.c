@@ -18,10 +18,7 @@
  *     regression tests pin both rejections.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -33,6 +30,7 @@
 #include "token_info.h"
 #include "eth_swap_utils.h"
 #include "wraps.h"
+#include "Mocknetwork.h"
 
 // =============================================================================
 // erc20_parameters_t mirror
@@ -68,11 +66,8 @@ pluginType_t pluginType = PLUGIN_TYPE_OLD_INTERNAL;
 // Wraps
 // =============================================================================
 
-// get_tx_chain_id is wrapped in mocks/mock.c; state via g_tx_chain_id
-// from wraps.h.
-
 static const s_token_info *g_token_info_ret = NULL;
-const s_token_info *__wrap_get_matching_token_info(const uint64_t *chain_id, const uint8_t *addr) {
+const s_token_info *get_matching_token_info(const uint64_t *chain_id, const uint8_t *addr) {
     (void) chain_id;
     (void) addr;
     return g_token_info_ret;
@@ -83,12 +78,12 @@ const s_token_info *__wrap_get_matching_token_info(const uint64_t *chain_id, con
 // to-end without hitting app_exit().
 static int g_swap_check_dest_calls = 0;
 static int g_swap_check_amount_calls = 0;
-bool __wrap_swap_check_destination(const char *destination) {
+bool swap_check_destination(const char *destination) {
     (void) destination;
     g_swap_check_dest_calls++;
     return true;
 }
-bool __wrap_swap_check_amount(const char *amount) {
+bool swap_check_amount(const char *amount) {
     (void) amount;
     g_swap_check_amount_calls++;
     return true;
@@ -105,18 +100,15 @@ static const uint8_t TRANSFER_SEL[CALLDATA_SELECTOR_SIZE] = {0xa9, 0x05, 0x9c, 0
 static const uint8_t APPROVE_SEL[CALLDATA_SELECTOR_SIZE] = {0x09, 0x5e, 0xa7, 0xb3};
 static const uint8_t UNKNOWN_SEL[CALLDATA_SELECTOR_SIZE] = {0xDE, 0xAD, 0xBE, 0xEF};
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&g_tx_content, 0, sizeof(g_tx_content));
     memset(&g_ctx, 0, sizeof(g_ctx));
     memset(&strings, 0, sizeof(strings));
     G_called_from_swap = false;
     G_swap_checked = false;
-    g_tx_chain_id = 1;
     g_token_info_ret = NULL;
     g_swap_check_dest_calls = 0;
     g_swap_check_amount_calls = 0;
-    return 0;
 }
 
 static void init_with_selector(const uint8_t *selector) {
@@ -131,8 +123,7 @@ static void init_with_selector(const uint8_t *selector) {
 // ETH_PLUGIN_INIT_CONTRACT
 // =============================================================================
 
-static void test_init_transfer_selector_ok(void **state) {
-    (void) state;
+void test_init_transfer_selector_ok(void) {
     // 816010e4 defense — pre-pollute the context to verify INIT wipes it
     memset(g_ctx.destinationAddress, 0xAA, ADDRESS_LENGTH);
     memset(g_ctx.amount, 0xBB, INT256_LENGTH);
@@ -145,17 +136,16 @@ static void test_init_transfer_selector_ok(void **state) {
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
 
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_int_equal(g_ctx.selectorIndex, 0);  // ERC20_TRANSFER
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(g_ctx.selectorIndex, 0);  // ERC20_TRANSFER
     // The pre-existing pollution must be gone.
     static const uint8_t zero_addr[ADDRESS_LENGTH] = {0};
-    assert_memory_equal(g_ctx.destinationAddress, zero_addr, ADDRESS_LENGTH);
-    assert_false(g_ctx.destination_parsed);
-    assert_false(g_ctx.amount_parsed);
+    TEST_ASSERT_EQUAL_MEMORY(g_ctx.destinationAddress, zero_addr, ADDRESS_LENGTH);
+    TEST_ASSERT_FALSE(g_ctx.destination_parsed);
+    TEST_ASSERT_FALSE(g_ctx.amount_parsed);
 }
 
-static void test_init_approve_selector_ok(void **state) {
-    (void) state;
+void test_init_approve_selector_ok(void) {
     init_with_selector(APPROVE_SEL);
     // selectorIndex = 1 after wipe + match on APPROVE.
     // result is set on the local msg, so we re-call with explicit msg here:
@@ -164,22 +154,20 @@ static void test_init_approve_selector_ok(void **state) {
     msg.selector = APPROVE_SEL;
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_int_equal(g_ctx.selectorIndex, 1);  // ERC20_APPROVE
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(g_ctx.selectorIndex, 1);  // ERC20_APPROVE
 }
 
-static void test_init_unknown_selector_rejected(void **state) {
-    (void) state;
+void test_init_unknown_selector_rejected(void) {
     ethPluginInitContract_t msg = {0};
     msg.txContent = &g_tx_content;
     msg.selector = UNKNOWN_SEL;
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_init_nonzero_tx_value_rejected(void **state) {
-    (void) state;
+void test_init_nonzero_tx_value_rejected(void) {
     // The plugin enforces ETH amount == 0 (an ERC-20 call should never
     // also send native value).
     g_tx_content.value.value[31] = 0x01;
@@ -188,15 +176,14 @@ static void test_init_nonzero_tx_value_rejected(void **state) {
     msg.selector = TRANSFER_SEL;
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
 // =============================================================================
 // ETH_PLUGIN_PROVIDE_PARAMETER
 // =============================================================================
 
-static void test_provide_destination_parameter(void **state) {
-    (void) state;
+void test_provide_destination_parameter(void) {
     ethPluginProvideParameter_t msg = {0};
     uint8_t param[CALLDATA_CHUNK_SIZE] = {0};
     // Address is right-aligned in the 32-byte param chunk.
@@ -209,15 +196,14 @@ static void test_provide_destination_parameter(void **state) {
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
 
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_true(g_ctx.destination_parsed);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_TRUE(g_ctx.destination_parsed);
     for (int i = 0; i < ADDRESS_LENGTH; ++i) {
-        assert_int_equal(g_ctx.destinationAddress[i], (uint8_t) (i + 0x10));
+        TEST_ASSERT_EQUAL(g_ctx.destinationAddress[i], (uint8_t) (i + 0x10));
     }
 }
 
-static void test_provide_amount_parameter(void **state) {
-    (void) state;
+void test_provide_amount_parameter(void) {
     ethPluginProvideParameter_t msg = {0};
     uint8_t param[CALLDATA_CHUNK_SIZE];
     for (int i = 0; i < CALLDATA_CHUNK_SIZE; ++i) param[i] = (uint8_t) i;
@@ -227,13 +213,12 @@ static void test_provide_amount_parameter(void **state) {
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
 
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_true(g_ctx.amount_parsed);
-    assert_memory_equal(g_ctx.amount, param, CALLDATA_CHUNK_SIZE);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_TRUE(g_ctx.amount_parsed);
+    TEST_ASSERT_EQUAL_MEMORY(g_ctx.amount, param, CALLDATA_CHUNK_SIZE);
 }
 
-static void test_provide_extra_data_parameter(void **state) {
-    (void) state;
+void test_provide_extra_data_parameter(void) {
     ethPluginProvideParameter_t msg = {0};
     uint8_t param[CALLDATA_CHUNK_SIZE];
     for (int i = 0; i < CALLDATA_CHUNK_SIZE; ++i) param[i] = (uint8_t) (i + 0x40);
@@ -243,13 +228,12 @@ static void test_provide_extra_data_parameter(void **state) {
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
 
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_int_equal(g_ctx.extra_data_len, CALLDATA_CHUNK_SIZE);
-    assert_memory_equal(g_ctx.extra_data, param, CALLDATA_CHUNK_SIZE);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(g_ctx.extra_data_len, CALLDATA_CHUNK_SIZE);
+    TEST_ASSERT_EQUAL_MEMORY(g_ctx.extra_data, param, CALLDATA_CHUNK_SIZE);
 }
 
-static void test_provide_extra_data_overflow_rejected(void **state) {
-    (void) state;
+void test_provide_extra_data_overflow_rejected(void) {
     ethPluginProvideParameter_t msg = {0};
     uint8_t param[CALLDATA_CHUNK_SIZE] = {0};
     // Offset just past the MAX_EXTRA_DATA_CHUNKS (2) window.
@@ -260,38 +244,35 @@ static void test_provide_extra_data_overflow_rejected(void **state) {
     g_ctx.extra_data_len = 5;  // pre-existing
     erc20_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
 
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
     // The plugin resets extra_data_len when it refuses the overflow.
-    assert_int_equal(g_ctx.extra_data_len, 0);
+    TEST_ASSERT_EQUAL(g_ctx.extra_data_len, 0);
 }
 
 // =============================================================================
 // ETH_PLUGIN_FINALIZE — 816010e4 "both required" guard
 // =============================================================================
 
-static void test_finalize_missing_destination_rejected(void **state) {
-    (void) state;
+void test_finalize_missing_destination_rejected(void) {
     g_ctx.amount_parsed = true;
     // destination_parsed stays false
     ethPluginFinalize_t msg = {0};
     msg.txContent = &g_tx_content;
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_finalize_missing_amount_rejected(void **state) {
-    (void) state;
+void test_finalize_missing_amount_rejected(void) {
     g_ctx.destination_parsed = true;
     ethPluginFinalize_t msg = {0};
     msg.txContent = &g_tx_content;
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_finalize_both_present_non_swap_ok(void **state) {
-    (void) state;
+void test_finalize_both_present_non_swap_ok(void) {
     g_ctx.destination_parsed = true;
     g_ctx.amount_parsed = true;
     G_called_from_swap = false;
@@ -301,14 +282,13 @@ static void test_finalize_both_present_non_swap_ok(void **state) {
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
 
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_int_equal(msg.uiType, ETH_UI_TYPE_GENERIC);
-    assert_int_equal(msg.numScreens, 2);
-    assert_ptr_equal(msg.tokenLookup1, g_tx_content.destination);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(msg.uiType, ETH_UI_TYPE_GENERIC);
+    TEST_ASSERT_EQUAL(msg.numScreens, 2);
+    TEST_ASSERT_EQUAL_PTR(msg.tokenLookup1, g_tx_content.destination);
 }
 
-static void test_finalize_with_extra_data_bumps_numscreens(void **state) {
-    (void) state;
+void test_finalize_with_extra_data_bumps_numscreens(void) {
     g_ctx.destination_parsed = true;
     g_ctx.amount_parsed = true;
     g_ctx.extra_data_len = 10;
@@ -317,16 +297,15 @@ static void test_finalize_with_extra_data_bumps_numscreens(void **state) {
     msg.txContent = &g_tx_content;
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_int_equal(msg.numScreens, 3);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(msg.numScreens, 3);
 }
 
 // =============================================================================
 // ETH_PLUGIN_FINALIZE — PR #1038 swap-mode restrictions
 // =============================================================================
 
-static void test_finalize_swap_approve_rejected(void **state) {
-    (void) state;
+void test_finalize_swap_approve_rejected(void) {
     g_ctx.destination_parsed = true;
     g_ctx.amount_parsed = true;
     g_ctx.selectorIndex = 1;  // ERC20_APPROVE
@@ -336,14 +315,13 @@ static void test_finalize_swap_approve_rejected(void **state) {
     msg.txContent = &g_tx_content;
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
     // swap_check_destination must not have been called — the early
     // selector reject runs first.
-    assert_int_equal(g_swap_check_dest_calls, 0);
+    TEST_ASSERT_EQUAL(g_swap_check_dest_calls, 0);
 }
 
-static void test_finalize_swap_with_extra_data_rejected(void **state) {
-    (void) state;
+void test_finalize_swap_with_extra_data_rejected(void) {
     g_ctx.destination_parsed = true;
     g_ctx.amount_parsed = true;
     g_ctx.selectorIndex = 0;   // ERC20_TRANSFER
@@ -354,12 +332,11 @@ static void test_finalize_swap_with_extra_data_rejected(void **state) {
     msg.txContent = &g_tx_content;
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
-    assert_int_equal(g_swap_check_dest_calls, 0);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(g_swap_check_dest_calls, 0);
 }
 
-static void test_finalize_swap_transfer_no_extra_runs_swap_checks(void **state) {
-    (void) state;
+void test_finalize_swap_transfer_no_extra_runs_swap_checks(void) {
     g_ctx.destination_parsed = true;
     g_ctx.amount_parsed = true;
     g_ctx.selectorIndex = 0;  // ERC20_TRANSFER
@@ -376,14 +353,13 @@ static void test_finalize_swap_transfer_no_extra_runs_swap_checks(void **state) 
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
 
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_int_equal(g_swap_check_dest_calls, 1);
-    assert_int_equal(g_swap_check_amount_calls, 1);
-    assert_true(G_swap_checked);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(g_swap_check_dest_calls, 1);
+    TEST_ASSERT_EQUAL(g_swap_check_amount_calls, 1);
+    TEST_ASSERT_TRUE(G_swap_checked);
 }
 
-static void test_finalize_swap_token_info_missing_rejected(void **state) {
-    (void) state;
+void test_finalize_swap_token_info_missing_rejected(void) {
     g_ctx.destination_parsed = true;
     g_ctx.amount_parsed = true;
     g_ctx.selectorIndex = 0;
@@ -394,19 +370,18 @@ static void test_finalize_swap_token_info_missing_rejected(void **state) {
     msg.txContent = &g_tx_content;
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
     // swap_check_destination was called first (it precedes the lookup),
     // swap_check_amount was NOT reached.
-    assert_int_equal(g_swap_check_dest_calls, 1);
-    assert_int_equal(g_swap_check_amount_calls, 0);
+    TEST_ASSERT_EQUAL(g_swap_check_dest_calls, 1);
+    TEST_ASSERT_EQUAL(g_swap_check_amount_calls, 0);
 }
 
 // =============================================================================
 // ETH_PLUGIN_PROVIDE_INFO
 // =============================================================================
 
-static void test_provide_info_item1_ok(void **state) {
-    (void) state;
+void test_provide_info_item1_ok(void) {
     static const tokenDefinition_t token = {.ticker = "DAI", .decimals = 18};
     static union extraInfo_t item;
     memcpy(&item.token, &token, sizeof(token));
@@ -416,26 +391,24 @@ static void test_provide_info_item1_ok(void **state) {
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_PROVIDE_INFO, &msg);
 
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_string_equal(g_ctx.ticker, "DAI");
-    assert_int_equal(g_ctx.decimals, 18);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL_STRING(g_ctx.ticker, "DAI");
+    TEST_ASSERT_EQUAL(g_ctx.decimals, 18);
 }
 
-static void test_provide_info_item1_null_falls_back(void **state) {
-    (void) state;
+void test_provide_info_item1_null_falls_back(void) {
     ethPluginProvideInfo_t msg = {0};
     msg.item1 = NULL;
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_PROVIDE_INFO, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_FALLBACK);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_FALLBACK);
 }
 
 // =============================================================================
 // ETH_PLUGIN_QUERY_CONTRACT_ID
 // =============================================================================
 
-static void test_query_contract_id_transfer(void **state) {
-    (void) state;
+void test_query_contract_id_transfer(void) {
     char name[32] = {0};
     char version[32] = {0};
     g_ctx.selectorIndex = 0;  // ERC20_TRANSFER
@@ -447,13 +420,12 @@ static void test_query_contract_id_transfer(void **state) {
     msg.versionLength = sizeof(version);
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_string_equal(name, "ERC20 token");
-    assert_string_equal(version, "Send");
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL_STRING(name, "ERC20 token");
+    TEST_ASSERT_EQUAL_STRING(version, "Send");
 }
 
-static void test_query_contract_id_approve(void **state) {
-    (void) state;
+void test_query_contract_id_approve(void) {
     char name[32] = {0};
     char version[32] = {0};
     g_ctx.selectorIndex = 1;  // ERC20_APPROVE
@@ -465,15 +437,14 @@ static void test_query_contract_id_approve(void **state) {
     msg.versionLength = sizeof(version);
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &msg);
-    assert_string_equal(version, "Approve");
+    TEST_ASSERT_EQUAL_STRING(version, "Approve");
 }
 
 // =============================================================================
 // ETH_PLUGIN_QUERY_CONTRACT_UI — screen 0 (amount/title)
 // =============================================================================
 
-static void test_query_ui_screen0_transfer_amount(void **state) {
-    (void) state;
+void test_query_ui_screen0_transfer_amount(void) {
     char title[16] = {0};
     char msgbuf[64] = {0};
     g_ctx.selectorIndex = 0;
@@ -490,13 +461,12 @@ static void test_query_ui_screen0_transfer_amount(void **state) {
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
 
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_string_equal(title, "Send");
-    assert_string_equal(msgbuf, "5 USDC");
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL_STRING(title, "Send");
+    TEST_ASSERT_EQUAL_STRING(msgbuf, "5 USDC");
 }
 
-static void test_query_ui_screen0_approve_unlimited(void **state) {
-    (void) state;
+void test_query_ui_screen0_approve_unlimited(void) {
     char title[16] = {0};
     char msgbuf[64] = {0};
     g_ctx.selectorIndex = 1;                           // APPROVE
@@ -512,9 +482,9 @@ static void test_query_ui_screen0_approve_unlimited(void **state) {
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
 
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_string_equal(title, "Approve");
-    assert_string_equal(msgbuf, "Unlimited DAI");
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL_STRING(title, "Approve");
+    TEST_ASSERT_EQUAL_STRING(msgbuf, "Unlimited DAI");
 }
 
 // =============================================================================
@@ -527,8 +497,7 @@ static void test_query_ui_screen0_approve_unlimited(void **state) {
 // happens to put on screen.
 // =============================================================================
 
-static void test_query_ui_screen1_transfer_renders_to(void **state) {
-    (void) state;
+void test_query_ui_screen1_transfer_renders_to(void) {
     char title[16] = {0};
     char msgbuf[64] = {0};
     g_ctx.selectorIndex = 0;  // TRANSFER
@@ -542,15 +511,14 @@ static void test_query_ui_screen1_transfer_renders_to(void **state) {
     msg.msgLength = sizeof(msgbuf);
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_string_equal(title, "To");
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL_STRING(title, "To");
     // The mock getEthDisplayableAddress in the test environment writes
     // a checksummed hex string to msg — we only assert it's non-empty.
-    assert_true(msgbuf[0] != '\0');
+    TEST_ASSERT_TRUE(msgbuf[0] != '\0');
 }
 
-static void test_query_ui_screen1_approve_renders_approve_to(void **state) {
-    (void) state;
+void test_query_ui_screen1_approve_renders_approve_to(void) {
     char title[16] = {0};
     char msgbuf[64] = {0};
     g_ctx.selectorIndex = 1;  // APPROVE
@@ -564,13 +532,12 @@ static void test_query_ui_screen1_approve_renders_approve_to(void **state) {
     msg.msgLength = sizeof(msgbuf);
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_string_equal(title, "Approve to");
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL_STRING(title, "Approve to");
 }
 
 // Screen 2 — Extra Data, ASCII-printable path.
-static void test_query_ui_screen2_extra_data_printable(void **state) {
-    (void) state;
+void test_query_ui_screen2_extra_data_printable(void) {
     char title[16] = {0};
     char msgbuf[64] = {0};
     g_ctx.selectorIndex = 0;
@@ -585,14 +552,13 @@ static void test_query_ui_screen2_extra_data_printable(void **state) {
     msg.msgLength = sizeof(msgbuf);
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_string_equal(title, "Extra Data");
-    assert_string_equal(msgbuf, "Hello!");
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL_STRING(title, "Extra Data");
+    TEST_ASSERT_EQUAL_STRING(msgbuf, "Hello!");
 }
 
 // Screen 2 — Extra Data, non-printable path (rendered as 0x-prefixed hex).
-static void test_query_ui_screen2_extra_data_hex(void **state) {
-    (void) state;
+void test_query_ui_screen2_extra_data_hex(void) {
     char title[16] = {0};
     char msgbuf[64] = {0};
     g_ctx.selectorIndex = 0;
@@ -611,15 +577,14 @@ static void test_query_ui_screen2_extra_data_hex(void **state) {
     msg.msgLength = sizeof(msgbuf);
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_string_equal(msgbuf, "0x01FEAB");
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL_STRING(msgbuf, "0x01FEAB");
 }
 
 // Screen 2 with empty extra_data is rejected (the plugin should never
 // reach this state — extra_data_len == 0 means no extra screen was
 // allocated — but the guard exists and must trip).
-static void test_query_ui_screen2_empty_extra_data_rejected(void **state) {
-    (void) state;
+void test_query_ui_screen2_empty_extra_data_rejected(void) {
     char title[16] = {0};
     char msgbuf[64] = {0};
     g_ctx.extra_data_len = 0;
@@ -632,42 +597,51 @@ static void test_query_ui_screen2_empty_extra_data_rejected(void **state) {
     msg.msgLength = sizeof(msgbuf);
     msg.pluginContext = (uint8_t *) &g_ctx;
     erc20_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    Mocknetwork_Init();
+    get_tx_chain_id_IgnoreAndReturn(1);
+    reset();
+}
+void tearDown(void) {
+    Mocknetwork_Verify();
+    Mocknetwork_Destroy();
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_init_transfer_selector_ok, reset),
-        cmocka_unit_test_setup(test_init_approve_selector_ok, reset),
-        cmocka_unit_test_setup(test_init_unknown_selector_rejected, reset),
-        cmocka_unit_test_setup(test_init_nonzero_tx_value_rejected, reset),
-        cmocka_unit_test_setup(test_provide_destination_parameter, reset),
-        cmocka_unit_test_setup(test_provide_amount_parameter, reset),
-        cmocka_unit_test_setup(test_provide_extra_data_parameter, reset),
-        cmocka_unit_test_setup(test_provide_extra_data_overflow_rejected, reset),
-        cmocka_unit_test_setup(test_finalize_missing_destination_rejected, reset),
-        cmocka_unit_test_setup(test_finalize_missing_amount_rejected, reset),
-        cmocka_unit_test_setup(test_finalize_both_present_non_swap_ok, reset),
-        cmocka_unit_test_setup(test_finalize_with_extra_data_bumps_numscreens, reset),
-        cmocka_unit_test_setup(test_finalize_swap_approve_rejected, reset),
-        cmocka_unit_test_setup(test_finalize_swap_with_extra_data_rejected, reset),
-        cmocka_unit_test_setup(test_finalize_swap_transfer_no_extra_runs_swap_checks, reset),
-        cmocka_unit_test_setup(test_finalize_swap_token_info_missing_rejected, reset),
-        cmocka_unit_test_setup(test_provide_info_item1_ok, reset),
-        cmocka_unit_test_setup(test_provide_info_item1_null_falls_back, reset),
-        cmocka_unit_test_setup(test_query_contract_id_transfer, reset),
-        cmocka_unit_test_setup(test_query_contract_id_approve, reset),
-        cmocka_unit_test_setup(test_query_ui_screen0_transfer_amount, reset),
-        cmocka_unit_test_setup(test_query_ui_screen0_approve_unlimited, reset),
-        cmocka_unit_test_setup(test_query_ui_screen1_transfer_renders_to, reset),
-        cmocka_unit_test_setup(test_query_ui_screen1_approve_renders_approve_to, reset),
-        cmocka_unit_test_setup(test_query_ui_screen2_extra_data_printable, reset),
-        cmocka_unit_test_setup(test_query_ui_screen2_extra_data_hex, reset),
-        cmocka_unit_test_setup(test_query_ui_screen2_empty_extra_data_rejected, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_init_transfer_selector_ok);
+    RUN_TEST(test_init_approve_selector_ok);
+    RUN_TEST(test_init_unknown_selector_rejected);
+    RUN_TEST(test_init_nonzero_tx_value_rejected);
+    RUN_TEST(test_provide_destination_parameter);
+    RUN_TEST(test_provide_amount_parameter);
+    RUN_TEST(test_provide_extra_data_parameter);
+    RUN_TEST(test_provide_extra_data_overflow_rejected);
+    RUN_TEST(test_finalize_missing_destination_rejected);
+    RUN_TEST(test_finalize_missing_amount_rejected);
+    RUN_TEST(test_finalize_both_present_non_swap_ok);
+    RUN_TEST(test_finalize_with_extra_data_bumps_numscreens);
+    RUN_TEST(test_finalize_swap_approve_rejected);
+    RUN_TEST(test_finalize_swap_with_extra_data_rejected);
+    RUN_TEST(test_finalize_swap_transfer_no_extra_runs_swap_checks);
+    RUN_TEST(test_finalize_swap_token_info_missing_rejected);
+    RUN_TEST(test_provide_info_item1_ok);
+    RUN_TEST(test_provide_info_item1_null_falls_back);
+    RUN_TEST(test_query_contract_id_transfer);
+    RUN_TEST(test_query_contract_id_approve);
+    RUN_TEST(test_query_ui_screen0_transfer_amount);
+    RUN_TEST(test_query_ui_screen0_approve_unlimited);
+    RUN_TEST(test_query_ui_screen1_transfer_renders_to);
+    RUN_TEST(test_query_ui_screen1_approve_renders_approve_to);
+    RUN_TEST(test_query_ui_screen2_extra_data_printable);
+    RUN_TEST(test_query_ui_screen2_extra_data_hex);
+    RUN_TEST(test_query_ui_screen2_empty_extra_data_rejected);
+    return UNITY_END();
 }

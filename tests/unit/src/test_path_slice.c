@@ -13,10 +13,7 @@
  * omitted to mean "unbounded on that side".
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -29,8 +26,7 @@ static bool run_tlv(const uint8_t *bytes, size_t size, s_slice_args *args) {
     return handle_slice_struct(&buf, &ctx);
 }
 
-static void test_tlv_start_end_populated(void **state) {
-    (void) state;
+void test_tlv_start_end_populated(void) {
     const uint8_t bytes[] = {
         0x01,
         0x02,
@@ -42,43 +38,39 @@ static void test_tlv_start_end_populated(void **state) {
         0x0A,  // END   = 10
     };
     s_slice_args args = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &args));
-    assert_true(args.has_start);
-    assert_int_equal(args.start, 5);
-    assert_true(args.has_end);
-    assert_int_equal(args.end, 10);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_TRUE(args.has_start);
+    TEST_ASSERT_EQUAL(args.start, 5);
+    TEST_ASSERT_TRUE(args.has_end);
+    TEST_ASSERT_EQUAL(args.end, 10);
 }
 
-static void test_tlv_only_start(void **state) {
-    (void) state;
+void test_tlv_only_start(void) {
     const uint8_t bytes[] = {0x01, 0x02, 0x00, 0x03};
     s_slice_args args = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &args));
-    assert_true(args.has_start);
-    assert_int_equal(args.start, 3);
-    assert_false(args.has_end);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_TRUE(args.has_start);
+    TEST_ASSERT_EQUAL(args.start, 3);
+    TEST_ASSERT_FALSE(args.has_end);
 }
 
-static void test_tlv_only_end(void **state) {
-    (void) state;
+void test_tlv_only_end(void) {
     const uint8_t bytes[] = {0x02, 0x02, 0x00, 0x07};
     s_slice_args args = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &args));
-    assert_false(args.has_start);
-    assert_true(args.has_end);
-    assert_int_equal(args.end, 7);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_FALSE(args.has_start);
+    TEST_ASSERT_TRUE(args.has_end);
+    TEST_ASSERT_EQUAL(args.end, 7);
 }
 
-static void test_tlv_empty_buffer_accepted(void **state) {
-    (void) state;
+void test_tlv_empty_buffer_accepted(void) {
     s_slice_args args = {0};
-    assert_true(run_tlv(NULL, 0, &args));
-    assert_false(args.has_start);
-    assert_false(args.has_end);
+    TEST_ASSERT_TRUE(run_tlv(NULL, 0, &args));
+    TEST_ASSERT_FALSE(args.has_start);
+    TEST_ASSERT_FALSE(args.has_end);
 }
 
-static void test_tlv_start_end_read_big_endian(void **state) {
-    (void) state;
+void test_tlv_start_end_read_big_endian(void) {
     const uint8_t bytes[] = {
         0x01,
         0x02,
@@ -90,30 +82,27 @@ static void test_tlv_start_end_read_big_endian(void **state) {
         0xCD,
     };
     s_slice_args args = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &args));
-    assert_int_equal(args.start, 0x1234);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_EQUAL(args.start, 0x1234);
     // 0xABCD interpreted as signed int16 = -21555
-    assert_int_equal(args.end, (int16_t) 0xABCD);
+    TEST_ASSERT_EQUAL(args.end, (int16_t) 0xABCD);
 }
 
-static void test_tlv_start_one_byte_payload_rejected(void **state) {
-    (void) state;
+void test_tlv_start_one_byte_payload_rejected(void) {
     const uint8_t bytes[] = {0x01, 0x01, 0xAA};
     s_slice_args args = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &args));
-    assert_false(args.has_start);
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_FALSE(args.has_start);
 }
 
-static void test_tlv_end_one_byte_payload_rejected(void **state) {
-    (void) state;
+void test_tlv_end_one_byte_payload_rejected(void) {
     const uint8_t bytes[] = {0x02, 0x01, 0xBB};
     s_slice_args args = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &args));
-    assert_false(args.has_end);
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_FALSE(args.has_end);
 }
 
-static void test_tlv_duplicate_start_rejected(void **state) {
-    (void) state;
+void test_tlv_duplicate_start_rejected(void) {
     const uint8_t bytes[] = {
         0x01,
         0x02,
@@ -125,11 +114,10 @@ static void test_tlv_duplicate_start_rejected(void **state) {
         0x02,
     };
     s_slice_args args = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &args));
 }
 
-static void test_tlv_duplicate_end_rejected(void **state) {
-    (void) state;
+void test_tlv_duplicate_end_rejected(void) {
     const uint8_t bytes[] = {
         0x02,
         0x02,
@@ -141,20 +129,24 @@ static void test_tlv_duplicate_end_rejected(void **state) {
         0x02,
     };
     s_slice_args args = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &args));
+}
+
+void setUp(void) {
+}
+void tearDown(void) {
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_tlv_start_end_populated),
-        cmocka_unit_test(test_tlv_only_start),
-        cmocka_unit_test(test_tlv_only_end),
-        cmocka_unit_test(test_tlv_empty_buffer_accepted),
-        cmocka_unit_test(test_tlv_start_end_read_big_endian),
-        cmocka_unit_test(test_tlv_start_one_byte_payload_rejected),
-        cmocka_unit_test(test_tlv_end_one_byte_payload_rejected),
-        cmocka_unit_test(test_tlv_duplicate_start_rejected),
-        cmocka_unit_test(test_tlv_duplicate_end_rejected),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_tlv_start_end_populated);
+    RUN_TEST(test_tlv_only_start);
+    RUN_TEST(test_tlv_only_end);
+    RUN_TEST(test_tlv_empty_buffer_accepted);
+    RUN_TEST(test_tlv_start_end_read_big_endian);
+    RUN_TEST(test_tlv_start_one_byte_payload_rejected);
+    RUN_TEST(test_tlv_end_one_byte_payload_rejected);
+    RUN_TEST(test_tlv_duplicate_start_rejected);
+    RUN_TEST(test_tlv_duplicate_end_rejected);
+    return UNITY_END();
 }

@@ -19,10 +19,7 @@
  * test_erc20_plugin from the plugin's own perspective.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -35,24 +32,40 @@
 #include "eip7251_plugin.h"
 #include "shared_context.h"
 #include "wraps.h"
+#include "Mocknetwork.h"
 
 // =============================================================================
 // Globals
 // =============================================================================
 
 // =============================================================================
+// Network mock state
+// =============================================================================
+
+static uint64_t s_tx_chain_id = 1;
+static uint64_t get_tx_chain_id_stub(int cmock_num_calls) {
+    (void) cmock_num_calls;
+    return s_tx_chain_id;
+}
+
+static const char *s_displayable_ticker = "ETH";
+static const char *get_displayable_ticker_stub(const uint64_t *chain_id,
+                                               const chain_config_t *chain_cfg,
+                                               bool dynamic,
+                                               int cmock_num_calls) {
+    (void) chain_id;
+    (void) chain_cfg;
+    (void) dynamic;
+    (void) cmock_num_calls;
+    return s_displayable_ticker;
+}
+
+// =============================================================================
 // Wraps
 // =============================================================================
 
-// get_tx_chain_id is wrapped in mocks/mock.c; state via g_tx_chain_id
-// from wraps.h.
-
-// get_displayable_ticker is wrapped in mocks/mock.c; state via
-// g_displayable_ticker from wraps.h (defaults to "ETH").
-
 static union extraInfo_t *g_asset_info_ret = NULL;
-union extraInfo_t *__wrap_get_matching_asset_info(const uint64_t *chain_id,
-                                                  const uint8_t *address) {
+union extraInfo_t *get_matching_asset_info(const uint64_t *chain_id, const uint8_t *address) {
     (void) chain_id;
     (void) address;
     return g_asset_info_ret;
@@ -135,7 +148,7 @@ __attribute__((noreturn)) void app_exit(void) {
         g_app_exit_reached = true;
         longjmp(g_app_exit_jmp, 1);
     }
-    fail_msg("app_exit() reached unexpectedly");
+    TEST_FAIL_MESSAGE("app_exit() reached unexpectedly");
     while (1) {
     }
 }
@@ -145,7 +158,7 @@ __attribute__((noreturn)) void app_exit(void) {
 // not exercised by these tests, so reaching it would be a bug.
 __attribute__((noreturn)) void os_longjmp(unsigned int e) {
     (void) e;
-    fail_msg("os_longjmp() reached unexpectedly");
+    TEST_FAIL_MESSAGE("os_longjmp() reached unexpectedly");
     while (1) {
     }
 }
@@ -176,15 +189,14 @@ const uint8_t *const EIP7251_ADDRESSES[NUM_EIP7251_ADDRESSES] = {g_eip7251_addre
 // Fixture
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&dataContext, 0, sizeof(dataContext));
     memset(&tmpCtx, 0, sizeof(tmpCtx));
     memset(&tmpContent, 0, sizeof(tmpContent));
     pluginType = PLUGIN_TYPE_NONE;
-    g_tx_chain_id = 1;
-    g_displayable_ticker = "ETH";
     g_asset_info_ret = NULL;
+    s_tx_chain_id = 1;
+    s_displayable_ticker = "ETH";
     g_plugin_result = ETH_PLUGIN_RESULT_OK;
     g_erc20_calls = 0;
     g_erc721_calls = 0;
@@ -196,111 +208,103 @@ static int reset(void **state) {
     dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_OK;
     g_expect_app_exit = false;
     g_app_exit_reached = false;
-    return 0;
 }
 
 // =============================================================================
 // eth_plugin_prepare_* helpers
 // =============================================================================
 
-static void test_prepare_init_populates_struct(void **state) {
-    (void) state;
+void test_prepare_init_populates_struct(void) {
     ethPluginInitContract_t init;
     memset(&init, 0xFF, sizeof(init));  // pre-pollute
     const uint8_t selector[CALLDATA_SELECTOR_SIZE] = {0xDE, 0xAD, 0xBE, 0xEF};
 
     eth_plugin_prepare_init(&init, selector, 1234);
-    assert_ptr_equal(init.selector, selector);
-    assert_int_equal(init.dataSize, 1234);
+    TEST_ASSERT_EQUAL_PTR(init.selector, selector);
+    TEST_ASSERT_EQUAL(init.dataSize, 1234);
     // Other fields should be zeroed by the explicit_bzero up front.
-    assert_int_equal(init.result, 0);
-    assert_null(init.bip32);
+    TEST_ASSERT_EQUAL(init.result, 0);
+    TEST_ASSERT_NULL(init.bip32);
 }
 
-static void test_prepare_provide_parameter_populates_struct(void **state) {
-    (void) state;
+void test_prepare_provide_parameter_populates_struct(void) {
     ethPluginProvideParameter_t msg;
     memset(&msg, 0xFF, sizeof(msg));
     uint8_t param[32] = {0xAA};
 
     eth_plugin_prepare_provide_parameter(&msg, param, 36, 32);
-    assert_ptr_equal(msg.parameter, param);
-    assert_int_equal(msg.parameterOffset, 36);
-    assert_int_equal(msg.parameter_size, 32);
-    assert_int_equal(msg.result, 0);
+    TEST_ASSERT_EQUAL_PTR(msg.parameter, param);
+    TEST_ASSERT_EQUAL(msg.parameterOffset, 36);
+    TEST_ASSERT_EQUAL(msg.parameter_size, 32);
+    TEST_ASSERT_EQUAL(msg.result, 0);
 }
 
-static void test_prepare_finalize_zeroes_struct(void **state) {
-    (void) state;
+void test_prepare_finalize_zeroes_struct(void) {
     ethPluginFinalize_t msg;
     memset(&msg, 0xFF, sizeof(msg));
 
     eth_plugin_prepare_finalize(&msg);
-    assert_null(msg.tokenLookup1);
-    assert_null(msg.tokenLookup2);
-    assert_int_equal(msg.result, 0);
-    assert_int_equal(msg.uiType, 0);
+    TEST_ASSERT_NULL(msg.tokenLookup1);
+    TEST_ASSERT_NULL(msg.tokenLookup2);
+    TEST_ASSERT_EQUAL(msg.result, 0);
+    TEST_ASSERT_EQUAL(msg.uiType, 0);
 }
 
-static void test_prepare_provide_info_zeroes_struct(void **state) {
-    (void) state;
+void test_prepare_provide_info_zeroes_struct(void) {
     ethPluginProvideInfo_t msg;
     memset(&msg, 0xFF, sizeof(msg));
 
     eth_plugin_prepare_provide_info(&msg);
-    assert_null(msg.item1);
-    assert_null(msg.item2);
-    assert_int_equal(msg.result, 0);
+    TEST_ASSERT_NULL(msg.item1);
+    TEST_ASSERT_NULL(msg.item2);
+    TEST_ASSERT_EQUAL(msg.result, 0);
 }
 
-static void test_prepare_query_contract_id_populates_struct(void **state) {
-    (void) state;
+void test_prepare_query_contract_id_populates_struct(void) {
     ethQueryContractID_t msg;
     memset(&msg, 0xFF, sizeof(msg));
     char name[16], version[16];
 
     eth_plugin_prepare_query_contract_id(&msg, name, sizeof(name), version, sizeof(version));
-    assert_ptr_equal(msg.name, name);
-    assert_int_equal(msg.nameLength, sizeof(name));
-    assert_ptr_equal(msg.version, version);
-    assert_int_equal(msg.versionLength, sizeof(version));
-    assert_int_equal(msg.result, 0);
+    TEST_ASSERT_EQUAL_PTR(msg.name, name);
+    TEST_ASSERT_EQUAL(msg.nameLength, sizeof(name));
+    TEST_ASSERT_EQUAL_PTR(msg.version, version);
+    TEST_ASSERT_EQUAL(msg.versionLength, sizeof(version));
+    TEST_ASSERT_EQUAL(msg.result, 0);
 }
 
-static void test_prepare_query_contract_ui_resolves_chain_and_assets(void **state) {
-    (void) state;
+void test_prepare_query_contract_ui_resolves_chain_and_assets(void) {
     ethQueryContractUI_t msg;
     memset(&msg, 0xFF, sizeof(msg));
     char title[16], msg_buf[64];
 
-    g_tx_chain_id = 137;  // Polygon
-    g_displayable_ticker = "POL";
+    s_tx_chain_id = 137;  // Polygon
+    s_displayable_ticker = "POL";
     static union extraInfo_t fake1;
     g_asset_info_ret = &fake1;  // both lookup calls return the same pointer
 
     eth_plugin_prepare_query_contract_ui(&msg, 2, title, sizeof(title), msg_buf, sizeof(msg_buf));
-    assert_int_equal(msg.screenIndex, 2);
-    assert_ptr_equal(msg.title, title);
-    assert_ptr_equal(msg.msg, msg_buf);
-    assert_int_equal(msg.titleLength, sizeof(title));
-    assert_int_equal(msg.msgLength, sizeof(msg_buf));
-    assert_string_equal(msg.network_ticker, "POL");
-    assert_ptr_equal(msg.item1, &fake1);
-    assert_ptr_equal(msg.item2, &fake1);
+    TEST_ASSERT_EQUAL(msg.screenIndex, 2);
+    TEST_ASSERT_EQUAL_PTR(msg.title, title);
+    TEST_ASSERT_EQUAL_PTR(msg.msg, msg_buf);
+    TEST_ASSERT_EQUAL(msg.titleLength, sizeof(title));
+    TEST_ASSERT_EQUAL(msg.msgLength, sizeof(msg_buf));
+    TEST_ASSERT_EQUAL_STRING(msg.network_ticker, "POL");
+    TEST_ASSERT_EQUAL_PTR(msg.item1, &fake1);
+    TEST_ASSERT_EQUAL_PTR(msg.item2, &fake1);
 }
 
 // =============================================================================
 // eth_plugin_perform_init — chain_id mismatch defense
 // =============================================================================
 
-static void test_perform_init_default_chain_mismatch_marks_unavailable(void **state) {
-    (void) state;
+void test_perform_init_default_chain_mismatch_marks_unavailable(void) {
     // External plugin registered for chain 1, transaction is on chain 137.
     // The mismatch path must set pluginStatus = UNAVAILABLE and return
     // WITHOUT reaching the contract / selector memcmp branches (which
     // would abort the app on disagreement).
     dataContext.tokenContext.pluginChainId = 1;  // not PLUGIN_CHAIN_ID_ANY
-    g_tx_chain_id = 137;
+    s_tx_chain_id = 137;
     dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_OK;  // pre-existing
     pluginType = PLUGIN_TYPE_EXTERNAL;
 
@@ -309,18 +313,17 @@ static void test_perform_init_default_chain_mismatch_marks_unavailable(void **st
     ethPluginInitContract_t init = {.selector = selector};
     eth_plugin_perform_init(contract, &init);
 
-    assert_int_equal(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_UNAVAILABLE);
+    TEST_ASSERT_EQUAL(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_UNAVAILABLE);
 }
 
-static void test_perform_init_default_chain_any_bypasses_check(void **state) {
-    (void) state;
+void test_perform_init_default_chain_any_bypasses_check(void) {
     // When pluginChainId == PLUGIN_CHAIN_ID_ANY (0), the mismatch
     // check is skipped — the registration is chain-unbound. The contract
     // matches what's in tokenContext, so the path proceeds to the eth_
     // plugin_call which our stub leaves with the default UNAVAILABLE
     // status — that's fine for this assertion.
     dataContext.tokenContext.pluginChainId = PLUGIN_CHAIN_ID_ANY;
-    g_tx_chain_id = 137;
+    s_tx_chain_id = 137;
     pluginType = PLUGIN_TYPE_EXTERNAL;
 
     uint8_t contract[ADDRESS_LENGTH] = {0xAA};
@@ -333,13 +336,12 @@ static void test_perform_init_default_chain_any_bypasses_check(void **state) {
     eth_plugin_perform_init(contract, &init);
 }
 
-static void test_perform_init_default_unresolved_tx_chain_defers_check(void **state) {
-    (void) state;
+void test_perform_init_default_unresolved_tx_chain_defers_check(void) {
     // When tx_chain_id == 0 (LEGACY tx, chain_id only known after V is
     // parsed), the mismatch check is deferred. The path falls through
     // to the contract/selector match.
     dataContext.tokenContext.pluginChainId = 1;
-    g_tx_chain_id = 0;  // unresolved
+    s_tx_chain_id = 0;  // unresolved
     pluginType = PLUGIN_TYPE_EXTERNAL;
 
     uint8_t contract[ADDRESS_LENGTH] = {0xAA};
@@ -352,7 +354,7 @@ static void test_perform_init_default_unresolved_tx_chain_defers_check(void **st
     // Did not get marked UNAVAILABLE by the chain check — it was deferred.
     // (The contract/selector match succeeded so the OK status is set
     // before dispatching to the external plugin.)
-    assert_int_equal(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_OK);
 }
 
 // =============================================================================
@@ -363,8 +365,7 @@ static void test_perform_init_default_unresolved_tx_chain_defers_check(void **st
 // selector, so we must confirm they actually trip.
 // =============================================================================
 
-static void test_perform_init_default_contract_mismatch_panics(void **state) {
-    (void) state;
+void test_perform_init_default_contract_mismatch_panics(void) {
     // Plugin was registered for contract A; the transaction now claims
     // contract B. app_exit must fire — anything else lets the wrong
     // plugin take over the rendering.
@@ -381,13 +382,12 @@ static void test_perform_init_default_contract_mismatch_panics(void **state) {
     g_expect_app_exit = true;
     if (setjmp(g_app_exit_jmp) == 0) {
         eth_plugin_perform_init(observed_contract, &init);
-        fail_msg("app_exit not reached on contract mismatch");
+        TEST_FAIL_MESSAGE("app_exit not reached on contract mismatch");
     }
-    assert_true(g_app_exit_reached);
+    TEST_ASSERT_TRUE(g_app_exit_reached);
 }
 
-static void test_perform_init_default_selector_mismatch_panics(void **state) {
-    (void) state;
+void test_perform_init_default_selector_mismatch_panics(void) {
     // Plugin registered for selector X; tx now uses selector Y.
     dataContext.tokenContext.pluginChainId = PLUGIN_CHAIN_ID_ANY;
     pluginType = PLUGIN_TYPE_EXTERNAL;
@@ -402,13 +402,12 @@ static void test_perform_init_default_selector_mismatch_panics(void **state) {
     g_expect_app_exit = true;
     if (setjmp(g_app_exit_jmp) == 0) {
         eth_plugin_perform_init(contract, &init);
-        fail_msg("app_exit not reached on selector mismatch");
+        TEST_FAIL_MESSAGE("app_exit not reached on selector mismatch");
     }
-    assert_true(g_app_exit_reached);
+    TEST_ASSERT_TRUE(g_app_exit_reached);
 }
 
-static void test_perform_init_unsupported_plugin_type_panics(void **state) {
-    (void) state;
+void test_perform_init_unsupported_plugin_type_panics(void) {
     // pluginType outside every case → default branch must app_exit.
     pluginType = (pluginType_t) 0x7F;  // arbitrary unknown value
 
@@ -419,142 +418,128 @@ static void test_perform_init_unsupported_plugin_type_panics(void **state) {
     g_expect_app_exit = true;
     if (setjmp(g_app_exit_jmp) == 0) {
         eth_plugin_perform_init(contract, &init);
-        fail_msg("app_exit not reached on unsupported pluginType");
+        TEST_FAIL_MESSAGE("app_exit not reached on unsupported pluginType");
     }
-    assert_true(g_app_exit_reached);
+    TEST_ASSERT_TRUE(g_app_exit_reached);
 }
 
 // =============================================================================
 // eth_plugin_call — dispatcher per pluginType + per method + result check
 // =============================================================================
 
-static void test_call_cached_unavailable_short_circuits(void **state) {
-    (void) state;
+void test_call_cached_unavailable_short_circuits(void) {
     // When the cached pluginStatus is UNAVAILABLE, the call must return
     // that status immediately without dispatching to any plugin.
     dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_UNAVAILABLE;
     ethPluginInitContract_t msg = {0};
     eth_plugin_result_t r = eth_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_UNAVAILABLE);
-    assert_int_equal(g_erc20_calls, 0);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_UNAVAILABLE);
+    TEST_ASSERT_EQUAL(g_erc20_calls, 0);
 }
 
-static void test_call_unknown_method_returns_unavailable(void **state) {
-    (void) state;
+void test_call_unknown_method_returns_unavailable(void) {
     pluginType = PLUGIN_TYPE_OLD_INTERNAL;
     // Some method outside the switch cases.
     eth_plugin_result_t r = eth_plugin_call((eth_plugin_msg_t) 0xFFFF, NULL);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_UNAVAILABLE);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_UNAVAILABLE);
 }
 
-static void test_call_erc721_dispatches(void **state) {
-    (void) state;
+void test_call_erc721_dispatches(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     ethPluginInitContract_t msg = {0};
     eth_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(g_erc721_calls, 1);
-    assert_int_equal(g_erc20_calls, 0);
+    TEST_ASSERT_EQUAL(g_erc721_calls, 1);
+    TEST_ASSERT_EQUAL(g_erc20_calls, 0);
 }
 
-static void test_call_erc1155_dispatches(void **state) {
-    (void) state;
+void test_call_erc1155_dispatches(void) {
     pluginType = PLUGIN_TYPE_ERC1155;
     ethPluginInitContract_t msg = {0};
     eth_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(g_erc1155_calls, 1);
+    TEST_ASSERT_EQUAL(g_erc1155_calls, 1);
 }
 
-static void test_call_swap_with_calldata_dispatches(void **state) {
-    (void) state;
+void test_call_swap_with_calldata_dispatches(void) {
     pluginType = PLUGIN_TYPE_SWAP_WITH_CALLDATA;
     ethPluginInitContract_t msg = {0};
     eth_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(g_swap_with_calldata_calls, 1);
+    TEST_ASSERT_EQUAL(g_swap_with_calldata_calls, 1);
 }
 
-static void test_call_old_internal_routes_by_alias(void **state) {
-    (void) state;
+void test_call_old_internal_routes_by_alias(void) {
     pluginType = PLUGIN_TYPE_OLD_INTERNAL;
     strlcpy(dataContext.tokenContext.pluginName,
             "-erc20",
             sizeof(dataContext.tokenContext.pluginName));
     ethPluginInitContract_t msg = {0};
     eth_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(g_erc20_calls, 1);
+    TEST_ASSERT_EQUAL(g_erc20_calls, 1);
 }
 
-static void test_call_unsupported_plugin_type_returns_error(void **state) {
-    (void) state;
+void test_call_unsupported_plugin_type_returns_error(void) {
     pluginType = (pluginType_t) 0xFF;
     ethPluginInitContract_t msg = {0};
     eth_plugin_result_t r = eth_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_ERROR);
 }
 
 // --- Result-check matrix ---
 
-static void test_call_init_error_result_propagates(void **state) {
-    (void) state;
+void test_call_init_error_result_propagates(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_ERROR;
     ethPluginInitContract_t msg = {0};
     eth_plugin_result_t r = eth_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_call_init_unknown_result_returns_unavailable(void **state) {
-    (void) state;
+void test_call_init_unknown_result_returns_unavailable(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_FALLBACK;  // not OK/ERROR for INIT
     ethPluginInitContract_t msg = {0};
     eth_plugin_result_t r = eth_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_UNAVAILABLE);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_UNAVAILABLE);
 }
 
-static void test_call_provide_parameter_fallback_passes(void **state) {
-    (void) state;
+void test_call_provide_parameter_fallback_passes(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_FALLBACK;
     ethPluginProvideParameter_t msg = {0};
     // For PROVIDE_PARAMETER, FALLBACK is accepted as OK by the
     // dispatcher (it's treated the same as OK at the return point).
     eth_plugin_result_t r = eth_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_OK);
 }
 
-static void test_call_finalize_ok(void **state) {
-    (void) state;
+void test_call_finalize_ok(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     ethPluginFinalize_t msg = {0};
     eth_plugin_result_t r = eth_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_OK);
 }
 
-static void test_call_provide_info_error_propagates(void **state) {
-    (void) state;
+void test_call_provide_info_error_propagates(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_ERROR;
     ethPluginProvideInfo_t msg = {0};
     eth_plugin_result_t r = eth_plugin_call(ETH_PLUGIN_PROVIDE_INFO, &msg);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_call_query_contract_id_error_propagates(void **state) {
-    (void) state;
+void test_call_query_contract_id_error_propagates(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_ERROR;
     ethQueryContractID_t msg = {0};
     eth_plugin_result_t r = eth_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &msg);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_call_query_contract_ui_ok(void **state) {
-    (void) state;
+void test_call_query_contract_ui_ok(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_OK;
     ethQueryContractUI_t msg = {0};
     eth_plugin_result_t r = eth_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_OK);
 }
 
 // Result-check error branches for every message type. The dispatcher
@@ -567,61 +552,55 @@ static void test_call_query_contract_ui_ok(void **state) {
 // signature flow, while FINALIZE / PROVIDE_PARAMETER report fault
 // back to the parser which decides whether to abort.
 
-static void test_call_provide_parameter_error_propagates(void **state) {
-    (void) state;
+void test_call_provide_parameter_error_propagates(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_ERROR;
     ethPluginProvideParameter_t msg = {0};
-    assert_int_equal(eth_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg), ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(eth_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg), ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_call_provide_parameter_unknown_returns_unavailable(void **state) {
-    (void) state;
+void test_call_provide_parameter_unknown_returns_unavailable(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_UNAVAILABLE;  // outside {OK, FALLBACK, ERROR}
     ethPluginProvideParameter_t msg = {0};
-    assert_int_equal(eth_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg),
-                     ETH_PLUGIN_RESULT_UNAVAILABLE);
+    TEST_ASSERT_EQUAL(eth_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg),
+                      ETH_PLUGIN_RESULT_UNAVAILABLE);
 }
 
-static void test_call_finalize_error_propagates(void **state) {
-    (void) state;
+void test_call_finalize_error_propagates(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_ERROR;
     ethPluginFinalize_t msg = {0};
-    assert_int_equal(eth_plugin_call(ETH_PLUGIN_FINALIZE, &msg), ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(eth_plugin_call(ETH_PLUGIN_FINALIZE, &msg), ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_call_finalize_unknown_returns_unavailable(void **state) {
-    (void) state;
+void test_call_finalize_unknown_returns_unavailable(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_UNAVAILABLE;
     ethPluginFinalize_t msg = {0};
-    assert_int_equal(eth_plugin_call(ETH_PLUGIN_FINALIZE, &msg), ETH_PLUGIN_RESULT_UNAVAILABLE);
+    TEST_ASSERT_EQUAL(eth_plugin_call(ETH_PLUGIN_FINALIZE, &msg), ETH_PLUGIN_RESULT_UNAVAILABLE);
 }
 
-static void test_call_provide_info_unknown_returns_unavailable(void **state) {
-    (void) state;
+void test_call_provide_info_unknown_returns_unavailable(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_UNAVAILABLE;
     ethPluginProvideInfo_t msg = {0};
-    assert_int_equal(eth_plugin_call(ETH_PLUGIN_PROVIDE_INFO, &msg), ETH_PLUGIN_RESULT_UNAVAILABLE);
+    TEST_ASSERT_EQUAL(eth_plugin_call(ETH_PLUGIN_PROVIDE_INFO, &msg),
+                      ETH_PLUGIN_RESULT_UNAVAILABLE);
 }
 
-static void test_call_query_contract_ui_error_propagates(void **state) {
-    (void) state;
+void test_call_query_contract_ui_error_propagates(void) {
     pluginType = PLUGIN_TYPE_ERC721;
     g_plugin_result = ETH_PLUGIN_RESULT_ERROR;
     ethQueryContractUI_t msg = {0};
-    assert_int_equal(eth_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg), ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(eth_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg), ETH_PLUGIN_RESULT_ERROR);
 }
 
 // =============================================================================
 // eth_plugin_perform_init — PLUGIN_TYPE_NONE path (old_internal lookup)
 // =============================================================================
 
-static void test_perform_init_swap_with_calldata_sets_ok(void **state) {
-    (void) state;
+void test_perform_init_swap_with_calldata_sets_ok(void) {
     pluginType = PLUGIN_TYPE_SWAP_WITH_CALLDATA;
     uint8_t contract[ADDRESS_LENGTH] = {0xAA};
     const uint8_t selector[CALLDATA_SELECTOR_SIZE] = {0xDE, 0xAD, 0xBE, 0xEF};
@@ -629,7 +608,7 @@ static void test_perform_init_swap_with_calldata_sets_ok(void **state) {
     eth_plugin_perform_init(contract, &init);
     // The swap_with_calldata branch immediately marks the plugin OK.
     // The function returns OK without calling the plugin's init.
-    assert_int_equal(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_OK);
 }
 
 // =============================================================================
@@ -641,8 +620,7 @@ static void test_perform_init_swap_with_calldata_sets_ok(void **state) {
 // claim the ERC-20 alias — these tests pin the actual match contract.
 // =============================================================================
 
-static void test_perform_init_none_matches_erc20_transfer(void **state) {
-    (void) state;
+void test_perform_init_none_matches_erc20_transfer(void) {
     // ERC-20 plugin entry has addresses=NULL (any contract) and
     // selectors={transfer, approve}. Match the first selector.
     pluginType = PLUGIN_TYPE_NONE;
@@ -654,13 +632,12 @@ static void test_perform_init_none_matches_erc20_transfer(void **state) {
 
     // The function copies the plugin alias into tokenContext.pluginName
     // and switches pluginType to OLD_INTERNAL.
-    assert_int_equal(pluginType, PLUGIN_TYPE_OLD_INTERNAL);
-    assert_string_equal(dataContext.tokenContext.pluginName, "-erc20");
-    assert_int_equal(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(pluginType, PLUGIN_TYPE_OLD_INTERNAL);
+    TEST_ASSERT_EQUAL_STRING(dataContext.tokenContext.pluginName, "-erc20");
+    TEST_ASSERT_EQUAL(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_OK);
 }
 
-static void test_perform_init_none_matches_eip7002_by_address(void **state) {
-    (void) state;
+void test_perform_init_none_matches_eip7002_by_address(void) {
     // EIP-7002 entry has addresses={g_eip7002_address} (constraint),
     // selectors=NULL (any selector → matching_selector returns true).
     pluginType = PLUGIN_TYPE_NONE;
@@ -671,12 +648,11 @@ static void test_perform_init_none_matches_eip7002_by_address(void **state) {
 
     eth_plugin_perform_init(contract, &init);
 
-    assert_int_equal(pluginType, PLUGIN_TYPE_OLD_INTERNAL);
-    assert_string_equal(dataContext.tokenContext.pluginName, "-eip7002");
+    TEST_ASSERT_EQUAL(pluginType, PLUGIN_TYPE_OLD_INTERNAL);
+    TEST_ASSERT_EQUAL_STRING(dataContext.tokenContext.pluginName, "-eip7002");
 }
 
-static void test_perform_init_none_no_match_unavailable(void **state) {
-    (void) state;
+void test_perform_init_none_no_match_unavailable(void) {
     // Contract not in any address-bound plugin, selector not in any
     // selector-bound plugin → old_internal returns false. Then
     // contract_address != NULL and G_called_from_swap=false → returns
@@ -691,12 +667,11 @@ static void test_perform_init_none_no_match_unavailable(void **state) {
     eth_plugin_perform_init(contract, &init);
 
     // Stayed NONE (no match overwrote it), default status UNAVAILABLE.
-    assert_int_equal(pluginType, PLUGIN_TYPE_NONE);
-    assert_int_equal(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_UNAVAILABLE);
+    TEST_ASSERT_EQUAL(pluginType, PLUGIN_TYPE_NONE);
+    TEST_ASSERT_EQUAL(dataContext.tokenContext.pluginStatus, ETH_PLUGIN_RESULT_UNAVAILABLE);
 }
 
-static void test_perform_init_none_no_match_swap_mode_returns_error(void **state) {
-    (void) state;
+void test_perform_init_none_no_match_swap_mode_returns_error(void) {
     // Same as above but under swap mode. The post-switch block must
     // reject explicitly (RESULT_ERROR) instead of returning UNAVAILABLE:
     // swap flows can't fall back to a generic "I don't know this
@@ -710,7 +685,7 @@ static void test_perform_init_none_no_match_swap_mode_returns_error(void **state
     ethPluginInitContract_t init = {.selector = selector};
 
     eth_plugin_result_t r = eth_plugin_perform_init(contract, &init);
-    assert_int_equal(r, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(r, ETH_PLUGIN_RESULT_ERROR);
 
     // Restore for next test.
     G_called_from_swap = false;
@@ -720,46 +695,55 @@ static void test_perform_init_none_no_match_swap_mode_returns_error(void **state
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    Mocknetwork_Init();
+    get_tx_chain_id_StubWithCallback(get_tx_chain_id_stub);
+    get_displayable_ticker_StubWithCallback(get_displayable_ticker_stub);
+    reset();
+}
+void tearDown(void) {
+    Mocknetwork_Verify();
+    Mocknetwork_Destroy();
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_prepare_init_populates_struct, reset),
-        cmocka_unit_test_setup(test_prepare_provide_parameter_populates_struct, reset),
-        cmocka_unit_test_setup(test_prepare_finalize_zeroes_struct, reset),
-        cmocka_unit_test_setup(test_prepare_provide_info_zeroes_struct, reset),
-        cmocka_unit_test_setup(test_prepare_query_contract_id_populates_struct, reset),
-        cmocka_unit_test_setup(test_prepare_query_contract_ui_resolves_chain_and_assets, reset),
-        cmocka_unit_test_setup(test_perform_init_default_chain_mismatch_marks_unavailable, reset),
-        cmocka_unit_test_setup(test_perform_init_default_chain_any_bypasses_check, reset),
-        cmocka_unit_test_setup(test_perform_init_default_unresolved_tx_chain_defers_check, reset),
-        cmocka_unit_test_setup(test_perform_init_default_contract_mismatch_panics, reset),
-        cmocka_unit_test_setup(test_perform_init_default_selector_mismatch_panics, reset),
-        cmocka_unit_test_setup(test_perform_init_unsupported_plugin_type_panics, reset),
-        // Dispatcher tests
-        cmocka_unit_test_setup(test_call_cached_unavailable_short_circuits, reset),
-        cmocka_unit_test_setup(test_call_unknown_method_returns_unavailable, reset),
-        cmocka_unit_test_setup(test_call_erc721_dispatches, reset),
-        cmocka_unit_test_setup(test_call_erc1155_dispatches, reset),
-        cmocka_unit_test_setup(test_call_swap_with_calldata_dispatches, reset),
-        cmocka_unit_test_setup(test_call_old_internal_routes_by_alias, reset),
-        cmocka_unit_test_setup(test_call_unsupported_plugin_type_returns_error, reset),
-        cmocka_unit_test_setup(test_call_init_error_result_propagates, reset),
-        cmocka_unit_test_setup(test_call_init_unknown_result_returns_unavailable, reset),
-        cmocka_unit_test_setup(test_call_provide_parameter_fallback_passes, reset),
-        cmocka_unit_test_setup(test_call_finalize_ok, reset),
-        cmocka_unit_test_setup(test_call_provide_info_error_propagates, reset),
-        cmocka_unit_test_setup(test_call_query_contract_id_error_propagates, reset),
-        cmocka_unit_test_setup(test_call_query_contract_ui_ok, reset),
-        cmocka_unit_test_setup(test_call_provide_parameter_error_propagates, reset),
-        cmocka_unit_test_setup(test_call_provide_parameter_unknown_returns_unavailable, reset),
-        cmocka_unit_test_setup(test_call_finalize_error_propagates, reset),
-        cmocka_unit_test_setup(test_call_finalize_unknown_returns_unavailable, reset),
-        cmocka_unit_test_setup(test_call_provide_info_unknown_returns_unavailable, reset),
-        cmocka_unit_test_setup(test_call_query_contract_ui_error_propagates, reset),
-        cmocka_unit_test_setup(test_perform_init_swap_with_calldata_sets_ok, reset),
-        cmocka_unit_test_setup(test_perform_init_none_matches_erc20_transfer, reset),
-        cmocka_unit_test_setup(test_perform_init_none_matches_eip7002_by_address, reset),
-        cmocka_unit_test_setup(test_perform_init_none_no_match_unavailable, reset),
-        cmocka_unit_test_setup(test_perform_init_none_no_match_swap_mode_returns_error, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_prepare_init_populates_struct);
+    RUN_TEST(test_prepare_provide_parameter_populates_struct);
+    RUN_TEST(test_prepare_finalize_zeroes_struct);
+    RUN_TEST(test_prepare_provide_info_zeroes_struct);
+    RUN_TEST(test_prepare_query_contract_id_populates_struct);
+    RUN_TEST(test_prepare_query_contract_ui_resolves_chain_and_assets);
+    RUN_TEST(test_perform_init_default_chain_mismatch_marks_unavailable);
+    RUN_TEST(test_perform_init_default_chain_any_bypasses_check);
+    RUN_TEST(test_perform_init_default_unresolved_tx_chain_defers_check);
+    RUN_TEST(test_perform_init_default_contract_mismatch_panics);
+    RUN_TEST(test_perform_init_default_selector_mismatch_panics);
+    RUN_TEST(test_perform_init_unsupported_plugin_type_panics);
+    RUN_TEST(test_call_cached_unavailable_short_circuits);
+    RUN_TEST(test_call_unknown_method_returns_unavailable);
+    RUN_TEST(test_call_erc721_dispatches);
+    RUN_TEST(test_call_erc1155_dispatches);
+    RUN_TEST(test_call_swap_with_calldata_dispatches);
+    RUN_TEST(test_call_old_internal_routes_by_alias);
+    RUN_TEST(test_call_unsupported_plugin_type_returns_error);
+    RUN_TEST(test_call_init_error_result_propagates);
+    RUN_TEST(test_call_init_unknown_result_returns_unavailable);
+    RUN_TEST(test_call_provide_parameter_fallback_passes);
+    RUN_TEST(test_call_finalize_ok);
+    RUN_TEST(test_call_provide_info_error_propagates);
+    RUN_TEST(test_call_query_contract_id_error_propagates);
+    RUN_TEST(test_call_query_contract_ui_ok);
+    RUN_TEST(test_call_provide_parameter_error_propagates);
+    RUN_TEST(test_call_provide_parameter_unknown_returns_unavailable);
+    RUN_TEST(test_call_finalize_error_propagates);
+    RUN_TEST(test_call_finalize_unknown_returns_unavailable);
+    RUN_TEST(test_call_provide_info_unknown_returns_unavailable);
+    RUN_TEST(test_call_query_contract_ui_error_propagates);
+    RUN_TEST(test_perform_init_swap_with_calldata_sets_ok);
+    RUN_TEST(test_perform_init_none_matches_erc20_transfer);
+    RUN_TEST(test_perform_init_none_matches_eip7002_by_address);
+    RUN_TEST(test_perform_init_none_no_match_unavailable);
+    RUN_TEST(test_perform_init_none_no_match_swap_mode_returns_error);
+    return UNITY_END();
 }

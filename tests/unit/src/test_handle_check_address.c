@@ -21,10 +21,7 @@
  *  8. address_to_check has "0x" prefix  -> the prefix is stripped before compare
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -34,33 +31,34 @@
 #include "chain_config.h"
 #include "handle_check_address.h"
 
+static bool g_bip32_path_read_ret = true;
+static uint16_t g_get_public_key_string_sw = CX_OK;
+static const char *g_get_public_key_string_addr = NULL;
+
 // =============================================================================
 // Wraps / stubs
 // =============================================================================
 
-// Each test pushes a desired bip32_path_read return value (and optionally a
-// length-clamp behavior) via cmocka.
-bool __wrap_bip32_path_read(const uint8_t *in, size_t in_len, uint32_t *out, size_t out_len) {
+bool bip32_path_read(const uint8_t *in, size_t in_len, uint32_t *out, size_t out_len) {
     (void) in;
     (void) in_len;
     (void) out;
     (void) out_len;
-    return (bool) mock();
+    return (bool) g_bip32_path_read_ret;
 }
 
 // get_public_key_string writes the ASCII checksummed address into `address`.
-// Tests push the desired sw + address payload through cmocka.
-uint16_t __wrap_get_public_key_string(bip32_path_t *bip32,
-                                      uint8_t *pubKey,
-                                      char *address,
-                                      uint8_t *chainCode,
-                                      uint64_t chainId) {
+uint16_t get_public_key_string(bip32_path_t *bip32,
+                               uint8_t *pubKey,
+                               char *address,
+                               uint8_t *chainCode,
+                               uint64_t chainId) {
     (void) bip32;
     (void) pubKey;
     (void) chainCode;
     (void) chainId;
-    uint16_t sw = (uint16_t) mock();
-    const char *out = (const char *) mock();
+    uint16_t sw = g_get_public_key_string_sw;
+    const char *out = g_get_public_key_string_addr;
     if (out != NULL && address != NULL) {
         strcpy(address, out);
     }
@@ -79,124 +77,121 @@ static chain_config_t s_chain = {.ticker = "ETH", .chain_id = 1, .coin_type = 60
 // bip32_path_read is wrapped.
 static uint8_t s_addr_params[1 + 5 * 4];
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&s_params, 0, sizeof(s_params));
     s_addr_params[0] = 5;  // 5-level path (e.g. 44'/60'/0'/0/0)
     memset(s_addr_params + 1, 0xAB, sizeof(s_addr_params) - 1);
     s_params.address_parameters = s_addr_params;
     s_params.address_parameters_length = sizeof(s_addr_params);
-    return 0;
+    g_bip32_path_read_ret = true;
+    g_get_public_key_string_sw = CX_OK;
+    g_get_public_key_string_addr = NULL;
 }
 
 // =============================================================================
 // Empty / NULL inputs -- result stays 0
 // =============================================================================
 
-static void test_null_address_to_check_returns_zero(void **state) {
-    (void) state;
+void test_null_address_to_check_returns_zero(void) {
     s_params.address_to_check = NULL;
     // bip32_path_read / get_public_key_string MUST NOT be reached.
     handle_check_address(&s_params, &s_chain);
-    assert_int_equal(s_params.result, 0);
+    TEST_ASSERT_EQUAL(s_params.result, 0);
 }
 
-static void test_null_address_parameters_returns_zero(void **state) {
-    (void) state;
+void test_null_address_parameters_returns_zero(void) {
     char addr[] = "0xdeadbeef";
     s_params.address_to_check = addr;
     s_params.address_parameters = NULL;
     s_params.address_parameters_length = sizeof(s_addr_params);
     handle_check_address(&s_params, &s_chain);
-    assert_int_equal(s_params.result, 0);
+    TEST_ASSERT_EQUAL(s_params.result, 0);
 }
 
-static void test_zero_length_address_parameters_returns_zero(void **state) {
-    (void) state;
+void test_zero_length_address_parameters_returns_zero(void) {
     char addr[] = "0xdeadbeef";
     s_params.address_to_check = addr;
     s_params.address_parameters_length = 0;
     handle_check_address(&s_params, &s_chain);
-    assert_int_equal(s_params.result, 0);
+    TEST_ASSERT_EQUAL(s_params.result, 0);
 }
 
 // =============================================================================
 // Derivation failures -- result stays 0
 // =============================================================================
 
-static void test_bip32_path_read_failure_returns_zero(void **state) {
-    (void) state;
+void test_bip32_path_read_failure_returns_zero(void) {
     char addr[] = "0xdeadbeef";
     s_params.address_to_check = addr;
-    will_return(__wrap_bip32_path_read, false);
+    g_bip32_path_read_ret = false;
     // get_public_key_string MUST NOT be reached after a bad path.
     handle_check_address(&s_params, &s_chain);
-    assert_int_equal(s_params.result, 0);
+    TEST_ASSERT_EQUAL(s_params.result, 0);
 }
 
-static void test_get_public_key_failure_returns_zero(void **state) {
-    (void) state;
+void test_get_public_key_failure_returns_zero(void) {
     char addr[] = "0xdeadbeef";
     s_params.address_to_check = addr;
-    will_return(__wrap_bip32_path_read, true);
-    will_return(__wrap_get_public_key_string, 0x6A80);  // SWO_APD_DAT_GENERIC
-    will_return(__wrap_get_public_key_string, NULL);    // no address payload
+    g_bip32_path_read_ret = true;
+    g_get_public_key_string_sw = 0x6A80;  // SWO_APD_DAT_GENERIC
+    g_get_public_key_string_addr = NULL;
     handle_check_address(&s_params, &s_chain);
-    assert_int_equal(s_params.result, 0);
+    TEST_ASSERT_EQUAL(s_params.result, 0);
 }
 
 // =============================================================================
 // Compare paths
 // =============================================================================
 
-static void test_address_mismatch_returns_zero(void **state) {
-    (void) state;
+void test_address_mismatch_returns_zero(void) {
     char addr[] = "0xabc1234567890abcdef1234567890abcdef123456";
     s_params.address_to_check = addr;
-    will_return(__wrap_bip32_path_read, true);
-    will_return(__wrap_get_public_key_string, CX_OK);
-    will_return(__wrap_get_public_key_string,
-                "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");  // derived address differs
+    g_bip32_path_read_ret = true;
+    g_get_public_key_string_sw = CX_OK;
+    g_get_public_key_string_addr = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
     handle_check_address(&s_params, &s_chain);
-    assert_int_equal(s_params.result, 0);
+    TEST_ASSERT_EQUAL(s_params.result, 0);
 }
 
-static void test_address_match_sets_result_one(void **state) {
-    (void) state;
+void test_address_match_sets_result_one(void) {
     // address_to_check has no 0x prefix; expect raw compare against the
     // derived address.
     char addr[] = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
     s_params.address_to_check = addr;
-    will_return(__wrap_bip32_path_read, true);
-    will_return(__wrap_get_public_key_string, CX_OK);
-    will_return(__wrap_get_public_key_string, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+    g_bip32_path_read_ret = true;
+    g_get_public_key_string_sw = CX_OK;
+    g_get_public_key_string_addr = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
     handle_check_address(&s_params, &s_chain);
-    assert_int_equal(s_params.result, 1);
+    TEST_ASSERT_EQUAL(s_params.result, 1);
 }
 
-static void test_address_match_strips_0x_prefix(void **state) {
-    (void) state;
+void test_address_match_strips_0x_prefix(void) {
     // The 0x prefix on address_to_check must be skipped before strcmp;
     // get_public_key_string returns the lowercase hex without prefix.
     char addr[] = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
     s_params.address_to_check = addr;
-    will_return(__wrap_bip32_path_read, true);
-    will_return(__wrap_get_public_key_string, CX_OK);
-    will_return(__wrap_get_public_key_string, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+    g_bip32_path_read_ret = true;
+    g_get_public_key_string_sw = CX_OK;
+    g_get_public_key_string_addr = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
     handle_check_address(&s_params, &s_chain);
-    assert_int_equal(s_params.result, 1);
+    TEST_ASSERT_EQUAL(s_params.result, 1);
+}
+
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_null_address_to_check_returns_zero, reset),
-        cmocka_unit_test_setup(test_null_address_parameters_returns_zero, reset),
-        cmocka_unit_test_setup(test_zero_length_address_parameters_returns_zero, reset),
-        cmocka_unit_test_setup(test_bip32_path_read_failure_returns_zero, reset),
-        cmocka_unit_test_setup(test_get_public_key_failure_returns_zero, reset),
-        cmocka_unit_test_setup(test_address_mismatch_returns_zero, reset),
-        cmocka_unit_test_setup(test_address_match_sets_result_one, reset),
-        cmocka_unit_test_setup(test_address_match_strips_0x_prefix, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_null_address_to_check_returns_zero);
+    RUN_TEST(test_null_address_parameters_returns_zero);
+    RUN_TEST(test_zero_length_address_parameters_returns_zero);
+    RUN_TEST(test_bip32_path_read_failure_returns_zero);
+    RUN_TEST(test_get_public_key_failure_returns_zero);
+    RUN_TEST(test_address_mismatch_returns_zero);
+    RUN_TEST(test_address_match_sets_result_one);
+    RUN_TEST(test_address_match_strips_0x_prefix);
+    return UNITY_END();
 }

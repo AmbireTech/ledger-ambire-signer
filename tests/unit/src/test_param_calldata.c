@@ -5,10 +5,7 @@
  *        across all calldata iterations).
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -30,7 +27,9 @@
 static int g_vg_call = 0;
 static s_parsed_value_collection g_vg[2];
 
-bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collection) {
+static bool g_tx_ctx_init_ret = true;
+
+bool value_get(const s_value *value, s_parsed_value_collection *collection) {
     (void) value;
     *collection = g_vg[g_vg_call++];
     return true;
@@ -41,7 +40,7 @@ bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collectio
 // called by format_param_calldata; only needed for linkage.
 // ===========================================================================
 
-bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
+bool handle_value_struct(const buffer_t *buf, s_value_context *context) {
     (void) buf;
     (void) context;
     return true;
@@ -60,20 +59,20 @@ static bool g_calldata_init_ok = false;  // default: NULL (legacy tests rely on 
 static bool g_calldata_append_ok = true;
 static int g_calldata_delete_calls = 0;
 
-s_calldata *__wrap_calldata_init(size_t size, const uint8_t *selector) {
+s_calldata *calldata_init(size_t size, const uint8_t *selector) {
     (void) size;
     (void) selector;
     return g_calldata_init_ok ? (s_calldata *) calloc(1, sizeof(s_calldata)) : NULL;
 }
 
-bool __wrap_calldata_append(s_calldata *calldata, const uint8_t *data, size_t length) {
+bool calldata_append(s_calldata *calldata, const uint8_t *data, size_t length) {
     (void) calldata;
     (void) data;
     (void) length;
     return g_calldata_append_ok;
 }
 
-void __wrap_calldata_delete(s_calldata *calldata) {
+void calldata_delete(s_calldata *calldata) {
     (void) calldata;
     g_calldata_delete_calls++;
 }
@@ -82,17 +81,17 @@ void __wrap_calldata_delete(s_calldata *calldata) {
 // tx_ctx_init mock
 // ===========================================================================
 
-bool __wrap_tx_ctx_init(s_calldata *calldata,
-                        const uint8_t *from,
-                        const uint8_t *to,
-                        const uint8_t *amount,
-                        const uint64_t *chain_id) {
+bool tx_ctx_init(s_calldata *calldata,
+                 const uint8_t *from,
+                 const uint8_t *to,
+                 const uint8_t *amount,
+                 const uint64_t *chain_id) {
     (void) calldata;
     (void) from;
     (void) to;
     (void) amount;
     (void) chain_id;
-    return (bool) mock();
+    return (bool) g_tx_ctx_init_ret;
 }
 
 // ===========================================================================
@@ -114,9 +113,7 @@ static uint8_t g_contract_addr[ADDRESS_LENGTH] = {
  * contract_addr collection has 1 element — broadcast to both iterations.
  * Expected: format_param_calldata returns true and tx_ctx_init is called twice.
  */
-static void test_calldata_broadcast_ok(void **state) {
-    (void) state;
-
+void test_calldata_broadcast_ok(void) {
     // Primary collection: two empty calldatas (length=0 skips calldata_init)
     g_vg[0].size = 2;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = NULL, .size = 0, .offset = 0, .length = 0};
@@ -135,18 +132,18 @@ static void test_calldata_broadcast_ok(void **state) {
     memset(&txContext, 0, sizeof(txContext));
 
     // tx_ctx_init called once per calldata iteration (2 iterations)
-    will_return(__wrap_tx_ctx_init, true);
-    will_return(__wrap_tx_ctx_init, true);
+    g_tx_ctx_init_ret = true;
+    g_tx_ctx_init_ret = true;
 
     s_param_calldata param;
     memset(&param, 0, sizeof(param));
     param.version = 1;
 
-    assert_true(format_param_calldata(&param, "Destination"));
+    TEST_ASSERT_TRUE(format_param_calldata(&param, "Destination"));
 
     // batch_nb_tx incremented by calldatas.size (2) since size > 1
-    assert_int_equal(txContext.batch_nb_tx, 2);
-    assert_int_equal(txContext.current_batch_size, 2);
+    TEST_ASSERT_EQUAL(txContext.batch_nb_tx, 2);
+    TEST_ASSERT_EQUAL(txContext.current_batch_size, 2);
 }
 
 /**
@@ -154,9 +151,7 @@ static void test_calldata_broadcast_ok(void **state) {
  * contract_addr collection has 3 — neither equals 1 nor matches calldatas.size.
  * check_param must return false; tx_ctx_init must NOT be called.
  */
-static void test_calldata_size_mismatch_rejected(void **state) {
-    (void) state;
-
+void test_calldata_size_mismatch_rejected(void) {
     // Primary collection: 2 calldatas
     g_vg[0].size = 2;
 
@@ -171,7 +166,7 @@ static void test_calldata_size_mismatch_rejected(void **state) {
     param.version = 1;
 
     // format_param_calldata must return false; tx_ctx_init is NOT called
-    assert_false(format_param_calldata(&param, "Destination"));
+    TEST_ASSERT_FALSE(format_param_calldata(&param, "Destination"));
 }
 
 // ===========================================================================
@@ -188,8 +183,7 @@ static void test_calldata_size_mismatch_rejected(void **state) {
 // All tags are < 0x80 so short-form encoding is used.
 // ===========================================================================
 
-static void test_handle_calldata_struct_all_tags_ok(void **state) {
-    (void) state;
+void test_handle_calldata_struct_all_tags_ok(void) {
     uint8_t buf_bytes[] = {
         0x00,
         0x01,
@@ -212,16 +206,15 @@ static void test_handle_calldata_struct_all_tags_ok(void **state) {
     s_param_calldata param;
     memset(&param, 0, sizeof(param));
     s_param_calldata_context ctx = {.param = &param};
-    assert_true(handle_param_calldata_struct(&buf, &ctx));
-    assert_int_equal(param.version, 1);
-    assert_true(param.has_chain_id);
-    assert_true(param.has_selector);
-    assert_true(param.has_amount);
-    assert_true(param.has_spender);
+    TEST_ASSERT_TRUE(handle_param_calldata_struct(&buf, &ctx));
+    TEST_ASSERT_EQUAL(param.version, 1);
+    TEST_ASSERT_TRUE(param.has_chain_id);
+    TEST_ASSERT_TRUE(param.has_selector);
+    TEST_ASSERT_TRUE(param.has_amount);
+    TEST_ASSERT_TRUE(param.has_spender);
 }
 
-static void test_handle_calldata_struct_version_only_ok(void **state) {
-    (void) state;
+void test_handle_calldata_struct_version_only_ok(void) {
     // Optional tags are all... optional. has_X flags must remain false.
     uint8_t buf_bytes[] = {
         0x00,
@@ -233,12 +226,12 @@ static void test_handle_calldata_struct_version_only_ok(void **state) {
     s_param_calldata param;
     memset(&param, 0, sizeof(param));
     s_param_calldata_context ctx = {.param = &param};
-    assert_true(handle_param_calldata_struct(&buf, &ctx));
-    assert_int_equal(param.version, 3);
-    assert_false(param.has_chain_id);
-    assert_false(param.has_selector);
-    assert_false(param.has_amount);
-    assert_false(param.has_spender);
+    TEST_ASSERT_TRUE(handle_param_calldata_struct(&buf, &ctx));
+    TEST_ASSERT_EQUAL(param.version, 3);
+    TEST_ASSERT_FALSE(param.has_chain_id);
+    TEST_ASSERT_FALSE(param.has_selector);
+    TEST_ASSERT_FALSE(param.has_amount);
+    TEST_ASSERT_FALSE(param.has_spender);
 }
 
 // ===========================================================================
@@ -251,15 +244,13 @@ static void test_handle_calldata_struct_version_only_ok(void **state) {
 // of the parser is pinned. This is the multicall / Safe execTx surface:
 // a bug here lets a sub-call slip past the per-call validation.
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     g_vg_call = 0;
     memset(g_vg, 0, sizeof(g_vg));
     memset(&txContext, 0, sizeof(txContext));
     g_calldata_init_ok = false;
     g_calldata_append_ok = true;
     g_calldata_delete_calls = 0;
-    return 0;
 }
 
 // Sample 8-byte nested calldata: 4-byte selector + 4 arg bytes.
@@ -274,8 +265,7 @@ static uint8_t g_nested_calldata_bytes[8] = {
     0x04,  // args
 };
 
-static void test_nested_calldata_with_selector_happy_path(void **state) {
-    (void) state;
+void test_nested_calldata_with_selector_happy_path(void) {
     g_calldata_init_ok = true;  // calldata_init returns sentinel
     // Primary: 1 non-empty calldata
     g_vg[0].size = 1;
@@ -293,13 +283,13 @@ static void test_nested_calldata_with_selector_happy_path(void **state) {
         .offset = 0,
         .length = ADDRESS_LENGTH,
     };
-    will_return(__wrap_tx_ctx_init, true);
+    g_tx_ctx_init_ret = true;
 
     s_param_calldata param = {0};
     param.version = 1;
     param.has_selector = true;
     // Provide a non-empty selector value via the static collec — we feed
-    // a third collection by chaining via __wrap_value_get's g_vg cursor.
+    // a third collection by chaining via value_get's g_vg cursor.
     g_vg[2].size = 1;
     g_vg[2].value[0] = (s_parsed_value) {
         .ptr = g_nested_calldata_bytes,
@@ -308,11 +298,10 @@ static void test_nested_calldata_with_selector_happy_path(void **state) {
         .length = 4,
     };
 
-    assert_true(format_param_calldata(&param, "Destination"));
+    TEST_ASSERT_TRUE(format_param_calldata(&param, "Destination"));
 }
 
-static void test_nested_calldata_no_selector_short_payload_rejected(void **state) {
-    (void) state;
+void test_nested_calldata_no_selector_short_payload_rejected(void) {
     // calldata length = 3 < CALLDATA_SELECTOR_SIZE → process_nested_calldata
     // rejects before reaching calldata_init.
     g_vg[0].size = 1;
@@ -334,11 +323,10 @@ static void test_nested_calldata_no_selector_short_payload_rejected(void **state
     s_param_calldata param = {0};
     param.version = 1;
     param.has_selector = false;  // selector taken from calldata itself
-    assert_false(format_param_calldata(&param, "Destination"));
+    TEST_ASSERT_FALSE(format_param_calldata(&param, "Destination"));
 }
 
-static void test_nested_calldata_init_failure_rejected(void **state) {
-    (void) state;
+void test_nested_calldata_init_failure_rejected(void) {
     g_calldata_init_ok = false;  // calldata_init returns NULL
     g_vg[0].size = 1;
     g_vg[0].value[0] = (s_parsed_value) {
@@ -358,11 +346,10 @@ static void test_nested_calldata_init_failure_rejected(void **state) {
     s_param_calldata param = {0};
     param.version = 1;
     param.has_selector = false;
-    assert_false(format_param_calldata(&param, "Destination"));
+    TEST_ASSERT_FALSE(format_param_calldata(&param, "Destination"));
 }
 
-static void test_nested_calldata_append_failure_rejected(void **state) {
-    (void) state;
+void test_nested_calldata_append_failure_rejected(void) {
     g_calldata_init_ok = true;
     g_calldata_append_ok = false;  // append fails after init
 
@@ -384,15 +371,14 @@ static void test_nested_calldata_append_failure_rejected(void **state) {
     s_param_calldata param = {0};
     param.version = 1;
     param.has_selector = false;
-    assert_false(format_param_calldata(&param, "Destination"));
+    TEST_ASSERT_FALSE(format_param_calldata(&param, "Destination"));
     // On append failure the production code calls APP_MEM_FREE (not
     // calldata_delete); we observe through the absence of a leak in
     // the calldata-delete mock counter.
-    assert_int_equal(g_calldata_delete_calls, 0);
+    TEST_ASSERT_EQUAL(g_calldata_delete_calls, 0);
 }
 
-static void test_nested_calldata_with_all_optional_fields(void **state) {
-    (void) state;
+void test_nested_calldata_with_all_optional_fields(void) {
     // Exercise has_chain_id + has_amount + has_spender. Each adds one
     // value_get call → secondary collections.
     g_calldata_init_ok = true;
@@ -437,7 +423,7 @@ static void test_nested_calldata_with_all_optional_fields(void **state) {
         .offset = 0,
         .length = ADDRESS_LENGTH,
     };
-    will_return(__wrap_tx_ctx_init, true);
+    g_tx_ctx_init_ret = true;
 
     s_param_calldata param = {0};
     param.version = 1;
@@ -445,24 +431,29 @@ static void test_nested_calldata_with_all_optional_fields(void **state) {
     param.has_amount = true;
     param.has_spender = true;
     // has_selector=false so the selector is taken from the calldata.
-    assert_true(format_param_calldata(&param, "Destination"));
+    TEST_ASSERT_TRUE(format_param_calldata(&param, "Destination"));
 }
 
 // ===========================================================================
 // Test runner
 // ===========================================================================
 
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_calldata_broadcast_ok, reset),
-        cmocka_unit_test_setup(test_calldata_size_mismatch_rejected, reset),
-        cmocka_unit_test_setup(test_handle_calldata_struct_all_tags_ok, reset),
-        cmocka_unit_test_setup(test_handle_calldata_struct_version_only_ok, reset),
-        cmocka_unit_test_setup(test_nested_calldata_with_selector_happy_path, reset),
-        cmocka_unit_test_setup(test_nested_calldata_no_selector_short_payload_rejected, reset),
-        cmocka_unit_test_setup(test_nested_calldata_init_failure_rejected, reset),
-        cmocka_unit_test_setup(test_nested_calldata_append_failure_rejected, reset),
-        cmocka_unit_test_setup(test_nested_calldata_with_all_optional_fields, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_calldata_broadcast_ok);
+    RUN_TEST(test_calldata_size_mismatch_rejected);
+    RUN_TEST(test_handle_calldata_struct_all_tags_ok);
+    RUN_TEST(test_handle_calldata_struct_version_only_ok);
+    RUN_TEST(test_nested_calldata_with_selector_happy_path);
+    RUN_TEST(test_nested_calldata_no_selector_short_payload_rejected);
+    RUN_TEST(test_nested_calldata_init_failure_rejected);
+    RUN_TEST(test_nested_calldata_append_failure_rejected);
+    RUN_TEST(test_nested_calldata_with_all_optional_fields);
+    return UNITY_END();
 }

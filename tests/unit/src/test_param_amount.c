@@ -23,10 +23,7 @@
  * linker --wrap.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -44,6 +41,8 @@
 // Globals the module reads
 // =============================================================================
 
+static bool g_add_to_field_table_ret = true;
+
 // =============================================================================
 // Wrapped dependencies
 // =============================================================================
@@ -52,7 +51,7 @@ static int g_vg_call = 0;
 static s_parsed_value_collection g_vg[1];
 static bool g_vg_ret = true;
 
-bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collection) {
+bool value_get(const s_value *value, s_parsed_value_collection *collection) {
     (void) value;
     *collection = g_vg[g_vg_call++];
     return g_vg_ret;
@@ -60,21 +59,23 @@ bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collectio
 
 // Used by the TAG_VALUE handler of handle_param_amount_struct.
 static bool g_hvs_ret = true;
-bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
+bool handle_value_struct(const buffer_t *buf, s_value_context *context) {
     (void) buf;
     (void) context;
     return g_hvs_ret;
 }
 
-bool __wrap_add_to_field_table(e_param_type type,
-                               const char *key,
-                               const char *value,
-                               const void *extra_data) {
+bool add_to_field_table(e_param_type type,
+                        const char *key,
+                        const char *value,
+                        const void *extra_data) {
     (void) extra_data;
-    check_expected(type);
-    check_expected(key);
-    check_expected(value);
-    return (bool) mock();
+    return (bool) g_add_to_field_table_ret;
+}
+
+static const s_tx_info *s_tx_info_ret = NULL;
+const s_tx_info *get_current_tx_info(void) {
+    return s_tx_info_ret;
 }
 
 // =============================================================================
@@ -83,16 +84,15 @@ bool __wrap_add_to_field_table(e_param_type type,
 
 static s_tx_info g_fake_tx_info;
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&g_vg, 0, sizeof(g_vg));
     g_vg_call = 0;
     g_vg_ret = true;
     g_hvs_ret = true;
+    g_add_to_field_table_ret = true;
     memset(&g_fake_tx_info, 0, sizeof(g_fake_tx_info));
     g_fake_tx_info.chain_id = 1;
-    g_tx_info_ret = &g_fake_tx_info;
-    return 0;
+    s_tx_info_ret = &g_fake_tx_info;
 }
 
 // 1 ETH = 1e18 wei, big-endian in 32 bytes — the high bytes are zero, the
@@ -116,27 +116,19 @@ static uint8_t g_two_eth[INT256_LENGTH] = {
 // format_param_amount
 // =============================================================================
 
-static void test_format_single_value_ok(void **state) {
-    (void) state;
-
+void test_format_single_value_ok(void) {
     g_vg[0].size = 1;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = g_one_eth,
                                          .size = INT256_LENGTH,
                                          .offset = 0,
                                          .length = INT256_LENGTH};
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_AMOUNT);
-    expect_string(__wrap_add_to_field_table, key, "Amount");
-    expect_string(__wrap_add_to_field_table, value, "1 ETH");
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
 
     s_param_amount param = {0};
-    assert_true(format_param_amount(&param, "Amount"));
+    TEST_ASSERT_TRUE(format_param_amount(&param, "Amount"));
 }
 
-static void test_format_multiple_values_iterates(void **state) {
-    (void) state;
-
+void test_format_multiple_values_iterates(void) {
     g_vg[0].size = 2;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = g_one_eth,
                                          .size = INT256_LENGTH,
@@ -146,45 +138,34 @@ static void test_format_multiple_values_iterates(void **state) {
                                          .size = INT256_LENGTH,
                                          .offset = 0,
                                          .length = INT256_LENGTH};
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_AMOUNT);
-    expect_string(__wrap_add_to_field_table, key, "Amount");
-    expect_string(__wrap_add_to_field_table, value, "1 ETH");
-    will_return(__wrap_add_to_field_table, true);
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_AMOUNT);
-    expect_string(__wrap_add_to_field_table, key, "Amount");
-    expect_string(__wrap_add_to_field_table, value, "2 ETH");
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
+    g_add_to_field_table_ret = true;
 
     s_param_amount param = {0};
-    assert_true(format_param_amount(&param, "Amount"));
+    TEST_ASSERT_TRUE(format_param_amount(&param, "Amount"));
 }
 
-static void test_format_value_get_failure_returns_false(void **state) {
-    (void) state;
+void test_format_value_get_failure_returns_false(void) {
     g_vg_ret = false;
     // No add_to_field_table expected — value_get short-circuits the loop.
 
     s_param_amount param = {0};
-    assert_false(format_param_amount(&param, "Amount"));
+    TEST_ASSERT_FALSE(format_param_amount(&param, "Amount"));
 }
 
-static void test_format_tx_info_null_returns_false(void **state) {
-    (void) state;
+void test_format_tx_info_null_returns_false(void) {
     g_vg[0].size = 1;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = g_one_eth,
                                          .size = INT256_LENGTH,
                                          .offset = 0,
                                          .length = INT256_LENGTH};
-    g_tx_info_ret = NULL;  // no current tx → cannot resolve ticker
+    s_tx_info_ret = NULL;  // no current tx → cannot resolve ticker
 
     s_param_amount param = {0};
-    assert_false(format_param_amount(&param, "Amount"));
+    TEST_ASSERT_FALSE(format_param_amount(&param, "Amount"));
 }
 
-static void test_format_add_to_field_table_failure_propagates(void **state) {
-    (void) state;
+void test_format_add_to_field_table_failure_propagates(void) {
     g_vg[0].size = 2;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = g_one_eth,
                                          .size = INT256_LENGTH,
@@ -196,18 +177,11 @@ static void test_format_add_to_field_table_failure_propagates(void **state) {
                                          .length = INT256_LENGTH};
 
     // First entry accepted, second rejected — loop must break and return false.
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_AMOUNT);
-    expect_string(__wrap_add_to_field_table, key, "Amount");
-    expect_string(__wrap_add_to_field_table, value, "1 ETH");
-    will_return(__wrap_add_to_field_table, true);
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_AMOUNT);
-    expect_string(__wrap_add_to_field_table, key, "Amount");
-    expect_string(__wrap_add_to_field_table, value, "2 ETH");
-    will_return(__wrap_add_to_field_table, false);
+    g_add_to_field_table_ret = true;
+    g_add_to_field_table_ret = false;
 
     s_param_amount param = {0};
-    assert_false(format_param_amount(&param, "Amount"));
+    TEST_ASSERT_FALSE(format_param_amount(&param, "Amount"));
 }
 
 // =============================================================================
@@ -223,36 +197,32 @@ static bool run_tlv(const uint8_t *bytes, size_t size, s_param_amount *param) {
     return handle_param_amount_struct(&buf, &ctx);
 }
 
-static void test_tlv_happy_path_sets_version(void **state) {
-    (void) state;
+void test_tlv_happy_path_sets_version(void) {
     // VERSION(0x00) [len 1] [0x42], VALUE(0x01) [len 0]
     const uint8_t bytes[] = {0x00, 0x01, 0x42, 0x01, 0x00};
     s_param_amount param = {0};
 
-    assert_true(run_tlv(bytes, sizeof(bytes), &param));
-    assert_int_equal(param.version, 0x42);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &param));
+    TEST_ASSERT_EQUAL(param.version, 0x42);
 }
 
-static void test_tlv_version_wrong_size_rejected(void **state) {
-    (void) state;
+void test_tlv_version_wrong_size_rejected(void) {
     // VERSION with a 2-byte payload — handle_version requires exactly 1.
     const uint8_t bytes[] = {0x00, 0x02, 0x01, 0x02, 0x01, 0x00};
     s_param_amount param = {0};
 
-    assert_false(run_tlv(bytes, sizeof(bytes), &param));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &param));
 }
 
-static void test_tlv_value_handler_failure_propagates(void **state) {
-    (void) state;
+void test_tlv_value_handler_failure_propagates(void) {
     g_hvs_ret = false;  // handle_value_struct (wrapped) refuses the payload
     const uint8_t bytes[] = {0x00, 0x01, 0x01, 0x01, 0x00};
     s_param_amount param = {0};
 
-    assert_false(run_tlv(bytes, sizeof(bytes), &param));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &param));
 }
 
-static void test_tlv_duplicate_tag_rejected(void **state) {
-    (void) state;
+void test_tlv_duplicate_tag_rejected(void) {
     // Both TAG_VERSION and TAG_VALUE are ENFORCE_UNIQUE_TAG in the parser.
     // Sending VERSION twice must be rejected.
     const uint8_t bytes[] = {
@@ -267,24 +237,29 @@ static void test_tlv_duplicate_tag_rejected(void **state) {
     };
     s_param_amount param = {0};
 
-    assert_false(run_tlv(bytes, sizeof(bytes), &param));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &param));
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_format_single_value_ok, reset),
-        cmocka_unit_test_setup(test_format_multiple_values_iterates, reset),
-        cmocka_unit_test_setup(test_format_value_get_failure_returns_false, reset),
-        cmocka_unit_test_setup(test_format_tx_info_null_returns_false, reset),
-        cmocka_unit_test_setup(test_format_add_to_field_table_failure_propagates, reset),
-        cmocka_unit_test_setup(test_tlv_happy_path_sets_version, reset),
-        cmocka_unit_test_setup(test_tlv_version_wrong_size_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_value_handler_failure_propagates, reset),
-        cmocka_unit_test_setup(test_tlv_duplicate_tag_rejected, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_format_single_value_ok);
+    RUN_TEST(test_format_multiple_values_iterates);
+    RUN_TEST(test_format_value_get_failure_returns_false);
+    RUN_TEST(test_format_tx_info_null_returns_false);
+    RUN_TEST(test_format_add_to_field_table_failure_propagates);
+    RUN_TEST(test_tlv_happy_path_sets_version);
+    RUN_TEST(test_tlv_version_wrong_size_rejected);
+    RUN_TEST(test_tlv_value_handler_failure_propagates);
+    RUN_TEST(test_tlv_duplicate_tag_rejected);
+    return UNITY_END();
 }

@@ -10,6 +10,7 @@
 // exercise raw APDU parsers and key-derivation helpers find them.
 #include "os_utils.h"
 #include "os_seed.h"
+#include "os_pic.h"
 
 /**
  * @brief os entry point
@@ -33,15 +34,21 @@ int bytes_to_lowercase_hex(char *out, size_t outl, const void *value, size_t len
  */
 bool is_zeroes_buffer(const void *buf, size_t n);
 
+// Mirror os_io.h: CUSTOM_IO_APDU_BUFFER_SIZE takes precedence over the
+// hardware constant so tests can shrink the buffer without touching the SDK.
+#ifndef OS_IO_BUFFER_SIZE
+#ifdef CUSTOM_IO_APDU_BUFFER_SIZE
+#define OS_IO_BUFFER_SIZE CUSTOM_IO_APDU_BUFFER_SIZE
+#else
+#define OS_IO_BUFFER_SIZE OS_IO_SEPH_BUFFER_SIZE
+#endif
+#endif
+
 /**
  * @brief APDU TX buffer (from BOLOS_SDK os_io.h). Storage lives in
- *        mocks/app_globals.c; the size matches the SDK declaration
- *        (`OS_IO_BUFFER_SIZE + 1 == 273`) so it doesn't conflict when a
- *        target also pulls os_io.h directly, while keeping sizeof()
- *        resolvable at the test callsites
- *        (`memset(G_io_tx_buffer, 0, sizeof(G_io_tx_buffer))`).
+ *        mocks/app_globals.c.
  */
-extern uint8_t G_io_tx_buffer[273];
+extern uint8_t G_io_tx_buffer[OS_IO_BUFFER_SIZE + 1];
 
 /**
  * @brief NVM write (from BOLOS_SDK os_nvm.h). Tests that exercise the
