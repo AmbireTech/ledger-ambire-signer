@@ -85,6 +85,9 @@ typedef struct {
 // Name identifying the domain struct, defined by the EIP-712 standard itself
 #define TD_DOMAIN_STRUCT_NAME "EIP712Domain"
 
+// Maximum byte length of a struct type name in a schema
+#define TD_MAX_STRUCT_NAME_LENGTH 64
+
 /**
  * Create a new, empty struct type definition
  *
