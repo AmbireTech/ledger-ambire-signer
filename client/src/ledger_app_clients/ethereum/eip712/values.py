@@ -6,8 +6,7 @@ from ragger.tlv import TlvSerializable
 
 class Eip712ValueSeqTag(IntEnum):
     LEAF = 0x00
-    ARRAY = 0x01
-    STRUCT = 0x02
+    SEQ = 0x01
 
 
 class Eip712ValueSeq(TlvSerializable):
@@ -15,11 +14,11 @@ class Eip712ValueSeq(TlvSerializable):
 
     Each entry corresponds by position to a declared field (struct) or to an element
     (array); no index or count is carried. Entries are ``bytes`` for a leaf value, or a
-    nested ``Eip712ArrayValue``/``Eip712StructValue`` for an array or struct value.
-    """
+    nested ``Eip712ValueSeq`` for an array dimension or a struct instance.
 
-    # tag used when this sequence is nested inside another one
-    tag: Eip712ValueSeqTag
+    Arrays and structs share the ``SEQ`` tag: which one a nested sequence opens is derived
+    from the schema, so the wire never declares it.
+    """
 
     def __init__(self, entries: list):
         self.entries = entries
@@ -28,22 +27,10 @@ class Eip712ValueSeq(TlvSerializable):
         payload = bytearray()
         for entry in self.entries:
             if isinstance(entry, Eip712ValueSeq):
-                payload += self.serialize_field(entry.tag, entry.serialize())
+                payload += self.serialize_field(Eip712ValueSeqTag.SEQ, entry.serialize())
             else:
                 payload += self.serialize_field(Eip712ValueSeqTag.LEAF, entry)
         return bytes(payload)
-
-
-class Eip712ArrayValue(Eip712ValueSeq):
-    """A value sequence holding array elements."""
-
-    tag = Eip712ValueSeqTag.ARRAY
-
-
-class Eip712StructValue(Eip712ValueSeq):
-    """A value sequence holding a struct instance's field values."""
-
-    tag = Eip712ValueSeqTag.STRUCT
 
 
 class Eip712ValuesTag(IntEnum):
@@ -58,16 +45,16 @@ class Eip712Values(TlvSerializable):
     version: int
     primary_type: str
     derivation_path: str
-    domain: Eip712StructValue
-    message: Eip712StructValue
+    domain: Eip712ValueSeq
+    message: Eip712ValueSeq
 
     def __init__(
         self,
         version: int,
         primary_type: str,
         derivation_path: str,
-        domain: Eip712StructValue,
-        message: Eip712StructValue,
+        domain: Eip712ValueSeq,
+        message: Eip712ValueSeq,
     ):
         self.version = version
         self.primary_type = primary_type

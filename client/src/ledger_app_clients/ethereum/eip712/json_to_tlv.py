@@ -12,7 +12,7 @@ from ..client import EthAppClient
 from ..response_parser import signature
 from ..status_word import StatusWord
 from .schema import ArrayDim, Eip712Field, Eip712Schema, Eip712Struct, SolType
-from .values import Eip712ArrayValue, Eip712StructValue, Eip712ValueSeq, Eip712Values
+from .values import Eip712ValueSeq, Eip712Values
 
 STRUCT_VERSION = 1
 DOMAIN_STRUCT_NAME = "EIP712Domain"
@@ -159,7 +159,7 @@ def _encode_value(
             assert len(value) == outermost.size, (
                 f"Array holds {len(value)} elements where the schema declares {outermost.size}"
             )
-        return Eip712ArrayValue(
+        return Eip712ValueSeq(
             [_encode_value(el, dims[:-1], sol_type, type_size, struct_name, types) for el in value]
         )
     if sol_type == SolType.STRUCT:
@@ -168,7 +168,7 @@ def _encode_value(
     return _encode_leaf(value, sol_type, type_size)
 
 
-def _struct_value_from_json(values: dict, struct_name: str, types: dict) -> Eip712StructValue:
+def _struct_value_from_json(values: dict, struct_name: str, types: dict) -> Eip712ValueSeq:
     """Build one struct instance, in the field order the schema declares.
 
     Entries are addressed by position, so the declaration order is what matters here — not the
@@ -184,7 +184,7 @@ def _struct_value_from_json(values: dict, struct_name: str, types: dict) -> Eip7
         entries.append(
             _encode_value(values[field["name"]], dims, sol_type, type_size, ref_name, types)
         )
-    return Eip712StructValue(entries)
+    return Eip712ValueSeq(entries)
 
 
 def values_from_json(data: dict, bip32_path: str) -> Eip712Values:
