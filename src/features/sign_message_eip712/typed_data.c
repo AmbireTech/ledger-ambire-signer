@@ -363,7 +363,7 @@ bool td_set_domain(s_struct_712_value *node) {
         APP_MEM_FREE(node);
         return false;
     }
-    if (strcmp(node->struct_type->name, "EIP712Domain") != 0) {
+    if (strcmp(node->struct_type->name, TD_DOMAIN_STRUCT_NAME) != 0) {
         APP_MEM_FREE(node);
         return false;
     }

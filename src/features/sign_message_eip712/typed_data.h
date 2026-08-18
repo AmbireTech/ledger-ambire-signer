@@ -82,6 +82,9 @@ typedef struct {
 // Maximum array dimensions of a field declaration; each consumes a TD_MAX_DEPTH level
 #define TD_MAX_ARRAY_LEVELS 8
 
+// Name identifying the domain struct, defined by the EIP-712 standard itself
+#define TD_DOMAIN_STRUCT_NAME "EIP712Domain"
+
 /**
  * Create a new, empty struct type definition
  *
