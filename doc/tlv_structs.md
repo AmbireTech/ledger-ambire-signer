@@ -727,14 +727,30 @@ An ordered sequence of values, used for **both** struct instances and array inst
 - as a struct instance, one entry per declared field, in schema-declared order
 - as an array instance, one entry per element
 
-Position is the address — no field index, element index or count is carried. The entry kind must
-match what `EIP712_SCHEMA` declares for that position; a mismatch is rejected.
+Position is the address — no field index, element index or count is carried.
 
-| Name   | Tag  | Payload type                          | Description | Optional |
-|--------|------|-----------------------------------------|--------------|----------|
-| LEAF   | 0x00 | uint8[]                                 | raw value bytes, when the target's type is scalar | — |
-| ARRAY  | 0x01 | [EIP712_VALUE_SEQ](#eip712_value_seq)   | when array dimensions remain to be opened | — |
-| STRUCT | 0x02 | [EIP712_VALUE_SEQ](#eip712_value_seq)   | when the target's type is `STRUCT` | — |
+| Name | Tag  | Payload type                          | Description | Optional |
+|------|------|-----------------------------------------|--------------|----------|
+| LEAF | 0x00 | uint8[]                                 | raw value bytes, when the target's type is scalar | — |
+| SEQ  | 0x01 | [EIP712_VALUE_SEQ](#eip712_value_seq)   | nested sequence: an array dimension or a struct instance | — |
+
+Whether a `SEQ` opens an array dimension or a struct instance is **derived from the schema**, not
+declared on the wire: it is an array while dimensions remain to be opened, and a struct once they
+are exhausted and the field's type is `STRUCT`. Declaring it on the wire would be redundant, since
+the schema already determines it at every position, and it could contradict the schema — a
+disagreement that would then have to be either resolved or rejected. Deriving it instead makes the
+value tree conform to the declared type by construction.
+
+> [!NOTE]
+> The `LEAF`/`SEQ` distinction is **not** derivable and must stay on the wire: it decides whether
+> the payload bytes are a raw value or a nested TLV sequence. A sequence sent where the schema
+> declares a scalar would otherwise be silently absorbed as that scalar's raw bytes. Receiving the
+> wrong one of the two is rejected.
+>
+> This check guards against a malformed or desynchronised payload, not against a malicious one —
+> schema and values come from the same untrusted sender, who can trivially send a consistent pair.
+> What makes the flow safe is that the hash and the displayed values are both derived from the same
+> schema-conformant tree, so the message shown is always the message signed.
 
 An array's element count is the number of entries in its sequence — no length is declared. For a
 fixed-size dimension that count must equal the schema's declared size; for a dynamic one it is
@@ -742,12 +758,14 @@ whatever was sent, including zero. Because every concrete array instance carries
 jagged arrays (`T[][]`, where each outer element's inner array has a different length) are
 unambiguous by construction.
 
+Sending more entries than the schema declares for a position is rejected.
+
 Worked example — `Person { string name; address[] wallets; }`, `wallets = [addr_A, addr_B]`:
 
 ```
-EIP712_VALUE_SEQ {              // Person instance
-    LEAF  "Alice"               // name
-    ARRAY {                     // wallets
+SEQ {                           // Person instance: struct, no dimension to open
+    LEAF "Alice"                // name
+    SEQ {                       // wallets: array, one dimension remains
         LEAF addr_A
         LEAF addr_B
     }
@@ -757,9 +775,9 @@ EIP712_VALUE_SEQ {              // Person instance
 Multi-dimensional example — `uint8[2][2]` holding `[[1, 2], [3, 4]]`:
 
 ```
-ARRAY {
-    ARRAY { LEAF 1  LEAF 2 }
-    ARRAY { LEAF 3  LEAF 4 }
+SEQ {                           // outer dimension
+    SEQ { LEAF 1  LEAF 2 }      // inner dimension
+    SEQ { LEAF 3  LEAF 4 }
 }
 ```
 
