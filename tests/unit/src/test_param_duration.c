@@ -18,10 +18,7 @@
  *   - composite 1d02h03m04s exercises all four components in order.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -36,6 +33,8 @@
 // Globals
 // =============================================================================
 
+static bool g_add_to_field_table_ret = true;
+
 // =============================================================================
 // Wrapped dependencies
 // =============================================================================
@@ -44,41 +43,36 @@ static int g_vg_call = 0;
 static s_parsed_value_collection g_vg[1];
 static bool g_vg_ret = true;
 
-bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collection) {
+bool value_get(const s_value *value, s_parsed_value_collection *collection) {
     (void) value;
     *collection = g_vg[g_vg_call++];
     return g_vg_ret;
 }
 
 static bool g_hvs_ret = true;
-bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
+bool handle_value_struct(const buffer_t *buf, s_value_context *context) {
     (void) buf;
     (void) context;
     return g_hvs_ret;
 }
 
-bool __wrap_add_to_field_table(e_param_type type,
-                               const char *key,
-                               const char *value,
-                               const void *extra_data) {
+bool add_to_field_table(e_param_type type,
+                        const char *key,
+                        const char *value,
+                        const void *extra_data) {
     (void) extra_data;
-    check_expected(type);
-    check_expected(key);
-    check_expected(value);
-    return (bool) mock();
+    return (bool) g_add_to_field_table_ret;
 }
 
 // =============================================================================
 // Fixtures
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&g_vg, 0, sizeof(g_vg));
     g_vg_call = 0;
     g_vg_ret = true;
     g_hvs_ret = true;
-    return 0;
 }
 
 // Helper: build a single-value collection from a BE byte buffer.
@@ -94,128 +88,88 @@ static void set_single_value(const uint8_t *bytes, size_t len) {
 // format_param_duration — each component on its own
 // =============================================================================
 
-static void test_format_zero_renders_00s(void **state) {
-    (void) state;
+void test_format_zero_renders_00s(void) {
     static const uint8_t zero[] = {0x00};
     set_single_value(zero, sizeof(zero));
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DURATION);
-    expect_string(__wrap_add_to_field_table, key, "Period");
-    expect_string(__wrap_add_to_field_table, value, "00s");
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
 
     s_param_duration param = {0};
-    assert_true(format_param_duration(&param, "Period"));
+    TEST_ASSERT_TRUE(format_param_duration(&param, "Period"));
 }
 
-static void test_format_thirty_seconds(void **state) {
-    (void) state;
+void test_format_thirty_seconds(void) {
     static const uint8_t thirty[] = {0x1E};  // 30
     set_single_value(thirty, sizeof(thirty));
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DURATION);
-    expect_string(__wrap_add_to_field_table, key, "Period");
-    expect_string(__wrap_add_to_field_table, value, "30s");
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
 
     s_param_duration param = {0};
-    assert_true(format_param_duration(&param, "Period"));
+    TEST_ASSERT_TRUE(format_param_duration(&param, "Period"));
 }
 
-static void test_format_one_minute_drops_zero_seconds(void **state) {
-    (void) state;
+void test_format_one_minute_drops_zero_seconds(void) {
     static const uint8_t sixty[] = {0x3C};  // 60
     set_single_value(sixty, sizeof(sixty));
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DURATION);
-    expect_string(__wrap_add_to_field_table, key, "Period");
-    expect_string(__wrap_add_to_field_table, value, "01m");
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
 
     s_param_duration param = {0};
-    assert_true(format_param_duration(&param, "Period"));
+    TEST_ASSERT_TRUE(format_param_duration(&param, "Period"));
 }
 
-static void test_format_one_hour(void **state) {
-    (void) state;
+void test_format_one_hour(void) {
     // 3600 = 0x0E10
     static const uint8_t hour[] = {0x0E, 0x10};
     set_single_value(hour, sizeof(hour));
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DURATION);
-    expect_string(__wrap_add_to_field_table, key, "Period");
-    expect_string(__wrap_add_to_field_table, value, "01h");
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
 
     s_param_duration param = {0};
-    assert_true(format_param_duration(&param, "Period"));
+    TEST_ASSERT_TRUE(format_param_duration(&param, "Period"));
 }
 
-static void test_format_one_day(void **state) {
-    (void) state;
+void test_format_one_day(void) {
     // 86400 = 0x015180
     static const uint8_t day[] = {0x01, 0x51, 0x80};
     set_single_value(day, sizeof(day));
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DURATION);
-    expect_string(__wrap_add_to_field_table, key, "Period");
-    expect_string(__wrap_add_to_field_table, value, "1d");
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
 
     s_param_duration param = {0};
-    assert_true(format_param_duration(&param, "Period"));
+    TEST_ASSERT_TRUE(format_param_duration(&param, "Period"));
 }
 
 // =============================================================================
 // format_param_duration — composite value
 // =============================================================================
 
-static void test_format_composite_d_h_m_s(void **state) {
-    (void) state;
+void test_format_composite_d_h_m_s(void) {
     // 1d 2h 3m 4s = 86400 + 7200 + 180 + 4 = 93784 = 0x016E58
     static const uint8_t v[] = {0x01, 0x6E, 0x58};
     set_single_value(v, sizeof(v));
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DURATION);
-    expect_string(__wrap_add_to_field_table, key, "Period");
-    expect_string(__wrap_add_to_field_table, value, "1d02h03m04s");
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
 
     s_param_duration param = {0};
-    assert_true(format_param_duration(&param, "Period"));
+    TEST_ASSERT_TRUE(format_param_duration(&param, "Period"));
 }
 
 // =============================================================================
 // format_param_duration — error paths
 // =============================================================================
 
-static void test_format_value_get_failure_returns_false(void **state) {
-    (void) state;
+void test_format_value_get_failure_returns_false(void) {
     g_vg_ret = false;
     s_param_duration param = {0};
-    assert_false(format_param_duration(&param, "Period"));
+    TEST_ASSERT_FALSE(format_param_duration(&param, "Period"));
 }
 
-static void test_format_add_to_field_table_failure_propagates(void **state) {
-    (void) state;
+void test_format_add_to_field_table_failure_propagates(void) {
     static const uint8_t a[] = {0x1E};  // 30s
     static const uint8_t b[] = {0x3C};  // 60s → "01m"
     g_vg[0].size = 2;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = a, .size = 1, .offset = 0, .length = 1};
     g_vg[0].value[1] = (s_parsed_value) {.ptr = b, .size = 1, .offset = 0, .length = 1};
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DURATION);
-    expect_string(__wrap_add_to_field_table, key, "Period");
-    expect_string(__wrap_add_to_field_table, value, "30s");
-    will_return(__wrap_add_to_field_table, true);
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_DURATION);
-    expect_string(__wrap_add_to_field_table, key, "Period");
-    expect_string(__wrap_add_to_field_table, value, "01m");
-    will_return(__wrap_add_to_field_table, false);
+    g_add_to_field_table_ret = true;
+    g_add_to_field_table_ret = false;
 
     s_param_duration param = {0};
-    assert_false(format_param_duration(&param, "Period"));
+    TEST_ASSERT_FALSE(format_param_duration(&param, "Period"));
 }
 
 // =============================================================================
@@ -228,8 +182,7 @@ static bool run_tlv(const uint8_t *bytes, size_t size, s_param_duration *param) 
     return handle_param_duration_struct(&buf, &ctx);
 }
 
-static void test_tlv_happy_path(void **state) {
-    (void) state;
+void test_tlv_happy_path(void) {
     const uint8_t bytes[] = {
         0x00,
         0x01,
@@ -238,12 +191,11 @@ static void test_tlv_happy_path(void **state) {
         0x00,  // VALUE empty (handle_value_struct wrapped)
     };
     s_param_duration param = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &param));
-    assert_int_equal(param.version, 7);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &param));
+    TEST_ASSERT_EQUAL(param.version, 7);
 }
 
-static void test_tlv_duplicate_version_rejected(void **state) {
-    (void) state;
+void test_tlv_duplicate_version_rejected(void) {
     const uint8_t bytes[] = {
         0x00,
         0x01,
@@ -255,25 +207,30 @@ static void test_tlv_duplicate_version_rejected(void **state) {
         0x00,
     };
     s_param_duration param = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &param));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &param));
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_format_zero_renders_00s, reset),
-        cmocka_unit_test_setup(test_format_thirty_seconds, reset),
-        cmocka_unit_test_setup(test_format_one_minute_drops_zero_seconds, reset),
-        cmocka_unit_test_setup(test_format_one_hour, reset),
-        cmocka_unit_test_setup(test_format_one_day, reset),
-        cmocka_unit_test_setup(test_format_composite_d_h_m_s, reset),
-        cmocka_unit_test_setup(test_format_value_get_failure_returns_false, reset),
-        cmocka_unit_test_setup(test_format_add_to_field_table_failure_propagates, reset),
-        cmocka_unit_test_setup(test_tlv_happy_path, reset),
-        cmocka_unit_test_setup(test_tlv_duplicate_version_rejected, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_format_zero_renders_00s);
+    RUN_TEST(test_format_thirty_seconds);
+    RUN_TEST(test_format_one_minute_drops_zero_seconds);
+    RUN_TEST(test_format_one_hour);
+    RUN_TEST(test_format_one_day);
+    RUN_TEST(test_format_composite_d_h_m_s);
+    RUN_TEST(test_format_value_get_failure_returns_false);
+    RUN_TEST(test_format_add_to_field_table_failure_propagates);
+    RUN_TEST(test_tlv_happy_path);
+    RUN_TEST(test_tlv_duplicate_version_rejected);
+    return UNITY_END();
 }

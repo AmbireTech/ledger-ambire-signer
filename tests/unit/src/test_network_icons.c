@@ -22,10 +22,7 @@
  *  - CLONE type caller_app       return icon
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -53,7 +50,7 @@ nbgl_icon_details_t test_home_glyph = {.width = 96, .height = 96};
 // =============================================================================
 
 static network_info_t *g_dyn_net_ret = NULL;
-network_info_t *__wrap_find_dynamic_network_by_chain_id(uint64_t chain_id) {
+network_info_t *find_dynamic_network_by_chain_id(uint64_t chain_id) {
     (void) chain_id;
     return g_dyn_net_ret;
 }
@@ -65,85 +62,90 @@ network_info_t *__wrap_find_dynamic_network_by_chain_id(uint64_t chain_id) {
 static network_info_t s_net;
 static uint8_t s_bitmap_data[32];
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&s_net, 0, sizeof(s_net));
     g_dyn_net_ret = NULL;
-    return 0;
 }
 
 // =============================================================================
 // get_network_icon_from_chain_id
 // =============================================================================
 
-static void test_dynamic_network_with_bitmap_returns_its_icon(void **state) {
-    (void) state;
+void test_dynamic_network_with_bitmap_returns_its_icon(void) {
     s_net.icon.bitmap = s_bitmap_data;
     s_net.icon.width = 32;
     g_dyn_net_ret = &s_net;
     uint64_t cid = 1234;
     const nbgl_icon_details_t *icon = get_network_icon_from_chain_id(&cid);
-    assert_ptr_equal(icon, &s_net.icon);
+    TEST_ASSERT_EQUAL_PTR(icon, &s_net.icon);
 }
 
-static void test_dynamic_network_with_null_bitmap_falls_back(void **state) {
-    (void) state;
-    // A dynamic entry exists for this chain but its icon blob wasn't
-    // streamed yet (bitmap NULL). MUST NOT crash; falls through to the
-    // hardcoded path.
+void test_dynamic_network_with_null_bitmap_falls_back(void) {
+    // bitmap NULL: skip dynamic entry, fall through to hardcoded path.
     s_net.icon.bitmap = NULL;
     g_dyn_net_ret = &s_net;
-    uint64_t cid = 1;  // mainnet -> ICONGLYPH fallback
+    uint64_t cid = 1;  // mainnet
     const nbgl_icon_details_t *icon = get_network_icon_from_chain_id(&cid);
-    assert_ptr_equal(icon, &test_glyph);
+#ifdef SCREEN_SIZE_WALLET
+    // Wallet devices scan g_network_icons[]; stub has no mainnet entry.
+    TEST_ASSERT_NULL(icon);
+#else
+    // Nano: mainnet falls back to ICONGLYPH.
+    TEST_ASSERT_EQUAL_PTR(icon, &test_glyph);
+#endif
 }
 
-static void test_no_dynamic_match_mainnet_falls_back_to_iconglyph(void **state) {
-    (void) state;
+void test_no_dynamic_match_mainnet_falls_back_to_iconglyph(void) {
     g_dyn_net_ret = NULL;
     uint64_t cid = ETHEREUM_MAINNET_CHAINID;
     const nbgl_icon_details_t *icon = get_network_icon_from_chain_id(&cid);
-    // Nano build path: !SCREEN_SIZE_WALLET, mainnet special case.
-    assert_ptr_equal(icon, &test_glyph);
+#ifdef SCREEN_SIZE_WALLET
+    // Wallet devices scan g_network_icons[]; stub has no mainnet entry.
+    TEST_ASSERT_NULL(icon);
+#else
+    // Nano: mainnet special case → ICONGLYPH.
+    TEST_ASSERT_EQUAL_PTR(icon, &test_glyph);
+#endif
 }
 
-static void test_no_dynamic_match_non_mainnet_returns_null(void **state) {
-    (void) state;
+void test_no_dynamic_match_non_mainnet_returns_null(void) {
     g_dyn_net_ret = NULL;
     uint64_t cid = 137;  // Polygon, not mainnet
-    assert_null(get_network_icon_from_chain_id(&cid));
+    TEST_ASSERT_NULL(get_network_icon_from_chain_id(&cid));
 }
 
 // =============================================================================
 // get_clone_network_icon
 // =============================================================================
 
-static void test_clone_icon_null_caller_returns_null(void **state) {
-    (void) state;
-    assert_null(get_clone_network_icon(NULL));
+void test_clone_icon_null_caller_returns_null(void) {
+    TEST_ASSERT_NULL(get_clone_network_icon(NULL));
 }
 
-static void test_clone_icon_plugin_type_returns_null(void **state) {
-    (void) state;
+void test_clone_icon_plugin_type_returns_null(void) {
     caller_app_t caller = {.type = CALLER_TYPE_PLUGIN, .icon = &test_glyph};
-    assert_null(get_clone_network_icon(&caller));
+    TEST_ASSERT_NULL(get_clone_network_icon(&caller));
 }
 
-static void test_clone_icon_clone_type_returns_icon(void **state) {
-    (void) state;
+void test_clone_icon_clone_type_returns_icon(void) {
     caller_app_t caller = {.type = CALLER_TYPE_CLONE, .icon = &test_glyph};
-    assert_ptr_equal(get_clone_network_icon(&caller), &test_glyph);
+    TEST_ASSERT_EQUAL_PTR(get_clone_network_icon(&caller), &test_glyph);
+}
+
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_dynamic_network_with_bitmap_returns_its_icon, reset),
-        cmocka_unit_test_setup(test_dynamic_network_with_null_bitmap_falls_back, reset),
-        cmocka_unit_test_setup(test_no_dynamic_match_mainnet_falls_back_to_iconglyph, reset),
-        cmocka_unit_test_setup(test_no_dynamic_match_non_mainnet_returns_null, reset),
-        cmocka_unit_test_setup(test_clone_icon_null_caller_returns_null, reset),
-        cmocka_unit_test_setup(test_clone_icon_plugin_type_returns_null, reset),
-        cmocka_unit_test_setup(test_clone_icon_clone_type_returns_icon, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_dynamic_network_with_bitmap_returns_its_icon);
+    RUN_TEST(test_dynamic_network_with_null_bitmap_falls_back);
+    RUN_TEST(test_no_dynamic_match_mainnet_falls_back_to_iconglyph);
+    RUN_TEST(test_no_dynamic_match_non_mainnet_returns_null);
+    RUN_TEST(test_clone_icon_null_caller_returns_null);
+    RUN_TEST(test_clone_icon_plugin_type_returns_null);
+    RUN_TEST(test_clone_icon_clone_type_returns_icon);
+    return UNITY_END();
 }

@@ -19,10 +19,7 @@
  * worse, render it for the wrong tx).
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -36,6 +33,17 @@
 #include "nbgl_use_case.h"
 #include "nbgl_types.h"
 #include "wraps.h"
+#include "Mocknetwork.h"
+
+// =============================================================================
+// Network mock state
+// =============================================================================
+
+static uint64_t s_tx_chain_id = 1;
+static uint64_t get_tx_chain_id_stub(int cmock_num_calls) {
+    (void) cmock_num_calls;
+    return s_tx_chain_id;
+}
 
 // `warning` is referenced by set_gating_ui_screen; the real symbol
 // lives in libNbgl which we don't link here, so provide local storage.
@@ -47,33 +55,55 @@
 s_eip712_v1_context g_eip712_storage;
 s_eip712_v1_context *eip712_v1_context = NULL;
 
-// ui_icons.h pulls in LARGE_LEDGER_ICON → C_Ledger_14px (no SCREEN_SIZE_WALLET
-// in the test build). Stub the symbol so set_gating_ui_screen links.
+// LARGE_LEDGER_ICON maps to C_Ledger_64px or C_Ledger_14px depending on
+// SCREEN_SIZE_WALLET. Define both so the linker is satisfied either way.
+const nbgl_icon_details_t C_Ledger_64px;
 const nbgl_icon_details_t C_Ledger_14px;
 
 // =============================================================================
 // Controllable stubs
 // =============================================================================
 
-// check_signature_with_pubkey / finalize_hash / hash_nbytes /
-// get_tx_chain_id are wrapped in mocks/mock.c; their state is driven
-// through g_sig_check_ret / g_finalize_hash_ret / g_tx_chain_id
-// from wraps.h.
+static bool s_sig_check_ret = true;
+bool check_signature_with_pubkey(uint8_t *buffer,
+                                 const uint8_t bufLen,
+                                 const uint8_t *PubKey,
+                                 const uint8_t keyLen,
+                                 const uint8_t keyUsageExp,
+                                 const uint8_t *signature,
+                                 const uint8_t sigLen) {
+    (void) buffer;
+    (void) bufLen;
+    (void) PubKey;
+    (void) keyLen;
+    (void) keyUsageExp;
+    (void) signature;
+    (void) sigLen;
+    return s_sig_check_ret;
+}
+
+static bool s_finalize_hash_ret = true;
+bool finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
+    (void) hash_ctx;
+    (void) out;
+    (void) out_len;
+    return s_finalize_hash_ret;
+}
 
 static bool g_compute_schema_hash_ret = true;
 static uint8_t g_schema_hash_buf[CX_SHA224_SIZE];
-bool __wrap_compute_schema_hash(uint8_t hash[CX_SHA224_SIZE]) {
+bool compute_schema_hash(uint8_t hash[CX_SHA224_SIZE]) {
     memcpy(hash, g_schema_hash_buf, CX_SHA224_SIZE);
     return g_compute_schema_hash_ret;
 }
 
 static uint8_t g_domain_contract_addr[ADDRESS_LENGTH];
-bool __wrap_td_get_domain_contract_addr(uint8_t addr[ADDRESS_LENGTH]) {
+bool td_get_domain_contract_addr(uint8_t addr[ADDRESS_LENGTH]) {
     memcpy(addr, g_domain_contract_addr, ADDRESS_LENGTH);
     return true;
 }
 
-bool __wrap_td_get_domain_chain_id(uint64_t *chain_id) {
+bool td_get_domain_chain_id(uint64_t *chain_id) {
     (void) chain_id;
     return false;
 }
@@ -81,17 +111,17 @@ bool __wrap_td_get_domain_chain_id(uint64_t *chain_id) {
 // Proxy lookup wraps — return NULL by default (no proxy).
 static const uint8_t *g_implem_contract_ret = NULL;
 static const uint8_t *g_proxy_contract_ret = NULL;
-const uint8_t *__wrap_get_implem_contract(const uint64_t *chain_id,
-                                          const uint8_t *contract,
-                                          const uint8_t *selector) {
+const uint8_t *get_implem_contract(const uint64_t *chain_id,
+                                   const uint8_t *contract,
+                                   const uint8_t *selector) {
     (void) chain_id;
     (void) contract;
     (void) selector;
     return g_implem_contract_ret;
 }
-const uint8_t *__wrap_get_proxy_contract(const uint64_t *chain_id,
-                                         const uint8_t *implem,
-                                         const uint8_t *selector) {
+const uint8_t *get_proxy_contract(const uint64_t *chain_id,
+                                  const uint8_t *implem,
+                                  const uint8_t *selector) {
     (void) chain_id;
     (void) implem;
     (void) selector;
@@ -102,7 +132,7 @@ const uint8_t *__wrap_get_proxy_contract(const uint64_t *chain_id,
 // gating_counter slot so tests can verify the counter cadence.
 static uint8_t g_captured_counter = 0;
 static int g_nvm_write_calls = 0;
-void __wrap_nvm_write(void *dst, void *src, unsigned int len) {
+void nvm_write(void *dst, void *src, unsigned int len) {
     (void) dst;
     if (len == 1 && src != NULL) {
         g_captured_counter = *(uint8_t *) src;
@@ -246,7 +276,7 @@ static size_t build_tlv(uint8_t *out, size_t out_size, s_opts opts) {
         }
         off += opts.sig_len;
     }
-    assert_true(off <= out_size);
+    TEST_ASSERT_TRUE(off <= out_size);
     return off;
 }
 
@@ -255,7 +285,7 @@ static bool send_descriptor(const uint8_t *tlv, size_t len) {
     uint8_t framed[600];
     framed[0] = (uint8_t) (len >> 8);
     framed[1] = (uint8_t) (len & 0xFF);
-    assert_true(len + 2 <= sizeof(framed));
+    TEST_ASSERT_TRUE(len + 2 <= sizeof(framed));
     memcpy(framed + 2, tlv, len);
     uint16_t sw = handle_gating(/*p1=*/P1_FIRST_CHUNK, /*p2=*/0x00, framed, (uint8_t) (len + 2));
     return sw == SWO_SUCCESS;
@@ -265,14 +295,14 @@ static bool send_descriptor(const uint8_t *tlv, size_t len) {
 // Fixture
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     clear_gating();
     memset(&g_n_storage_writable, 0, sizeof(g_n_storage_writable));
     memset(&g_eip712_storage, 0, sizeof(g_eip712_storage));
     eip712_v1_context = NULL;
-    g_sig_check_ret = true;
-    g_finalize_hash_ret = true;
+    s_tx_chain_id = 1;
+    s_sig_check_ret = true;
+    s_finalize_hash_ret = true;
     g_compute_schema_hash_ret = true;
     g_implem_contract_ret = NULL;
     g_proxy_contract_ret = NULL;
@@ -280,168 +310,150 @@ static int reset(void **state) {
     memset(g_domain_contract_addr, 0, sizeof(g_domain_contract_addr));
     g_captured_counter = 0;
     g_nvm_write_calls = 0;
-    g_tx_chain_id = 1;
     memset(&txContext, 0, sizeof(txContext));
     memset(&tmpContent, 0, sizeof(tmpContent));
     appState = APP_STATE_SIGNING_TX;
     tlv_from_apdu(false, 0, NULL, NULL);
-    return 0;
 }
 
 // =============================================================================
 // Tests — entry-point dispatcher
 // =============================================================================
 
-static void test_p2_unknown_rejected(void **state) {
-    (void) state;
+void test_p2_unknown_rejected(void) {
     uint8_t data[1] = {0};
     uint16_t sw = handle_gating(/*p1=*/0x00, /*p2=*/0xFF, data, 1);
-    assert_int_equal(sw, SWO_WRONG_P1_P2);
+    TEST_ASSERT_EQUAL(sw, SWO_WRONG_P1_P2);
 }
 
 // =============================================================================
 // TLV happy path + validation gates
 // =============================================================================
 
-static void test_happy_path_transaction(void **state) {
-    (void) state;
+void test_happy_path_transaction(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_true(send_descriptor(tlv, len));
+    TEST_ASSERT_TRUE(send_descriptor(tlv, len));
 }
 
-static void test_happy_path_typed_data(void **state) {
-    (void) state;
+void test_happy_path_typed_data(void) {
     appState = APP_STATE_SIGNING_EIP712;
     uint8_t tlv[500];
     s_opts opts = default_eip712_opts();
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_true(send_descriptor(tlv, len));
+    TEST_ASSERT_TRUE(send_descriptor(tlv, len));
 }
 
-static void test_invalid_struct_type_rejected(void **state) {
-    (void) state;
+void test_invalid_struct_type_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     opts.struct_type = 0xFF;
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_invalid_struct_version_rejected(void **state) {
-    (void) state;
+void test_invalid_struct_version_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     opts.struct_version = 0x05;
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_address_all_zeros_rejected(void **state) {
-    (void) state;
+void test_address_all_zeros_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     opts.address_zero = true;
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_hash_selector_too_big_rejected(void **state) {
-    (void) state;
+void test_hash_selector_too_big_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     opts.hash_selector_size = 32;  // > CX_SHA224_SIZE
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_tx_type_out_of_range_rejected(void **state) {
-    (void) state;
+void test_tx_type_out_of_range_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     opts.tx_type = 0x05;  // beyond TX_TYPE_TYPED_DATA wire value
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_signtx_without_chain_id_rejected(void **state) {
-    (void) state;
+void test_signtx_without_chain_id_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     opts.include_chain_id = false;
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_typed_data_without_hash_selector_rejected(void **state) {
-    (void) state;
+void test_typed_data_without_hash_selector_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_eip712_opts();
     opts.include_hash_selector = false;
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_missing_address_rejected(void **state) {
-    (void) state;
+void test_missing_address_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     opts.include_address = false;
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_missing_intro_msg_rejected(void **state) {
-    (void) state;
+void test_missing_intro_msg_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     opts.include_intro_msg = false;
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_missing_tiny_url_rejected(void **state) {
-    (void) state;
+void test_missing_tiny_url_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     opts.include_tiny_url = false;
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_missing_signature_rejected(void **state) {
-    (void) state;
+void test_missing_signature_rejected(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     opts.include_signature = false;
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
 }
 
-static void test_signature_check_failure_clears_gating(void **state) {
-    (void) state;
-    g_sig_check_ret = false;
+void test_signature_check_failure_clears_gating(void) {
+    s_sig_check_ret = false;
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_false(send_descriptor(tlv, len));
+    TEST_ASSERT_FALSE(send_descriptor(tlv, len));
     // After a failed verify_signature, set_gating_warning must report
     // no descriptor is active.
-    assert_true(set_gating_warning());
-    assert_int_equal(g_nvm_write_calls, 0);
+    TEST_ASSERT_TRUE(set_gating_warning());
+    TEST_ASSERT_EQUAL(g_nvm_write_calls, 0);
 }
 
-static void test_clear_gating_wipes_descriptor(void **state) {
-    (void) state;
+void test_clear_gating_wipes_descriptor(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_true(send_descriptor(tlv, len));
+    TEST_ASSERT_TRUE(send_descriptor(tlv, len));
     clear_gating();
     // No GATING means set_gating_warning short-circuits to true.
-    assert_true(set_gating_warning());
-    assert_int_equal(g_nvm_write_calls, 0);
+    TEST_ASSERT_TRUE(set_gating_warning());
+    TEST_ASSERT_EQUAL(g_nvm_write_calls, 0);
 }
 
 // =============================================================================
@@ -454,88 +466,79 @@ static void prime_tx_descriptor(void) {
     uint8_t tlv[500];
     s_opts opts = default_tx_opts();
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_true(send_descriptor(tlv, len));
+    TEST_ASSERT_TRUE(send_descriptor(tlv, len));
     appState = APP_STATE_SIGNING_TX;
-    g_tx_chain_id = 1;
+    s_tx_chain_id = 1;
     memset(tmpContent.txContent.destination, 0xAA, ADDRESS_LENGTH);
     memset(txContext.selector_bytes, 0xCC, SELECTOR_SIZE);
 }
 
-static void test_set_warning_no_descriptor_returns_true(void **state) {
-    (void) state;
+void test_set_warning_no_descriptor_returns_true(void) {
     // GATING is NULL (reset cleared it) — must be permissive.
-    assert_true(set_gating_warning());
-    assert_int_equal(g_nvm_write_calls, 0);
+    TEST_ASSERT_TRUE(set_gating_warning());
+    TEST_ASSERT_EQUAL(g_nvm_write_calls, 0);
 }
 
-static void test_set_warning_happy_path_bumps_counter(void **state) {
-    (void) state;
+void test_set_warning_happy_path_bumps_counter(void) {
     prime_tx_descriptor();
-    assert_true(set_gating_warning());
+    TEST_ASSERT_TRUE(set_gating_warning());
     // 0 + 1 = 1, and 1 % 10 == 1 → screen shown, prelude wired up.
-    assert_int_equal(g_captured_counter, 1);
-    assert_non_null(warning.prelude);
+    TEST_ASSERT_EQUAL(g_captured_counter, 1);
+    TEST_ASSERT_NOT_NULL(warning.prelude);
 }
 
-static void test_set_warning_type_mismatch_returns_false(void **state) {
-    (void) state;
+void test_set_warning_type_mismatch_returns_false(void) {
     prime_tx_descriptor();
     appState = APP_STATE_SIGNING_EIP712;  // descriptor.type = TX
-    assert_false(set_gating_warning());
-    assert_int_equal(g_nvm_write_calls, 0);
+    TEST_ASSERT_FALSE(set_gating_warning());
+    TEST_ASSERT_EQUAL(g_nvm_write_calls, 0);
 }
 
-static void test_set_warning_chain_id_mismatch_returns_false(void **state) {
-    (void) state;
+void test_set_warning_chain_id_mismatch_returns_false(void) {
     prime_tx_descriptor();
-    g_tx_chain_id = 137;  // descriptor signed for chain 1
-    assert_false(set_gating_warning());
-    assert_int_equal(g_nvm_write_calls, 0);
+    s_tx_chain_id = 137;  // descriptor signed for chain 1
+    TEST_ASSERT_FALSE(set_gating_warning());
+    TEST_ASSERT_EQUAL(g_nvm_write_calls, 0);
 }
 
-static void test_set_warning_address_mismatch_returns_false(void **state) {
-    (void) state;
+void test_set_warning_address_mismatch_returns_false(void) {
     prime_tx_descriptor();
     memset(tmpContent.txContent.destination, 0x77, ADDRESS_LENGTH);
-    assert_false(set_gating_warning());
-    assert_int_equal(g_nvm_write_calls, 0);
+    TEST_ASSERT_FALSE(set_gating_warning());
+    TEST_ASSERT_EQUAL(g_nvm_write_calls, 0);
 }
 
-static void test_set_warning_selector_mismatch_returns_false(void **state) {
-    (void) state;
+void test_set_warning_selector_mismatch_returns_false(void) {
     prime_tx_descriptor();
     memset(txContext.selector_bytes, 0x99, SELECTOR_SIZE);
-    assert_false(set_gating_warning());
-    assert_int_equal(g_nvm_write_calls, 0);
+    TEST_ASSERT_FALSE(set_gating_warning());
+    TEST_ASSERT_EQUAL(g_nvm_write_calls, 0);
 }
 
-static void test_set_warning_counter_skips_non_modulo(void **state) {
-    (void) state;
+void test_set_warning_counter_skips_non_modulo(void) {
     prime_tx_descriptor();
     // Pretend we already showed the prelude once (counter=1) — next call
     // bumps to 2, which is not 1 mod 10, so warning.prelude must NOT be
     // rewritten but the call must still succeed.
     g_n_storage_writable.gating_counter = 1;
     warning.prelude = NULL;
-    assert_true(set_gating_warning());
-    assert_int_equal(g_captured_counter, 2);
-    assert_null(warning.prelude);
+    TEST_ASSERT_TRUE(set_gating_warning());
+    TEST_ASSERT_EQUAL(g_captured_counter, 2);
+    TEST_ASSERT_NULL(warning.prelude);
 }
 
-static void test_set_warning_counter_wrap_reanchors_to_one(void **state) {
-    (void) state;
+void test_set_warning_counter_wrap_reanchors_to_one(void) {
     prime_tx_descriptor();
     // Counter at 0xFF wraps to 0; the source must re-anchor to 1 so
     // the cadence stays aligned across the wrap.
     g_n_storage_writable.gating_counter = 0xFF;
     warning.prelude = NULL;
-    assert_true(set_gating_warning());
-    assert_int_equal(g_captured_counter, 1);
-    assert_non_null(warning.prelude);
+    TEST_ASSERT_TRUE(set_gating_warning());
+    TEST_ASSERT_EQUAL(g_captured_counter, 1);
+    TEST_ASSERT_NOT_NULL(warning.prelude);
 }
 
-static void test_set_warning_proxy_implementation_match(void **state) {
-    (void) state;
+void test_set_warning_proxy_implementation_match(void) {
     prime_tx_descriptor();
     // Pretend the active tx hits a proxy that resolves to the descriptor
     // address. The proxy lookup returns a contract address that matches
@@ -554,22 +557,20 @@ static void test_set_warning_proxy_implementation_match(void **state) {
     g_implem_contract_ret = implem_full;
     g_proxy_contract_ret = proxy_full;
     memset(tmpContent.txContent.destination, 0xAA, ADDRESS_LENGTH);
-    assert_true(set_gating_warning());
+    TEST_ASSERT_TRUE(set_gating_warning());
 }
 
-static void test_set_warning_proxy_implementation_mismatch(void **state) {
-    (void) state;
+void test_set_warning_proxy_implementation_mismatch(void) {
     prime_tx_descriptor();
     // Proxy lookup says the implementation is some unrelated address ⇒
     // gate must reject regardless of the descriptor signature.
     static uint8_t implem_full[ADDRESS_LENGTH];
     memset(implem_full, 0x55, sizeof(implem_full));
     g_implem_contract_ret = implem_full;
-    assert_false(set_gating_warning());
+    TEST_ASSERT_FALSE(set_gating_warning());
 }
 
-static void test_set_warning_typed_data_happy_path(void **state) {
-    (void) state;
+void test_set_warning_typed_data_happy_path(void) {
     appState = APP_STATE_SIGNING_EIP712;
     eip712_v1_context = &g_eip712_storage;
     memset(g_domain_contract_addr, 0xAA, ADDRESS_LENGTH);
@@ -578,14 +579,13 @@ static void test_set_warning_typed_data_happy_path(void **state) {
     uint8_t tlv[500];
     s_opts opts = default_eip712_opts();
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_true(send_descriptor(tlv, len));
+    TEST_ASSERT_TRUE(send_descriptor(tlv, len));
 
-    assert_true(set_gating_warning());
-    assert_int_equal(g_captured_counter, 1);
+    TEST_ASSERT_TRUE(set_gating_warning());
+    TEST_ASSERT_EQUAL(g_captured_counter, 1);
 }
 
-static void test_set_warning_typed_data_schema_hash_mismatch(void **state) {
-    (void) state;
+void test_set_warning_typed_data_schema_hash_mismatch(void) {
     appState = APP_STATE_SIGNING_EIP712;
     eip712_v1_context = &g_eip712_storage;
     memset(g_domain_contract_addr, 0xAA, ADDRESS_LENGTH);
@@ -594,13 +594,12 @@ static void test_set_warning_typed_data_schema_hash_mismatch(void **state) {
     uint8_t tlv[500];
     s_opts opts = default_eip712_opts();
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_true(send_descriptor(tlv, len));
+    TEST_ASSERT_TRUE(send_descriptor(tlv, len));
 
-    assert_false(set_gating_warning());
+    TEST_ASSERT_FALSE(set_gating_warning());
 }
 
-static void test_set_warning_typed_data_compute_schema_failure(void **state) {
-    (void) state;
+void test_set_warning_typed_data_compute_schema_failure(void) {
     appState = APP_STATE_SIGNING_EIP712;
     eip712_v1_context = &g_eip712_storage;
     memset(g_domain_contract_addr, 0xAA, ADDRESS_LENGTH);
@@ -609,46 +608,55 @@ static void test_set_warning_typed_data_compute_schema_failure(void **state) {
     uint8_t tlv[500];
     s_opts opts = default_eip712_opts();
     size_t len = build_tlv(tlv, sizeof(tlv), opts);
-    assert_true(send_descriptor(tlv, len));
+    TEST_ASSERT_TRUE(send_descriptor(tlv, len));
 
-    assert_false(set_gating_warning());
+    TEST_ASSERT_FALSE(set_gating_warning());
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    Mocknetwork_Init();
+    get_tx_chain_id_StubWithCallback(get_tx_chain_id_stub);
+    reset();
+}
+void tearDown(void) {
+    Mocknetwork_Verify();
+    Mocknetwork_Destroy();
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_p2_unknown_rejected, reset),
-        cmocka_unit_test_setup(test_happy_path_transaction, reset),
-        cmocka_unit_test_setup(test_happy_path_typed_data, reset),
-        cmocka_unit_test_setup(test_invalid_struct_type_rejected, reset),
-        cmocka_unit_test_setup(test_invalid_struct_version_rejected, reset),
-        cmocka_unit_test_setup(test_address_all_zeros_rejected, reset),
-        cmocka_unit_test_setup(test_hash_selector_too_big_rejected, reset),
-        cmocka_unit_test_setup(test_tx_type_out_of_range_rejected, reset),
-        cmocka_unit_test_setup(test_signtx_without_chain_id_rejected, reset),
-        cmocka_unit_test_setup(test_typed_data_without_hash_selector_rejected, reset),
-        cmocka_unit_test_setup(test_missing_address_rejected, reset),
-        cmocka_unit_test_setup(test_missing_intro_msg_rejected, reset),
-        cmocka_unit_test_setup(test_missing_tiny_url_rejected, reset),
-        cmocka_unit_test_setup(test_missing_signature_rejected, reset),
-        cmocka_unit_test_setup(test_signature_check_failure_clears_gating, reset),
-        cmocka_unit_test_setup(test_clear_gating_wipes_descriptor, reset),
-        cmocka_unit_test_setup(test_set_warning_no_descriptor_returns_true, reset),
-        cmocka_unit_test_setup(test_set_warning_happy_path_bumps_counter, reset),
-        cmocka_unit_test_setup(test_set_warning_type_mismatch_returns_false, reset),
-        cmocka_unit_test_setup(test_set_warning_chain_id_mismatch_returns_false, reset),
-        cmocka_unit_test_setup(test_set_warning_address_mismatch_returns_false, reset),
-        cmocka_unit_test_setup(test_set_warning_selector_mismatch_returns_false, reset),
-        cmocka_unit_test_setup(test_set_warning_counter_skips_non_modulo, reset),
-        cmocka_unit_test_setup(test_set_warning_counter_wrap_reanchors_to_one, reset),
-        cmocka_unit_test_setup(test_set_warning_proxy_implementation_match, reset),
-        cmocka_unit_test_setup(test_set_warning_proxy_implementation_mismatch, reset),
-        cmocka_unit_test_setup(test_set_warning_typed_data_happy_path, reset),
-        cmocka_unit_test_setup(test_set_warning_typed_data_schema_hash_mismatch, reset),
-        cmocka_unit_test_setup(test_set_warning_typed_data_compute_schema_failure, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_p2_unknown_rejected);
+    RUN_TEST(test_happy_path_transaction);
+    RUN_TEST(test_happy_path_typed_data);
+    RUN_TEST(test_invalid_struct_type_rejected);
+    RUN_TEST(test_invalid_struct_version_rejected);
+    RUN_TEST(test_address_all_zeros_rejected);
+    RUN_TEST(test_hash_selector_too_big_rejected);
+    RUN_TEST(test_tx_type_out_of_range_rejected);
+    RUN_TEST(test_signtx_without_chain_id_rejected);
+    RUN_TEST(test_typed_data_without_hash_selector_rejected);
+    RUN_TEST(test_missing_address_rejected);
+    RUN_TEST(test_missing_intro_msg_rejected);
+    RUN_TEST(test_missing_tiny_url_rejected);
+    RUN_TEST(test_missing_signature_rejected);
+    RUN_TEST(test_signature_check_failure_clears_gating);
+    RUN_TEST(test_clear_gating_wipes_descriptor);
+    RUN_TEST(test_set_warning_no_descriptor_returns_true);
+    RUN_TEST(test_set_warning_happy_path_bumps_counter);
+    RUN_TEST(test_set_warning_type_mismatch_returns_false);
+    RUN_TEST(test_set_warning_chain_id_mismatch_returns_false);
+    RUN_TEST(test_set_warning_address_mismatch_returns_false);
+    RUN_TEST(test_set_warning_selector_mismatch_returns_false);
+    RUN_TEST(test_set_warning_counter_skips_non_modulo);
+    RUN_TEST(test_set_warning_counter_wrap_reanchors_to_one);
+    RUN_TEST(test_set_warning_proxy_implementation_match);
+    RUN_TEST(test_set_warning_proxy_implementation_mismatch);
+    RUN_TEST(test_set_warning_typed_data_happy_path);
+    RUN_TEST(test_set_warning_typed_data_schema_hash_mismatch);
+    RUN_TEST(test_set_warning_typed_data_compute_schema_failure);
+    return UNITY_END();
 }

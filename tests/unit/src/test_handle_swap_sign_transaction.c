@@ -33,10 +33,7 @@
  * process. Their bodies are trivial passthrough.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -46,6 +43,7 @@
 #include "chain_config.h"
 #include "eth_swap_utils.h"
 #include "wraps.h"  // g_noreturn_jmp / g_noreturn_armed / g_noreturn_calls + EXPECT_NORETURN
+#include "Mockcommon_utils.h"
 
 bool copy_transaction_parameters(create_transaction_parameters_t *sign_transaction_params,
                                  const chain_config_t *config);
@@ -59,6 +57,10 @@ bool copy_transaction_parameters(create_transaction_parameters_t *sign_transacti
 // in production; provide local storage for the test.
 volatile uint8_t *G_swap_signing_return_value_address;
 
+static bool g_mem_utils_alloc_ret = false;
+static bool g_parse_swap_config_ok = false;
+static const char *g_parse_swap_config_ticker = NULL;
+
 // =============================================================================
 // Wraps
 // =============================================================================
@@ -66,11 +68,11 @@ volatile uint8_t *G_swap_signing_return_value_address;
 // --wrap so each test can drive the parser outcome without dragging
 // eth_swap_utils.c into the link.
 
-bool __wrap_parse_swap_config(const uint8_t *config, uint8_t config_size, swap_context_t *ctx) {
+bool parse_swap_config(const uint8_t *config, uint8_t config_size, swap_context_t *ctx) {
     (void) config;
     (void) config_size;
-    bool ok = (bool) mock();
-    const char *swapped_ticker = (const char *) mock();
+    bool ok = g_parse_swap_config_ok;
+    const char *swapped_ticker = g_parse_swap_config_ticker;
     if (ok && ctx != NULL) {
         // Fees-asset ticker is fixed at "ETH" (native of this chain). The
         // swapped-asset ticker is per-test: equal to "ETH" means the
@@ -89,19 +91,18 @@ bool __wrap_parse_swap_config(const uint8_t *config, uint8_t config_size, swap_c
 
 // Override mocks/mock.c's mem_utils_alloc via --wrap so a single test can
 // simulate an out-of-memory APP_MEM_ALLOC.
-void *__wrap_mem_utils_alloc(size_t size, bool permanent, const char *file, int line) {
+void *mem_utils_alloc(size_t size, bool permanent, const char *file, int line) {
     (void) permanent;
     (void) file;
     (void) line;
-    bool ok = (bool) mock();
-    return ok ? malloc(size) : NULL;
+    return g_mem_utils_alloc_ret ? malloc(size) : NULL;
 }
 
-void __wrap_get_asset_info_on_network(bool is_fee,
-                                      swap_context_t *context,
-                                      chain_config_t *chain_config,
-                                      char **ticker,
-                                      uint8_t *decimals) {
+void get_asset_info_on_network(bool is_fee,
+                               swap_context_t *context,
+                               chain_config_t *chain_config,
+                               char **ticker,
+                               uint8_t *decimals) {
     (void) is_fee;
     (void) chain_config;
     (void) decimals;
@@ -112,18 +113,20 @@ void __wrap_get_asset_info_on_network(bool is_fee,
     }
 }
 
-bool __wrap_amountToString(const uint8_t *amount,
-                           uint8_t amount_len,
-                           uint8_t decimals,
-                           const char *ticker,
-                           char *out_buffer,
-                           size_t out_buffer_size) {
+static bool s_amountToString_ret = true;
+static bool amountToString_stub(const uint8_t *amount,
+                                uint8_t amount_len,
+                                uint8_t decimals,
+                                const char *ticker,
+                                char *out_buffer,
+                                size_t out_buffer_size,
+                                int cmock_num_calls) {
     (void) amount;
     (void) amount_len;
     (void) decimals;
     (void) ticker;
-    (void) out_buffer_size;
-    bool ok = (bool) mock();
+    (void) cmock_num_calls;
+    bool ok = s_amountToString_ret;
     if (ok && out_buffer != NULL && out_buffer_size > 0) {
         strlcpy(out_buffer, "1 ETH", out_buffer_size);
     }
@@ -179,8 +182,7 @@ static uint8_t s_fee[8];
 static uint8_t s_coin_cfg[16];
 static char s_addr[] = "0x1234567890abcdef1234567890abcdef12345678";
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&strings, 0, sizeof(strings));
     memset(s_amount, 0, sizeof(s_amount));
     memset(s_fee, 0, sizeof(s_fee));
@@ -190,7 +192,9 @@ static int reset(void **state) {
         free(G_swap_crosschain_hash);
         G_swap_crosschain_hash = NULL;
     }
-    return 0;
+    g_mem_utils_alloc_ret = false;
+    g_parse_swap_config_ok = false;
+    g_parse_swap_config_ticker = NULL;
 }
 
 static create_transaction_parameters_t make_params(void) {
@@ -210,20 +214,18 @@ static create_transaction_parameters_t make_params(void) {
 // Length-bound rejects (CWE-787)
 // =============================================================================
 
-static void test_amount_length_over_32_rejected(void **state) {
-    (void) state;
+void test_amount_length_over_32_rejected(void) {
     create_transaction_parameters_t p = make_params();
     p.amount_length = 33;
     // parse_swap_config / amountToString MUST NOT be reached -- the
     // length-bound check fails first.
-    assert_false(copy_transaction_parameters(&p, &s_chain));
+    TEST_ASSERT_FALSE(copy_transaction_parameters(&p, &s_chain));
 }
 
-static void test_fee_amount_length_over_8_rejected(void **state) {
-    (void) state;
+void test_fee_amount_length_over_8_rejected(void) {
     create_transaction_parameters_t p = make_params();
     p.fee_amount_length = 9;
-    assert_false(copy_transaction_parameters(&p, &s_chain));
+    TEST_ASSERT_FALSE(copy_transaction_parameters(&p, &s_chain));
 }
 
 // The "destination_address overflow" guard in the source
@@ -237,103 +239,96 @@ static void test_fee_amount_length_over_8_rejected(void **state) {
 // parse_swap_config failure
 // =============================================================================
 
-static void test_parse_swap_config_failure_rejected(void **state) {
-    (void) state;
+void test_parse_swap_config_failure_rejected(void) {
     create_transaction_parameters_t p = make_params();
-    will_return(__wrap_parse_swap_config, false);
-    will_return(__wrap_parse_swap_config, "");  // ticker unused when ok=false
-    assert_false(copy_transaction_parameters(&p, &s_chain));
+    g_parse_swap_config_ok = false;
+    g_parse_swap_config_ticker = NULL;
+    TEST_ASSERT_FALSE(copy_transaction_parameters(&p, &s_chain));
 }
 
 // =============================================================================
 // amountToString failures
 // =============================================================================
 
-static void test_amount_to_string_fees_failure_rejected(void **state) {
-    (void) state;
+void test_amount_to_string_fees_failure_rejected(void) {
     create_transaction_parameters_t p = make_params();
-    will_return(__wrap_parse_swap_config, true);
-    will_return(__wrap_parse_swap_config, "ETH");
-    will_return(__wrap_amountToString, false);  // fees stringification fails
-    assert_false(copy_transaction_parameters(&p, &s_chain));
+    g_parse_swap_config_ok = true;
+    g_parse_swap_config_ticker = "ETH";
+    s_amountToString_ret = false;  // fees stringification fails
+    TEST_ASSERT_FALSE(copy_transaction_parameters(&p, &s_chain));
 }
 
-static void test_amount_to_string_value_failure_standard_rejected(void **state) {
-    (void) state;
+void test_amount_to_string_value_failure_standard_rejected(void) {
     create_transaction_parameters_t p = make_params();
-    will_return(__wrap_parse_swap_config, true);
-    will_return(__wrap_parse_swap_config, "ETH");
-    will_return(__wrap_amountToString, true);   // fees ok
-    will_return(__wrap_amountToString, false);  // amount fails
-    assert_false(copy_transaction_parameters(&p, &s_chain));
+    g_parse_swap_config_ok = true;
+    g_parse_swap_config_ticker = "ETH";
+    s_amountToString_ret = true;   // fees ok
+    s_amountToString_ret = false;  // amount fails
+    TEST_ASSERT_FALSE(copy_transaction_parameters(&p, &s_chain));
 }
 
 // =============================================================================
 // Happy paths
 // =============================================================================
 
-static void test_native_swap_returns_true_and_sets_standard_mode(void **state) {
-    (void) state;
+void test_native_swap_returns_true_and_sets_standard_mode(void) {
     create_transaction_parameters_t p = make_params();
     // No destination_address_extra_id -> NATIVE branch -> SWAP_MODE_STANDARD.
-    will_return(__wrap_parse_swap_config, true);
-    will_return(__wrap_parse_swap_config, "ETH");
-    will_return(__wrap_amountToString, true);
-    will_return(__wrap_amountToString, true);
-    will_return(__wrap_mem_utils_alloc, true);
-    assert_true(copy_transaction_parameters(&p, &s_chain));
-    assert_int_equal(G_swap_mode, SWAP_MODE_STANDARD);
+    g_parse_swap_config_ok = true;
+    g_parse_swap_config_ticker = "ETH";
+    s_amountToString_ret = true;
+    s_amountToString_ret = true;
+    g_mem_utils_alloc_ret = true;
+    TEST_ASSERT_TRUE(copy_transaction_parameters(&p, &s_chain));
+    TEST_ASSERT_EQUAL(G_swap_mode, SWAP_MODE_STANDARD);
     // crosschain hash MUST stay all-zero for native swaps.
     static const uint8_t zero[32] = {0};
-    assert_non_null(G_swap_crosschain_hash);
-    assert_memory_equal(G_swap_crosschain_hash, zero, 32);
+    TEST_ASSERT_NOT_NULL(G_swap_crosschain_hash);
+    TEST_ASSERT_EQUAL_MEMORY(G_swap_crosschain_hash, zero, 32);
 }
 
-static void test_crosschain_calldata_swap_copies_hash(void **state) {
-    (void) state;
+void test_crosschain_calldata_swap_copies_hash(void) {
     // First byte = EXTRA_ID_TYPE_EVM_CALLDATA (1), next 32 = the hash.
     uint8_t extra_id[1 + 32];
     extra_id[0] = 1;  // EXTRA_ID_TYPE_EVM_CALLDATA
     for (int i = 0; i < 32; i++) extra_id[1 + i] = (uint8_t) (i + 1);
     create_transaction_parameters_t p = make_params();
     p.destination_address_extra_id = (char *) extra_id;
-    will_return(__wrap_parse_swap_config, true);
-    will_return(__wrap_parse_swap_config, "ETH");
-    will_return(__wrap_amountToString, true);
-    will_return(__wrap_amountToString, true);
-    will_return(__wrap_mem_utils_alloc, true);
-    assert_true(copy_transaction_parameters(&p, &s_chain));
-    assert_int_equal(G_swap_mode, SWAP_MODE_CROSSCHAIN_PENDING_CHECK);
+    g_parse_swap_config_ok = true;
+    g_parse_swap_config_ticker = "ETH";
+    s_amountToString_ret = true;
+    s_amountToString_ret = true;
+    g_mem_utils_alloc_ret = true;
+    TEST_ASSERT_TRUE(copy_transaction_parameters(&p, &s_chain));
+    TEST_ASSERT_EQUAL(G_swap_mode, SWAP_MODE_CROSSCHAIN_PENDING_CHECK);
     // The 32-byte hash from extra_id[1..32] must land in G_swap_crosschain_hash.
     static const uint8_t expected_hash[32] = {1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
                                               12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                                               23, 24, 25, 26, 27, 28, 29, 30, 31, 32};
-    assert_non_null(G_swap_crosschain_hash);
-    assert_memory_equal(G_swap_crosschain_hash, expected_hash, 32);
+    TEST_ASSERT_NOT_NULL(G_swap_crosschain_hash);
+    TEST_ASSERT_EQUAL_MEMORY(G_swap_crosschain_hash, expected_hash, 32);
 }
 
-static void test_unknown_extra_id_type_sets_error_mode_but_continues(void **state) {
-    (void) state;
+void test_unknown_extra_id_type_sets_error_mode_but_continues(void) {
     // First byte = some unknown value -> default case -> SWAP_MODE_ERROR but
     // no early return.
     uint8_t extra_id[1 + 32] = {0xFE};
     create_transaction_parameters_t p = make_params();
     p.destination_address_extra_id = (char *) extra_id;
-    will_return(__wrap_parse_swap_config, true);
-    will_return(__wrap_parse_swap_config, "ETH");
-    will_return(__wrap_amountToString, true);
-    will_return(__wrap_amountToString, true);
-    will_return(__wrap_mem_utils_alloc, true);
+    g_parse_swap_config_ok = true;
+    g_parse_swap_config_ticker = "ETH";
+    s_amountToString_ret = true;
+    s_amountToString_ret = true;
+    g_mem_utils_alloc_ret = true;
     // The function does NOT bail on an unknown extra_id type -- it commits
     // SWAP_MODE_ERROR so a later screen reports the issue. Returning true
     // here is the load-bearing observation; if a future refactor adds an
     // early `return false`, the caller has no chance to display the error.
-    assert_true(copy_transaction_parameters(&p, &s_chain));
-    assert_int_equal(G_swap_mode, SWAP_MODE_ERROR);
+    TEST_ASSERT_TRUE(copy_transaction_parameters(&p, &s_chain));
+    TEST_ASSERT_EQUAL(G_swap_mode, SWAP_MODE_ERROR);
 }
 
-static void test_crosschain_non_native_zero_amount_path(void **state) {
-    (void) state;
+void test_crosschain_non_native_zero_amount_path(void) {
     // EVM_CALLDATA extra-id but the swapped asset is a token (USDC), not
     // the chain's native ETH. The code must call amountToString once for
     // fees (in ETH) and once with the zero-amount sentinel for the
@@ -342,17 +337,16 @@ static void test_crosschain_non_native_zero_amount_path(void **state) {
     uint8_t extra_id[1 + 32] = {0x01};  // EVM_CALLDATA
     create_transaction_parameters_t p = make_params();
     p.destination_address_extra_id = (char *) extra_id;
-    will_return(__wrap_parse_swap_config, true);
-    will_return(__wrap_parse_swap_config, "USDC");  // swapped != fees ticker
-    will_return(__wrap_amountToString, true);       // fees
-    will_return(__wrap_amountToString, true);       // zero-amount fullAmount
-    will_return(__wrap_mem_utils_alloc, true);
-    assert_true(copy_transaction_parameters(&p, &s_chain));
-    assert_int_equal(G_swap_mode, SWAP_MODE_CROSSCHAIN_PENDING_CHECK);
+    g_parse_swap_config_ok = true;
+    g_parse_swap_config_ticker = "USDC";  // swapped != fees ticker
+    s_amountToString_ret = true;          // fees
+    s_amountToString_ret = true;          // zero-amount fullAmount
+    g_mem_utils_alloc_ret = true;
+    TEST_ASSERT_TRUE(copy_transaction_parameters(&p, &s_chain));
+    TEST_ASSERT_EQUAL(G_swap_mode, SWAP_MODE_CROSSCHAIN_PENDING_CHECK);
 }
 
-static void test_crosschain_non_native_zero_amount_failure_rejected(void **state) {
-    (void) state;
+void test_crosschain_non_native_zero_amount_failure_rejected(void) {
     // EVM_CALLDATA + non-native asset: the second amountToString writes the
     // zero-amount fullAmount in the fees ticker. If THAT call fails, the
     // function must return false too -- otherwise we'd commit globals
@@ -360,22 +354,21 @@ static void test_crosschain_non_native_zero_amount_failure_rejected(void **state
     uint8_t extra_id[1 + 32] = {0x01};
     create_transaction_parameters_t p = make_params();
     p.destination_address_extra_id = (char *) extra_id;
-    will_return(__wrap_parse_swap_config, true);
-    will_return(__wrap_parse_swap_config, "USDC");
-    will_return(__wrap_amountToString, true);   // fees ok
-    will_return(__wrap_amountToString, false);  // zero-amount fullAmount fails
-    assert_false(copy_transaction_parameters(&p, &s_chain));
+    g_parse_swap_config_ok = true;
+    g_parse_swap_config_ticker = "USDC";
+    s_amountToString_ret = true;   // fees ok
+    s_amountToString_ret = false;  // zero-amount fullAmount fails
+    TEST_ASSERT_FALSE(copy_transaction_parameters(&p, &s_chain));
 }
 
-static void test_alloc_failure_returns_false(void **state) {
-    (void) state;
+void test_alloc_failure_returns_false(void) {
     create_transaction_parameters_t p = make_params();
-    will_return(__wrap_parse_swap_config, true);
-    will_return(__wrap_parse_swap_config, "ETH");
-    will_return(__wrap_amountToString, true);
-    will_return(__wrap_amountToString, true);
-    will_return(__wrap_mem_utils_alloc, false);  // out-of-memory on G_swap_crosschain_hash
-    assert_false(copy_transaction_parameters(&p, &s_chain));
+    g_parse_swap_config_ok = true;
+    g_parse_swap_config_ticker = "ETH";
+    s_amountToString_ret = true;
+    s_amountToString_ret = true;
+    g_mem_utils_alloc_ret = false;  // out-of-memory on G_swap_crosschain_hash
+    TEST_ASSERT_FALSE(copy_transaction_parameters(&p, &s_chain));
 }
 
 // =============================================================================
@@ -389,8 +382,7 @@ static void test_alloc_failure_returns_false(void **state) {
 void swap_finalize_exchange_sign_transaction(bool is_success);
 void handle_swap_sign_transaction(const chain_config_t *config);
 
-static void test_swap_finalize_commits_status_byte_and_ends_lib(void **state) {
-    (void) state;
+void test_swap_finalize_commits_status_byte_and_ends_lib(void) {
     static volatile uint8_t s_status = 0xAA;
     G_swap_signing_return_value_address = &s_status;
     // Pre-allocate a heap buffer that swap_finalize's APP_MEM_FREE will
@@ -398,53 +390,60 @@ static void test_swap_finalize_commits_status_byte_and_ends_lib(void **state) {
     extern uint8_t *G_swap_crosschain_hash;
     G_swap_crosschain_hash = malloc(32);
     EXPECT_NORETURN(swap_finalize_exchange_sign_transaction(true));
-    assert_int_equal(g_noreturn_calls, 1);  // os_lib_end fired
-    assert_int_equal((int) s_status, 1);    // is_success committed
+    TEST_ASSERT_EQUAL(g_noreturn_calls, 1);  // os_lib_end fired
+    TEST_ASSERT_EQUAL((int) s_status, 1);    // is_success committed
 }
 
-static void test_handle_swap_sign_seeds_globals_then_runs_app_main(void **state) {
-    (void) state;
+void test_handle_swap_sign_seeds_globals_then_runs_app_main(void) {
     G_swap_mode = SWAP_MODE_STANDARD;
     G_swap_response_ready = true;  // pre-set, must be reset to false
     G_called_from_swap = false;
     g_set_swap_with_calldata_calls = 0;
     g_ui_swap_show_signing_calls = 0;
     EXPECT_NORETURN(handle_swap_sign_transaction(&s_chain));
-    assert_int_equal(g_noreturn_calls, 1);  // app_main fired
-    assert_true(G_called_from_swap);
-    assert_false(G_swap_response_ready);
-    assert_int_equal(g_ui_swap_show_signing_calls, 1);
+    TEST_ASSERT_EQUAL(g_noreturn_calls, 1);  // app_main fired
+    TEST_ASSERT_TRUE(G_called_from_swap);
+    TEST_ASSERT_FALSE(G_swap_response_ready);
+    TEST_ASSERT_EQUAL(g_ui_swap_show_signing_calls, 1);
     // STANDARD mode -> no auto-register of the crosschain plugin.
-    assert_int_equal(g_set_swap_with_calldata_calls, 0);
-    assert_ptr_equal(g_chain_config, &s_chain);
+    TEST_ASSERT_EQUAL(g_set_swap_with_calldata_calls, 0);
+    TEST_ASSERT_EQUAL_PTR(g_chain_config, &s_chain);
 }
 
-static void test_handle_swap_sign_crosschain_pending_registers_plugin(void **state) {
-    (void) state;
+void test_handle_swap_sign_crosschain_pending_registers_plugin(void) {
     G_swap_mode = SWAP_MODE_CROSSCHAIN_PENDING_CHECK;
     g_set_swap_with_calldata_calls = 0;
     EXPECT_NORETURN(handle_swap_sign_transaction(&s_chain));
     // CROSSCHAIN_PENDING_CHECK is the gate that auto-registers the
     // swap-with-calldata plugin so the upcoming TX parser dispatches to it.
-    assert_int_equal(g_set_swap_with_calldata_calls, 1);
+    TEST_ASSERT_EQUAL(g_set_swap_with_calldata_calls, 1);
+}
+
+void setUp(void) {
+    Mockcommon_utils_Init();
+    amountToString_StubWithCallback(amountToString_stub);
+    reset();
+}
+void tearDown(void) {
+    Mockcommon_utils_Verify();
+    Mockcommon_utils_Destroy();
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_amount_length_over_32_rejected, reset),
-        cmocka_unit_test_setup(test_fee_amount_length_over_8_rejected, reset),
-        cmocka_unit_test_setup(test_parse_swap_config_failure_rejected, reset),
-        cmocka_unit_test_setup(test_amount_to_string_fees_failure_rejected, reset),
-        cmocka_unit_test_setup(test_amount_to_string_value_failure_standard_rejected, reset),
-        cmocka_unit_test_setup(test_native_swap_returns_true_and_sets_standard_mode, reset),
-        cmocka_unit_test_setup(test_crosschain_calldata_swap_copies_hash, reset),
-        cmocka_unit_test_setup(test_unknown_extra_id_type_sets_error_mode_but_continues, reset),
-        cmocka_unit_test_setup(test_crosschain_non_native_zero_amount_path, reset),
-        cmocka_unit_test_setup(test_crosschain_non_native_zero_amount_failure_rejected, reset),
-        cmocka_unit_test_setup(test_alloc_failure_returns_false, reset),
-        cmocka_unit_test_setup(test_swap_finalize_commits_status_byte_and_ends_lib, reset),
-        cmocka_unit_test_setup(test_handle_swap_sign_seeds_globals_then_runs_app_main, reset),
-        cmocka_unit_test_setup(test_handle_swap_sign_crosschain_pending_registers_plugin, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_amount_length_over_32_rejected);
+    RUN_TEST(test_fee_amount_length_over_8_rejected);
+    RUN_TEST(test_parse_swap_config_failure_rejected);
+    RUN_TEST(test_amount_to_string_fees_failure_rejected);
+    RUN_TEST(test_amount_to_string_value_failure_standard_rejected);
+    RUN_TEST(test_native_swap_returns_true_and_sets_standard_mode);
+    RUN_TEST(test_crosschain_calldata_swap_copies_hash);
+    RUN_TEST(test_unknown_extra_id_type_sets_error_mode_but_continues);
+    RUN_TEST(test_crosschain_non_native_zero_amount_path);
+    RUN_TEST(test_crosschain_non_native_zero_amount_failure_rejected);
+    RUN_TEST(test_alloc_failure_returns_false);
+    RUN_TEST(test_swap_finalize_commits_status_byte_and_ends_lib);
+    RUN_TEST(test_handle_swap_sign_seeds_globals_then_runs_app_main);
+    RUN_TEST(test_handle_swap_sign_crosschain_pending_registers_plugin);
+    return UNITY_END();
 }

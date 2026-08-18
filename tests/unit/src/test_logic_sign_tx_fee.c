@@ -20,10 +20,7 @@
  *    after a single space and the buffer is NUL-terminated.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -194,52 +191,47 @@ static void set_be_all_ff(txInt256_t *out, uint8_t n) {
 // Tests
 // =============================================================================
 
-static void test_zero_fee_renders_zero_eth(void **state) {
-    (void) state;
+void test_zero_fee_renders_zero_eth(void) {
     txInt256_t gp, gl;
     set_be_u64(&gp, 0);
     set_be_u64(&gl, 0);
     char buf[64] = {0};
-    assert_true(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
-    assert_string_equal(buf, "0 ETH");
+    TEST_ASSERT_TRUE(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING(buf, "0 ETH");
 }
 
-static void test_one_wei_times_one_renders_smallest_unit(void **state) {
-    (void) state;
+void test_one_wei_times_one_renders_smallest_unit(void) {
     txInt256_t gp, gl;
     set_be_u64(&gp, 1);
     set_be_u64(&gl, 1);
     char buf[64] = {0};
-    assert_true(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
+    TEST_ASSERT_TRUE(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
     // 1 wei = 1e-18 ETH. The display path must show the full 18
     // decimals so the user sees they're paying a tiny amount.
-    assert_string_equal(buf, "0.000000000000000001 ETH");
+    TEST_ASSERT_EQUAL_STRING(buf, "0.000000000000000001 ETH");
 }
 
-static void test_typical_20gwei_21000gas_renders_canonical_fee(void **state) {
-    (void) state;
+void test_typical_20gwei_21000gas_renders_canonical_fee(void) {
     txInt256_t gp, gl;
     set_be_u64(&gp, 20000000000ULL);  // 20 Gwei
     set_be_u64(&gl, 21000ULL);
     char buf[64] = {0};
-    assert_true(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
+    TEST_ASSERT_TRUE(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
     // 20e9 * 21000 = 4.2e14 wei = 0.00042 ETH.
-    assert_string_equal(buf, "0.00042 ETH");
+    TEST_ASSERT_EQUAL_STRING(buf, "0.00042 ETH");
 }
 
-static void test_one_eth_fee_renders_no_decimals(void **state) {
-    (void) state;
+void test_one_eth_fee_renders_no_decimals(void) {
     txInt256_t gp, gl;
     // gasPrice = 1e18 wei (1 ETH per gas), gasLimit = 1 → fee = 1 ETH.
     set_be_u64(&gp, 1000000000000000000ULL);
     set_be_u64(&gl, 1);
     char buf[64] = {0};
-    assert_true(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
-    assert_string_equal(buf, "1 ETH");
+    TEST_ASSERT_TRUE(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING(buf, "1 ETH");
 }
 
-static void test_overflow_returns_false(void **state) {
-    (void) state;
+void test_overflow_returns_false(void) {
     // (2^256 - 1) * (2^256 - 1) overflows uint256. mul256 must detect
     // the spillover into the high 256 bits of the 512-bit product and
     // return false; max_transaction_fee_to_string propagates that to
@@ -252,15 +244,14 @@ static void test_overflow_returns_false(void **state) {
     set_be_all_ff(&gl, 32);
     char buf[64] = {0};
     memset(buf, 0xAA, sizeof(buf));
-    assert_false(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
+    TEST_ASSERT_FALSE(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
     // On overflow the function bails before raw_fee_to_string runs, so
     // the pre-call sentinel is preserved (the caller MUST handle the
     // failure and not display this buffer).
-    assert_int_equal((uint8_t) buf[0], 0xAA);
+    TEST_ASSERT_EQUAL((uint8_t) buf[0], 0xAA);
 }
 
-static void test_ticker_pulled_from_displayable_helper(void **state) {
-    (void) state;
+void test_ticker_pulled_from_displayable_helper(void) {
     txInt256_t gp, gl;
     set_be_u64(&gp, 1);
     set_be_u64(&gl, 1);
@@ -269,41 +260,44 @@ static void test_ticker_pulled_from_displayable_helper(void **state) {
     // The trailing ETH must be preceded by a single space and the
     // string must be NUL-terminated within bounds.
     const char *space = strrchr(buf, ' ');
-    assert_non_null(space);
-    assert_string_equal(space + 1, "ETH");
+    TEST_ASSERT_NOT_NULL(space);
+    TEST_ASSERT_EQUAL_STRING(space + 1, "ETH");
 }
 
-static void test_full_uint256_capacity_no_overflow(void **state) {
-    (void) state;
+void test_full_uint256_capacity_no_overflow(void) {
     // Largest fee that still fits in uint256: gasPrice = 2^128 - 1,
     // gasLimit = 2^128 - 1 → product fits in 2^256 - 1.
     txInt256_t gp, gl;
     set_be_all_ff(&gp, 16);
     set_be_all_ff(&gl, 16);
     char buf[128] = {0};
-    assert_true(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
+    TEST_ASSERT_TRUE(max_transaction_fee_to_string(&gp, &gl, buf, sizeof(buf)));
     // Strict format check is fragile against decimal-rounding tweaks;
     // pin the easy invariant: the buffer ends with " ETH" and starts
     // with a digit.
-    assert_true(buf[0] >= '0' && buf[0] <= '9');
+    TEST_ASSERT_TRUE(buf[0] >= '0' && buf[0] <= '9');
     size_t n = strlen(buf);
-    assert_true(n >= 4);
-    assert_string_equal(buf + n - 4, " ETH");
+    TEST_ASSERT_TRUE(n >= 4);
+    TEST_ASSERT_EQUAL_STRING(buf + n - 4, " ETH");
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_zero_fee_renders_zero_eth),
-        cmocka_unit_test(test_one_wei_times_one_renders_smallest_unit),
-        cmocka_unit_test(test_typical_20gwei_21000gas_renders_canonical_fee),
-        cmocka_unit_test(test_one_eth_fee_renders_no_decimals),
-        cmocka_unit_test(test_overflow_returns_false),
-        cmocka_unit_test(test_ticker_pulled_from_displayable_helper),
-        cmocka_unit_test(test_full_uint256_capacity_no_overflow),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_zero_fee_renders_zero_eth);
+    RUN_TEST(test_one_wei_times_one_renders_smallest_unit);
+    RUN_TEST(test_typical_20gwei_21000gas_renders_canonical_fee);
+    RUN_TEST(test_one_eth_fee_renders_no_decimals);
+    RUN_TEST(test_overflow_returns_false);
+    RUN_TEST(test_ticker_pulled_from_displayable_helper);
+    RUN_TEST(test_full_uint256_capacity_no_overflow);
+    return UNITY_END();
 }

@@ -23,10 +23,7 @@
  * by the helpers exercised here.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -34,8 +31,7 @@
 #include "shared_context.h"
 #include "eth_ustream.h"
 #include "feature_sign_tx.h"
-#include "wraps.h"    // g_tx_chain_id
-#include "network.h"  // network_info_t
+#include "Mocknetwork.h"  // network_info_t
 #include "tx_ctx.h"
 #include "calldata.h"
 
@@ -144,8 +140,7 @@ void calldata_delete(s_calldata *node) {
 // Test fixture
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&txContext, 0, sizeof(txContext));
     memset(&tmpContent, 0, sizeof(tmpContent));
     memset(&s_sdk, 0, sizeof(s_sdk));
@@ -156,16 +151,13 @@ static int reset(void **state) {
     g_calldata_append_ok = true;
     g_calldata_init_calls = 0;
     g_calldata_append_calls = 0;
-    g_tx_chain_id = 0;  // ustream parses bytes before chain_id is observed
-    return 0;
 }
 
 // =============================================================================
 // init_tx
 // =============================================================================
 
-static void test_init_tx_zeros_context_and_sets_pointers(void **state) {
-    (void) state;
+void test_init_tx_zeros_context_and_sets_pointers(void) {
     txContext_t ctx;
     cx_sha3_t sha3 = {0};
     txContent_t content = {0};
@@ -173,45 +165,42 @@ static void test_init_tx_zeros_context_and_sets_pointers(void **state) {
     // Dirty the context to make sure init_tx zeroes it
     memset(&ctx, 0xAA, sizeof(ctx));
 
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
 
-    assert_ptr_equal(ctx.sha3, &sha3);
-    assert_ptr_equal(ctx.content, &content);
-    assert_int_equal(ctx.currentField, RLP_NONE + 1);
-    assert_false(ctx.store_calldata);
+    TEST_ASSERT_EQUAL_PTR(ctx.sha3, &sha3);
+    TEST_ASSERT_EQUAL_PTR(ctx.content, &content);
+    TEST_ASSERT_EQUAL(ctx.currentField, RLP_NONE + 1);
+    TEST_ASSERT_FALSE(ctx.store_calldata);
     // Other fields should all be zeroed
-    assert_int_equal(ctx.rlpBufferPos, 0);
-    assert_int_equal(ctx.currentFieldLength, 0);
-    assert_int_equal(ctx.commandLength, 0);
-    assert_int_equal(ctx.txType, 0);
+    TEST_ASSERT_EQUAL(ctx.rlpBufferPos, 0);
+    TEST_ASSERT_EQUAL(ctx.currentFieldLength, 0);
+    TEST_ASSERT_EQUAL(ctx.commandLength, 0);
+    TEST_ASSERT_EQUAL(ctx.txType, 0);
 }
 
-static void test_init_tx_propagates_store_calldata_flag(void **state) {
-    (void) state;
+void test_init_tx_propagates_store_calldata_flag(void) {
     txContext_t ctx;
     cx_sha3_t sha3 = {0};
     txContent_t content = {0};
 
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
-    assert_true(ctx.store_calldata);
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
+    TEST_ASSERT_TRUE(ctx.store_calldata);
 }
 
-static void test_init_tx_returns_false_on_keccak_init_failure(void **state) {
-    (void) state;
+void test_init_tx_returns_false_on_keccak_init_failure(void) {
     txContext_t ctx;
     cx_sha3_t sha3 = {0};
     txContent_t content = {0};
 
     s_sdk.keccak_init_ret = CX_INTERNAL_ERR;
-    assert_false(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_FALSE(init_tx(&ctx, &sha3, &content, false));
 }
 
 // =============================================================================
 // copy_tx_data — happy paths
 // =============================================================================
 
-static void test_copy_tx_data_copies_and_advances(void **state) {
-    (void) state;
+void test_copy_tx_data_copies_and_advances(void) {
     const uint8_t src[] = {0x11, 0x22, 0x33, 0x44, 0x55};
     txContext.workBuffer = src;
     txContext.commandLength = sizeof(src);
@@ -219,39 +208,37 @@ static void test_copy_tx_data_copies_and_advances(void **state) {
     txContext.fieldSingleByte = false;
 
     uint8_t dst[3] = {0};
-    assert_true(copy_tx_data(&txContext, dst, sizeof(dst)));
+    TEST_ASSERT_TRUE(copy_tx_data(&txContext, dst, sizeof(dst)));
 
     // Copied
     const uint8_t expected[] = {0x11, 0x22, 0x33};
-    assert_memory_equal(dst, expected, sizeof(dst));
+    TEST_ASSERT_EQUAL_MEMORY(dst, expected, sizeof(dst));
     // Bookkeeping
-    assert_ptr_equal(txContext.workBuffer, src + 3);
-    assert_int_equal(txContext.commandLength, 2);
+    TEST_ASSERT_EQUAL_PTR(txContext.workBuffer, src + 3);
+    TEST_ASSERT_EQUAL(txContext.commandLength, 2);
     // currentFieldPos only moves when processingField is true → here it stays
-    assert_int_equal(txContext.currentFieldPos, 0);
+    TEST_ASSERT_EQUAL(txContext.currentFieldPos, 0);
     // Hash got fed
-    assert_int_equal(s_sdk.hash_call_count, 1);
-    assert_int_equal(s_sdk.hash_capture_len, 3);
-    assert_memory_equal(s_sdk.hash_capture, expected, 3);
+    TEST_ASSERT_EQUAL(s_sdk.hash_call_count, 1);
+    TEST_ASSERT_EQUAL(s_sdk.hash_capture_len, 3);
+    TEST_ASSERT_EQUAL_MEMORY(s_sdk.hash_capture, expected, 3);
 }
 
-static void test_copy_tx_data_null_out_consumes_without_copying(void **state) {
-    (void) state;
+void test_copy_tx_data_null_out_consumes_without_copying(void) {
     const uint8_t src[] = {0xAB, 0xCD, 0xEF};
     txContext.workBuffer = src;
     txContext.commandLength = sizeof(src);
 
-    assert_true(copy_tx_data(&txContext, NULL, 2));
+    TEST_ASSERT_TRUE(copy_tx_data(&txContext, NULL, 2));
     // Still advances over the consumed bytes
-    assert_ptr_equal(txContext.workBuffer, src + 2);
-    assert_int_equal(txContext.commandLength, 1);
+    TEST_ASSERT_EQUAL_PTR(txContext.workBuffer, src + 2);
+    TEST_ASSERT_EQUAL(txContext.commandLength, 1);
     // And still hashes
-    assert_int_equal(s_sdk.hash_call_count, 1);
-    assert_int_equal(s_sdk.hash_capture_len, 2);
+    TEST_ASSERT_EQUAL(s_sdk.hash_call_count, 1);
+    TEST_ASSERT_EQUAL(s_sdk.hash_capture_len, 2);
 }
 
-static void test_copy_tx_data_processing_field_advances_pos(void **state) {
-    (void) state;
+void test_copy_tx_data_processing_field_advances_pos(void) {
     const uint8_t src[] = {1, 2, 3, 4};
     txContext.workBuffer = src;
     txContext.commandLength = 4;
@@ -260,12 +247,11 @@ static void test_copy_tx_data_processing_field_advances_pos(void **state) {
     txContext.currentFieldPos = 5;  // any pre-existing value
 
     uint8_t dst[2];
-    assert_true(copy_tx_data(&txContext, dst, 2));
-    assert_int_equal(txContext.currentFieldPos, 5 + 2);
+    TEST_ASSERT_TRUE(copy_tx_data(&txContext, dst, 2));
+    TEST_ASSERT_EQUAL(txContext.currentFieldPos, 5 + 2);
 }
 
-static void test_copy_tx_data_zero_length_is_noop_but_hashes(void **state) {
-    (void) state;
+void test_copy_tx_data_zero_length_is_noop_but_hashes(void) {
     const uint8_t src[] = {1, 2, 3};
     txContext.workBuffer = src;
     txContext.commandLength = 3;
@@ -273,17 +259,16 @@ static void test_copy_tx_data_zero_length_is_noop_but_hashes(void **state) {
     // copy_tx_data(0) should pass the cmd-length check (0 <= commandLength)
     // and call cx_hash_no_throw with len=0 — the SDK accepts that, so we do
     // not assert on hash_capture_len here.
-    assert_true(copy_tx_data(&txContext, NULL, 0));
-    assert_ptr_equal(txContext.workBuffer, src);
-    assert_int_equal(txContext.commandLength, 3);
+    TEST_ASSERT_TRUE(copy_tx_data(&txContext, NULL, 0));
+    TEST_ASSERT_EQUAL_PTR(txContext.workBuffer, src);
+    TEST_ASSERT_EQUAL(txContext.commandLength, 3);
 }
 
 // =============================================================================
 // copy_tx_data — single-byte RLP optimization
 // =============================================================================
 
-static void test_copy_tx_data_single_byte_self_encoded_skips_hash(void **state) {
-    (void) state;
+void test_copy_tx_data_single_byte_self_encoded_skips_hash(void) {
     // When processingField && fieldSingleByte, the byte was already hashed
     // during the pre-decode walk of the RLP prefix → re-hashing would
     // double-count it. copy_tx_data must skip the cx_hash call.
@@ -294,14 +279,13 @@ static void test_copy_tx_data_single_byte_self_encoded_skips_hash(void **state) 
     txContext.fieldSingleByte = true;
 
     uint8_t dst[1];
-    assert_true(copy_tx_data(&txContext, dst, 1));
-    assert_int_equal(dst[0], 0x7F);
+    TEST_ASSERT_TRUE(copy_tx_data(&txContext, dst, 1));
+    TEST_ASSERT_EQUAL(dst[0], 0x7F);
     // Crucially: no hash call.
-    assert_int_equal(s_sdk.hash_call_count, 0);
+    TEST_ASSERT_EQUAL(s_sdk.hash_call_count, 0);
 }
 
-static void test_copy_tx_data_single_byte_outside_processing_still_hashes(void **state) {
-    (void) state;
+void test_copy_tx_data_single_byte_outside_processing_still_hashes(void) {
     // The fieldSingleByte short-circuit only applies during processingField.
     const uint8_t src[] = {0x7F};
     txContext.workBuffer = src;
@@ -309,16 +293,15 @@ static void test_copy_tx_data_single_byte_outside_processing_still_hashes(void *
     txContext.processingField = false;
     txContext.fieldSingleByte = true;
 
-    assert_true(copy_tx_data(&txContext, NULL, 1));
-    assert_int_equal(s_sdk.hash_call_count, 1);
+    TEST_ASSERT_TRUE(copy_tx_data(&txContext, NULL, 1));
+    TEST_ASSERT_EQUAL(s_sdk.hash_call_count, 1);
 }
 
 // =============================================================================
 // copy_tx_data — failure paths
 // =============================================================================
 
-static void test_copy_tx_data_command_length_underflow_rejected(void **state) {
-    (void) state;
+void test_copy_tx_data_command_length_underflow_rejected(void) {
     const uint8_t src[] = {0x11, 0x22};
     txContext.workBuffer = src;
     txContext.commandLength = 2;
@@ -326,25 +309,24 @@ static void test_copy_tx_data_command_length_underflow_rejected(void **state) {
     // Asking for 3 bytes when only 2 remain must reject before any
     // dereferencing / advancement.
     uint8_t dst[3] = {0xFF, 0xFF, 0xFF};
-    assert_false(copy_tx_data(&txContext, dst, 3));
+    TEST_ASSERT_FALSE(copy_tx_data(&txContext, dst, 3));
     // dst untouched
-    assert_int_equal(dst[0], 0xFF);
+    TEST_ASSERT_EQUAL(dst[0], 0xFF);
     // workBuffer / commandLength unchanged
-    assert_ptr_equal(txContext.workBuffer, src);
-    assert_int_equal(txContext.commandLength, 2);
+    TEST_ASSERT_EQUAL_PTR(txContext.workBuffer, src);
+    TEST_ASSERT_EQUAL(txContext.commandLength, 2);
     // No hash call attempted
-    assert_int_equal(s_sdk.hash_call_count, 0);
+    TEST_ASSERT_EQUAL(s_sdk.hash_call_count, 0);
 }
 
-static void test_copy_tx_data_hash_failure_propagates(void **state) {
-    (void) state;
+void test_copy_tx_data_hash_failure_propagates(void) {
     const uint8_t src[] = {0x11, 0x22};
     txContext.workBuffer = src;
     txContext.commandLength = 2;
     s_sdk.hash_ret = CX_INTERNAL_ERR;
 
     uint8_t dst[2];
-    assert_false(copy_tx_data(&txContext, dst, 2));
+    TEST_ASSERT_FALSE(copy_tx_data(&txContext, dst, 2));
     // dst was written before the hash check (memmove runs first)
     // but the function returns false to abort the caller — that's the
     // contract we care about for fault propagation.
@@ -396,44 +378,42 @@ static const uint8_t g_minimal_legacy_tx[] = {
     0x80,                                                        // s = 0
 };
 
-static void test_process_tx_legacy_happy_path(void **state) {
-    (void) state;
+void test_process_tx_legacy_happy_path(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
     ctx.txType = LEGACY;  // cmd_sign_tx sets this before calling.
 
     parserStatus_e r = process_tx(&ctx, g_minimal_legacy_tx, sizeof(g_minimal_legacy_tx));
-    assert_int_equal(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
 
     // process_* helpers write to ctx->content (i.e. our local `content`).
-    assert_int_equal(content.nonce.length, 1);
-    assert_int_equal(content.nonce.value[0], 0x07);
+    TEST_ASSERT_EQUAL(content.nonce.length, 1);
+    TEST_ASSERT_EQUAL(content.nonce.value[0], 0x07);
 
-    assert_int_equal(content.gasprice.length, 5);
+    TEST_ASSERT_EQUAL(content.gasprice.length, 5);
     static const uint8_t expected_gasprice[5] = {0x04, 0xA8, 0x17, 0xC8, 0x00};
-    assert_memory_equal(content.gasprice.value, expected_gasprice, 5);
+    TEST_ASSERT_EQUAL_MEMORY(content.gasprice.value, expected_gasprice, 5);
 
-    assert_int_equal(content.startgas.length, 2);
+    TEST_ASSERT_EQUAL(content.startgas.length, 2);
     static const uint8_t expected_startgas[2] = {0x52, 0x08};
-    assert_memory_equal(content.startgas.value, expected_startgas, 2);
+    TEST_ASSERT_EQUAL_MEMORY(content.startgas.value, expected_startgas, 2);
 
-    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL(content.destinationLength, ADDRESS_LENGTH);
     uint8_t expected_to[ADDRESS_LENGTH];
     memset(expected_to, 0xAA, ADDRESS_LENGTH);
-    assert_memory_equal(content.destination, expected_to, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL_MEMORY(content.destination, expected_to, ADDRESS_LENGTH);
 
     // value=0 → length 0, no bytes.
-    assert_int_equal(content.value.length, 0);
+    TEST_ASSERT_EQUAL(content.value.length, 0);
 
     // v = 0x1B captured in v[0].
-    assert_int_equal(content.v[0], 0x1B);
-    assert_int_equal(content.vLength, 1);
+    TEST_ASSERT_EQUAL(content.v[0], 0x1B);
+    TEST_ASSERT_EQUAL(content.vLength, 1);
 }
 
-static void test_process_tx_truncated_mid_field_returns_processing(void **state) {
-    (void) state;
+void test_process_tx_truncated_mid_field_returns_processing(void) {
     // Send only the first 12 bytes — far short of the 37-byte total.
     // The parser must report USTREAM_PROCESSING (waiting for more
     // data), not USTREAM_FAULT or FINISHED. That's the contract the
@@ -441,46 +421,44 @@ static void test_process_tx_truncated_mid_field_returns_processing(void **state)
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
     ctx.txType = LEGACY;
 
     parserStatus_e r = process_tx(&ctx, g_minimal_legacy_tx, 12);
-    assert_int_equal(r, USTREAM_PROCESSING);
+    TEST_ASSERT_EQUAL(r, USTREAM_PROCESSING);
 }
 
-static void test_process_tx_chunked_two_halves_finishes(void **state) {
-    (void) state;
+void test_process_tx_chunked_two_halves_finishes(void) {
     // Feed the same minimal tx in two slices via process_tx +
     // continue_tx. The streamer must reassemble the field that
     // straddles the boundary without losing bytes.
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
     ctx.txType = LEGACY;
 
     const size_t mid = sizeof(g_minimal_legacy_tx) / 2;
     parserStatus_e r = process_tx(&ctx, g_minimal_legacy_tx, mid);
-    assert_int_equal(r, USTREAM_PROCESSING);
+    TEST_ASSERT_EQUAL(r, USTREAM_PROCESSING);
 
     // Second slice — process_tx with the remainder.
     r = process_tx(&ctx, g_minimal_legacy_tx + mid, sizeof(g_minimal_legacy_tx) - mid);
-    assert_int_equal(r, USTREAM_FINISHED);
-    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(content.destinationLength, ADDRESS_LENGTH);
 }
 
-static void test_process_tx_unsupported_tx_type_returns_fault(void **state) {
-    (void) state;
+void test_process_tx_unsupported_tx_type_returns_fault(void) {
     // Force an out-of-range txType — the process_tx_internal default
     // branch must reject rather than fall through to a wrong dispatcher.
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = 0x7F;  // not LEGACY/EIP2930/EIP1559/EIP7702
 
     parserStatus_e r = process_tx(&ctx, g_minimal_legacy_tx, sizeof(g_minimal_legacy_tx));
-    assert_int_equal(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
 }
 
 // =============================================================================
@@ -515,27 +493,26 @@ static const uint8_t g_minimal_eip1559_tx[] = {
     0xC0,                                                        // accessList = empty list
 };
 
-static void test_process_tx_eip1559_happy_path(void **state) {
-    (void) state;
+void test_process_tx_eip1559_happy_path(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
     ctx.txType = EIP1559;
 
     parserStatus_e r = process_tx(&ctx, g_minimal_eip1559_tx, sizeof(g_minimal_eip1559_tx));
-    assert_int_equal(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
 
-    assert_int_equal(content.chainID.length, 1);
-    assert_int_equal(content.chainID.value[0], 0x01);
-    assert_int_equal(content.nonce.length, 1);
-    assert_int_equal(content.nonce.value[0], 0x07);
+    TEST_ASSERT_EQUAL(content.chainID.length, 1);
+    TEST_ASSERT_EQUAL(content.chainID.value[0], 0x01);
+    TEST_ASSERT_EQUAL(content.nonce.length, 1);
+    TEST_ASSERT_EQUAL(content.nonce.value[0], 0x07);
     // maxFee lands in gasprice (alias) for EIP-1559.
-    assert_int_equal(content.gasprice.length, 5);
-    assert_int_equal(content.startgas.length, 2);
-    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL(content.gasprice.length, 5);
+    TEST_ASSERT_EQUAL(content.startgas.length, 2);
+    TEST_ASSERT_EQUAL(content.destinationLength, ADDRESS_LENGTH);
     // No v in the unsigned RLP — vLength stays 0.
-    assert_int_equal(content.vLength, 0);
+    TEST_ASSERT_EQUAL(content.vLength, 0);
 }
 
 // EIP-2930 inner list: [chainId, nonce, gasPrice, gasLimit, to, value,
@@ -554,18 +531,17 @@ static const uint8_t g_minimal_eip2930_tx[] = {
     0xC0,                                                        // accessList = empty list
 };
 
-static void test_process_tx_eip2930_happy_path(void **state) {
-    (void) state;
+void test_process_tx_eip2930_happy_path(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = EIP2930;
 
     parserStatus_e r = process_tx(&ctx, g_minimal_eip2930_tx, sizeof(g_minimal_eip2930_tx));
-    assert_int_equal(r, USTREAM_FINISHED);
-    assert_int_equal(content.chainID.value[0], 0x01);
-    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(content.chainID.value[0], 0x01);
+    TEST_ASSERT_EQUAL(content.destinationLength, ADDRESS_LENGTH);
 }
 
 // EIP-7702 inner list: [chainId, nonce, maxPriorityFee, maxFee,
@@ -592,30 +568,28 @@ static const uint8_t g_minimal_eip7702_tx[] = {
     0xC0,                                                        // authList = empty
 };
 
-static void test_process_tx_eip7702_happy_path(void **state) {
-    (void) state;
+void test_process_tx_eip7702_happy_path(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = EIP7702;
 
     parserStatus_e r = process_tx(&ctx, g_minimal_eip7702_tx, sizeof(g_minimal_eip7702_tx));
-    assert_int_equal(r, USTREAM_FINISHED);
-    assert_int_equal(content.chainID.value[0], 0x01);
-    assert_int_equal(content.destinationLength, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(content.chainID.value[0], 0x01);
+    TEST_ASSERT_EQUAL(content.destinationLength, ADDRESS_LENGTH);
 }
 
 // process_chain_id explicitly rejects values that don't fit in a
 // uint64_t — the comment in eth_ustream.c flags this as CWE-197
 // hardening (signature covers one chain, display shows the truncated
 // 64-bit prefix). Pin the rejection.
-static void test_process_tx_eip1559_chainid_overflow_rejected(void **state) {
-    (void) state;
+void test_process_tx_eip1559_chainid_overflow_rejected(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = EIP1559;
 
     // 9-byte chainId — exceeds sizeof(uint64_t)=8. The 9-byte string
@@ -633,7 +607,7 @@ static void test_process_tx_eip1559_chainid_overflow_rejected(void **state) {
         0x80, 0x80, 0xC0,                                            // value, data, accessList
     };
     parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
-    assert_int_equal(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
 }
 
 // =============================================================================
@@ -661,56 +635,53 @@ static const uint8_t g_legacy_tx_with_8byte_data[] = {
     0x1B, 0x80, 0x80,                                            // v, r, s
 };
 
-static void test_process_data_captures_selector_bytes(void **state) {
-    (void) state;
+void test_process_data_captures_selector_bytes(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/false));
     ctx.txType = LEGACY;
 
     parserStatus_e r =
         process_tx(&ctx, g_legacy_tx_with_8byte_data, sizeof(g_legacy_tx_with_8byte_data));
-    assert_int_equal(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
 
     // process_data captures the first 4 bytes of the data field into
     // ctx.selector_bytes for the gating cross-check.
     static const uint8_t expected_selector[CALLDATA_SELECTOR_SIZE] = {0xA9, 0x05, 0x9C, 0xBB};
-    assert_memory_equal(ctx.selector_bytes, expected_selector, CALLDATA_SELECTOR_SIZE);
+    TEST_ASSERT_EQUAL_MEMORY(ctx.selector_bytes, expected_selector, CALLDATA_SELECTOR_SIZE);
 }
 
-static void test_process_data_store_calldata_happy_path(void **state) {
-    (void) state;
+void test_process_data_store_calldata_happy_path(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
     ctx.txType = LEGACY;
 
     parserStatus_e r =
         process_tx(&ctx, g_legacy_tx_with_8byte_data, sizeof(g_legacy_tx_with_8byte_data));
-    assert_int_equal(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
 
     // store_calldata=true: calldata_init must be called once with the
     // selector, and the remaining 4 arg bytes appended.
-    assert_int_equal(g_calldata_init_calls, 1);
-    assert_int_equal(g_calldata_append_calls, 1);
+    TEST_ASSERT_EQUAL(g_calldata_init_calls, 1);
+    TEST_ASSERT_EQUAL(g_calldata_append_calls, 1);
 }
 
-static void test_process_data_store_calldata_init_failure_rejected(void **state) {
-    (void) state;
+void test_process_data_store_calldata_init_failure_rejected(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
     ctx.txType = LEGACY;
     g_calldata_init_ok = false;  // make calldata_init return NULL
 
     parserStatus_e r =
         process_tx(&ctx, g_legacy_tx_with_8byte_data, sizeof(g_legacy_tx_with_8byte_data));
-    assert_int_equal(r, USTREAM_FAULT);
-    assert_int_equal(g_calldata_init_calls, 1);
-    assert_int_equal(g_calldata_append_calls, 0);  // never reached
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(g_calldata_init_calls, 1);
+    TEST_ASSERT_EQUAL(g_calldata_append_calls, 0);  // never reached
 }
 
 // Same legacy envelope but with a 2-byte data field — shorter than
@@ -729,18 +700,17 @@ static const uint8_t g_legacy_tx_with_2byte_data[] = {
     0x1B, 0x80, 0x80,                                            // v, r, s
 };
 
-static void test_process_data_store_calldata_short_data_rejected(void **state) {
-    (void) state;
+void test_process_data_store_calldata_short_data_rejected(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
     ctx.txType = LEGACY;
 
     parserStatus_e r =
         process_tx(&ctx, g_legacy_tx_with_2byte_data, sizeof(g_legacy_tx_with_2byte_data));
-    assert_int_equal(r, USTREAM_FAULT);
-    assert_int_equal(g_calldata_init_calls, 0);  // refused before alloc
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(g_calldata_init_calls, 0);  // refused before alloc
 }
 
 // =============================================================================
@@ -768,17 +738,16 @@ static const uint8_t g_eip2930_tx_nonempty_access[] = {
     0xC1, 0x80,                                                  // accessList = [empty_entry]
 };
 
-static void test_process_tx_eip2930_nonempty_access_list(void **state) {
-    (void) state;
+void test_process_tx_eip2930_nonempty_access_list(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = EIP2930;
 
     parserStatus_e r =
         process_tx(&ctx, g_eip2930_tx_nonempty_access, sizeof(g_eip2930_tx_nonempty_access));
-    assert_int_equal(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
 }
 
 // EIP-7702 with both lists non-empty.
@@ -799,17 +768,16 @@ static const uint8_t g_eip7702_tx_nonempty_lists[] = {
     0xC1, 0x80,                                                  // authList   = [empty]
 };
 
-static void test_process_tx_eip7702_nonempty_auth_list(void **state) {
-    (void) state;
+void test_process_tx_eip7702_nonempty_auth_list(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = EIP7702;
 
     parserStatus_e r =
         process_tx(&ctx, g_eip7702_tx_nonempty_lists, sizeof(g_eip7702_tx_nonempty_lists));
-    assert_int_equal(r, USTREAM_FINISHED);
+    TEST_ASSERT_EQUAL(r, USTREAM_FINISHED);
 }
 
 // =============================================================================
@@ -823,12 +791,11 @@ static void test_process_tx_eip7702_nonempty_auth_list(void **state) {
 // 0xBD = string with 30-byte length prefix; we only feed 1 byte after.
 // rlp_can_decode succeeds (it has the prefix byte) but rlp_decode_length
 // catches that the inner length isn't representable / valid.
-static void test_process_tx_malformed_rlp_long_prefix_rejected(void **state) {
-    (void) state;
+void test_process_tx_malformed_rlp_long_prefix_rejected(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = LEGACY;
 
     // 0xBD declares "next 0xBD-0xB7=6 bytes are the length". Feed only
@@ -840,7 +807,7 @@ static void test_process_tx_malformed_rlp_long_prefix_rejected(void **state) {
     // Either fault (rejected) or processing (waiting for more); both
     // are valid outcomes — what must NOT happen is FINISHED, which
     // would mean the parser accepted nonsense.
-    assert_int_not_equal(r, USTREAM_FINISHED);
+    TEST_ASSERT_NOT_EQUAL(r, USTREAM_FINISHED);
 }
 
 // =============================================================================
@@ -857,12 +824,11 @@ static void test_process_tx_malformed_rlp_long_prefix_rejected(void **state) {
 // downstream field is parsed.
 //
 // Outer list = 0xE2 (34-byte payload). Nonce = 0xA1 + 33 bytes.
-static void test_process_tx_oversize_nonce_rejected(void **state) {
-    (void) state;
+void test_process_tx_oversize_nonce_rejected(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = LEGACY;
 
     uint8_t bytes[2 + 33];
@@ -870,7 +836,7 @@ static void test_process_tx_oversize_nonce_rejected(void **state) {
     bytes[1] = 0xA1;  // nonce: 33-byte string
     memset(bytes + 2, 0x00, 33);
     parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
-    assert_int_equal(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
 }
 
 // Same pattern but the gate is on `to` (must be exactly 20 bytes).
@@ -878,12 +844,11 @@ static void test_process_tx_oversize_nonce_rejected(void **state) {
 //
 // Layout: outer list + nonce(1) + gasPrice(0x80=0) + startGas(0x80=0)
 //       + to(0x95 + 21 bytes) — list payload = 1+1+1+22 = 25 bytes.
-static void test_process_tx_oversize_to_rejected(void **state) {
-    (void) state;
+void test_process_tx_oversize_to_rejected(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = LEGACY;
 
     uint8_t bytes[3 + 1 + 1 + 1 + 1 + 21];  // 28 bytes total
@@ -894,7 +859,7 @@ static void test_process_tx_oversize_to_rejected(void **state) {
     bytes[4] = 0x95;                        // to: 21-byte string
     memset(bytes + 5, 0xAA, 21);
     parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
-    assert_int_equal(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
 }
 
 // Oversize value (>INT256_LENGTH=32 bytes). process_value rejects via
@@ -902,12 +867,11 @@ static void test_process_tx_oversize_to_rejected(void **state) {
 //
 // Layout: outer + nonce + gasPrice + startGas + to(20) + value(33)
 //       = 1+1+1+21+34 = 58 bytes.
-static void test_process_tx_oversize_value_rejected(void **state) {
-    (void) state;
+void test_process_tx_oversize_value_rejected(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = LEGACY;
 
     uint8_t bytes[2 + 58];  // list prefix is 2 bytes for 58-byte payload
@@ -921,27 +885,26 @@ static void test_process_tx_oversize_value_rejected(void **state) {
     bytes[26] = 0xA1;  // value: 33-byte string
     memset(bytes + 27, 0xBB, 33);
     parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
-    assert_int_equal(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
 }
 
 // calldata_append failure during store_calldata mode. The base
 // store_calldata happy-path test exercises calldata_init+append on the
 // success path; flip g_calldata_append_ok=false to drive the append-
 // failure branch in process_data (line 352).
-static void test_process_data_store_calldata_append_failure_rejected(void **state) {
-    (void) state;
+void test_process_data_store_calldata_append_failure_rejected(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, /*store_calldata=*/true));
     ctx.txType = LEGACY;
     g_calldata_append_ok = false;
 
     parserStatus_e r =
         process_tx(&ctx, g_legacy_tx_with_8byte_data, sizeof(g_legacy_tx_with_8byte_data));
-    assert_int_equal(r, USTREAM_FAULT);
-    assert_int_equal(g_calldata_init_calls, 1);
-    assert_int_equal(g_calldata_append_calls, 1);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(g_calldata_init_calls, 1);
+    TEST_ASSERT_EQUAL(g_calldata_append_calls, 1);
 }
 
 // =============================================================================
@@ -954,75 +917,81 @@ static void test_process_data_store_calldata_append_failure_rejected(void **stat
 // and canDecode=false → USTREAM_PROCESSING. That's the chunked-feed
 // contract: the parser must signal "give me more bytes" rather than
 // commit half-decoded state.
-static void test_process_tx_partial_rlp_prefix_returns_processing(void **state) {
-    (void) state;
+void test_process_tx_partial_rlp_prefix_returns_processing(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = LEGACY;
 
     const uint8_t bytes[1] = {0xB8};
     parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
-    assert_int_equal(r, USTREAM_PROCESSING);
+    TEST_ASSERT_EQUAL(r, USTREAM_PROCESSING);
 }
 
 // rlpBuffer is 5 bytes wide. 0xBF declares "next 8 bytes are length".
 // Reading 5 bytes (0xBF + 4 zeros) fills rlpBuffer to capacity without
 // being decodable yet (we still need 4 more length bytes); the parser
 // must reject rather than overflow the buffer.
-static void test_process_tx_rlp_prefix_overflows_buffer_rejected(void **state) {
-    (void) state;
+void test_process_tx_rlp_prefix_overflows_buffer_rejected(void) {
     cx_sha3_t sha3;
     txContent_t content = {0};
     txContext_t ctx;
-    assert_true(init_tx(&ctx, &sha3, &content, false));
+    TEST_ASSERT_TRUE(init_tx(&ctx, &sha3, &content, false));
     ctx.txType = LEGACY;
 
     const uint8_t bytes[5] = {0xBF, 0x00, 0x00, 0x00, 0x00};
     parserStatus_e r = process_tx(&ctx, bytes, sizeof(bytes));
-    assert_int_equal(r, USTREAM_FAULT);
+    TEST_ASSERT_EQUAL(r, USTREAM_FAULT);
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    Mocknetwork_Init();
+    get_tx_chain_id_IgnoreAndReturn(0);
+    reset();
+}
+void tearDown(void) {
+    Mocknetwork_Verify();
+    Mocknetwork_Destroy();
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_init_tx_zeros_context_and_sets_pointers, reset),
-        cmocka_unit_test_setup(test_init_tx_propagates_store_calldata_flag, reset),
-        cmocka_unit_test_setup(test_init_tx_returns_false_on_keccak_init_failure, reset),
-        cmocka_unit_test_setup(test_copy_tx_data_copies_and_advances, reset),
-        cmocka_unit_test_setup(test_copy_tx_data_null_out_consumes_without_copying, reset),
-        cmocka_unit_test_setup(test_copy_tx_data_processing_field_advances_pos, reset),
-        cmocka_unit_test_setup(test_copy_tx_data_zero_length_is_noop_but_hashes, reset),
-        cmocka_unit_test_setup(test_copy_tx_data_single_byte_self_encoded_skips_hash, reset),
-        cmocka_unit_test_setup(test_copy_tx_data_single_byte_outside_processing_still_hashes,
-                               reset),
-        cmocka_unit_test_setup(test_copy_tx_data_command_length_underflow_rejected, reset),
-        cmocka_unit_test_setup(test_copy_tx_data_hash_failure_propagates, reset),
-        cmocka_unit_test_setup(test_process_tx_legacy_happy_path, reset),
-        cmocka_unit_test_setup(test_process_tx_truncated_mid_field_returns_processing, reset),
-        cmocka_unit_test_setup(test_process_tx_chunked_two_halves_finishes, reset),
-        cmocka_unit_test_setup(test_process_tx_unsupported_tx_type_returns_fault, reset),
-        cmocka_unit_test_setup(test_process_tx_eip1559_happy_path, reset),
-        cmocka_unit_test_setup(test_process_tx_eip2930_happy_path, reset),
-        cmocka_unit_test_setup(test_process_tx_eip7702_happy_path, reset),
-        cmocka_unit_test_setup(test_process_tx_eip1559_chainid_overflow_rejected, reset),
-        cmocka_unit_test_setup(test_process_data_captures_selector_bytes, reset),
-        cmocka_unit_test_setup(test_process_data_store_calldata_happy_path, reset),
-        cmocka_unit_test_setup(test_process_data_store_calldata_init_failure_rejected, reset),
-        cmocka_unit_test_setup(test_process_data_store_calldata_short_data_rejected, reset),
-        cmocka_unit_test_setup(test_process_tx_eip2930_nonempty_access_list, reset),
-        cmocka_unit_test_setup(test_process_tx_eip7702_nonempty_auth_list, reset),
-        cmocka_unit_test_setup(test_process_tx_malformed_rlp_long_prefix_rejected, reset),
-        cmocka_unit_test_setup(test_process_tx_oversize_nonce_rejected, reset),
-        cmocka_unit_test_setup(test_process_tx_oversize_to_rejected, reset),
-        cmocka_unit_test_setup(test_process_tx_oversize_value_rejected, reset),
-        cmocka_unit_test_setup(test_process_data_store_calldata_append_failure_rejected, reset),
-        cmocka_unit_test_setup(test_process_tx_partial_rlp_prefix_returns_processing, reset),
-        cmocka_unit_test_setup(test_process_tx_rlp_prefix_overflows_buffer_rejected, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_init_tx_zeros_context_and_sets_pointers);
+    RUN_TEST(test_init_tx_propagates_store_calldata_flag);
+    RUN_TEST(test_init_tx_returns_false_on_keccak_init_failure);
+    RUN_TEST(test_copy_tx_data_copies_and_advances);
+    RUN_TEST(test_copy_tx_data_null_out_consumes_without_copying);
+    RUN_TEST(test_copy_tx_data_processing_field_advances_pos);
+    RUN_TEST(test_copy_tx_data_zero_length_is_noop_but_hashes);
+    RUN_TEST(test_copy_tx_data_single_byte_self_encoded_skips_hash);
+    RUN_TEST(test_copy_tx_data_single_byte_outside_processing_still_hashes);
+    RUN_TEST(test_copy_tx_data_command_length_underflow_rejected);
+    RUN_TEST(test_copy_tx_data_hash_failure_propagates);
+    RUN_TEST(test_process_tx_legacy_happy_path);
+    RUN_TEST(test_process_tx_truncated_mid_field_returns_processing);
+    RUN_TEST(test_process_tx_chunked_two_halves_finishes);
+    RUN_TEST(test_process_tx_unsupported_tx_type_returns_fault);
+    RUN_TEST(test_process_tx_eip1559_happy_path);
+    RUN_TEST(test_process_tx_eip2930_happy_path);
+    RUN_TEST(test_process_tx_eip7702_happy_path);
+    RUN_TEST(test_process_tx_eip1559_chainid_overflow_rejected);
+    RUN_TEST(test_process_data_captures_selector_bytes);
+    RUN_TEST(test_process_data_store_calldata_happy_path);
+    RUN_TEST(test_process_data_store_calldata_init_failure_rejected);
+    RUN_TEST(test_process_data_store_calldata_short_data_rejected);
+    RUN_TEST(test_process_tx_eip2930_nonempty_access_list);
+    RUN_TEST(test_process_tx_eip7702_nonempty_auth_list);
+    RUN_TEST(test_process_tx_malformed_rlp_long_prefix_rejected);
+    RUN_TEST(test_process_tx_oversize_nonce_rejected);
+    RUN_TEST(test_process_tx_oversize_to_rejected);
+    RUN_TEST(test_process_tx_oversize_value_rejected);
+    RUN_TEST(test_process_data_store_calldata_append_failure_rejected);
+    RUN_TEST(test_process_tx_partial_rlp_prefix_returns_processing);
+    RUN_TEST(test_process_tx_rlp_prefix_overflows_buffer_rejected);
+    return UNITY_END();
 }

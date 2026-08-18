@@ -31,10 +31,7 @@
  *    (48-byte BLS G1 pubkey).
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -43,6 +40,17 @@
 #include "eth_plugin_interface.h"
 #include "eth2_plugin.h"
 #include "feature_get_eth2_public_key.h"
+#include "Mocknetwork.h"
+
+// =============================================================================
+// Network mock state
+// =============================================================================
+
+static uint64_t s_tx_chain_id = 1;
+static uint64_t get_tx_chain_id_stub(int cmock_num_calls) {
+    (void) cmock_num_calls;
+    return s_tx_chain_id;
+}
 
 // =============================================================================
 // eth2_deposit_parameters_t mirror
@@ -60,7 +68,6 @@ typedef struct {
 // =============================================================================
 
 uint32_t eth2WithdrawalIndex = 0;
-extern uint64_t g_tx_chain_id;
 
 // =============================================================================
 // Wraps
@@ -72,7 +79,7 @@ extern uint64_t g_tx_chain_id;
 // We control the "derived pubkey" output here so the comparison is
 // deterministic.
 static uint8_t g_wd_pubkey_fill = 0x11;
-uint32_t __wrap_get_eth2_public_key(uint32_t *bip32Path, uint8_t bip32PathLength, uint8_t *out) {
+uint32_t get_eth2_public_key(uint32_t *bip32Path, uint8_t bip32PathLength, uint8_t *out) {
     (void) bip32Path;
     (void) bip32PathLength;
     memset(out, g_wd_pubkey_fill, BLS12381_G1_COMPRESSED_PUBKEY_LENGTH);
@@ -83,7 +90,7 @@ uint32_t __wrap_get_eth2_public_key(uint32_t *bip32Path, uint8_t bip32PathLength
 // produce a deterministic digest that depends on the input fill so
 // that test_withdrawal_credentials_*_match works end-to-end without
 // touching real crypto.
-size_t __wrap_cx_hash_sha256(const uint8_t *in, size_t len, uint8_t *out, size_t out_len) {
+size_t cx_hash_sha256(const uint8_t *in, size_t len, uint8_t *out, size_t out_len) {
     (void) len;
     if (out != NULL && out_len > 0) {
         memset(out, in[0], out_len);  // hash[i] = first byte of input
@@ -142,66 +149,58 @@ static void make_abi_u32(uint8_t *param, uint32_t v) {
     param[PARAMETER_LENGTH - 1] = (uint8_t) v;
 }
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&tmpContent, 0, sizeof(tmpContent));
     g_wd_pubkey_fill = 0x11;
     g_amount_to_string_calls = 0;
     eth2WithdrawalIndex = 0;
-    g_tx_chain_id = 1;
-    return 0;
+    s_tx_chain_id = 1;
 }
 
 // =============================================================================
 // Tests
 // =============================================================================
 
-static void test_init_marks_context_valid(void **state) {
-    (void) state;
+void test_init_marks_context_valid(void) {
     eth2_deposit_parameters_t ctx = {0};
     run_init(&ctx);
-    assert_int_equal(ctx.valid, 1);
+    TEST_ASSERT_EQUAL(ctx.valid, 1);
 }
 
-static void test_offset_check_pubkey_offset_correct(void **state) {
-    (void) state;
+void test_offset_check_pubkey_offset_correct(void) {
     // Offset 4 + 0 = pubkey offset, expected value = 0x80.
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH];
     make_abi_u32(param, 0x80);
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 0));
-    assert_int_equal(ctx.valid, 1);
+    TEST_ASSERT_EQUAL(ctx.valid, 1);
 }
 
-static void test_offset_check_pubkey_offset_wrong_flips_valid(void **state) {
-    (void) state;
+void test_offset_check_pubkey_offset_wrong_flips_valid(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH];
     make_abi_u32(param, 0xBEEF);  // not 0x80
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 0));
-    assert_int_equal(ctx.valid, 0);
+    TEST_ASSERT_EQUAL(ctx.valid, 0);
 }
 
-static void test_offset_check_pubkey_length_must_be_48(void **state) {
-    (void) state;
+void test_offset_check_pubkey_length_must_be_48(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH];
     make_abi_u32(param, 47);  // BLS pubkey is 48 bytes
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 4));
-    assert_int_equal(ctx.valid, 0);
+    TEST_ASSERT_EQUAL(ctx.valid, 0);
 }
 
-static void test_offset_check_signature_length_must_be_96(void **state) {
-    (void) state;
+void test_offset_check_signature_length_must_be_96(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH];
     make_abi_u32(param, 95);  // BLS sig is 96 bytes
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 9));
-    assert_int_equal(ctx.valid, 0);
+    TEST_ASSERT_EQUAL(ctx.valid, 0);
 }
 
-static void test_deposit_pubkey_copied_across_two_params(void **state) {
-    (void) state;
+void test_deposit_pubkey_copied_across_two_params(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH];
     // Param 5 = first 32 bytes of pubkey
@@ -212,14 +211,13 @@ static void test_deposit_pubkey_copied_across_two_params(void **state) {
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 6));
     // Bytes 0..31 from param 5, bytes 32..47 from param 6. The
     // deposit_address field is `char[]`, so widen via uint8_t before
-    // comparing to avoid sign-extension when assert_int_equal coerces
+    // comparing to avoid sign-extension when TEST_ASSERT_EQUAL coerces
     // to int.
-    for (int i = 0; i < 32; i++) assert_int_equal((uint8_t) ctx.deposit_address[i], 0xAA);
-    for (int i = 32; i < 48; i++) assert_int_equal((uint8_t) ctx.deposit_address[i], 0xBB);
+    for (int i = 0; i < 32; i++) TEST_ASSERT_EQUAL((uint8_t) ctx.deposit_address[i], 0xAA);
+    for (int i = 32; i < 48; i++) TEST_ASSERT_EQUAL((uint8_t) ctx.deposit_address[i], 0xBB);
 }
 
-static void test_withdrawal_credentials_match_keeps_valid(void **state) {
-    (void) state;
+void test_withdrawal_credentials_match_keeps_valid(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     // The plugin will:
     //  1. derive a pubkey filled with g_wd_pubkey_fill = 0x11,
@@ -236,12 +234,11 @@ static void test_withdrawal_credentials_match_keeps_valid(void **state) {
     msg.parameter = param;
     msg.parameterOffset = 4 + (PARAMETER_LENGTH * 8);
     eth2_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_int_equal(ctx.valid, 1);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(ctx.valid, 1);
 }
 
-static void test_withdrawal_credentials_mismatch_flips_valid(void **state) {
-    (void) state;
+void test_withdrawal_credentials_mismatch_flips_valid(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH];
     memset(param, 0xFF, sizeof(param));  // does not match expected hash
@@ -250,12 +247,11 @@ static void test_withdrawal_credentials_mismatch_flips_valid(void **state) {
     msg.parameter = param;
     msg.parameterOffset = 4 + (PARAMETER_LENGTH * 8);
     eth2_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
-    assert_int_equal(ctx.valid, 0);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(ctx.valid, 0);
 }
 
-static void test_withdrawal_index_above_max_rejected(void **state) {
-    (void) state;
+void test_withdrawal_index_above_max_rejected(void) {
     eth2WithdrawalIndex = 0x10001;  // > INDEX_MAX (2^16)
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH] = {0};
@@ -264,48 +260,44 @@ static void test_withdrawal_index_above_max_rejected(void **state) {
     msg.parameter = param;
     msg.parameterOffset = 4 + (PARAMETER_LENGTH * 8);
     eth2_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
-    assert_int_equal(ctx.valid, 0);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(ctx.valid, 0);
 }
 
-static void test_finalize_valid_returns_two_screens(void **state) {
-    (void) state;
+void test_finalize_valid_returns_two_screens(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     txContent_t tx = {0};
     ethPluginFinalize_t msg = {0};
     msg.pluginContext = (uint8_t *) &ctx;
     msg.txContent = &tx;
     eth2_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_int_equal(msg.numScreens, 2);
-    assert_int_equal(msg.uiType, ETH_UI_TYPE_GENERIC);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(msg.numScreens, 2);
+    TEST_ASSERT_EQUAL(msg.uiType, ETH_UI_TYPE_GENERIC);
 }
 
-static void test_finalize_invalid_returns_error(void **state) {
-    (void) state;
+void test_finalize_invalid_returns_error(void) {
     eth2_deposit_parameters_t ctx = {.valid = 0};
     txContent_t tx = {0};
     ethPluginFinalize_t msg = {0};
     msg.pluginContext = (uint8_t *) &ctx;
     msg.txContent = &tx;
     eth2_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_finalize_non_mainnet_rejected(void **state) {
-    (void) state;
+void test_finalize_non_mainnet_rejected(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     txContent_t tx = {0};
     ethPluginFinalize_t msg = {0};
     msg.pluginContext = (uint8_t *) &ctx;
     msg.txContent = &tx;
-    g_tx_chain_id = 2;  // not mainnet
+    s_tx_chain_id = 2;  // not mainnet
     eth2_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_query_contract_id_eth2_deposit(void **state) {
-    (void) state;
+void test_query_contract_id_eth2_deposit(void) {
     char name[32] = {0};
     char version[16] = {0};
     eth2_deposit_parameters_t ctx = {0};
@@ -316,12 +308,11 @@ static void test_query_contract_id_eth2_deposit(void **state) {
     msg.version = version;
     msg.versionLength = sizeof(version);
     eth2_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &msg);
-    assert_string_equal(name, "ETH2");
-    assert_string_equal(version, "Deposit");
+    TEST_ASSERT_EQUAL_STRING(name, "ETH2");
+    TEST_ASSERT_EQUAL_STRING(version, "Deposit");
 }
 
-static void test_ui_amount_screen_uses_chain_ticker(void **state) {
-    (void) state;
+void test_ui_amount_screen_uses_chain_ticker(void) {
     eth2_deposit_parameters_t ctx = {0};
     char title[32] = {0};
     char body[64] = {0};
@@ -333,14 +324,13 @@ static void test_ui_amount_screen_uses_chain_ticker(void **state) {
     msg.msgLength = sizeof(body);
     msg.screenIndex = 0;
     eth2_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_string_equal(title, "Amount");
-    assert_string_equal(body, "32 ETH");
-    assert_int_equal(g_amount_to_string_calls, 1);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL_STRING(title, "Amount");
+    TEST_ASSERT_EQUAL_STRING(body, "32 ETH");
+    TEST_ASSERT_EQUAL(g_amount_to_string_calls, 1);
 }
 
-static void test_ui_validator_screen_renders_pubkey_hex(void **state) {
-    (void) state;
+void test_ui_validator_screen_renders_pubkey_hex(void) {
     eth2_deposit_parameters_t ctx = {0};
     // Fill the 48-byte deposit_address with 0xAB for an easy expectation.
     memset(ctx.deposit_address, 0xAB, sizeof(ctx.deposit_address));
@@ -354,19 +344,18 @@ static void test_ui_validator_screen_renders_pubkey_hex(void **state) {
     msg.msgLength = sizeof(body);
     msg.screenIndex = 1;
     eth2_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_string_equal(title, "Validator");
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL_STRING(title, "Validator");
     // 0x + 48 bytes * 2 hex chars + NUL = 99 chars.
-    assert_int_equal(strlen(body), 2 + 48 * 2);
-    assert_int_equal(body[0], '0');
-    assert_int_equal(body[1], 'x');
+    TEST_ASSERT_EQUAL(strlen(body), 2 + 48 * 2);
+    TEST_ASSERT_EQUAL(body[0], '0');
+    TEST_ASSERT_EQUAL(body[1], 'x');
     // First two hex chars after "0x" must be "ab".
-    assert_int_equal(body[2], 'a');
-    assert_int_equal(body[3], 'b');
+    TEST_ASSERT_EQUAL(body[2], 'a');
+    TEST_ASSERT_EQUAL(body[3], 'b');
 }
 
-static void test_ui_validator_screen_msg_too_small_rejected(void **state) {
-    (void) state;
+void test_ui_validator_screen_msg_too_small_rejected(void) {
     eth2_deposit_parameters_t ctx = {0};
     char title[32] = {0};
     char body[2] = {0};  // < 3 bytes
@@ -378,11 +367,10 @@ static void test_ui_validator_screen_msg_too_small_rejected(void **state) {
     msg.msgLength = 2;
     msg.screenIndex = 1;
     eth2_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_null_parameters_short_circuit(void **state) {
-    (void) state;
+void test_null_parameters_short_circuit(void) {
     // The plugin defends against a NULL parameter pointer in its
     // first dispatcher line.
     eth2_plugin_call(ETH_PLUGIN_INIT_CONTRACT, NULL);
@@ -399,36 +387,32 @@ static void test_null_parameters_short_circuit(void **state) {
 // the expected constant and flips valid=0 on mismatch. Pin the
 // remaining ones plus the just-set-OK passthroughs.
 
-static void test_offset_check_withdrawal_credentials_offset(void **state) {
-    (void) state;
+void test_offset_check_withdrawal_credentials_offset(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH];
     make_abi_u32(param, 0xE0);  // ETH2_WITHDRAWAL_CREDENTIALS_OFFSET
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 1));
     // No flip expected (offset matches).
-    assert_int_equal(ctx.valid, 1);
+    TEST_ASSERT_EQUAL(ctx.valid, 1);
 }
 
-static void test_offset_check_signature_offset(void **state) {
-    (void) state;
+void test_offset_check_signature_offset(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH];
     make_abi_u32(param, 0x120);  // ETH2_SIGNATURE_OFFSET
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 2));
-    assert_int_equal(ctx.valid, 1);
+    TEST_ASSERT_EQUAL(ctx.valid, 1);
 }
 
-static void test_offset_check_withdrawal_credentials_length_must_be_32(void **state) {
-    (void) state;
+void test_offset_check_withdrawal_credentials_length_must_be_32(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH];
     make_abi_u32(param, 31);  // withdrawal-credentials hash is 32 bytes
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 7));
-    assert_int_equal(ctx.valid, 0);
+    TEST_ASSERT_EQUAL(ctx.valid, 0);
 }
 
-static void test_offset_passthrough_deposit_data_root(void **state) {
-    (void) state;
+void test_offset_passthrough_deposit_data_root(void) {
     // Offset *3 (deposit data root), *10, *11, *12 (signature chunks)
     // are just `result = OK` -- no state mutation. Pin the passthrough.
     eth2_deposit_parameters_t ctx = {.valid = 1};
@@ -437,17 +421,16 @@ static void test_offset_passthrough_deposit_data_root(void **state) {
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 10));
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 11));
     feed_param(&ctx, param, 4 + (PARAMETER_LENGTH * 12));
-    assert_int_equal(ctx.valid, 1);
+    TEST_ASSERT_EQUAL(ctx.valid, 1);
 }
 
-static void test_unknown_parameter_offset_no_effect(void **state) {
-    (void) state;
+void test_unknown_parameter_offset_no_effect(void) {
     // An ABI offset that doesn't match any known field is silently
     // ignored (defensive default branch).
     eth2_deposit_parameters_t ctx = {.valid = 1};
     uint8_t param[PARAMETER_LENGTH] = {0};
     feed_param(&ctx, param, /*unknown*/ 4 + (PARAMETER_LENGTH * 99));
-    assert_int_equal(ctx.valid, 1);
+    TEST_ASSERT_EQUAL(ctx.valid, 1);
 }
 
 // =============================================================================
@@ -455,11 +438,10 @@ static void test_unknown_parameter_offset_no_effect(void **state) {
 // =============================================================================
 
 // (amountToString failure path is hard to drive without retooling the
-//  local __wrap_amountToString to honour a per-test failure flag --
+//  local amountToString to honour a per-test failure flag --
 //  skip; we already hit 90% on the dossier via the other tests.)
 
-static void test_ui_unknown_screen_index_silent(void **state) {
-    (void) state;
+void test_ui_unknown_screen_index_silent(void) {
     eth2_deposit_parameters_t ctx = {.valid = 1};
     char title[16] = {0};
     char msg_buf[64] = {0};
@@ -474,38 +456,47 @@ static void test_ui_unknown_screen_index_silent(void **state) {
     eth2_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &msg);
     // The default branch is a bare `break;` so msg->result stays
     // untouched (the test asserts the sentinel persists).
-    assert_int_equal(msg.result, 0xAB);
+    TEST_ASSERT_EQUAL(msg.result, 0xAB);
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    Mocknetwork_Init();
+    get_tx_chain_id_StubWithCallback(get_tx_chain_id_stub);
+    reset();
+}
+void tearDown(void) {
+    Mocknetwork_Verify();
+    Mocknetwork_Destroy();
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_init_marks_context_valid, reset),
-        cmocka_unit_test_setup(test_offset_check_pubkey_offset_correct, reset),
-        cmocka_unit_test_setup(test_offset_check_pubkey_offset_wrong_flips_valid, reset),
-        cmocka_unit_test_setup(test_offset_check_pubkey_length_must_be_48, reset),
-        cmocka_unit_test_setup(test_offset_check_signature_length_must_be_96, reset),
-        cmocka_unit_test_setup(test_deposit_pubkey_copied_across_two_params, reset),
-        cmocka_unit_test_setup(test_withdrawal_credentials_match_keeps_valid, reset),
-        cmocka_unit_test_setup(test_withdrawal_credentials_mismatch_flips_valid, reset),
-        cmocka_unit_test_setup(test_withdrawal_index_above_max_rejected, reset),
-        cmocka_unit_test_setup(test_finalize_valid_returns_two_screens, reset),
-        cmocka_unit_test_setup(test_finalize_invalid_returns_error, reset),
-        cmocka_unit_test_setup(test_finalize_non_mainnet_rejected, reset),
-        cmocka_unit_test_setup(test_query_contract_id_eth2_deposit, reset),
-        cmocka_unit_test_setup(test_ui_amount_screen_uses_chain_ticker, reset),
-        cmocka_unit_test_setup(test_ui_validator_screen_renders_pubkey_hex, reset),
-        cmocka_unit_test_setup(test_ui_validator_screen_msg_too_small_rejected, reset),
-        cmocka_unit_test_setup(test_null_parameters_short_circuit, reset),
-        cmocka_unit_test_setup(test_offset_check_withdrawal_credentials_offset, reset),
-        cmocka_unit_test_setup(test_offset_check_signature_offset, reset),
-        cmocka_unit_test_setup(test_offset_check_withdrawal_credentials_length_must_be_32, reset),
-        cmocka_unit_test_setup(test_offset_passthrough_deposit_data_root, reset),
-        cmocka_unit_test_setup(test_unknown_parameter_offset_no_effect, reset),
-        cmocka_unit_test_setup(test_ui_unknown_screen_index_silent, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_init_marks_context_valid);
+    RUN_TEST(test_offset_check_pubkey_offset_correct);
+    RUN_TEST(test_offset_check_pubkey_offset_wrong_flips_valid);
+    RUN_TEST(test_offset_check_pubkey_length_must_be_48);
+    RUN_TEST(test_offset_check_signature_length_must_be_96);
+    RUN_TEST(test_deposit_pubkey_copied_across_two_params);
+    RUN_TEST(test_withdrawal_credentials_match_keeps_valid);
+    RUN_TEST(test_withdrawal_credentials_mismatch_flips_valid);
+    RUN_TEST(test_withdrawal_index_above_max_rejected);
+    RUN_TEST(test_finalize_valid_returns_two_screens);
+    RUN_TEST(test_finalize_invalid_returns_error);
+    RUN_TEST(test_finalize_non_mainnet_rejected);
+    RUN_TEST(test_query_contract_id_eth2_deposit);
+    RUN_TEST(test_ui_amount_screen_uses_chain_ticker);
+    RUN_TEST(test_ui_validator_screen_renders_pubkey_hex);
+    RUN_TEST(test_ui_validator_screen_msg_too_small_rejected);
+    RUN_TEST(test_null_parameters_short_circuit);
+    RUN_TEST(test_offset_check_withdrawal_credentials_offset);
+    RUN_TEST(test_offset_check_signature_offset);
+    RUN_TEST(test_offset_check_withdrawal_credentials_length_must_be_32);
+    RUN_TEST(test_offset_passthrough_deposit_data_root);
+    RUN_TEST(test_unknown_parameter_offset_no_effect);
+    RUN_TEST(test_ui_unknown_screen_index_silent);
+    return UNITY_END();
 }

@@ -29,10 +29,7 @@
  * for the scope of this slice.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -73,16 +70,16 @@ bool calldata_info_all_received(const void *info) {
     return false;
 }
 // Address-name resolution — reached only by the display path our tests skip.
-bool __wrap_get_address_display_name(const uint8_t *addr,
-                                     uint64_t chain_id,
-                                     uint8_t type_count,
-                                     const e_name_type *types,
-                                     uint8_t source_count,
-                                     const e_name_source *sources,
-                                     char *buf,
-                                     size_t buf_size,
-                                     e_addr_name_source *name_source_out,
-                                     const void **extra_data_out) {
+bool get_address_display_name(const uint8_t *addr,
+                              uint64_t chain_id,
+                              uint8_t type_count,
+                              const e_name_type *types,
+                              uint8_t source_count,
+                              const e_name_source *sources,
+                              char *buf,
+                              size_t buf_size,
+                              e_addr_name_source *name_source_out,
+                              const void **extra_data_out) {
     (void) addr;
     (void) chain_id;
     (void) type_count;
@@ -104,7 +101,7 @@ bool __wrap_get_address_display_name(const uint8_t *addr,
     return true;
 }
 
-bool __wrap_get_public_key(uint8_t *buf, uint8_t size) {
+bool get_public_key(uint8_t *buf, uint8_t size) {
     if (size != ADDRESS_LENGTH) return false;
     memcpy(buf, g_self_addr, ADDRESS_LENGTH);
     return true;
@@ -113,7 +110,7 @@ bool __wrap_get_public_key(uint8_t *buf, uint8_t size) {
 // finalize_hash: tests set the bytes to inject via g_finalize_hash_out.
 static uint8_t g_finalize_hash_out[INT256_LENGTH];
 static bool g_finalize_hash_ret = true;
-bool __wrap_finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
+bool finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
     (void) hash_ctx;
     memcpy(out,
            g_finalize_hash_out,
@@ -122,22 +119,22 @@ bool __wrap_finalize_hash(cx_hash_t *hash_ctx, uint8_t *out, size_t out_len) {
 }
 
 // ui / cleanup stubs
-void __wrap_ui_gcs_cleanup(void) {
+void ui_gcs_cleanup(void) {
 }
-void __wrap_delete_tx_info(s_tx_info *node) {
+void delete_tx_info(s_tx_info *node) {
     free(node);
 }
-bool __wrap_field_table_init(void) {
+bool field_table_init(void) {
     return true;
 }
-void __wrap_field_table_cleanup(void) {
+void field_table_cleanup(void) {
 }
 
 // find_matching_tx_ctx uses get_implem_contract for proxy resolution.
 static const uint8_t *g_implem_contract_ret = NULL;
-const uint8_t *__wrap_get_implem_contract(const uint64_t *chain_id,
-                                          const uint8_t *to,
-                                          const uint8_t *selector) {
+const uint8_t *get_implem_contract(const uint64_t *chain_id,
+                                   const uint8_t *to,
+                                   const uint8_t *selector) {
     (void) chain_id;
     (void) to;
     (void) selector;
@@ -148,14 +145,12 @@ const uint8_t *__wrap_get_implem_contract(const uint64_t *chain_id,
 // Fixture
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     gcs_cleanup();
     appState = APP_STATE_IDLE;
     memset(g_finalize_hash_out, 0, sizeof(g_finalize_hash_out));
     g_finalize_hash_ret = true;
     g_implem_contract_ret = NULL;
-    return 0;
 }
 
 // Helper: set up a node and force g_tx_ctx_current to point at it by
@@ -188,18 +183,17 @@ static const uint8_t g_amount_1eth[INT256_LENGTH] = {
 // Getters — NULL-guard behavior on an empty list
 // =============================================================================
 
-static void test_getters_on_empty_list_return_null_or_zero(void **state) {
-    (void) state;
-    assert_false(tx_ctx_is_root());
-    assert_int_equal(get_tx_ctx_count(), 0);
-    assert_null(get_current_tx_info());
-    assert_null(get_root_tx_info());
-    assert_null(get_current_calldata());
-    assert_null(get_root_calldata());
-    assert_null(get_current_tx_from());
-    assert_null(get_current_tx_to());
-    assert_null(get_current_tx_amount());
-    assert_int_equal(get_current_tx_chain_id(), 0);
+void test_getters_on_empty_list_return_null_or_zero(void) {
+    TEST_ASSERT_FALSE(tx_ctx_is_root());
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 0);
+    TEST_ASSERT_NULL(get_current_tx_info());
+    TEST_ASSERT_NULL(get_root_tx_info());
+    TEST_ASSERT_NULL(get_current_calldata());
+    TEST_ASSERT_NULL(get_root_calldata());
+    TEST_ASSERT_NULL(get_current_tx_from());
+    TEST_ASSERT_NULL(get_current_tx_to());
+    TEST_ASSERT_NULL(get_current_tx_amount());
+    TEST_ASSERT_EQUAL(get_current_tx_chain_id(), 0);
 }
 
 // =============================================================================
@@ -210,50 +204,46 @@ static void test_getters_on_empty_list_return_null_or_zero(void **state) {
 // rewinding to a previous current). So immediately after tx_ctx_init the
 // getters still report empty even though the list has nodes.
 
-static void test_init_adds_to_list_but_current_stays_null(void **state) {
-    (void) state;
+void test_init_adds_to_list_but_current_stays_null(void) {
     uint64_t chain = 137;
-    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_b, g_amount_1eth, &chain));
-    assert_int_equal(get_tx_ctx_count(), 1);
+    TEST_ASSERT_TRUE(tx_ctx_init(NULL, g_addr_a, g_addr_b, g_amount_1eth, &chain));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 1);
     // Current is not set yet — getters still NULL.
-    assert_false(tx_ctx_is_root());
-    assert_null(get_current_tx_from());
-    assert_null(get_current_tx_to());
-    assert_null(get_current_tx_amount());
-    assert_int_equal(get_current_tx_chain_id(), 0);
+    TEST_ASSERT_FALSE(tx_ctx_is_root());
+    TEST_ASSERT_NULL(get_current_tx_from());
+    TEST_ASSERT_NULL(get_current_tx_to());
+    TEST_ASSERT_NULL(get_current_tx_amount());
+    TEST_ASSERT_EQUAL(get_current_tx_chain_id(), 0);
 }
 
-static void test_init_then_find_matching_exposes_fields(void **state) {
-    (void) state;
+void test_init_then_find_matching_exposes_fields(void) {
     uint64_t chain = 137;
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, g_amount_1eth, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, g_amount_1eth, &chain));
 
     // Use find_matching_tx_ctx to set current onto the new node.
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
-    assert_true(tx_ctx_is_root());
-    assert_memory_equal(get_current_tx_from(), g_addr_a, ADDRESS_LENGTH);
-    assert_memory_equal(get_current_tx_to(), g_addr_b, ADDRESS_LENGTH);
-    assert_memory_equal(get_current_tx_amount(), g_amount_1eth, INT256_LENGTH);
-    assert_int_equal(get_current_tx_chain_id(), 137);
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_is_root());
+    TEST_ASSERT_EQUAL_MEMORY(get_current_tx_from(), g_addr_a, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL_MEMORY(get_current_tx_to(), g_addr_b, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL_MEMORY(get_current_tx_amount(), g_amount_1eth, INT256_LENGTH);
+    TEST_ASSERT_EQUAL(get_current_tx_chain_id(), 137);
 }
 
-static void test_init_first_call_with_null_from_uses_self(void **state) {
-    (void) state;
+void test_init_first_call_with_null_from_uses_self(void) {
     // get_public_key (wrapped) populates from when the caller passes NULL.
     uint64_t chain = 1;
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, NULL, g_addr_b, NULL, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
-    assert_memory_equal(get_current_tx_from(), g_self_addr, ADDRESS_LENGTH);
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, NULL, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_EQUAL_MEMORY(get_current_tx_from(), g_self_addr, ADDRESS_LENGTH);
 }
 
-static void test_init_second_call_inherits_from_and_chain(void **state) {
-    (void) state;
+void test_init_second_call_inherits_from_and_chain(void) {
     // First push sets from=addr_a, chain=56.
     uint64_t chain1 = 56;
     s_calldata *cd1 = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd1, g_addr_a, g_addr_a, NULL, &chain1));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd1, g_addr_a, g_addr_a, NULL, &chain1));
 
     // Second push omits from / chain_id → must inherit from tail.
     // To then find_matching the second node we need a *different* selector
@@ -261,62 +251,59 @@ static void test_init_second_call_inherits_from_and_chain(void **state) {
     // the first match.
     static const uint8_t selector2[CALLDATA_SELECTOR_SIZE] = {0xCA, 0xFE, 0xBA, 0xBE};
     s_calldata *cd2 = make_complete_calldata(selector2);
-    assert_true(tx_ctx_init(cd2, NULL, g_addr_b, NULL, NULL));
-    assert_int_equal(get_tx_ctx_count(), 2);
+    TEST_ASSERT_TRUE(tx_ctx_init(cd2, NULL, g_addr_b, NULL, NULL));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 2);
     // The second node's chain_id was inherited; use it for the match.
     uint64_t chain_lookup = 56;
-    assert_true(find_matching_tx_ctx(g_addr_b, selector2, &chain_lookup));
-    assert_memory_equal(get_current_tx_from(), g_addr_a, ADDRESS_LENGTH);
-    assert_int_equal(get_current_tx_chain_id(), 56);
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, selector2, &chain_lookup));
+    TEST_ASSERT_EQUAL_MEMORY(get_current_tx_from(), g_addr_a, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL(get_current_tx_chain_id(), 56);
     // The matched node is the second one — not the root.
-    assert_false(tx_ctx_is_root());
+    TEST_ASSERT_FALSE(tx_ctx_is_root());
 }
 
-static void test_init_clears_parked_calldata_pointer(void **state) {
-    (void) state;
+void test_init_clears_parked_calldata_pointer(void) {
     // Simulate the host having parked a calldata buffer.
     s_calldata *cd = make_complete_calldata(g_match_selector);
     g_parked_calldata = cd;
     uint64_t chain = 1;
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
     // tx_ctx_init takes ownership and clears the global so the host
     // cannot double-free.
-    assert_null(g_parked_calldata);
+    TEST_ASSERT_NULL(g_parked_calldata);
 }
 
 // =============================================================================
 // tx_ctx_pop
 // =============================================================================
 
-static void test_pop_unlinks_current_node(void **state) {
-    (void) state;
+void test_pop_unlinks_current_node(void) {
     uint64_t chain1 = 1;
     s_calldata *cd1 = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd1, g_addr_a, g_addr_a, NULL, &chain1));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd1, g_addr_a, g_addr_a, NULL, &chain1));
 
     static const uint8_t selector2[CALLDATA_SELECTOR_SIZE] = {0xCA, 0xFE, 0xBA, 0xBE};
     s_calldata *cd2 = make_complete_calldata(selector2);
-    assert_true(tx_ctx_init(cd2, NULL, g_addr_b, NULL, NULL));
-    assert_int_equal(get_tx_ctx_count(), 2);
+    TEST_ASSERT_TRUE(tx_ctx_init(cd2, NULL, g_addr_b, NULL, NULL));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 2);
 
     // Match the second node to set current = tail.
     uint64_t chain_lookup = 1;
-    assert_true(find_matching_tx_ctx(g_addr_b, selector2, &chain_lookup));
-    assert_false(tx_ctx_is_root());
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, selector2, &chain_lookup));
+    TEST_ASSERT_FALSE(tx_ctx_is_root());
 
     // Pop rewinds current to the previous node (the root).
     tx_ctx_pop();
-    assert_int_equal(get_tx_ctx_count(), 1);
-    assert_true(tx_ctx_is_root());
-    assert_memory_equal(get_current_tx_from(), g_addr_a, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 1);
+    TEST_ASSERT_TRUE(tx_ctx_is_root());
+    TEST_ASSERT_EQUAL_MEMORY(get_current_tx_from(), g_addr_a, ADDRESS_LENGTH);
 }
 
 // =============================================================================
 // find_matching_tx_ctx
 // =============================================================================
 
-static void test_find_matching_tx_ctx_happy(void **state) {
-    (void) state;
+void test_find_matching_tx_ctx_happy(void) {
     // Two contexts at different addresses; only the second matches the
     // search.
     uint64_t chain = 1;
@@ -328,38 +315,36 @@ static void test_find_matching_tx_ctx_happy(void **state) {
     calldata_append(cd_a, buf, CALLDATA_CHUNK_SIZE);
     calldata_append(cd_b, buf, CALLDATA_CHUNK_SIZE);
 
-    assert_true(tx_ctx_init(cd_a, g_addr_a, g_addr_a, NULL, &chain));
-    assert_true(tx_ctx_init(cd_b, NULL, g_addr_b, NULL, &chain));
-    assert_int_equal(get_tx_ctx_count(), 2);
+    TEST_ASSERT_TRUE(tx_ctx_init(cd_a, g_addr_a, g_addr_a, NULL, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd_b, NULL, g_addr_b, NULL, &chain));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 2);
 
-    assert_true(find_matching_tx_ctx(g_addr_b, selector, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, selector, &chain));
     // current must now point at the second node — to=g_addr_b.
-    assert_memory_equal(get_current_tx_to(), g_addr_b, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL_MEMORY(get_current_tx_to(), g_addr_b, ADDRESS_LENGTH);
 }
 
-static void test_find_matching_tx_ctx_no_match_keeps_current(void **state) {
-    (void) state;
+void test_find_matching_tx_ctx_no_match_keeps_current(void) {
     uint64_t chain = 1;
     static const uint8_t selector[CALLDATA_SELECTOR_SIZE] = {0xDE, 0xAD, 0xBE, 0xEF};
     s_calldata *cd = calldata_init(CALLDATA_CHUNK_SIZE, selector);
     uint8_t buf[CALLDATA_CHUNK_SIZE] = {0};
     calldata_append(cd, buf, CALLDATA_CHUNK_SIZE);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_a, NULL, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_a, NULL, &chain));
 
     // Search for an unrelated address.
-    assert_false(find_matching_tx_ctx(g_addr_b, selector, &chain));
+    TEST_ASSERT_FALSE(find_matching_tx_ctx(g_addr_b, selector, &chain));
 }
 
 // =============================================================================
 // validate_instruction_hash
 // =============================================================================
 
-static void test_validate_instruction_hash_matches(void **state) {
-    (void) state;
+void test_validate_instruction_hash_matches(void) {
     uint64_t chain = 1;
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
 
     s_tx_info *heap_info = malloc(sizeof(s_tx_info));
     memset(heap_info, 0, sizeof(*heap_info));
@@ -369,56 +354,52 @@ static void test_validate_instruction_hash_matches(void **state) {
     // set_tx_info_into_tx_ctx at root with appState=IDLE skips both the
     // intent-field write and the auto-pop, so it only attaches the info.
     appState = APP_STATE_IDLE;
-    assert_true(set_tx_info_into_tx_ctx(heap_info));
+    TEST_ASSERT_TRUE(set_tx_info_into_tx_ctx(heap_info));
 
     // Now make finalize_hash return the exact fields_hash so the
     // validator returns true.
     memcpy(g_finalize_hash_out, heap_info->fields_hash, sizeof(heap_info->fields_hash));
-    assert_true(validate_instruction_hash());
+    TEST_ASSERT_TRUE(validate_instruction_hash());
 }
 
-static void test_validate_instruction_hash_mismatch(void **state) {
-    (void) state;
+void test_validate_instruction_hash_mismatch(void) {
     uint64_t chain = 1;
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
 
     s_tx_info *heap_info = malloc(sizeof(s_tx_info));
     memset(heap_info, 0, sizeof(*heap_info));
     heap_info->fields_hash[0] = 0xFE;
     appState = APP_STATE_IDLE;
-    assert_true(set_tx_info_into_tx_ctx(heap_info));
+    TEST_ASSERT_TRUE(set_tx_info_into_tx_ctx(heap_info));
 
     memset(g_finalize_hash_out, 0xCC, sizeof(g_finalize_hash_out));
-    assert_false(validate_instruction_hash());
+    TEST_ASSERT_FALSE(validate_instruction_hash());
 }
 
-static void test_validate_instruction_hash_no_current_returns_false(void **state) {
-    (void) state;
-    assert_false(validate_instruction_hash());
+void test_validate_instruction_hash_no_current_returns_false(void) {
+    TEST_ASSERT_FALSE(validate_instruction_hash());
 }
 
 // =============================================================================
 // gcs_cleanup
 // =============================================================================
 
-static void test_gcs_cleanup_empties_list(void **state) {
-    (void) state;
+void test_gcs_cleanup_empties_list(void) {
     uint64_t chain = 1;
-    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_b, NULL, &chain));
-    assert_true(tx_ctx_init(NULL, NULL, g_addr_b, NULL, NULL));
-    assert_int_equal(get_tx_ctx_count(), 2);
+    TEST_ASSERT_TRUE(tx_ctx_init(NULL, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(NULL, NULL, g_addr_b, NULL, NULL));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 2);
     gcs_cleanup();
-    assert_int_equal(get_tx_ctx_count(), 0);
-    assert_null(g_parked_calldata);
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 0);
+    TEST_ASSERT_NULL(g_parked_calldata);
 }
 
-static void test_gcs_cleanup_frees_parked_calldata(void **state) {
-    (void) state;
+void test_gcs_cleanup_frees_parked_calldata(void) {
     g_parked_calldata = calldata_init(0, NULL);
     gcs_cleanup();
-    assert_null(g_parked_calldata);
+    TEST_ASSERT_NULL(g_parked_calldata);
 }
 
 // =============================================================================
@@ -433,42 +414,39 @@ static void test_gcs_cleanup_frees_parked_calldata(void **state) {
 // empty one (which set_intent_field / amount / trusted_name / address
 // formatting via the stubs above), and removes them from the list.
 
-static void test_process_empty_txs_before_removes_empty_predecessors(void **state) {
-    (void) state;
+void test_process_empty_txs_before_removes_empty_predecessors(void) {
     uint64_t chain = 1;
     // 1) Two empty (calldata == NULL) predecessors
-    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
-    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
     // 2) The "with calldata" current tx
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
-    assert_int_equal(get_tx_ctx_count(), 3);
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 3);
 
-    assert_true(process_empty_txs_before());
+    TEST_ASSERT_TRUE(process_empty_txs_before());
     // Both empty predecessors must be gone — only the current one
     // remains.
-    assert_int_equal(get_tx_ctx_count(), 1);
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 1);
 }
 
-static void test_process_empty_txs_after_removes_empty_successors(void **state) {
-    (void) state;
+void test_process_empty_txs_after_removes_empty_successors(void) {
     uint64_t chain = 1;
     // 1) Current with calldata
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
     // 2) Two empty successors
-    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
-    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
-    assert_int_equal(get_tx_ctx_count(), 3);
+    TEST_ASSERT_TRUE(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 3);
 
-    assert_true(process_empty_txs_after());
-    assert_int_equal(get_tx_ctx_count(), 1);
+    TEST_ASSERT_TRUE(process_empty_txs_after());
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 1);
 }
 
-static void test_process_empty_txs_before_stops_at_non_empty(void **state) {
-    (void) state;
+void test_process_empty_txs_before_stops_at_non_empty(void) {
     uint64_t chain = 1;
     // Layout: [empty A] [withCalldata B] [current C, withCalldata]
     // process_empty_txs_before walks current -> prev. The first prev
@@ -476,37 +454,36 @@ static void test_process_empty_txs_before_stops_at_non_empty(void **state) {
     // processed (still has calldata != NULL — wait, A is empty).
     // The loop reads tmp->calldata == NULL as the gate; B has
     // calldata so loop stops at B without touching A.
-    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));  // A empty
+    TEST_ASSERT_TRUE(tx_ctx_init(NULL, g_addr_a, g_addr_a, NULL, &chain));  // A empty
     s_calldata *cd_b = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd_b, g_addr_a, g_addr_a, NULL, &chain));  // B with calldata
+    TEST_ASSERT_TRUE(tx_ctx_init(cd_b, g_addr_a, g_addr_a, NULL, &chain));  // B with calldata
     static const uint8_t selector_c[CALLDATA_SELECTOR_SIZE] = {0xCA, 0xFE, 0xBA, 0xBE};
     s_calldata *cd_c = make_complete_calldata(selector_c);
-    assert_true(tx_ctx_init(cd_c, g_addr_a, g_addr_b, NULL, &chain));  // C current
-    assert_true(find_matching_tx_ctx(g_addr_b, selector_c, &chain));
-    assert_int_equal(get_tx_ctx_count(), 3);
+    TEST_ASSERT_TRUE(tx_ctx_init(cd_c, g_addr_a, g_addr_b, NULL, &chain));  // C current
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, selector_c, &chain));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 3);
 
-    assert_true(process_empty_txs_before());
+    TEST_ASSERT_TRUE(process_empty_txs_before());
     // B blocks the walk → A stays untouched.
-    assert_int_equal(get_tx_ctx_count(), 3);
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 3);
 }
 
-static void test_process_empty_txs_with_amount_no_tx_info_fails(void **state) {
-    (void) state;
+void test_process_empty_txs_with_amount_no_tx_info_fails(void) {
     uint64_t chain = 1;
     // Empty predecessor with has_amount=true (amount provided) drives
     // process_empty_tx down the "Send" branch. Since no tx_info has
     // been attached to either the node or the root, the helper bails
     // at get_root_tx_info()==NULL and returns false — exercising the
     // error path inside the amount branch.
-    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, g_amount_1eth, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(NULL, g_addr_a, g_addr_a, g_amount_1eth, &chain));
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
 
-    assert_false(process_empty_txs_before());
+    TEST_ASSERT_FALSE(process_empty_txs_before());
     // The empty node was NOT removed — process_empty_tx returned false
     // before reaching list_remove.
-    assert_int_equal(get_tx_ctx_count(), 2);
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 2);
 }
 
 // =============================================================================
@@ -515,63 +492,60 @@ static void test_process_empty_txs_with_amount_no_tx_info_fails(void **state) {
 // tx_ctx_init field_table_init path.
 // =============================================================================
 
-static void test_get_fields_hash_ctx_returns_current_ctx(void **state) {
-    (void) state;
+void test_get_fields_hash_ctx_returns_current_ctx(void) {
     uint64_t chain = 1;
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
     // Non-NULL is enough — the pointer references the current node's
     // fields_hash_ctx member, opaque from here.
-    assert_non_null(get_fields_hash_ctx());
+    TEST_ASSERT_NOT_NULL(get_fields_hash_ctx());
 }
 
-static void test_get_current_getters_return_attached_state(void **state) {
-    (void) state;
+void test_get_current_getters_return_attached_state(void) {
     uint64_t chain = 1;
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, g_amount_1eth, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, g_amount_1eth, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
 
     // tx_info attached after the fact via set_tx_info_into_tx_ctx.
     s_tx_info *info = calloc(1, sizeof(*info));
     appState = APP_STATE_IDLE;
-    assert_true(set_tx_info_into_tx_ctx(info));
+    TEST_ASSERT_TRUE(set_tx_info_into_tx_ctx(info));
 
-    assert_ptr_equal(get_current_tx_info(), info);
-    assert_ptr_equal(get_root_tx_info(), info);  // root == current here
-    assert_non_null(get_current_calldata());
-    assert_non_null(get_root_calldata());
+    TEST_ASSERT_EQUAL_PTR(get_current_tx_info(), info);
+    TEST_ASSERT_EQUAL_PTR(get_root_tx_info(), info);  // root == current here
+    TEST_ASSERT_NOT_NULL(get_current_calldata());
+    TEST_ASSERT_NOT_NULL(get_root_calldata());
 }
 
 // Amount-branch happy path inside process_empty_tx. Tags an empty
 // predecessor with an amount, attaches a tx_info to the root (so
 // get_root_tx_info finds one), and lets the trusted_name / amount /
 // add_to_field_table stubs sail through.
-static void test_process_empty_txs_amount_branch_happy_path(void **state) {
-    (void) state;
+void test_process_empty_txs_amount_branch_happy_path(void) {
     uint64_t chain = 1;
     s_calldata *cd_root = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd_root, g_addr_a, g_addr_b, NULL, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd_root, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
 
     // Attach tx_info to the root so process_empty_tx's tx_info==NULL ->
     // get_root_tx_info() resolution path succeeds.
     s_tx_info *info = calloc(1, sizeof(*info));
     info->chain_id = 1;
     appState = APP_STATE_IDLE;
-    assert_true(set_tx_info_into_tx_ctx(info));
+    TEST_ASSERT_TRUE(set_tx_info_into_tx_ctx(info));
 
     // Insert an empty SUCCESSOR with has_amount=true (g_amount_1eth).
-    assert_true(tx_ctx_init(NULL, g_addr_a, g_addr_a, g_amount_1eth, &chain));
-    assert_int_equal(get_tx_ctx_count(), 2);
+    TEST_ASSERT_TRUE(tx_ctx_init(NULL, g_addr_a, g_addr_a, g_amount_1eth, &chain));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 2);
 
     // process_empty_txs_after now drives process_empty_tx's amount path:
     //   set_intent_field("Send") + get_root_tx_info + amountToString +
     //   add_to_field_table + trusted_name lookup (returns NULL, falls
     //   back to RAW + getEthDisplayableAddress) + final add_to_field_table.
-    assert_true(process_empty_txs_after());
-    assert_int_equal(get_tx_ctx_count(), 1);  // empty successor removed
+    TEST_ASSERT_TRUE(process_empty_txs_after());
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 1);  // empty successor removed
 }
 
 // set_tx_info_into_tx_ctx with appState=SIGNING_EIP712 takes the
@@ -579,56 +553,53 @@ static void test_process_empty_txs_amount_branch_happy_path(void **state) {
 // arrange the hash mock so it does NOT match the tx_info hash, so
 // tx_ctx_pop is skipped (matching pop would otherwise leave the
 // node un-attached and surprise the assertion).
-static void test_set_tx_info_eip712_at_root_runs_hash_path(void **state) {
-    (void) state;
+void test_set_tx_info_eip712_at_root_runs_hash_path(void) {
     uint64_t chain = 1;
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, g_match_selector, &chain));
 
     s_tx_info *info = calloc(1, sizeof(*info));
     info->fields_hash[0] = 0xAA;  // distinct from g_finalize_hash_out
     appState = APP_STATE_SIGNING_EIP712;
-    assert_true(set_tx_info_into_tx_ctx(info));
+    TEST_ASSERT_TRUE(set_tx_info_into_tx_ctx(info));
     // Node should still be attached (no pop) since hash mismatched.
-    assert_ptr_equal(get_current_tx_info(), info);
+    TEST_ASSERT_EQUAL_PTR(get_current_tx_info(), info);
 }
 
 // set_tx_info_into_tx_ctx on a non-root node (g_tx_ctx_current is the
 // second node). The hash path runs unconditionally, set_intent_field
 // is called outside the EIP712 branch.
-static void test_set_tx_info_non_root_runs_intent_and_hash(void **state) {
-    (void) state;
+void test_set_tx_info_non_root_runs_intent_and_hash(void) {
     uint64_t chain = 1;
     // Root
     s_calldata *cd_root = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd_root, g_addr_a, g_addr_a, NULL, &chain));
+    TEST_ASSERT_TRUE(tx_ctx_init(cd_root, g_addr_a, g_addr_a, NULL, &chain));
     // Second node (will become current)
     static const uint8_t selector_2[CALLDATA_SELECTOR_SIZE] = {0xCA, 0xFE, 0xBA, 0xBE};
     s_calldata *cd2 = make_complete_calldata(selector_2);
-    assert_true(tx_ctx_init(cd2, g_addr_a, g_addr_b, NULL, &chain));
-    assert_true(find_matching_tx_ctx(g_addr_b, selector_2, &chain));
-    assert_int_equal(get_tx_ctx_count(), 2);
+    TEST_ASSERT_TRUE(tx_ctx_init(cd2, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_TRUE(find_matching_tx_ctx(g_addr_b, selector_2, &chain));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 2);
 
     s_tx_info *info = calloc(1, sizeof(*info));
     info->fields_hash[0] = 0xAA;
     appState = APP_STATE_IDLE;
     // Non-root path: set_intent_field called, hash path runs, hash
     // mismatches so no pop. Node stays.
-    assert_true(set_tx_info_into_tx_ctx(info));
-    assert_int_equal(get_tx_ctx_count(), 2);
+    TEST_ASSERT_TRUE(set_tx_info_into_tx_ctx(info));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 2);
 }
 
 // tx_ctx_init under APP_STATE_SIGNING_TX takes the field_table_init
-// branch at the end (line 312-313). The wrapped __wrap_field_table_init
+// branch at the end (line 312-313). The wrapped field_table_init
 // returns true, so the init succeeds.
-static void test_tx_ctx_init_signing_tx_calls_field_table_init(void **state) {
-    (void) state;
+void test_tx_ctx_init_signing_tx_calls_field_table_init(void) {
     uint64_t chain = 1;
     appState = APP_STATE_SIGNING_TX;
     s_calldata *cd = make_complete_calldata(g_match_selector);
-    assert_true(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
-    assert_int_equal(get_tx_ctx_count(), 1);
+    TEST_ASSERT_TRUE(tx_ctx_init(cd, g_addr_a, g_addr_b, NULL, &chain));
+    TEST_ASSERT_EQUAL(get_tx_ctx_count(), 1);
     // Restore — gcs_cleanup in reset() will run between tests.
     appState = APP_STATE_IDLE;
 }
@@ -637,32 +608,37 @@ static void test_tx_ctx_init_signing_tx_calls_field_table_init(void **state) {
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_getters_on_empty_list_return_null_or_zero, reset),
-        cmocka_unit_test_setup(test_init_adds_to_list_but_current_stays_null, reset),
-        cmocka_unit_test_setup(test_init_then_find_matching_exposes_fields, reset),
-        cmocka_unit_test_setup(test_init_first_call_with_null_from_uses_self, reset),
-        cmocka_unit_test_setup(test_init_second_call_inherits_from_and_chain, reset),
-        cmocka_unit_test_setup(test_init_clears_parked_calldata_pointer, reset),
-        cmocka_unit_test_setup(test_pop_unlinks_current_node, reset),
-        cmocka_unit_test_setup(test_find_matching_tx_ctx_happy, reset),
-        cmocka_unit_test_setup(test_find_matching_tx_ctx_no_match_keeps_current, reset),
-        cmocka_unit_test_setup(test_validate_instruction_hash_matches, reset),
-        cmocka_unit_test_setup(test_validate_instruction_hash_mismatch, reset),
-        cmocka_unit_test_setup(test_validate_instruction_hash_no_current_returns_false, reset),
-        cmocka_unit_test_setup(test_gcs_cleanup_empties_list, reset),
-        cmocka_unit_test_setup(test_gcs_cleanup_frees_parked_calldata, reset),
-        cmocka_unit_test_setup(test_process_empty_txs_before_removes_empty_predecessors, reset),
-        cmocka_unit_test_setup(test_process_empty_txs_after_removes_empty_successors, reset),
-        cmocka_unit_test_setup(test_process_empty_txs_before_stops_at_non_empty, reset),
-        cmocka_unit_test_setup(test_process_empty_txs_with_amount_no_tx_info_fails, reset),
-        cmocka_unit_test_setup(test_get_fields_hash_ctx_returns_current_ctx, reset),
-        cmocka_unit_test_setup(test_get_current_getters_return_attached_state, reset),
-        cmocka_unit_test_setup(test_process_empty_txs_amount_branch_happy_path, reset),
-        cmocka_unit_test_setup(test_set_tx_info_eip712_at_root_runs_hash_path, reset),
-        cmocka_unit_test_setup(test_set_tx_info_non_root_runs_intent_and_hash, reset),
-        cmocka_unit_test_setup(test_tx_ctx_init_signing_tx_calls_field_table_init, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_getters_on_empty_list_return_null_or_zero);
+    RUN_TEST(test_init_adds_to_list_but_current_stays_null);
+    RUN_TEST(test_init_then_find_matching_exposes_fields);
+    RUN_TEST(test_init_first_call_with_null_from_uses_self);
+    RUN_TEST(test_init_second_call_inherits_from_and_chain);
+    RUN_TEST(test_init_clears_parked_calldata_pointer);
+    RUN_TEST(test_pop_unlinks_current_node);
+    RUN_TEST(test_find_matching_tx_ctx_happy);
+    RUN_TEST(test_find_matching_tx_ctx_no_match_keeps_current);
+    RUN_TEST(test_validate_instruction_hash_matches);
+    RUN_TEST(test_validate_instruction_hash_mismatch);
+    RUN_TEST(test_validate_instruction_hash_no_current_returns_false);
+    RUN_TEST(test_gcs_cleanup_empties_list);
+    RUN_TEST(test_gcs_cleanup_frees_parked_calldata);
+    RUN_TEST(test_process_empty_txs_before_removes_empty_predecessors);
+    RUN_TEST(test_process_empty_txs_after_removes_empty_successors);
+    RUN_TEST(test_process_empty_txs_before_stops_at_non_empty);
+    RUN_TEST(test_process_empty_txs_with_amount_no_tx_info_fails);
+    RUN_TEST(test_get_fields_hash_ctx_returns_current_ctx);
+    RUN_TEST(test_get_current_getters_return_attached_state);
+    RUN_TEST(test_process_empty_txs_amount_branch_happy_path);
+    RUN_TEST(test_set_tx_info_eip712_at_root_runs_hash_path);
+    RUN_TEST(test_set_tx_info_non_root_runs_intent_and_hash);
+    RUN_TEST(test_tx_ctx_init_signing_tx_calls_field_table_init);
+    return UNITY_END();
 }

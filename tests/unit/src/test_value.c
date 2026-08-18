@@ -27,10 +27,7 @@
  *   - value_cleanup() routes data_path_cleanup only for CALLDATA.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -40,7 +37,7 @@
 #include "gtp_parsed_value.h"
 #include "gtp_tx_info.h"
 #include "map_entry.h"
-#include "wraps.h"
+// wraps.h removed: all stubs are local
 
 // =============================================================================
 // Wrapped collaborators
@@ -49,21 +46,21 @@
 // data_path side
 static bool g_dp_get_ret = true;
 static s_parsed_value_collection g_dp_collection;
-bool __wrap_data_path_get(const s_data_path *data_path, s_parsed_value_collection *collection) {
+bool data_path_get(const s_data_path *data_path, s_parsed_value_collection *collection) {
     (void) data_path;
     *collection = g_dp_collection;
     return g_dp_get_ret;
 }
 
 static int g_dp_cleanup_calls = 0;
-void __wrap_data_path_cleanup(const s_parsed_value_collection *collection) {
+void data_path_cleanup(const s_parsed_value_collection *collection) {
     (void) collection;
     g_dp_cleanup_calls++;
 }
 
 // handle_data_path_struct is called by handle_value_struct on TAG_DATA_PATH.
 // The wrap accepts anything and reports success.
-bool __wrap_handle_data_path_struct(const buffer_t *buf, s_data_path_context *context) {
+bool handle_data_path_struct(const buffer_t *buf, s_data_path_context *context) {
     (void) buf;
     (void) context;
     return true;
@@ -73,48 +70,50 @@ bool __wrap_handle_data_path_struct(const buffer_t *buf, s_data_path_context *co
 static const uint8_t *g_tx_from = NULL;
 static const uint8_t *g_tx_to = NULL;
 static const uint8_t *g_tx_amount = NULL;
-const uint8_t *__wrap_get_current_tx_from(void) {
+const uint8_t *get_current_tx_from(void) {
     return g_tx_from;
 }
-const uint8_t *__wrap_get_current_tx_to(void) {
+const uint8_t *get_current_tx_to(void) {
     return g_tx_to;
 }
-const uint8_t *__wrap_get_current_tx_amount(void) {
+const uint8_t *get_current_tx_amount(void) {
     return g_tx_amount;
 }
 
 // MAP_REF
 static const s_map_entry *g_map_entry_ret = NULL;
-const s_map_entry *__wrap_get_matching_map_entry(uint8_t id, const uint8_t *key, uint8_t key_size) {
+const s_map_entry *get_matching_map_entry(uint8_t id, const uint8_t *key, uint8_t key_size) {
     (void) id;
     (void) key;
     (void) key_size;
     return g_map_entry_ret;
 }
 
+static const s_tx_info *s_tx_info_ret = NULL;
+const s_tx_info *get_current_tx_info(void) {
+    return s_tx_info_ret;
+}
+
 // =============================================================================
 // Fixtures
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     g_dp_get_ret = true;
     memset(&g_dp_collection, 0, sizeof(g_dp_collection));
     g_dp_cleanup_calls = 0;
     g_tx_from = NULL;
     g_tx_to = NULL;
     g_tx_amount = NULL;
-    g_tx_info_ret = NULL;
+    s_tx_info_ret = NULL;
     g_map_entry_ret = NULL;
-    return 0;
 }
 
 // =============================================================================
 // value_get — SOURCE_CONSTANT
 // =============================================================================
 
-static void test_value_get_constant_returns_buf(void **state) {
-    (void) state;
+void test_value_get_constant_returns_buf(void) {
     s_value v = {0};
     v.source = SOURCE_CONSTANT;
     v.constant.size = 4;
@@ -124,18 +123,17 @@ static void test_value_get_constant_returns_buf(void **state) {
     v.constant.buf[3] = 0xEF;
 
     s_parsed_value_collection collec = {0};
-    assert_true(value_get(&v, &collec));
-    assert_int_equal(collec.size, 1);
-    assert_int_equal(collec.value[0].length, 4);
-    assert_ptr_equal(collec.value[0].ptr, v.constant.buf);
+    TEST_ASSERT_TRUE(value_get(&v, &collec));
+    TEST_ASSERT_EQUAL(collec.size, 1);
+    TEST_ASSERT_EQUAL(collec.value[0].length, 4);
+    TEST_ASSERT_EQUAL_PTR(collec.value[0].ptr, v.constant.buf);
 }
 
 // =============================================================================
 // value_get — SOURCE_RLP
 // =============================================================================
 
-static void test_value_get_rlp_from(void **state) {
-    (void) state;
+void test_value_get_rlp_from(void) {
     static const uint8_t addr[ADDRESS_LENGTH] = {0xAA};
     g_tx_from = addr;
 
@@ -144,14 +142,13 @@ static void test_value_get_rlp_from(void **state) {
     v.container_path = CP_FROM;
 
     s_parsed_value_collection collec = {0};
-    assert_true(value_get(&v, &collec));
-    assert_int_equal(collec.size, 1);
-    assert_int_equal(collec.value[0].length, ADDRESS_LENGTH);
-    assert_ptr_equal(collec.value[0].ptr, addr);
+    TEST_ASSERT_TRUE(value_get(&v, &collec));
+    TEST_ASSERT_EQUAL(collec.size, 1);
+    TEST_ASSERT_EQUAL(collec.value[0].length, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL_PTR(collec.value[0].ptr, addr);
 }
 
-static void test_value_get_rlp_to(void **state) {
-    (void) state;
+void test_value_get_rlp_to(void) {
     static const uint8_t addr[ADDRESS_LENGTH] = {0xBB};
     g_tx_to = addr;
 
@@ -160,13 +157,12 @@ static void test_value_get_rlp_to(void **state) {
     v.container_path = CP_TO;
 
     s_parsed_value_collection collec = {0};
-    assert_true(value_get(&v, &collec));
-    assert_ptr_equal(collec.value[0].ptr, addr);
-    assert_int_equal(collec.value[0].length, ADDRESS_LENGTH);
+    TEST_ASSERT_TRUE(value_get(&v, &collec));
+    TEST_ASSERT_EQUAL_PTR(collec.value[0].ptr, addr);
+    TEST_ASSERT_EQUAL(collec.value[0].length, ADDRESS_LENGTH);
 }
 
-static void test_value_get_rlp_amount(void **state) {
-    (void) state;
+void test_value_get_rlp_amount(void) {
     static const uint8_t amount[INT256_LENGTH] = {0xCC};
     g_tx_amount = amount;
 
@@ -175,57 +171,53 @@ static void test_value_get_rlp_amount(void **state) {
     v.container_path = CP_VALUE;
 
     s_parsed_value_collection collec = {0};
-    assert_true(value_get(&v, &collec));
-    assert_ptr_equal(collec.value[0].ptr, amount);
-    assert_int_equal(collec.value[0].length, INT256_LENGTH);
+    TEST_ASSERT_TRUE(value_get(&v, &collec));
+    TEST_ASSERT_EQUAL_PTR(collec.value[0].ptr, amount);
+    TEST_ASSERT_EQUAL(collec.value[0].length, INT256_LENGTH);
 }
 
-static void test_value_get_rlp_chain_id_bigendian(void **state) {
-    (void) state;
+void test_value_get_rlp_chain_id_bigendian(void) {
     static s_tx_info info;
     info.chain_id = 0x1234;
-    g_tx_info_ret = &info;
+    s_tx_info_ret = &info;
 
     s_value v = {0};
     v.source = SOURCE_RLP;
     v.container_path = CP_CHAIN_ID;
 
     s_parsed_value_collection collec = {0};
-    assert_true(value_get(&v, &collec));
-    assert_int_equal(collec.value[0].length, sizeof(uint64_t));
+    TEST_ASSERT_TRUE(value_get(&v, &collec));
+    TEST_ASSERT_EQUAL(collec.value[0].length, sizeof(uint64_t));
     // BE encoding of 0x1234 padded to 8 bytes
     static const uint8_t expected[8] = {0, 0, 0, 0, 0, 0, 0x12, 0x34};
-    assert_memory_equal(collec.value[0].ptr, expected, 8);
+    TEST_ASSERT_EQUAL_MEMORY(collec.value[0].ptr, expected, 8);
 }
 
-static void test_value_get_rlp_from_null_rejected(void **state) {
-    (void) state;
+void test_value_get_rlp_from_null_rejected(void) {
     g_tx_from = NULL;
     s_value v = {0};
     v.source = SOURCE_RLP;
     v.container_path = CP_FROM;
 
     s_parsed_value_collection collec = {0};
-    assert_false(value_get(&v, &collec));
+    TEST_ASSERT_FALSE(value_get(&v, &collec));
 }
 
-static void test_value_get_rlp_chain_id_null_tx_info_rejected(void **state) {
-    (void) state;
-    g_tx_info_ret = NULL;
+void test_value_get_rlp_chain_id_null_tx_info_rejected(void) {
+    s_tx_info_ret = NULL;
     s_value v = {0};
     v.source = SOURCE_RLP;
     v.container_path = CP_CHAIN_ID;
 
     s_parsed_value_collection collec = {0};
-    assert_false(value_get(&v, &collec));
+    TEST_ASSERT_FALSE(value_get(&v, &collec));
 }
 
 // handle_data_path is reached by the TLV dispatcher when TAG_DATA_PATH
 // (0x03) appears inside a VALUE struct. The wrapped
 // handle_data_path_struct returns true so we exercise the success path
 // (lines 93-102) including the source = SOURCE_CALLDATA tail.
-static void test_handle_value_struct_data_path_tag_sets_source_calldata(void **state) {
-    (void) state;
+void test_handle_value_struct_data_path_tag_sets_source_calldata(void) {
     uint8_t buf_bytes[] = {
         0x03,
         0x00,  // TAG_DATA_PATH, empty payload
@@ -234,8 +226,8 @@ static void test_handle_value_struct_data_path_tag_sets_source_calldata(void **s
 
     s_value v = {0};
     s_value_context ctx = {.value = &v};
-    assert_true(handle_value_struct(&buf, &ctx));
-    assert_int_equal(v.source, SOURCE_CALLDATA);
+    TEST_ASSERT_TRUE(handle_value_struct(&buf, &ctx));
+    TEST_ASSERT_EQUAL(v.source, SOURCE_CALLDATA);
 }
 
 // Same tag but with handle_data_path_struct returning false: hits the
@@ -246,44 +238,40 @@ static void test_handle_value_struct_data_path_tag_sets_source_calldata(void **s
 // Actually: handle_data_path_struct is wrapped to ALWAYS return true,
 // so the error branch isn't reachable from this suite. Skipping.
 
-static void test_value_get_rlp_to_null_rejected(void **state) {
-    (void) state;
+void test_value_get_rlp_to_null_rejected(void) {
     g_tx_to = NULL;
     s_value v = {0};
     v.source = SOURCE_RLP;
     v.container_path = CP_TO;
 
     s_parsed_value_collection collec = {0};
-    assert_false(value_get(&v, &collec));
+    TEST_ASSERT_FALSE(value_get(&v, &collec));
 }
 
-static void test_value_get_rlp_amount_null_rejected(void **state) {
-    (void) state;
+void test_value_get_rlp_amount_null_rejected(void) {
     g_tx_amount = NULL;
     s_value v = {0};
     v.source = SOURCE_RLP;
     v.container_path = CP_VALUE;
 
     s_parsed_value_collection collec = {0};
-    assert_false(value_get(&v, &collec));
+    TEST_ASSERT_FALSE(value_get(&v, &collec));
 }
 
-static void test_value_get_rlp_invalid_container_path_rejected(void **state) {
-    (void) state;
+void test_value_get_rlp_invalid_container_path_rejected(void) {
     s_value v = {0};
     v.source = SOURCE_RLP;
     v.container_path = (e_container_path) 0xFF;  // not in the enum
 
     s_parsed_value_collection collec = {0};
-    assert_false(value_get(&v, &collec));
+    TEST_ASSERT_FALSE(value_get(&v, &collec));
 }
 
 // =============================================================================
 // value_get — SOURCE_CALLDATA
 // =============================================================================
 
-static void test_value_get_calldata_delegates_to_data_path_get(void **state) {
-    (void) state;
+void test_value_get_calldata_delegates_to_data_path_get(void) {
     g_dp_collection.size = 2;
     g_dp_get_ret = true;
 
@@ -291,18 +279,17 @@ static void test_value_get_calldata_delegates_to_data_path_get(void **state) {
     v.source = SOURCE_CALLDATA;
 
     s_parsed_value_collection collec = {0};
-    assert_true(value_get(&v, &collec));
-    assert_int_equal(collec.size, 2);
+    TEST_ASSERT_TRUE(value_get(&v, &collec));
+    TEST_ASSERT_EQUAL(collec.size, 2);
 }
 
-static void test_value_get_calldata_data_path_failure_propagates(void **state) {
-    (void) state;
+void test_value_get_calldata_data_path_failure_propagates(void) {
     g_dp_get_ret = false;
     s_value v = {0};
     v.source = SOURCE_CALLDATA;
 
     s_parsed_value_collection collec = {0};
-    assert_false(value_get(&v, &collec));
+    TEST_ASSERT_FALSE(value_get(&v, &collec));
 }
 
 // =============================================================================
@@ -346,8 +333,7 @@ static const uint8_t g_key_tlv_nested_mapref[] = {
     'X',
 };
 
-static void test_value_get_mapref_happy_path(void **state) {
-    (void) state;
+void test_value_get_mapref_happy_path(void) {
     s_value v = {0};
     v.source = SOURCE_MAP_REF;
     v.map_ref.id = 7;
@@ -361,14 +347,13 @@ static void test_value_get_mapref_happy_path(void **state) {
     g_map_entry_ret = &entry;
 
     s_parsed_value_collection collec = {0};
-    assert_true(value_get(&v, &collec));
-    assert_int_equal(collec.size, 1);
-    assert_ptr_equal(collec.value[0].ptr, entry.value);
-    assert_int_equal(collec.value[0].length, sizeof(mapped));
+    TEST_ASSERT_TRUE(value_get(&v, &collec));
+    TEST_ASSERT_EQUAL(collec.size, 1);
+    TEST_ASSERT_EQUAL_PTR(collec.value[0].ptr, entry.value);
+    TEST_ASSERT_EQUAL(collec.value[0].length, sizeof(mapped));
 }
 
-static void test_value_get_mapref_missing_map_entry_rejected(void **state) {
-    (void) state;
+void test_value_get_mapref_missing_map_entry_rejected(void) {
     s_value v = {0};
     v.source = SOURCE_MAP_REF;
     v.map_ref.id = 7;
@@ -377,11 +362,10 @@ static void test_value_get_mapref_missing_map_entry_rejected(void **state) {
 
     g_map_entry_ret = NULL;  // no matching entry
     s_parsed_value_collection collec = {0};
-    assert_false(value_get(&v, &collec));
+    TEST_ASSERT_FALSE(value_get(&v, &collec));
 }
 
-static void test_value_get_mapref_nested_rejected(void **state) {
-    (void) state;
+void test_value_get_mapref_nested_rejected(void) {
     s_value v = {0};
     v.source = SOURCE_MAP_REF;
     v.map_ref.id = 7;
@@ -389,37 +373,34 @@ static void test_value_get_mapref_nested_rejected(void **state) {
     memcpy(v.map_ref.key_tlv, g_key_tlv_nested_mapref, sizeof(g_key_tlv_nested_mapref));
 
     s_parsed_value_collection collec = {0};
-    assert_false(value_get(&v, &collec));
+    TEST_ASSERT_FALSE(value_get(&v, &collec));
 }
 
 // =============================================================================
 // value_get — invalid source
 // =============================================================================
 
-static void test_value_get_invalid_source_rejected(void **state) {
-    (void) state;
+void test_value_get_invalid_source_rejected(void) {
     s_value v = {0};
     v.source = (e_value_source) 0xFF;
 
     s_parsed_value_collection collec = {0};
-    assert_false(value_get(&v, &collec));
+    TEST_ASSERT_FALSE(value_get(&v, &collec));
 }
 
 // =============================================================================
 // value_cleanup
 // =============================================================================
 
-static void test_value_cleanup_calldata_calls_data_path_cleanup(void **state) {
-    (void) state;
+void test_value_cleanup_calldata_calls_data_path_cleanup(void) {
     s_value v = {0};
     v.source = SOURCE_CALLDATA;
     s_parsed_value_collection collec = {0};
     value_cleanup(&v, &collec);
-    assert_int_equal(g_dp_cleanup_calls, 1);
+    TEST_ASSERT_EQUAL(g_dp_cleanup_calls, 1);
 }
 
-static void test_value_cleanup_non_calldata_is_noop(void **state) {
-    (void) state;
+void test_value_cleanup_non_calldata_is_noop(void) {
     for (e_value_source src = SOURCE_RLP; src <= SOURCE_MAP_REF; ++src) {
         if (src == SOURCE_CALLDATA) continue;
         s_value v = {0};
@@ -427,7 +408,7 @@ static void test_value_cleanup_non_calldata_is_noop(void **state) {
         s_parsed_value_collection collec = {0};
         value_cleanup(&v, &collec);
     }
-    assert_int_equal(g_dp_cleanup_calls, 0);
+    TEST_ASSERT_EQUAL(g_dp_cleanup_calls, 0);
 }
 
 // =============================================================================
@@ -440,8 +421,7 @@ static bool run_tlv(const uint8_t *bytes, size_t size, s_value *value) {
     return handle_value_struct(&buf, &ctx);
 }
 
-static void test_tlv_happy_path_constant(void **state) {
-    (void) state;
+void test_tlv_happy_path_constant(void) {
     // VERSION + TYPE_FAMILY=TF_BYTES + TYPE_SIZE=1 + CONSTANT='X'
     const uint8_t bytes[] = {
         0x00,
@@ -458,17 +438,16 @@ static void test_tlv_happy_path_constant(void **state) {
         'X',
     };
     s_value v = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &v));
-    assert_int_equal(v.version, 1);
-    assert_int_equal(v.type_family, TF_BYTES);
-    assert_int_equal(v.type_size, 1);
-    assert_int_equal(v.source, SOURCE_CONSTANT);
-    assert_int_equal(v.constant.size, 1);
-    assert_int_equal(v.constant.buf[0], 'X');
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &v));
+    TEST_ASSERT_EQUAL(v.version, 1);
+    TEST_ASSERT_EQUAL(v.type_family, TF_BYTES);
+    TEST_ASSERT_EQUAL(v.type_size, 1);
+    TEST_ASSERT_EQUAL(v.source, SOURCE_CONSTANT);
+    TEST_ASSERT_EQUAL(v.constant.size, 1);
+    TEST_ASSERT_EQUAL(v.constant.buf[0], 'X');
 }
 
-static void test_tlv_happy_path_container_path(void **state) {
-    (void) state;
+void test_tlv_happy_path_container_path(void) {
     const uint8_t bytes[] = {
         0x00,
         0x01,
@@ -478,39 +457,35 @@ static void test_tlv_happy_path_container_path(void **state) {
         (uint8_t) CP_TO,
     };
     s_value v = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &v));
-    assert_int_equal(v.source, SOURCE_RLP);
-    assert_int_equal(v.container_path, CP_TO);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &v));
+    TEST_ASSERT_EQUAL(v.source, SOURCE_RLP);
+    TEST_ASSERT_EQUAL(v.container_path, CP_TO);
 }
 
-static void test_tlv_type_size_zero_rejected(void **state) {
-    (void) state;
+void test_tlv_type_size_zero_rejected(void) {
     // handle_type_size enforces 1..32 range.
     const uint8_t bytes[] = {0x02, 0x01, 0x00};
     s_value v = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &v));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &v));
 }
 
-static void test_tlv_type_size_over_32_rejected(void **state) {
-    (void) state;
+void test_tlv_type_size_over_32_rejected(void) {
     const uint8_t bytes[] = {0x02, 0x01, 0x21};  // 33
     s_value v = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &v));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &v));
 }
 
-static void test_tlv_constant_oversize_rejected(void **state) {
-    (void) state;
+void test_tlv_constant_oversize_rejected(void) {
     // CONSTANT payload > CALLDATA_CHUNK_SIZE (32 bytes) is rejected.
     uint8_t bytes[2 + 33];
     bytes[0] = 0x05;
     bytes[1] = 33;
     memset(&bytes[2], 0xAB, 33);
     s_value v = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &v));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &v));
 }
 
-static void test_tlv_mapref_missing_required_subtag_rejected(void **state) {
-    (void) state;
+void test_tlv_mapref_missing_required_subtag_rejected(void) {
     // MAP_REF sub-TLV requires VERSION + ID + KEY. Send only VERSION.
     const uint8_t bytes[] = {
         0x06,
@@ -520,40 +495,45 @@ static void test_tlv_mapref_missing_required_subtag_rejected(void **state) {
         0x01,  // only VERSION inside MAP_REF
     };
     s_value v = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &v));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &v));
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_value_get_constant_returns_buf, reset),
-        cmocka_unit_test_setup(test_value_get_rlp_from, reset),
-        cmocka_unit_test_setup(test_value_get_rlp_to, reset),
-        cmocka_unit_test_setup(test_value_get_rlp_amount, reset),
-        cmocka_unit_test_setup(test_value_get_rlp_chain_id_bigendian, reset),
-        cmocka_unit_test_setup(test_value_get_rlp_from_null_rejected, reset),
-        cmocka_unit_test_setup(test_value_get_rlp_chain_id_null_tx_info_rejected, reset),
-        cmocka_unit_test_setup(test_handle_value_struct_data_path_tag_sets_source_calldata, reset),
-        cmocka_unit_test_setup(test_value_get_rlp_to_null_rejected, reset),
-        cmocka_unit_test_setup(test_value_get_rlp_amount_null_rejected, reset),
-        cmocka_unit_test_setup(test_value_get_rlp_invalid_container_path_rejected, reset),
-        cmocka_unit_test_setup(test_value_get_calldata_delegates_to_data_path_get, reset),
-        cmocka_unit_test_setup(test_value_get_calldata_data_path_failure_propagates, reset),
-        cmocka_unit_test_setup(test_value_get_mapref_happy_path, reset),
-        cmocka_unit_test_setup(test_value_get_mapref_missing_map_entry_rejected, reset),
-        cmocka_unit_test_setup(test_value_get_mapref_nested_rejected, reset),
-        cmocka_unit_test_setup(test_value_get_invalid_source_rejected, reset),
-        cmocka_unit_test_setup(test_value_cleanup_calldata_calls_data_path_cleanup, reset),
-        cmocka_unit_test_setup(test_value_cleanup_non_calldata_is_noop, reset),
-        cmocka_unit_test_setup(test_tlv_happy_path_constant, reset),
-        cmocka_unit_test_setup(test_tlv_happy_path_container_path, reset),
-        cmocka_unit_test_setup(test_tlv_type_size_zero_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_type_size_over_32_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_constant_oversize_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_mapref_missing_required_subtag_rejected, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_value_get_constant_returns_buf);
+    RUN_TEST(test_value_get_rlp_from);
+    RUN_TEST(test_value_get_rlp_to);
+    RUN_TEST(test_value_get_rlp_amount);
+    RUN_TEST(test_value_get_rlp_chain_id_bigendian);
+    RUN_TEST(test_value_get_rlp_from_null_rejected);
+    RUN_TEST(test_value_get_rlp_chain_id_null_tx_info_rejected);
+    RUN_TEST(test_handle_value_struct_data_path_tag_sets_source_calldata);
+    RUN_TEST(test_value_get_rlp_to_null_rejected);
+    RUN_TEST(test_value_get_rlp_amount_null_rejected);
+    RUN_TEST(test_value_get_rlp_invalid_container_path_rejected);
+    RUN_TEST(test_value_get_calldata_delegates_to_data_path_get);
+    RUN_TEST(test_value_get_calldata_data_path_failure_propagates);
+    RUN_TEST(test_value_get_mapref_happy_path);
+    RUN_TEST(test_value_get_mapref_missing_map_entry_rejected);
+    RUN_TEST(test_value_get_mapref_nested_rejected);
+    RUN_TEST(test_value_get_invalid_source_rejected);
+    RUN_TEST(test_value_cleanup_calldata_calls_data_path_cleanup);
+    RUN_TEST(test_value_cleanup_non_calldata_is_noop);
+    RUN_TEST(test_tlv_happy_path_constant);
+    RUN_TEST(test_tlv_happy_path_container_path);
+    RUN_TEST(test_tlv_type_size_zero_rejected);
+    RUN_TEST(test_tlv_type_size_over_32_rejected);
+    RUN_TEST(test_tlv_constant_oversize_rejected);
+    RUN_TEST(test_tlv_mapref_missing_required_subtag_rejected);
+    return UNITY_END();
 }

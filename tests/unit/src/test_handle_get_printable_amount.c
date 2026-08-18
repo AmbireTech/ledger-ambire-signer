@@ -18,10 +18,7 @@
  *                                     formatted string
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -31,23 +28,27 @@
 #include "chain_config.h"
 #include "eth_swap_utils.h"
 #include "handle_get_printable_amount.h"
+#include "Mockcommon_utils.h"
+
+static bool g_amountToString_ret = true;
+static bool g_parse_swap_config_ret = true;
 
 // =============================================================================
 // Wraps
 // =============================================================================
 
-bool __wrap_parse_swap_config(const uint8_t *config, uint8_t config_size, swap_context_t *ctx) {
+bool parse_swap_config(const uint8_t *config, uint8_t config_size, swap_context_t *ctx) {
     (void) config;
     (void) config_size;
     (void) ctx;
-    return (bool) mock();
+    return (bool) g_parse_swap_config_ret;
 }
 
-void __wrap_get_asset_info_on_network(bool is_fee,
-                                      swap_context_t *context,
-                                      chain_config_t *chain_config,
-                                      char **ticker,
-                                      uint8_t *decimals) {
+void get_asset_info_on_network(bool is_fee,
+                               swap_context_t *context,
+                               chain_config_t *chain_config,
+                               char **ticker,
+                               uint8_t *decimals) {
     (void) is_fee;
     (void) context;
     (void) chain_config;
@@ -63,17 +64,19 @@ void __wrap_get_asset_info_on_network(bool is_fee,
     }
 }
 
-bool __wrap_amountToString(const uint8_t *amount,
-                           uint8_t amount_len,
-                           uint8_t decimals,
-                           const char *ticker,
-                           char *out_buffer,
-                           size_t out_buffer_size) {
+static bool amountToString_stub(const uint8_t *amount,
+                                uint8_t amount_len,
+                                uint8_t decimals,
+                                const char *ticker,
+                                char *out_buffer,
+                                size_t out_buffer_size,
+                                int cmock_num_calls) {
     (void) amount;
     (void) amount_len;
     (void) decimals;
     (void) ticker;
-    bool ok = (bool) mock();
+    (void) cmock_num_calls;
+    bool ok = g_amountToString_ret;
     if (ok && out_buffer != NULL && out_buffer_size > 0) {
         strlcpy(out_buffer, "1 ETH", out_buffer_size);
     }
@@ -98,70 +101,73 @@ static get_printable_amount_parameters_t make_params(void) {
     return p;
 }
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(s_amount, 0, sizeof(s_amount));
     memset(s_coin_cfg, 0, sizeof(s_coin_cfg));
-    return 0;
 }
 
 // =============================================================================
 // Failure paths -- buffer must stay zero
 // =============================================================================
 
-static void test_amount_length_over_32_zeros_buffer(void **state) {
-    (void) state;
+void test_amount_length_over_32_zeros_buffer(void) {
     get_printable_amount_parameters_t p = make_params();
     memset(p.printable_amount, 0xCC, sizeof(p.printable_amount));  // pre-poison
     p.amount_length = 33;
     // parse_swap_config / amountToString MUST NOT be reached.
     handle_get_printable_amount(&p, &s_chain);
     static const char zero[MAX_PRINTABLE_AMOUNT_SIZE] = {0};
-    assert_memory_equal(p.printable_amount, zero, sizeof(p.printable_amount));
+    TEST_ASSERT_EQUAL_MEMORY(p.printable_amount, zero, sizeof(p.printable_amount));
 }
 
-static void test_parse_swap_config_failure_zeros_buffer(void **state) {
-    (void) state;
+void test_parse_swap_config_failure_zeros_buffer(void) {
     get_printable_amount_parameters_t p = make_params();
     memset(p.printable_amount, 0xCC, sizeof(p.printable_amount));
-    will_return(__wrap_parse_swap_config, false);
+    g_parse_swap_config_ret = false;
     handle_get_printable_amount(&p, &s_chain);
     static const char zero[MAX_PRINTABLE_AMOUNT_SIZE] = {0};
-    assert_memory_equal(p.printable_amount, zero, sizeof(p.printable_amount));
+    TEST_ASSERT_EQUAL_MEMORY(p.printable_amount, zero, sizeof(p.printable_amount));
 }
 
-static void test_amount_to_string_failure_zeros_buffer(void **state) {
-    (void) state;
+void test_amount_to_string_failure_zeros_buffer(void) {
     get_printable_amount_parameters_t p = make_params();
     memset(p.printable_amount, 0xCC, sizeof(p.printable_amount));
-    will_return(__wrap_parse_swap_config, true);
-    will_return(__wrap_amountToString, false);
+    g_parse_swap_config_ret = true;
+    g_amountToString_ret = false;
     handle_get_printable_amount(&p, &s_chain);
     // The dispatcher re-zeros the buffer on amountToString failure --
     // a partial write would expose stale bytes.
     static const char zero[MAX_PRINTABLE_AMOUNT_SIZE] = {0};
-    assert_memory_equal(p.printable_amount, zero, sizeof(p.printable_amount));
+    TEST_ASSERT_EQUAL_MEMORY(p.printable_amount, zero, sizeof(p.printable_amount));
 }
 
 // =============================================================================
 // Happy path
 // =============================================================================
 
-static void test_success_writes_formatted_amount(void **state) {
-    (void) state;
+void test_success_writes_formatted_amount(void) {
     get_printable_amount_parameters_t p = make_params();
-    will_return(__wrap_parse_swap_config, true);
-    will_return(__wrap_amountToString, true);
+    g_parse_swap_config_ret = true;
+    g_amountToString_ret = true;
     handle_get_printable_amount(&p, &s_chain);
-    assert_string_equal(p.printable_amount, "1 ETH");
+    TEST_ASSERT_EQUAL_STRING(p.printable_amount, "1 ETH");
+}
+
+void setUp(void) {
+    Mockcommon_utils_Init();
+    amountToString_StubWithCallback(amountToString_stub);
+    reset();
+}
+void tearDown(void) {
+    Mockcommon_utils_Verify();
+    Mockcommon_utils_Destroy();
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_amount_length_over_32_zeros_buffer, reset),
-        cmocka_unit_test_setup(test_parse_swap_config_failure_zeros_buffer, reset),
-        cmocka_unit_test_setup(test_amount_to_string_failure_zeros_buffer, reset),
-        cmocka_unit_test_setup(test_success_writes_formatted_amount, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_amount_length_over_32_zeros_buffer);
+    RUN_TEST(test_parse_swap_config_failure_zeros_buffer);
+    RUN_TEST(test_amount_to_string_failure_zeros_buffer);
+    RUN_TEST(test_success_writes_formatted_amount);
+    return UNITY_END();
 }

@@ -19,10 +19,7 @@
  * via the has_start / has_end booleans.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -43,8 +40,7 @@ static bool run_tlv(const uint8_t *bytes, size_t size, s_array_args *args) {
 // Happy paths
 // =============================================================================
 
-static void test_tlv_weight_start_end_populated(void **state) {
-    (void) state;
+void test_tlv_weight_start_end_populated(void) {
     const uint8_t bytes[] = {
         0x01,
         0x01,
@@ -59,50 +55,46 @@ static void test_tlv_weight_start_end_populated(void **state) {
         0x0A,  // END     = 10
     };
     s_array_args args = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &args));
-    assert_int_equal(args.weight, 0x20);
-    assert_true(args.has_start);
-    assert_int_equal(args.start, 5);
-    assert_true(args.has_end);
-    assert_int_equal(args.end, 10);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_EQUAL(args.weight, 0x20);
+    TEST_ASSERT_TRUE(args.has_start);
+    TEST_ASSERT_EQUAL(args.start, 5);
+    TEST_ASSERT_TRUE(args.has_end);
+    TEST_ASSERT_EQUAL(args.end, 10);
 }
 
-static void test_tlv_only_weight_keeps_has_start_end_false(void **state) {
-    (void) state;
+void test_tlv_only_weight_keeps_has_start_end_false(void) {
     const uint8_t bytes[] = {0x01, 0x01, 0x42};
     s_array_args args = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &args));
-    assert_int_equal(args.weight, 0x42);
-    assert_false(args.has_start);
-    assert_false(args.has_end);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_EQUAL(args.weight, 0x42);
+    TEST_ASSERT_FALSE(args.has_start);
+    TEST_ASSERT_FALSE(args.has_end);
 }
 
-static void test_tlv_empty_buffer_accepted(void **state) {
-    (void) state;
+void test_tlv_empty_buffer_accepted(void) {
     // The parser does not require any specific tag presence — an empty
     // payload leaves the args at their pre-init values (zero / false).
     s_array_args args = {0};
     args.weight = 0xCC;  // Detectable canary
     args.has_start = false;
-    assert_true(run_tlv(NULL, 0, &args));
+    TEST_ASSERT_TRUE(run_tlv(NULL, 0, &args));
     // No tag handler ran, so the canary remains.
-    assert_int_equal(args.weight, 0xCC);
-    assert_false(args.has_start);
-    assert_false(args.has_end);
+    TEST_ASSERT_EQUAL(args.weight, 0xCC);
+    TEST_ASSERT_FALSE(args.has_start);
+    TEST_ASSERT_FALSE(args.has_end);
 }
 
-static void test_tlv_extra_weight_bytes_keeps_first_byte(void **state) {
-    (void) state;
+void test_tlv_extra_weight_bytes_keeps_first_byte(void) {
     // The handler only reads ptr[0] for weight, so passing 4 bytes
     // succeeds and the first byte wins.
     const uint8_t bytes[] = {0x01, 0x04, 0x33, 0xAA, 0xBB, 0xCC};
     s_array_args args = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &args));
-    assert_int_equal(args.weight, 0x33);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_EQUAL(args.weight, 0x33);
 }
 
-static void test_tlv_start_end_read_big_endian(void **state) {
-    (void) state;
+void test_tlv_start_end_read_big_endian(void) {
     const uint8_t bytes[] = {
         0x02,
         0x02,
@@ -114,47 +106,43 @@ static void test_tlv_start_end_read_big_endian(void **state) {
         0xCD,  // END   = 0xABCD (stored as int16 → -21555 after cast)
     };
     s_array_args args = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &args));
-    assert_true(args.has_start);
-    assert_int_equal(args.start, 0x1234);
-    assert_true(args.has_end);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_TRUE(args.has_start);
+    TEST_ASSERT_EQUAL(args.start, 0x1234);
+    TEST_ASSERT_TRUE(args.has_end);
     // 0xABCD interpreted as signed int16 = -21555
-    assert_int_equal(args.end, (int16_t) 0xABCD);
+    TEST_ASSERT_EQUAL(args.end, (int16_t) 0xABCD);
 }
 
 // =============================================================================
 // Rejections — short payload
 // =============================================================================
 
-static void test_tlv_weight_empty_payload_rejected(void **state) {
-    (void) state;
+void test_tlv_weight_empty_payload_rejected(void) {
     const uint8_t bytes[] = {0x01, 0x00};  // WEIGHT with size=0
     s_array_args args = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &args));
 }
 
-static void test_tlv_start_one_byte_payload_rejected(void **state) {
-    (void) state;
+void test_tlv_start_one_byte_payload_rejected(void) {
     const uint8_t bytes[] = {0x02, 0x01, 0xAA};  // START needs 2 bytes
     s_array_args args = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &args));
-    assert_false(args.has_start);  // never marked present
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_FALSE(args.has_start);  // never marked present
 }
 
-static void test_tlv_end_one_byte_payload_rejected(void **state) {
-    (void) state;
+void test_tlv_end_one_byte_payload_rejected(void) {
     const uint8_t bytes[] = {0x03, 0x01, 0xBB};
     s_array_args args = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &args));
-    assert_false(args.has_end);
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_FALSE(args.has_end);
 }
 
 // =============================================================================
 // Rejections — tag uniqueness
 // =============================================================================
 
-static void test_tlv_duplicate_weight_rejected(void **state) {
-    (void) state;
+void test_tlv_duplicate_weight_rejected(void) {
     const uint8_t bytes[] = {
         0x01,
         0x01,
@@ -164,11 +152,10 @@ static void test_tlv_duplicate_weight_rejected(void **state) {
         0x20,  // duplicate WEIGHT
     };
     s_array_args args = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &args));
 }
 
-static void test_tlv_duplicate_start_rejected(void **state) {
-    (void) state;
+void test_tlv_duplicate_start_rejected(void) {
     const uint8_t bytes[] = {
         0x02,
         0x02,
@@ -180,25 +167,29 @@ static void test_tlv_duplicate_start_rejected(void **state) {
         0x06,
     };
     s_array_args args = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &args));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &args));
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_tlv_weight_start_end_populated),
-        cmocka_unit_test(test_tlv_only_weight_keeps_has_start_end_false),
-        cmocka_unit_test(test_tlv_empty_buffer_accepted),
-        cmocka_unit_test(test_tlv_extra_weight_bytes_keeps_first_byte),
-        cmocka_unit_test(test_tlv_start_end_read_big_endian),
-        cmocka_unit_test(test_tlv_weight_empty_payload_rejected),
-        cmocka_unit_test(test_tlv_start_one_byte_payload_rejected),
-        cmocka_unit_test(test_tlv_end_one_byte_payload_rejected),
-        cmocka_unit_test(test_tlv_duplicate_weight_rejected),
-        cmocka_unit_test(test_tlv_duplicate_start_rejected),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_tlv_weight_start_end_populated);
+    RUN_TEST(test_tlv_only_weight_keeps_has_start_end_false);
+    RUN_TEST(test_tlv_empty_buffer_accepted);
+    RUN_TEST(test_tlv_extra_weight_bytes_keeps_first_byte);
+    RUN_TEST(test_tlv_start_end_read_big_endian);
+    RUN_TEST(test_tlv_weight_empty_payload_rejected);
+    RUN_TEST(test_tlv_start_one_byte_payload_rejected);
+    RUN_TEST(test_tlv_end_one_byte_payload_rejected);
+    RUN_TEST(test_tlv_duplicate_weight_rejected);
+    RUN_TEST(test_tlv_duplicate_start_rejected);
+    return UNITY_END();
 }

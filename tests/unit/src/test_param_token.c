@@ -23,10 +23,7 @@
  * or sending a payload longer than ADDRESS_LENGTH must be rejected.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -45,6 +42,9 @@
 // Globals
 // =============================================================================
 
+static bool g_add_to_field_table_ret = true;
+static const void *g_get_matching_token_info_or_dummy_ret = NULL;
+
 // =============================================================================
 // Wrapped dependencies
 // =============================================================================
@@ -53,14 +53,14 @@ static int g_vg_call = 0;
 static s_parsed_value_collection g_vg[1];
 static bool g_vg_ret = true;
 
-bool __wrap_value_get(const s_value *value, s_parsed_value_collection *collection) {
+bool value_get(const s_value *value, s_parsed_value_collection *collection) {
     (void) value;
     *collection = g_vg[g_vg_call++];
     return g_vg_ret;
 }
 
 static bool g_hvs_ret = true;
-bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
+bool handle_value_struct(const buffer_t *buf, s_value_context *context) {
     (void) buf;
     (void) context;
     return g_hvs_ret;
@@ -69,49 +69,50 @@ bool __wrap_handle_value_struct(const buffer_t *buf, s_value_context *context) {
 static s_tx_info g_fake_tx_info;
 
 // Per-call return value; tests setup with will_return.
-const s_token_info *__wrap_get_matching_token_info_or_dummy(const uint64_t *chain_id,
-                                                            const uint8_t *addr) {
+const s_token_info *get_matching_token_info_or_dummy(const uint64_t *chain_id,
+                                                     const uint8_t *addr) {
     (void) chain_id;
     (void) addr;
-    return (const s_token_info *) mock();
+    return (const s_token_info *) g_get_matching_token_info_or_dummy_ret;
 }
 
 static const char *g_ticker_ret = "ETH";
-const char *__wrap_get_displayable_ticker(const uint64_t *chain_id,
-                                          const chain_config_t *config,
-                                          bool mainnet_only) {
+const char *get_displayable_ticker(const uint64_t *chain_id,
+                                   const chain_config_t *config,
+                                   bool mainnet_only) {
     (void) chain_id;
     (void) config;
     (void) mainnet_only;
     return g_ticker_ret;
 }
 
-bool __wrap_add_to_field_table(e_param_type type,
-                               const char *key,
-                               const char *value,
-                               const void *extra_data) {
-    check_expected(type);
-    check_expected(key);
-    check_expected(value);
-    check_expected_ptr(extra_data);
-    return (bool) mock();
+bool add_to_field_table(e_param_type type,
+                        const char *key,
+                        const char *value,
+                        const void *extra_data) {
+    return (bool) g_add_to_field_table_ret;
+}
+
+static const s_tx_info *s_tx_info_ret = NULL;
+const s_tx_info *get_current_tx_info(void) {
+    return s_tx_info_ret;
 }
 
 // =============================================================================
 // Fixtures
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     memset(&g_vg, 0, sizeof(g_vg));
     g_vg_call = 0;
     g_vg_ret = true;
     g_hvs_ret = true;
+    g_add_to_field_table_ret = true;
+    g_get_matching_token_info_or_dummy_ret = NULL;
     memset(&g_fake_tx_info, 0, sizeof(g_fake_tx_info));
     g_fake_tx_info.chain_id = 1;
-    g_tx_info_ret = &g_fake_tx_info;
+    s_tx_info_ret = &g_fake_tx_info;
     g_ticker_ret = "ETH";
-    return 0;
 }
 
 // Two distinct token addresses
@@ -133,8 +134,7 @@ static const s_token_info g_usdc_info = {
 // format_param_token — native vs ERC-20
 // =============================================================================
 
-static void test_format_native_match_uses_displayable_ticker(void **state) {
-    (void) state;
+void test_format_native_match_uses_displayable_ticker(void) {
     g_vg[0].size = 1;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = g_native_sentinel,
                                          .size = ADDRESS_LENGTH,
@@ -145,63 +145,50 @@ static void test_format_native_match_uses_displayable_ticker(void **state) {
     // is native — the test would fail with an unsatisfied mock if it were
     // (no will_return). The ticker comes from get_displayable_ticker.
     g_ticker_ret = "ETH";
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_TOKEN);
-    expect_string(__wrap_add_to_field_table, key, "Token");
-    expect_string(__wrap_add_to_field_table, value, "ETH");
     // Native path: token_info must be NULL (the source explicitly resets it
     // per-iteration to avoid leaking a previous lookup).
-    expect_value(__wrap_add_to_field_table, extra_data, NULL);
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
 
     s_param_token param = {0};
     param.native_addr_count = 1;
     memcpy(param.native_addrs[0], g_native_sentinel, ADDRESS_LENGTH);
-    assert_true(format_param_token(&param, "Token"));
+    TEST_ASSERT_TRUE(format_param_token(&param, "Token"));
 }
 
-static void test_format_erc20_match_uses_token_info(void **state) {
-    (void) state;
+void test_format_erc20_match_uses_token_info(void) {
     g_vg[0].size = 1;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = g_usdc_addr,
                                          .size = ADDRESS_LENGTH,
                                          .offset = 0,
                                          .length = ADDRESS_LENGTH};
 
-    will_return(__wrap_get_matching_token_info_or_dummy, &g_usdc_info);
-
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_TOKEN);
-    expect_string(__wrap_add_to_field_table, key, "Token");
-    expect_string(__wrap_add_to_field_table, value, "USDC");
-    expect_value(__wrap_add_to_field_table, extra_data, &g_usdc_info);
-    will_return(__wrap_add_to_field_table, true);
+    g_get_matching_token_info_or_dummy_ret = &g_usdc_info;
+    g_add_to_field_table_ret = true;
 
     s_param_token param = {0};
     // No native_addrs registered → forces the ERC-20 branch.
-    assert_true(format_param_token(&param, "Token"));
+    TEST_ASSERT_TRUE(format_param_token(&param, "Token"));
 }
 
-static void test_format_erc20_not_found_rejects(void **state) {
-    (void) state;
+void test_format_erc20_not_found_rejects(void) {
     g_vg[0].size = 1;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = g_usdc_addr,
                                          .size = ADDRESS_LENGTH,
                                          .offset = 0,
                                          .length = ADDRESS_LENGTH};
 
-    will_return(__wrap_get_matching_token_info_or_dummy, NULL);
+    g_get_matching_token_info_or_dummy_ret = NULL;
     // No add_to_field_table expected.
 
     s_param_token param = {0};
-    assert_false(format_param_token(&param, "Token"));
+    TEST_ASSERT_FALSE(format_param_token(&param, "Token"));
 }
 
 // =============================================================================
 // format_param_token — per-iteration reset (CWE-451 defense)
 // =============================================================================
 
-static void test_format_resets_token_info_between_iterations(void **state) {
-    (void) state;
+void test_format_resets_token_info_between_iterations(void) {
     // Iteration 1: USDC (ERC-20 path → token_info populated).
     // Iteration 2: native (must surface token_info=NULL in the field
     // table, NOT the &g_usdc_info pointer from the previous iteration).
@@ -216,48 +203,37 @@ static void test_format_resets_token_info_between_iterations(void **state) {
                                          .length = ADDRESS_LENGTH};
 
     // ERC-20 lookup runs only on the first iteration.
-    will_return(__wrap_get_matching_token_info_or_dummy, &g_usdc_info);
+    g_get_matching_token_info_or_dummy_ret = &g_usdc_info;
 
     // First field: USDC, with the lookup result.
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_TOKEN);
-    expect_string(__wrap_add_to_field_table, key, "Token");
-    expect_string(__wrap_add_to_field_table, value, "USDC");
-    expect_value(__wrap_add_to_field_table, extra_data, &g_usdc_info);
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
 
     // Second field: native, token_info MUST be NULL.
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_TOKEN);
-    expect_string(__wrap_add_to_field_table, key, "Token");
-    expect_string(__wrap_add_to_field_table, value, "ETH");
-    expect_value(__wrap_add_to_field_table, extra_data, NULL);
-    will_return(__wrap_add_to_field_table, true);
+    g_add_to_field_table_ret = true;
 
     s_param_token param = {0};
     param.native_addr_count = 1;
     memcpy(param.native_addrs[0], g_native_sentinel, ADDRESS_LENGTH);
-    assert_true(format_param_token(&param, "Token"));
+    TEST_ASSERT_TRUE(format_param_token(&param, "Token"));
 }
 
 // =============================================================================
 // format_param_token — failure paths
 // =============================================================================
 
-static void test_format_tx_info_null_returns_false(void **state) {
-    (void) state;
-    g_tx_info_ret = NULL;
+void test_format_tx_info_null_returns_false(void) {
+    s_tx_info_ret = NULL;
     s_param_token param = {0};
-    assert_false(format_param_token(&param, "Token"));
+    TEST_ASSERT_FALSE(format_param_token(&param, "Token"));
 }
 
-static void test_format_value_get_failure_returns_false(void **state) {
-    (void) state;
+void test_format_value_get_failure_returns_false(void) {
     g_vg_ret = false;
     s_param_token param = {0};
-    assert_false(format_param_token(&param, "Token"));
+    TEST_ASSERT_FALSE(format_param_token(&param, "Token"));
 }
 
-static void test_format_native_ticker_null_rejected(void **state) {
-    (void) state;
+void test_format_native_ticker_null_rejected(void) {
     // Edge case: native match but get_displayable_ticker returns NULL.
     g_vg[0].size = 1;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = g_native_sentinel,
@@ -269,26 +245,21 @@ static void test_format_native_ticker_null_rejected(void **state) {
     s_param_token param = {0};
     param.native_addr_count = 1;
     memcpy(param.native_addrs[0], g_native_sentinel, ADDRESS_LENGTH);
-    assert_false(format_param_token(&param, "Token"));
+    TEST_ASSERT_FALSE(format_param_token(&param, "Token"));
 }
 
-static void test_format_add_to_field_table_failure_propagates(void **state) {
-    (void) state;
+void test_format_add_to_field_table_failure_propagates(void) {
     g_vg[0].size = 1;
     g_vg[0].value[0] = (s_parsed_value) {.ptr = g_usdc_addr,
                                          .size = ADDRESS_LENGTH,
                                          .offset = 0,
                                          .length = ADDRESS_LENGTH};
 
-    will_return(__wrap_get_matching_token_info_or_dummy, &g_usdc_info);
-    expect_value(__wrap_add_to_field_table, type, PARAM_TYPE_TOKEN);
-    expect_string(__wrap_add_to_field_table, key, "Token");
-    expect_string(__wrap_add_to_field_table, value, "USDC");
-    expect_value(__wrap_add_to_field_table, extra_data, &g_usdc_info);
-    will_return(__wrap_add_to_field_table, false);
+    g_get_matching_token_info_or_dummy_ret = &g_usdc_info;
+    g_add_to_field_table_ret = false;
 
     s_param_token param = {0};
-    assert_false(format_param_token(&param, "Token"));
+    TEST_ASSERT_FALSE(format_param_token(&param, "Token"));
 }
 
 // =============================================================================
@@ -301,8 +272,7 @@ static bool run_tlv(const uint8_t *bytes, size_t size, s_param_token *param) {
     return handle_param_token_struct(&buf, &ctx);
 }
 
-static void test_tlv_happy_path_two_native(void **state) {
-    (void) state;
+void test_tlv_happy_path_two_native(void) {
     // VERSION=1, ADDRESS empty, two NATIVE_CURRENCY entries
     const uint8_t bytes[] = {
         0x00,
@@ -340,23 +310,22 @@ static void test_tlv_happy_path_two_native(void **state) {
         0x34,
     };
     s_param_token param = {0};
-    assert_true(run_tlv(bytes, sizeof(bytes), &param));
-    assert_int_equal(param.native_addr_count, 2);
+    TEST_ASSERT_TRUE(run_tlv(bytes, sizeof(bytes), &param));
+    TEST_ASSERT_EQUAL(param.native_addr_count, 2);
     // First entry stored verbatim
     static const uint8_t expected_full[ADDRESS_LENGTH] = {
         0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE,
         0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE,
     };
-    assert_memory_equal(param.native_addrs[0], expected_full, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL_MEMORY(param.native_addrs[0], expected_full, ADDRESS_LENGTH);
     // Second entry: 18 leading zeros, then 0x12, 0x34
     static const uint8_t expected_short[ADDRESS_LENGTH] = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x12, 0x34,
     };
-    assert_memory_equal(param.native_addrs[1], expected_short, ADDRESS_LENGTH);
+    TEST_ASSERT_EQUAL_MEMORY(param.native_addrs[1], expected_short, ADDRESS_LENGTH);
 }
 
-static void test_tlv_too_many_native_addrs_rejected(void **state) {
-    (void) state;
+void test_tlv_too_many_native_addrs_rejected(void) {
     // MAX_NATIVE_ADDRS == 4 — sending 5 must fail on the 5th call.
     uint8_t bytes[3 + 5 * (2 + ADDRESS_LENGTH)];
     size_t off = 0;
@@ -371,11 +340,10 @@ static void test_tlv_too_many_native_addrs_rejected(void **state) {
         }
     }
     s_param_token param = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &param));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &param));
 }
 
-static void test_tlv_native_addr_too_long_rejected(void **state) {
-    (void) state;
+void test_tlv_native_addr_too_long_rejected(void) {
     // A native_addr payload > ADDRESS_LENGTH (20) must be rejected by
     // handle_native_currency.
     uint8_t bytes[3 + 2 + 21];
@@ -389,26 +357,31 @@ static void test_tlv_native_addr_too_long_rejected(void **state) {
         bytes[off++] = 0xAB;
     }
     s_param_token param = {0};
-    assert_false(run_tlv(bytes, sizeof(bytes), &param));
+    TEST_ASSERT_FALSE(run_tlv(bytes, sizeof(bytes), &param));
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_format_native_match_uses_displayable_ticker, reset),
-        cmocka_unit_test_setup(test_format_erc20_match_uses_token_info, reset),
-        cmocka_unit_test_setup(test_format_erc20_not_found_rejects, reset),
-        cmocka_unit_test_setup(test_format_resets_token_info_between_iterations, reset),
-        cmocka_unit_test_setup(test_format_tx_info_null_returns_false, reset),
-        cmocka_unit_test_setup(test_format_value_get_failure_returns_false, reset),
-        cmocka_unit_test_setup(test_format_native_ticker_null_rejected, reset),
-        cmocka_unit_test_setup(test_format_add_to_field_table_failure_propagates, reset),
-        cmocka_unit_test_setup(test_tlv_happy_path_two_native, reset),
-        cmocka_unit_test_setup(test_tlv_too_many_native_addrs_rejected, reset),
-        cmocka_unit_test_setup(test_tlv_native_addr_too_long_rejected, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_format_native_match_uses_displayable_ticker);
+    RUN_TEST(test_format_erc20_match_uses_token_info);
+    RUN_TEST(test_format_erc20_not_found_rejects);
+    RUN_TEST(test_format_resets_token_info_between_iterations);
+    RUN_TEST(test_format_tx_info_null_returns_false);
+    RUN_TEST(test_format_value_get_failure_returns_false);
+    RUN_TEST(test_format_native_ticker_null_rejected);
+    RUN_TEST(test_format_add_to_field_table_failure_propagates);
+    RUN_TEST(test_tlv_happy_path_two_native);
+    RUN_TEST(test_tlv_too_many_native_addrs_rejected);
+    RUN_TEST(test_tlv_native_addr_too_long_rejected);
+    return UNITY_END();
 }

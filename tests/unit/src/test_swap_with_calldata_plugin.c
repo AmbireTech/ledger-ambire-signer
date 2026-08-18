@@ -29,10 +29,7 @@
  *    through G_swap_mode, not through the result enum).
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+#include "unity.h"
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -66,14 +63,14 @@ static uint8_t g_xor_state[CX_SHA256_SIZE];
 static int g_update_calls = 0;
 static cx_err_t g_update_ret = CX_OK;
 
-cx_err_t __wrap_cx_sha256_init_no_throw(cx_sha256_t *hash) {
+cx_err_t cx_sha256_init_no_throw(cx_sha256_t *hash) {
     (void) hash;
     memset(g_xor_state, 0, sizeof(g_xor_state));
     g_update_calls = 0;
     return CX_OK;
 }
 
-cx_err_t __wrap_cx_sha256_update(cx_sha256_t *ctx, const uint8_t *in, size_t in_len) {
+cx_err_t cx_sha256_update(cx_sha256_t *ctx, const uint8_t *in, size_t in_len) {
     (void) ctx;
     for (size_t i = 0; i < in_len; i++) {
         g_xor_state[i % CX_SHA256_SIZE] ^= in[i];
@@ -83,7 +80,7 @@ cx_err_t __wrap_cx_sha256_update(cx_sha256_t *ctx, const uint8_t *in, size_t in_
 }
 
 static const uint8_t *g_force_final_digest = NULL;
-cx_err_t __wrap_cx_sha256_final(cx_sha256_t *ctx, uint8_t *digest) {
+cx_err_t cx_sha256_final(cx_sha256_t *ctx, uint8_t *digest) {
     (void) ctx;
     if (g_force_final_digest != NULL) {
         memcpy(digest, g_force_final_digest, CX_SHA256_SIZE);
@@ -97,8 +94,7 @@ cx_err_t __wrap_cx_sha256_final(cx_sha256_t *ctx, uint8_t *digest) {
 // Fixture
 // =============================================================================
 
-static int reset(void **state) {
-    (void) state;
+static void reset(void) {
     G_called_from_swap = true;
     G_swap_mode = SWAP_MODE_CROSSCHAIN_PENDING_CHECK;
     memset(g_promised_hash, 0, sizeof(g_promised_hash));
@@ -106,15 +102,13 @@ static int reset(void **state) {
     g_update_calls = 0;
     g_update_ret = CX_OK;
     g_force_final_digest = NULL;
-    return 0;
 }
 
 // =============================================================================
 // Tests — INIT
 // =============================================================================
 
-static void test_init_outside_swap_rejected(void **state) {
-    (void) state;
+void test_init_outside_swap_rejected(void) {
     G_called_from_swap = false;
     uint8_t ctx[sizeof(cx_sha256_t)] = {0};
     static const uint8_t selector[SELECTOR_SIZE] = {0xAA, 0xBB, 0xCC, 0xDD};
@@ -122,30 +116,28 @@ static void test_init_outside_swap_rejected(void **state) {
     msg.pluginContext = ctx;
     msg.selector = selector;
     swap_with_calldata_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
-    assert_int_equal(g_update_calls, 0);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(g_update_calls, 0);
 }
 
-static void test_init_in_swap_hashes_selector(void **state) {
-    (void) state;
+void test_init_in_swap_hashes_selector(void) {
     uint8_t ctx[sizeof(cx_sha256_t)] = {0};
     static const uint8_t selector[SELECTOR_SIZE] = {0xAA, 0xBB, 0xCC, 0xDD};
     ethPluginInitContract_t msg = {0};
     msg.pluginContext = ctx;
     msg.selector = selector;
     swap_with_calldata_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
     // One sha256_update call, for the selector.
-    assert_int_equal(g_update_calls, 1);
+    TEST_ASSERT_EQUAL(g_update_calls, 1);
     // The selector bytes must appear in the XOR accumulator.
-    assert_int_equal(g_xor_state[0], 0xAA);
-    assert_int_equal(g_xor_state[1], 0xBB);
-    assert_int_equal(g_xor_state[2], 0xCC);
-    assert_int_equal(g_xor_state[3], 0xDD);
+    TEST_ASSERT_EQUAL(g_xor_state[0], 0xAA);
+    TEST_ASSERT_EQUAL(g_xor_state[1], 0xBB);
+    TEST_ASSERT_EQUAL(g_xor_state[2], 0xCC);
+    TEST_ASSERT_EQUAL(g_xor_state[3], 0xDD);
 }
 
-static void test_init_sha256_update_failure_propagates(void **state) {
-    (void) state;
+void test_init_sha256_update_failure_propagates(void) {
     g_update_ret = CX_INVALID_PARAMETER;
     uint8_t ctx[sizeof(cx_sha256_t)] = {0};
     static const uint8_t selector[SELECTOR_SIZE] = {0xAA, 0xBB, 0xCC, 0xDD};
@@ -153,15 +145,14 @@ static void test_init_sha256_update_failure_propagates(void **state) {
     msg.pluginContext = ctx;
     msg.selector = selector;
     swap_with_calldata_plugin_call(ETH_PLUGIN_INIT_CONTRACT, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
 // =============================================================================
 // Tests — PROVIDE_PARAMETER
 // =============================================================================
 
-static void test_provide_parameter_outside_swap_rejected(void **state) {
-    (void) state;
+void test_provide_parameter_outside_swap_rejected(void) {
     G_called_from_swap = false;
     uint8_t ctx[sizeof(cx_sha256_t)] = {0};
     uint8_t param[PARAMETER_LENGTH] = {0};
@@ -169,11 +160,10 @@ static void test_provide_parameter_outside_swap_rejected(void **state) {
     msg.pluginContext = ctx;
     msg.parameter = param;
     swap_with_calldata_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_provide_parameter_in_swap_folds_into_digest(void **state) {
-    (void) state;
+void test_provide_parameter_in_swap_folds_into_digest(void) {
     uint8_t ctx[sizeof(cx_sha256_t)] = {0};
     uint8_t param[PARAMETER_LENGTH];
     memset(param, 0x42, sizeof(param));
@@ -181,16 +171,15 @@ static void test_provide_parameter_in_swap_folds_into_digest(void **state) {
     msg.pluginContext = ctx;
     msg.parameter = param;
     swap_with_calldata_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_OK);
-    assert_int_equal(g_update_calls, 1);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_OK);
+    TEST_ASSERT_EQUAL(g_update_calls, 1);
 }
 
 // =============================================================================
 // Tests — FINALIZE
 // =============================================================================
 
-static void test_finalize_outside_swap_rejected(void **state) {
-    (void) state;
+void test_finalize_outside_swap_rejected(void) {
     G_called_from_swap = false;
     uint8_t ctx[sizeof(cx_sha256_t)] = {0};
     txContent_t tx = {0};
@@ -198,11 +187,10 @@ static void test_finalize_outside_swap_rejected(void **state) {
     msg.pluginContext = ctx;
     msg.txContent = &tx;
     swap_with_calldata_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_ERROR);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_ERROR);
 }
 
-static void test_finalize_hash_mismatch_flips_swap_mode_to_error(void **state) {
-    (void) state;
+void test_finalize_hash_mismatch_flips_swap_mode_to_error(void) {
     // Promise = all-0x77. Force the computed digest to all-0x88.
     memset(g_promised_hash, 0x77, sizeof(g_promised_hash));
     static uint8_t forced[CX_SHA256_SIZE];
@@ -216,16 +204,15 @@ static void test_finalize_hash_mismatch_flips_swap_mode_to_error(void **state) {
     msg.txContent = &tx;
     swap_with_calldata_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
 
-    assert_int_equal(G_swap_mode, SWAP_MODE_ERROR);
+    TEST_ASSERT_EQUAL(G_swap_mode, SWAP_MODE_ERROR);
     // The result enum is ALWAYS FALLBACK at this point; error is
     // reported via G_swap_mode.
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_FALLBACK);
-    assert_null(msg.tokenLookup1);
-    assert_null(msg.tokenLookup2);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_FALLBACK);
+    TEST_ASSERT_NULL(msg.tokenLookup1);
+    TEST_ASSERT_NULL(msg.tokenLookup2);
 }
 
-static void test_finalize_hash_match_flips_mode_to_success(void **state) {
-    (void) state;
+void test_finalize_hash_match_flips_mode_to_success(void) {
     // Promise == computed (both 0x55).
     memset(g_promised_hash, 0x55, sizeof(g_promised_hash));
     static uint8_t forced[CX_SHA256_SIZE];
@@ -240,12 +227,11 @@ static void test_finalize_hash_match_flips_mode_to_success(void **state) {
     msg.txContent = &tx;
     swap_with_calldata_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
 
-    assert_int_equal(G_swap_mode, SWAP_MODE_CROSSCHAIN_SUCCESS);
-    assert_int_equal(msg.result, ETH_PLUGIN_RESULT_FALLBACK);
+    TEST_ASSERT_EQUAL(G_swap_mode, SWAP_MODE_CROSSCHAIN_SUCCESS);
+    TEST_ASSERT_EQUAL(msg.result, ETH_PLUGIN_RESULT_FALLBACK);
 }
 
-static void test_finalize_match_but_wrong_swap_mode_flips_error(void **state) {
-    (void) state;
+void test_finalize_match_but_wrong_swap_mode_flips_error(void) {
     // Even with a matching hash, if we're not in the dedicated
     // CROSSCHAIN_PENDING_CHECK mode (e.g. SWAP_MODE_STANDARD), the
     // plugin treats the validation as out-of-protocol and flips to
@@ -263,15 +249,14 @@ static void test_finalize_match_but_wrong_swap_mode_flips_error(void **state) {
     msg.txContent = &tx;
     swap_with_calldata_plugin_call(ETH_PLUGIN_FINALIZE, &msg);
 
-    assert_int_equal(G_swap_mode, SWAP_MODE_ERROR);
+    TEST_ASSERT_EQUAL(G_swap_mode, SWAP_MODE_ERROR);
 }
 
 // =============================================================================
 // Tests — dispatcher
 // =============================================================================
 
-static void test_unknown_message_is_silent_noop(void **state) {
-    (void) state;
+void test_unknown_message_is_silent_noop(void) {
     // PROVIDE_INFO / QUERY_CONTRACT_ID / QUERY_CONTRACT_UI all fall
     // into the default arm and just PRINTF a warning; no segfault and
     // no result mutation.
@@ -279,25 +264,30 @@ static void test_unknown_message_is_silent_noop(void **state) {
     swap_with_calldata_plugin_call(ETH_PLUGIN_PROVIDE_INFO, &sentinel);
     swap_with_calldata_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_ID, &sentinel);
     swap_with_calldata_plugin_call(ETH_PLUGIN_QUERY_CONTRACT_UI, &sentinel);
-    assert_int_equal(sentinel, 0xFEEDFACEU);
+    TEST_ASSERT_EQUAL(sentinel, 0xFEEDFACEU);
 }
 
 // =============================================================================
 // Runner
 // =============================================================================
 
+void setUp(void) {
+    reset();
+}
+void tearDown(void) {
+}
+
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup(test_init_outside_swap_rejected, reset),
-        cmocka_unit_test_setup(test_init_in_swap_hashes_selector, reset),
-        cmocka_unit_test_setup(test_init_sha256_update_failure_propagates, reset),
-        cmocka_unit_test_setup(test_provide_parameter_outside_swap_rejected, reset),
-        cmocka_unit_test_setup(test_provide_parameter_in_swap_folds_into_digest, reset),
-        cmocka_unit_test_setup(test_finalize_outside_swap_rejected, reset),
-        cmocka_unit_test_setup(test_finalize_hash_mismatch_flips_swap_mode_to_error, reset),
-        cmocka_unit_test_setup(test_finalize_hash_match_flips_mode_to_success, reset),
-        cmocka_unit_test_setup(test_finalize_match_but_wrong_swap_mode_flips_error, reset),
-        cmocka_unit_test_setup(test_unknown_message_is_silent_noop, reset),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    UNITY_BEGIN();
+    RUN_TEST(test_init_outside_swap_rejected);
+    RUN_TEST(test_init_in_swap_hashes_selector);
+    RUN_TEST(test_init_sha256_update_failure_propagates);
+    RUN_TEST(test_provide_parameter_outside_swap_rejected);
+    RUN_TEST(test_provide_parameter_in_swap_folds_into_digest);
+    RUN_TEST(test_finalize_outside_swap_rejected);
+    RUN_TEST(test_finalize_hash_mismatch_flips_swap_mode_to_error);
+    RUN_TEST(test_finalize_hash_match_flips_mode_to_success);
+    RUN_TEST(test_finalize_match_but_wrong_swap_mode_flips_error);
+    RUN_TEST(test_unknown_message_is_silent_noop);
+    return UNITY_END();
 }

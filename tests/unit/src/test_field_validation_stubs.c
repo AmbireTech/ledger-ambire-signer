@@ -1,20 +1,18 @@
 /**
- * @file field_validation_mocks.c
- * @brief Minimal mocks for testing gtp_field.c constraint validation logic
+ * @file test_field_validation_stubs.c
+ * @brief Linker-filler stubs for test_field_validation.
  *
- * These tests only validate VISIBLE and CONSTRAINT tag handling.
- * However, gtp_field.c contains switch statements that reference all
- * handle_param_*_struct and format_param_* functions, so the linker
- * requires these symbols even though they're never called at runtime.
+ * gtp_field.c switch statements reference all handle_param_* and
+ * format_param_* functions; the linker requires these symbols even though
+ * none are called during constraint-validation tests.
+ *
+ * Intentionally includes no param-type headers so the void * parameter
+ * types avoid redeclaration conflicts with the real typed signatures.
  */
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
-
-// ============================================================================
-// Stubs required by linker (never called at runtime in validation tests)
-// ============================================================================
 
 bool handle_param_raw_struct(void *data, void *context) {
     (void) data;
