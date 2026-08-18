@@ -130,6 +130,9 @@ class EthAppClient:
             self._exchange(chunk)
         return self._exchange(chunks[-1])
 
+    def eip712_v2_sign(self):
+        return self._exchange_async(self._cmd_builder.eip712_v2_sign())
+
     def eip712_sign_legacy(self, bip32_path: str, domain_hash: bytes, message_hash: bytes):
         return self._exchange_async(self._cmd_builder.eip712_sign_legacy(bip32_path, domain_hash, message_hash))
 

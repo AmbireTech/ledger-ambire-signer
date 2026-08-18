@@ -198,6 +198,10 @@ class CommandBuilder:
             p2l=[P2Type.EIP712_V2_IMPLEM],
         )
 
+    def eip712_v2_sign(self) -> bytes:
+        # the derivation path came with the values, so this only triggers the signature
+        return self._serialize(InsType.EIP712_SIGN, P1Type.COMPLETE_SEND, P2Type.EIP712_V2_IMPLEM)
+
     def eip712_sign_legacy(self, bip32_path: str, domain_hash: bytes, message_hash: bytes) -> bytes:
         data = pack_derivation_path(bip32_path)
         data += domain_hash

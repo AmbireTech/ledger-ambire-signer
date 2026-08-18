@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from ..client import EthAppClient
+from ..response_parser import signature
 from ..status_word import StatusWord
 from .schema import ArrayDim, Eip712Field, Eip712Schema, Eip712Struct, SolType
 from .values import Eip712ArrayValue, Eip712StructValue, Eip712ValueSeq, Eip712Values
@@ -206,3 +207,16 @@ def process_data(app_client: EthAppClient, data: dict, bip32_path: str) -> None:
 
     response = app_client.eip712_v2_send_values(values_from_json(data, bip32_path).serialize())
     assert response.status == StatusWord.SWO_SUCCESS, f"Error sending values: {response.status:#x}"
+
+
+def sign(app_client: EthAppClient, data: dict, bip32_path: str) -> tuple[int, int, int]:
+    """Send a whole EIP-712 JSON document and sign it, returning the (v, r, s) signature."""
+    process_data(app_client, data, bip32_path)
+
+    # the command is asynchronous, so a review can be navigated within this block once the
+    # V2 UI exists
+    with app_client.eip712_v2_sign():
+        pass
+    response = app_client.response()
+    assert response.status == StatusWord.SWO_SUCCESS, f"Error signing: {response.status:#x}"
+    return signature(response.data)
