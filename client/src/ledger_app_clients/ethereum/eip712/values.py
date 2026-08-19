@@ -20,7 +20,9 @@ class Eip712ValueSeq(TlvSerializable):
     from the schema, so the wire never declares it.
     """
 
-    def __init__(self, entries: list):
+    entries: list["bytes | Eip712ValueSeq"]
+
+    def __init__(self, entries: list["bytes | Eip712ValueSeq"]):
         self.entries = entries
 
     def serialize(self) -> bytes:
