@@ -1,4 +1,5 @@
 #include "tlv_library.h"
+#include "os_print.h"
 #include "app_mem_utils.h"
 #include "bip32.h"
 #include "shared_context.h"
@@ -10,6 +11,7 @@ typedef struct {
     s_struct_712_value *node;  // container being filled
     uint8_t levels_remaining;  // array dimensions left to open before the base type
     uint8_t depth;             // nesting levels already open above this sequence
+    uint8_t value_levels;      // dimensions left at the value being handled
 } s_value_seq_ctx;
 
 // One entry per struct field or per array element, in schema-declared order
@@ -46,20 +48,21 @@ static uint8_t levels_at_position(const s_value_seq_ctx *context, const s_struct
  * Derived from the schema alone: array dimensions are opened first, one sequence per
  * dimension, then a struct-typed field opens one more for its instance.
  *
- * @param[in] context the value sequence context
  * @param[in] field field the value must conform to
+ * @param[in] value_levels dimensions left to open at the value's position
  * @return whether the value is a nested sequence
  */
-static bool is_seq(const s_value_seq_ctx *context, const s_struct_712_field *field) {
-    return (levels_at_position(context, field) > 0) || (field->type == TYPE_STRUCT);
+static bool is_seq(const s_struct_712_field *field, uint8_t value_levels) {
+    return (value_levels > 0) || (field->type == TYPE_STRUCT);
 }
 
 /**
  * Common handler rejecting any value whose kind contradicts the schema
  *
  * Runs before every tag handler and aborts the whole parse on failure, so each handler may
- * rely on it having established that a field is still expected at this position and that the
- * received tag matches that field's kind.
+ * rely on it having established that a field is still expected at this position, that the
+ * received tag matches that field's kind, and that \ref value_levels describes the value
+ * about to be handled.
  *
  * @param[in] data the tlv data
  * @param[in] context the value sequence context
@@ -87,18 +90,18 @@ static bool handle_leaf(const tlv_data_t *data, s_value_seq_ctx *context) {
 }
 
 static bool handle_seq(const tlv_data_t *data, s_value_seq_ctx *context) {
-    // the common handler ran first, so a field is left and its kind matches this tag
+    // the common handler ran first, so a field is left, its kind matches this tag, and
+    // value_levels describes this value's position
     const s_struct_712_field *field = td_value_expected_field(context->node);
-    uint8_t levels_here = levels_at_position(context, field);
     uint8_t levels_below;
     s_struct_712_value *seq;
 
-    if (levels_here > 0) {
+    if (context->value_levels > 0) {
         if ((seq = td_create_array(field)) == NULL) {
             return false;
         }
         // elements of this dimension are the base type once every dimension has been opened
-        levels_below = levels_here - 1;
+        levels_below = context->value_levels - 1;
     } else {
         const s_struct_712 *struct_type;
 
@@ -134,7 +137,8 @@ static bool value_seq_common_handler(const tlv_data_t *data, s_value_seq_ctx *co
     if (field == NULL) {
         return false;
     }
-    return data->tag == (is_seq(context, field) ? TAG_SEQ : TAG_LEAF);
+    context->value_levels = levels_at_position(context, field);
+    return data->tag == (is_seq(field, context->value_levels) ? TAG_SEQ : TAG_LEAF);
 }
 
 /**
@@ -172,6 +176,7 @@ static bool handle_value_seq_struct(const buffer_t *buf,
 
     // every nested sequence costs a stack frame, so the payload must not drive the depth
     if (depth >= TD_MAX_DEPTH) {
+        PRINTF("EIP712 v2: value tree deeper than %d\n", TD_MAX_DEPTH);
         return false;
     }
     context.node = node;
