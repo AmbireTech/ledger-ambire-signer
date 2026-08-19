@@ -9,6 +9,7 @@ typedef struct {
     TLV_reception_t received_tags;
     s_struct_712_value *node;  // container being filled
     uint8_t levels_remaining;  // array dimensions left to open before the base type
+    uint8_t depth;             // nesting levels already open above this sequence
 } s_value_seq_ctx;
 
 // One entry per struct field or per array element, in schema-declared order
@@ -19,7 +20,8 @@ typedef struct {
 // the value sequence parser recurses through the handlers of the values it holds
 static bool handle_value_seq_struct(const buffer_t *buf,
                                     s_struct_712_value *node,
-                                    uint8_t levels_remaining);
+                                    uint8_t levels_remaining,
+                                    uint8_t depth);
 
 /**
  * Array dimensions still to be opened at the sequence's current position
@@ -55,6 +57,10 @@ static bool is_seq(const s_value_seq_ctx *context, const s_struct_712_field *fie
 /**
  * Common handler rejecting any value whose kind contradicts the schema
  *
+ * Runs before every tag handler and aborts the whole parse on failure, so each handler may
+ * rely on it having established that a field is still expected at this position and that the
+ * received tag matches that field's kind.
+ *
  * @param[in] data the tlv data
  * @param[in] context the value sequence context
  * @return whether the value is expected at this position
@@ -62,6 +68,7 @@ static bool is_seq(const s_value_seq_ctx *context, const s_struct_712_field *fie
 static bool value_seq_common_handler(const tlv_data_t *data, s_value_seq_ctx *context);
 
 static bool handle_leaf(const tlv_data_t *data, s_value_seq_ctx *context) {
+    // the common handler ran first, so a field is left and its kind matches this tag
     const s_struct_712_field *field = td_value_expected_field(context->node);
     s_struct_712_value *leaf;
 
@@ -80,27 +87,34 @@ static bool handle_leaf(const tlv_data_t *data, s_value_seq_ctx *context) {
 }
 
 static bool handle_seq(const tlv_data_t *data, s_value_seq_ctx *context) {
+    // the common handler ran first, so a field is left and its kind matches this tag
     const s_struct_712_field *field = td_value_expected_field(context->node);
-    uint8_t levels = levels_at_position(context, field);
+    uint8_t levels_here = levels_at_position(context, field);
+    uint8_t levels_below;
     s_struct_712_value *seq;
 
-    if (levels > 0) {
+    if (levels_here > 0) {
         if ((seq = td_create_array(field)) == NULL) {
             return false;
         }
         // elements of this dimension are the base type once every dimension has been opened
-        levels -= 1;
+        levels_below = levels_here - 1;
     } else {
         const s_struct_712 *struct_type;
 
+        // a value with no dimension left to open nests only to hold a struct instance
+        if (field->type != TYPE_STRUCT) {
+            return false;
+        }
         if ((struct_type = td_find_struct(td_get_struct_field_typename(field))) == NULL) {
             return false;
         }
         if ((seq = td_create_struct(struct_type)) == NULL) {
             return false;
         }
+        levels_below = 0;
     }
-    if (!handle_value_seq_struct(&data->value, seq, levels)) {
+    if (!handle_value_seq_struct(&data->value, seq, levels_below, context->depth + 1)) {
         td_discard_container_value(seq);
         return false;
     }
@@ -152,11 +166,17 @@ static bool verify_value_seq_struct(const s_value_seq_ctx *context) {
 
 static bool handle_value_seq_struct(const buffer_t *buf,
                                     s_struct_712_value *node,
-                                    uint8_t levels_remaining) {
+                                    uint8_t levels_remaining,
+                                    uint8_t depth) {
     s_value_seq_ctx context = {0};
 
+    // every nested sequence costs a stack frame, so the payload must not drive the depth
+    if (depth >= TD_MAX_DEPTH) {
+        return false;
+    }
     context.node = node;
     context.levels_remaining = levels_remaining;
+    context.depth = depth;
     if (!value_seq_tlv_parser(buf, &context, &context.received_tags)) {
         return false;
     }
@@ -227,7 +247,8 @@ static bool handle_root(const tlv_data_t *data,
     if ((root = td_create_struct(struct_type)) == NULL) {
         return false;
     }
-    if (!handle_value_seq_struct(&data->value, root, 0)) {
+    // the root sequence is the first nesting level of the tree
+    if (!handle_value_seq_struct(&data->value, root, 0, 0)) {
         td_discard_container_value(root);
         return false;
     }
