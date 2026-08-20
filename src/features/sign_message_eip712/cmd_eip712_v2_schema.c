@@ -2,16 +2,29 @@
 #include "cmd_eip712_v2_schema.h"
 #include "tlv_apdu.h"
 #include "apdu_constants.h"
+#include "shared_context.h"
 #include "eip712_v2_schema.h"
+#include "typed_data.h"  // td_init
 
 uint16_t handle_eip712_v2_schema(uint8_t p1, uint8_t p2, uint8_t lc, const uint8_t *payload) {
-    if (appState != APP_STATE_IDLE) {
-        return SWO_COMMAND_NOT_ALLOWED;
-    }
+    bool first_chunk = (p1 == P1_FIRST_CHUNK);
+
     if (p2 != P2_EIP712_V2_IMPLEM) {
         return SWO_INCORRECT_P1_P2;
     }
-    if (!tlv_from_apdu(p1 == P1_FIRST_CHUNK, lc, payload, &handle_eip712_v2_schema_struct)) {
+    if (first_chunk) {
+        if (appState != APP_STATE_IDLE) {
+            return SWO_COMMAND_NOT_ALLOWED;
+        }
+        // the schema opens the signing flow and creates the tree the rest of it fills
+        if (!td_init()) {
+            return SWO_INSUFFICIENT_MEMORY;
+        }
+        appState = APP_STATE_PREPARING_EIP712;
+    } else if (appState != APP_STATE_PREPARING_EIP712) {
+        return SWO_COMMAND_NOT_ALLOWED;
+    }
+    if (!tlv_from_apdu(first_chunk, lc, payload, &handle_eip712_v2_schema_struct)) {
         return SWO_INCORRECT_DATA;
     }
     return SWO_SUCCESS;
