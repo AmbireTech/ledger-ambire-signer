@@ -22,6 +22,8 @@ void ui_191_start(const char *message);
 // EIP-712
 bool ui_sign_712_v1(e_eip712_filtering_mode filtering_mode);
 bool ui_sign_712_v0(void);
+bool ui_712_v2_review(void);
+void ui_712_v2_cleanup(void);
 
 // Generic clear-signing
 bool ui_gcs(void);

@@ -15,6 +15,7 @@
 #include "proxy_info.h"
 #include "tx_ctx.h"
 #include "ui_utils.h"
+#include "common_ui.h"  // ui_712_v2_cleanup
 #include "app_mem_utils.h"
 #include "cmd_safe_account.h"
 #include "cmd_get_gating.h"
@@ -60,6 +61,8 @@ void reset_app_context(void) {
 #ifdef HAVE_TRANSACTION_CHECKS
     clear_tx_simulation();
 #endif
+    // Release the review pairs before the array pointing at them is freed
+    ui_712_v2_cleanup();
     ui_all_cleanup();
     proxy_cleanup();
     clear_gating();

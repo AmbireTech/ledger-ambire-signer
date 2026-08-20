@@ -4,11 +4,10 @@
 #include "apdu_constants.h"
 #include "shared_context.h"
 #include "typed_data.h"
-#include "common_712.h"  // ui_712_approve_cb
+#include "common_ui.h"  // ui_712_v2_review, ui_error_blind_signing
 
-// TEMPORARY: this whole command is a debug scaffold used to exercise the EIP712_SCHEMA and
-// EIP712_VALUES APDUs end to end. It signs without any user review whatsoever; the real command
-// must display the message and get an explicit user approval before signing.
+// TEMPORARY: the tree dump below is a bring-up aid for the EIP712_SCHEMA and EIP712_VALUES
+// APDUs, kept until V2 has field descriptors of its own.
 
 // One entry per open container, letting the flat visitor rebuild nesting
 typedef struct {
@@ -85,6 +84,9 @@ uint16_t handle_eip712_v2_sign(uint8_t p2, uint8_t lc) {
     if (lc != 0) {
         return SWO_INCORRECT_DATA;
     }
+    if (appState != APP_STATE_PREPARING_EIP712) {
+        return SWO_COMMAND_NOT_ALLOWED;
+    }
     if (!td_has_domain() || !td_has_message()) {
         PRINTF("EIP712 v2: no message to sign\n");
         return SWO_COMMAND_NOT_ALLOWED;
@@ -95,9 +97,14 @@ uint16_t handle_eip712_v2_sign(uint8_t p2, uint8_t lc) {
     }
     dump_tree(td_traverse_domain);
     dump_tree(td_traverse_message);
-    // ui_712_approve_cb() only signs in the signing state, which no review transitioned to here
-    appState = APP_STATE_SIGNING_EIP712;
-    // sends the signature and resets the app context itself
-    ui_712_approve_cb();
+    // every value is shown raw, which is blind signing whatever the protocol version
+    if (!N_storage.dataAllowed && !N_storage.verbose_eip712) {
+        ui_error_blind_signing();
+        return SWO_INCORRECT_DATA;
+    }
+    if (!ui_712_v2_review()) {
+        PRINTF("EIP712 v2: could not build the review\n");
+        return SWO_INCORRECT_DATA;
+    }
     return SWO_NO_RESPONSE;
 }
