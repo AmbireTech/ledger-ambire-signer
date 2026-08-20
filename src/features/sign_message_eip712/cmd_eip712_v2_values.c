@@ -2,10 +2,12 @@
 #include "cmd_eip712_v2_values.h"
 #include "tlv_apdu.h"
 #include "apdu_constants.h"
+#include "shared_context.h"
 #include "eip712_v2_values.h"
 
 uint16_t handle_eip712_v2_values(uint8_t p1, uint8_t p2, uint8_t lc, const uint8_t *payload) {
-    if (appState != APP_STATE_IDLE) {
+    // the schema must have been received first, which is what left the app in this state
+    if (appState != APP_STATE_PREPARING_EIP712) {
         return SWO_COMMAND_NOT_ALLOWED;
     }
     if (p2 != P2_EIP712_V2_IMPLEM) {
