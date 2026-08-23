@@ -40,3 +40,4 @@ jobs:
     with:
       run_for_devices: '["${{ matrix.device }}"]'
       upload_app_binaries_artifact: "ambire-signer-${{ matrix.device }}"
+`

@@ -58,7 +58,7 @@ enum {
 
 // settings definition
 static const char *const infoTypes[SETTING_INFO_NB] = {"Version", "Developer", "Copyright"};
-static const char *const infoContents[SETTING_INFO_NB] = {APPVERSION, "Ledger", "Ledger (c) 2025"};
+static const char *const infoContents[SETTING_INFO_NB] = {APPVERSION, "Ambire", "Ambire (c) 2026"};
 
 static nbgl_contentInfoList_t infoList = {0};
 static nbgl_contentSwitch_t switches[SETTINGS_SWITCHES_NB] = {0};
