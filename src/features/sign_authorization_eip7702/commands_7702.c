@@ -187,6 +187,9 @@ uint16_t handle_sign_eip7702_authorization(uint8_t p1,
                                            const uint8_t *dataBuffer,
                                            uint8_t dataLength,
                                            unsigned int *flags) {
+    if (appState != APP_STATE_IDLE) {
+        return SWO_COMMAND_NOT_ALLOWED;
+    }
     g_7702_sw = SWO_PARAMETER_ERROR_NO_INFO;
     if (p1 == P1_FIRST_CHUNK) {
         if ((dataBuffer =
