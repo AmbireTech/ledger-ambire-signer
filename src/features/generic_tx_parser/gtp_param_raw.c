@@ -109,8 +109,44 @@ bool format_uint(const s_field *field,
     return *to_be_displayed ? tostring256(&value256, 10, buf, buf_size) : true;
 }
 
-bool format_int(const s_value *def, const s_parsed_value *value, char *buf, size_t buf_size) {
-    return format_signed_int_be(value->ptr, value->length, def->type_size, buf, buf_size);
+/**
+ * @brief Check if a signed integer value matches any of the field's constraints
+ *
+ * Constraints are compared as canonical decimal strings so the same logic
+ * works regardless of the byte length and sign-extension of either side.
+ */
+static bool check_int_constraint(const s_field *field, const char *formatted_buf) {
+    char constraint_buf[sizeof(strings.tmp.tmp)];
+
+    for (s_field_constraint *c_node = field->constraints; c_node != NULL;
+         c_node = (s_field_constraint *) c_node->node.next) {
+        if (!format_signed_int_be(c_node->value,
+                                  c_node->size,
+                                  field->param_raw.value.type_size,
+                                  constraint_buf,
+                                  sizeof(constraint_buf))) {
+            continue;
+        }
+        if (strcmp(formatted_buf, constraint_buf) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool format_int(const s_field *field,
+                bool *to_be_displayed,
+                const s_parsed_value *value,
+                char *buf,
+                size_t buf_size) {
+    if (!format_signed_int_be(value->ptr,
+                              value->length,
+                              field->param_raw.value.type_size,
+                              buf,
+                              buf_size)) {
+        return false;
+    }
+    return apply_visibility_constraint(field, to_be_displayed, check_int_constraint(field, buf));
 }
 
 /**
@@ -153,16 +189,40 @@ static bool format_addr(const s_field *field,
                             : true;
 }
 
-static bool format_bool(const s_value *def,
+/**
+ * @brief Check if a bool value matches any of the field's constraints
+ */
+static bool check_bool_constraint(const s_field *field, uint8_t value) {
+    uint8_t cv;
+
+    for (s_field_constraint *c_node = field->constraints; c_node != NULL;
+         c_node = (s_field_constraint *) c_node->node.next) {
+        // Normalize to 0/1 — a constraint may be encoded as any non-zero byte
+        // and may be sign-extended across multiple bytes.
+        cv = 0;
+        for (uint32_t i = 0; i < c_node->size; ++i) {
+            if (c_node->value[i] != 0) {
+                cv = 1;
+                break;
+            }
+        }
+        if (cv == (value ? 1 : 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool format_bool(const s_field *field,
+                        bool *to_be_displayed,
                         const s_parsed_value *value,
                         char *buf,
                         size_t buf_size) {
     uint8_t tmp;
 
-    (void) def;
     buf_shrink_expand(value->ptr, value->length, &tmp, 1);
     snprintf(buf, buf_size, "%s", tmp ? "true" : "false");
-    return true;
+    return apply_visibility_constraint(field, to_be_displayed, check_bool_constraint(field, tmp));
 }
 
 /**
@@ -225,11 +285,29 @@ static bool format_bytes(const s_field *field,
     return true;
 }
 
-static bool format_string(const s_value *def,
+/**
+ * @brief Check if a string value matches any of the field's constraints
+ *
+ * Byte-level equality: constraint and parsed value must have the same length
+ * and identical contents. The constraint is treated as the raw bytes from
+ * the TLV, not as a NUL-terminated string.
+ */
+static bool check_string_constraint(const s_field *field, const s_parsed_value *value) {
+    for (s_field_constraint *c_node = field->constraints; c_node != NULL;
+         c_node = (s_field_constraint *) c_node->node.next) {
+        if ((c_node->size == value->length) &&
+            (memcmp(c_node->value, value->ptr, c_node->size) == 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool format_string(const s_field *field,
+                          bool *to_be_displayed,
                           const s_parsed_value *value,
                           char *buf,
                           size_t buf_size) {
-    (void) def;
     if (value->length + 1 > buf_size) {
         PRINTF("RAW STRING value too long for display (%u > %u bytes)\n",
                (unsigned) value->length + 1,
@@ -242,7 +320,9 @@ static bool format_string(const s_value *def,
     }
     memmove(buf, value->ptr, value->length);
     buf[value->length] = '\0';
-    return true;
+    return apply_visibility_constraint(field,
+                                       to_be_displayed,
+                                       check_string_constraint(field, value));
 }
 
 bool format_param_raw(const s_field *field) {
@@ -255,24 +335,28 @@ bool format_param_raw(const s_field *field) {
     ret = value_get(&field->param_raw.value, &collec);
     if (ret) {
         for (int i = 0; i < collec.size && ret == true; ++i) {
+            // Reset on each iteration: PARAM_VISIBILITY_IF_NOT_IN can hide a
+            // single value without disabling display for the rest of the
+            // collection (CWE-451 / CWE-693).
+            to_be_displayed = true;
             switch (field->param_raw.value.type_family) {
                 case TF_UINT:
                     ret = format_uint(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_INT:
-                    ret = format_int(&field->param_raw.value, &collec.value[i], buf, buf_size);
+                    ret = format_int(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_ADDRESS:
                     ret = format_addr(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_BOOL:
-                    ret = format_bool(&field->param_raw.value, &collec.value[i], buf, buf_size);
+                    ret = format_bool(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_BYTES:
                     ret = format_bytes(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_STRING:
-                    ret = format_string(&field->param_raw.value, &collec.value[i], buf, buf_size);
+                    ret = format_string(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_UFIXED:
                 case TF_FIXED:
