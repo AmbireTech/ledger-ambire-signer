@@ -11,6 +11,7 @@
 #include "typed_data.h"
 #include "commands_712.h"
 #include "hash_bytes.h"
+#include "read.h"
 
 static s_field_hashing *fh = NULL;
 
@@ -51,7 +52,7 @@ void field_hash_deinit(void) {
 static const uint8_t *field_hash_prepare(const s_struct_712_field *field_ptr,
                                          const uint8_t *data,
                                          uint8_t *data_length) {
-    fh->remaining_size = __builtin_bswap16(*(uint16_t *) &data[0]);  // network byte order
+    fh->remaining_size = read_u16_be(data, 0);
     data += sizeof(uint16_t);
     *data_length -= sizeof(uint16_t);
     fh->state = FHS_WAITING_FOR_MORE;

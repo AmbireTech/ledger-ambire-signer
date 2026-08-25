@@ -9,6 +9,12 @@
 
 #define PLUGIN_ID_LENGTH 30
 
+// Maximum number of plugin-driven items that can be added to the transaction review.
+// The review builder counts pluginUiMaxItems plus up to 3 fixed pairs (From, Network,
+// Max fees) into a uint8_t (g_pairsList->nbPairs and the cast at ui_pairs_init).
+// Bound the source so the sum never overflows the 8-bit pair counter.
+#define MAX_PLUGIN_UI_ITEMS (UINT8_MAX - 3)
+
 // Address length
 #define ADDRESS_LENGTH_STR     ((ADDRESS_LENGTH * 2) + 1)  // 2 hex chars per byte + '\0'
 #define ADDRESS_LENGTH_HEX_STR (ADDRESS_LENGTH_STR + 2)    // with '0x' prefix
@@ -47,6 +53,17 @@ typedef struct internalStorage_t {
     bool initialized;
 } internalStorage_t;
 
+// Sentinel for tokenContext_t.pluginChainId meaning "registration is not bound
+// to a specific chain" (used by paths whose signed metadata does not carry a
+// chain_id). All real EVM chain IDs are > 0.
+#define PLUGIN_CHAIN_ID_ANY 0
+
+typedef enum {
+    PLUGIN_CTX_ADDR_SEL,  // contractAddress/methodSelector are valid (pre-INIT_CONTRACT)
+    PLUGIN_CTX_PLUGIN,    // pluginContext is active (post-INIT_CONTRACT)
+} plugin_ctx_mode_t;
+
+
 typedef struct tokenContext_t {
     char pluginName[PLUGIN_ID_LENGTH];
 
@@ -57,6 +74,9 @@ typedef struct tokenContext_t {
     uint8_t pluginUiMaxItems;
     uint8_t pluginUiCurrentItem;
     uint8_t pluginUiState;
+
+    // Discriminates the anonymous union below.
+    plugin_ctx_mode_t plugin_ctx_mode;
 
     union {
         struct {
@@ -69,6 +89,11 @@ typedef struct tokenContext_t {
     };
 
     uint8_t pluginStatus;
+
+    // Chain ID the plugin registration was issued for. Populated from the
+    // signed SET_PLUGIN payload so we can refuse to activate the plugin on a
+    // transaction whose chain_id differs.
+    uint64_t pluginChainId;
 
 } tokenContext_t;
 

@@ -6,14 +6,17 @@
 #include "mem_utils.h"
 #include "lists.h"
 
-s_calldata *calldata_init(size_t size, const uint8_t selector[CALLDATA_SELECTOR_SIZE]) {
+s_calldata *calldata_init(size_t size, const uint8_t *selector) {
     s_calldata *calldata;
 
     if (APP_MEM_CALLOC((void **) &calldata, sizeof(*calldata)) == false) {
         return NULL;
     }
     calldata->expected_size = size;
-    calldata_set_selector(calldata, selector);
+    if (selector != NULL) {
+        // ignore return value since it cannot fail with valid arguments
+        calldata_set_selector(calldata, selector);
+    }
     return calldata;
 }
 
@@ -89,9 +92,11 @@ static bool decompress_chunk(const s_calldata_chunk *chunk, uint8_t *out) {
 
 bool calldata_append(s_calldata *calldata, const uint8_t *buffer, size_t size) {
     uint8_t cpy_length;
+    size_t received_size_after;
 
     if (calldata == NULL) return false;
-    if ((calldata->received_size + size) > calldata->expected_size) {
+    if (__builtin_add_overflow(calldata->received_size, size, &received_size_after) ||
+        (received_size_after > calldata->expected_size)) {
         return false;
     }
 
@@ -162,14 +167,14 @@ const uint8_t *calldata_get_selector(const s_calldata *calldata) {
     return calldata->selector;
 }
 
-const uint8_t *calldata_get_chunk(s_calldata *calldata, int idx) {
+const uint8_t *calldata_get_chunk(s_calldata *calldata, uint32_t idx) {
     s_calldata_chunk *chunk;
 
     if (!has_valid_calldata(calldata) || (calldata->chunks == NULL)) {
         return NULL;
     }
     chunk = calldata->chunks;
-    for (int i = 0; i < idx; ++i) {
+    for (uint32_t i = 0; i < idx; ++i) {
         if (((flist_node_t *) chunk)->next == NULL) return NULL;
         chunk = (s_calldata_chunk *) ((flist_node_t *) chunk)->next;
     }

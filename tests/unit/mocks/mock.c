@@ -12,6 +12,34 @@ void *pic(void *addr) {
     return addr;
 }
 
+// Mirror of BOLOS_SDK os.c implementation; pulled in here so unit tests don't
+// have to link the whole os.c (which drags in BSS/syscall machinery).
+int bytes_to_lowercase_hex(char *out, size_t outl, const void *value, size_t len) {
+    const uint8_t *bytes = (const uint8_t *) value;
+    const char *hex = "0123456789abcdef";
+
+    if (outl < 2 * len + 1) {
+        *out = '\0';
+        return -1;
+    }
+    for (size_t i = 0; i < len; i++) {
+        *out++ = hex[(bytes[i] >> 4) & 0xf];
+        *out++ = hex[bytes[i] & 0xf];
+    }
+    *out = '\0';
+    return 0;
+}
+
+bool is_printable_string(const char *str, size_t len) {
+    for (size_t i = 0; i < len; ++i) {
+        if (str[i] < 0x20 || str[i] > 0x7E) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
 void assert_exit(bool confirm) {
     (void) confirm;
 }

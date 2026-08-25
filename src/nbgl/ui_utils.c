@@ -21,6 +21,13 @@ static void _cleanup(void) {
 }
 
 void ui_pairs_cleanup(void) {
+    // Zero out the list header before freeing the backing array so that any
+    // NBGL render callback still in flight sees an empty list rather than a
+    // dangling pairs pointer.
+    if (g_pairsList != NULL) {
+        g_pairsList->pairs = NULL;
+        g_pairsList->nbPairs = 0;
+    }
     APP_MEM_FREE_AND_NULL((void **) &g_pairs);
     APP_MEM_FREE_AND_NULL((void **) &g_pairsList);
 }
@@ -44,12 +51,12 @@ void ui_all_cleanup(void) {
 bool ui_pairs_init(uint8_t nbPairs) {
     ui_pairs_cleanup();
     // Allocate the pairsList memory
-    if (!APP_MEM_CALLOC((void **) &g_pairsList, sizeof(nbgl_contentTagValueList_t))) {
+    if (!APP_MEM_CALLOC((void **) &g_pairsList, sizeof(*g_pairsList))) {
         goto error;
     }
 
     // Allocate the pairs memory
-    if (!APP_MEM_CALLOC((void **) &g_pairs, nbPairs * sizeof(nbgl_contentTagValueList_t))) {
+    if (!APP_MEM_CALLOC((void **) &g_pairs, nbPairs * sizeof(*g_pairs))) {
         goto error;
     }
     g_pairsList->nbPairs = nbPairs;

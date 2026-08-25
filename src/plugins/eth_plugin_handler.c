@@ -104,6 +104,32 @@ void eth_plugin_prepare_query_contract_ui(ethQueryContractUI_t *query_contract_u
 
 static void eth_plugin_perform_init_default(uint8_t *contract_address,
                                             ethPluginInitContract_t *init) {
+    // Refuse to activate a plugin registration that was signed for a different
+    // chain than the one we are about to sign on. Skipped when:
+    //   * the registration is chain-unbound (e.g., set_external_plugin payload
+    //     carries no chain_id field, marked as PLUGIN_CHAIN_ID_ANY);
+    //   * we cannot yet resolve the transaction chain_id (LEGACY transactions
+    //     only expose it through the V field, which is parsed after the data
+    //     field that triggers this init). In that case the check is deferred
+    //     to finalize_parsing_helper(), which runs once V has been parsed.
+    if (dataContext.tokenContext.pluginChainId != PLUGIN_CHAIN_ID_ANY) {
+        uint64_t tx_chain_id = get_tx_chain_id();
+        if ((tx_chain_id != 0) && (tx_chain_id != dataContext.tokenContext.pluginChainId)) {
+            PRINTF("Plugin registered for chain %llu but tx is on chain %llu\n",
+                   dataContext.tokenContext.pluginChainId,
+                   tx_chain_id);
+            dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_UNAVAILABLE;
+            return;
+        }
+    }
+    // Validate that contractAddress/methodSelector are still the active half of the
+    // union — if PLUGIN_CTX_PLUGIN is set, INIT_CONTRACT was already called and
+    // the union now holds plugin data, not the original address/selector.
+    if (dataContext.tokenContext.plugin_ctx_mode == PLUGIN_CTX_PLUGIN) {
+        PRINTF("Error: plugin context already active, double INIT_CONTRACT detected\n");
+        app_exit();
+    }
+
     // check if the registered external plugin matches the TX contract address / selector
     if (memcmp(contract_address,
                dataContext.tokenContext.contractAddress,
@@ -216,6 +242,7 @@ eth_plugin_result_t eth_plugin_perform_init(uint8_t *contract_address,
 
     PRINTF("eth_plugin_init\n");
     PRINTF("Trying plugin %s\n", dataContext.tokenContext.pluginName);
+    dataContext.tokenContext.plugin_ctx_mode = PLUGIN_CTX_PLUGIN;
     status = eth_plugin_call(ETH_PLUGIN_INIT_CONTRACT, (void *) init);
 
     if (status <= ETH_PLUGIN_RESULT_UNSUCCESSFUL) {
@@ -324,10 +351,7 @@ eth_plugin_result_t eth_plugin_call(int method, void *parameter) {
         }
         case PLUGIN_TYPE_OLD_INTERNAL: {
             // Perform the call
-            for (i = 0;; i++) {
-                if (INTERNAL_ETH_PLUGINS[i].alias[0] == 0) {
-                    break;
-                }
+            for (i = 0; i < ARRAYLEN(INTERNAL_ETH_PLUGINS); i++) {
                 if (strcmp(alias, INTERNAL_ETH_PLUGINS[i].alias) == 0) {
                     ((PluginCall) PIC(INTERNAL_ETH_PLUGINS[i].impl))(method, parameter);
                     break;

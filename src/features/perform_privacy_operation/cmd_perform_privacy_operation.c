@@ -47,6 +47,14 @@ uint16_t handle_perform_privacy_operation(uint8_t p1,
         return SWO_WRONG_P1_P2;
     }
 
+    // Shared-secret export releases material derived from the device-held
+    // private key and a host-supplied peer key. Unlike the public encryption
+    // key (P2=0x00), it is a secret and must never be returned without an
+    // explicit on-device user approval (CWE-200).
+    if ((p2 == P2_SHARED_SECRET) && (p1 == P1_NON_CONFIRM)) {
+        return SWO_CONDITIONS_NOT_SATISFIED;
+    }
+
     dataBuffer = parseBip32(dataBuffer, &dataLength, &bip32);
     if (dataBuffer == NULL) {
         return SWO_INCORRECT_DATA;
@@ -119,5 +127,5 @@ end:
     explicit_bzero(privateKeyDataSwapped, sizeof(privateKeyDataSwapped));
     explicit_bzero(&privateKey, sizeof(privateKey));
     explicit_bzero(privateKeyData, sizeof(privateKeyData));
-    return error;
+    return (uint16_t) error;
 }

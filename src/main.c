@@ -18,6 +18,7 @@
 #include "shared_context.h"
 #include "apdu_constants.h"
 #include "common_ui.h"
+#include "feature_sign_tx.h"  // g_tx_hash_ctx
 
 #include "os_io_seproxyhal.h"
 #include "io.h"
@@ -31,6 +32,7 @@
 #include "handle_check_address.h"
 #include "swap_entrypoints.h"
 #include "commands_712.h"
+#include "context_712.h"  // eip712_context_deinit
 #include "challenge.h"
 #include "cmd_trusted_name.h"
 #include "crypto_helpers.h"
@@ -80,6 +82,7 @@ void reset_app_context(void) {
     if (appState == APP_STATE_SIGNING_MESSAGE) {
         message_cleanup();
     }
+    eip712_context_deinit();
     G_called_from_swap = false;
     G_swap_response_ready = false;
     G_swap_checked = false;
@@ -88,12 +91,17 @@ void reset_app_context(void) {
     eth2WithdrawalIndex = 0;
 #endif
     memset((uint8_t *) &tmpCtx, 0, sizeof(tmpCtx));
+    memset((uint8_t *) &dataContext, 0, sizeof(dataContext));
     forget_known_assets();
     if (txContext.store_calldata) {
         gcs_cleanup();
     }
     trusted_name_cleanup();
     enum_value_cleanup();
+    // Release the tx-signing keccak context.
+    if (g_tx_hash_ctx != NULL) {
+        APP_MEM_FREE_AND_NULL((void **) &g_tx_hash_ctx);
+    }
     memset((uint8_t *) &txContext, 0, sizeof(txContext));
     memset((uint8_t *) &tmpContent, 0, sizeof(tmpContent));
     clear_safe_account();

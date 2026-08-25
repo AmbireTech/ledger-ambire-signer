@@ -168,7 +168,18 @@ static bool process_auth_list(txContext_t *context) {
 }
 
 static bool process_chain_id(txContext_t *context) {
-    if (check_fields(context, "RLP_CHAINID", INT256_LENGTH) == false) {
+    // Reject chain IDs that would not fit in a uint64_t. Downstream
+    // get_tx_chain_id() converts the stored bytes through u64_from_BE(),
+    // silently truncating anything beyond 8 bytes — so a 32-byte field
+    // could let the signature cover one chain while the UI / consistency
+    // checks operate on the truncated 64-bit prefix (CWE-197).
+    //
+    // This is a hardening, not a regression: EIP-2294 recommends bounding
+    // chain_id to 2^53 for interoperability, and no production EVM chain
+    // today uses a value beyond uint64_t. Pre-fix, anything beyond 8 bytes
+    // was still hashed into the signature but never matched on display, so
+    // there is no legitimate flow this rejection breaks.
+    if (check_fields(context, "RLP_CHAINID", sizeof(uint64_t)) == false) {
         return false;
     }
 
@@ -598,6 +609,7 @@ static parserStatus_e parse_rlp(txContext_t *context) {
     }
     // Ready to process this field
     if (!rlp_decode_length(context->rlpBuffer,
+                           context->rlpBufferPos,
                            &context->currentFieldLength,
                            &offset,
                            &context->currentFieldIsList)) {

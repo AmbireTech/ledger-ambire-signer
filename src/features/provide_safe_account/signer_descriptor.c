@@ -268,6 +268,11 @@ bool handle_signer_tlv_payload(const buffer_t *payload) {
     if (!ret) {
         clear_signer_descriptor();
     }
+    // Invalidate the challenge as soon as the signed descriptor has been
+    // consumed, on success and failure alike. Without this, previously
+    // captured signed signer descriptors remain replayable until the next
+    // INS_GET_CHALLENGE is issued (CWE-294).
+    roll_challenge();
     return ret;
 }
 

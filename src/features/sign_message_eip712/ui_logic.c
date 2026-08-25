@@ -2,6 +2,7 @@
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "os_io.h"
+#include "format.h"
 #include "common_utils.h"  // uint256_to_decimal
 #include "common_712.h"
 #include "context_712.h"     // eip712_context_deinit
@@ -467,61 +468,17 @@ static bool ui_712_format_int(const uint8_t *data,
                               uint8_t length,
                               bool first,
                               const s_struct_712_field *field_ptr) {
-    uint256_t value256;
-    uint128_t value128;
-    int32_t value32;
-    int16_t value16;
-    int8_t value8;
-    uint8_t tmp[sizeof(int32_t)] = {0};
-
     // no reason for an integer to be received over multiple chunks
     if (!first) {
         return false;
     }
-    if (length < 1) {
+    if (!format_signed_int_be(data,
+                              length,
+                              field_ptr->type_size,
+                              strings.tmp.tmp,
+                              sizeof(strings.tmp.tmp))) {
         apdu_response_code = SWO_INCORRECT_DATA;
         return false;
-    }
-    if (length > field_ptr->type_size) {
-        apdu_response_code = SWO_INCORRECT_DATA;
-        return false;
-    }
-
-    switch (field_ptr->type_size * 8) {
-        case 256:
-            convertUint256BE(data, length, &value256);
-            tostring256_signed(&value256, 10, strings.tmp.tmp, sizeof(strings.tmp.tmp));
-            break;
-        case 128:
-            convertUint128BE(data, length, &value128);
-            tostring128_signed(&value128, 10, strings.tmp.tmp, sizeof(strings.tmp.tmp));
-            break;
-        case 64:
-            convertUint64BEto128(data, length, &value128);
-            tostring128_signed(&value128, 10, strings.tmp.tmp, sizeof(strings.tmp.tmp));
-            break;
-        case 32:
-            buf_shrink_expand(data, length, tmp, sizeof(int32_t));
-            value32 = (int32_t) read_u32_be(tmp, 0);
-            snprintf(strings.tmp.tmp, sizeof(strings.tmp.tmp), "%d", value32);
-            break;
-        case 16:
-            buf_shrink_expand(data, length, tmp, sizeof(int16_t));
-            value16 = (int16_t) read_u16_be(tmp, 0);
-            snprintf(strings.tmp.tmp, sizeof(strings.tmp.tmp), "%d", value16);
-            break;
-        case 8:
-            if (length != sizeof(int8_t)) {
-                apdu_response_code = SWO_INCORRECT_DATA;
-                return false;
-            }
-            value8 = (int8_t) data[0];
-            snprintf(strings.tmp.tmp, sizeof(strings.tmp.tmp), "%d", value8);
-            break;
-        default:
-            PRINTF("Unhandled field typesize\n");
-            apdu_response_code = SWO_INCORRECT_DATA;
-            return false;
     }
     return true;
 }
@@ -714,6 +671,20 @@ static bool ui_712_format_datetime(const uint8_t *data,
         snprintf(strings.tmp.tmp, sizeof(strings.tmp.tmp), "Unlimited");
         return true;
     }
+    // u64_from_BE() reads from the front of the buffer; for a wide EIP-712
+    // type (e.g. uint256), the trailing 8 bytes carry the value and the
+    // leading bytes are zero-padding. Strip the padding before decoding so
+    // the displayed timestamp matches what is being hashed, and refuse the
+    // value entirely if it doesn't fit in a uint64.
+    if (length > sizeof(uint64_t)) {
+        uint8_t leading = length - sizeof(uint64_t);
+        if (!is_zeroes_buffer(data, leading)) {
+            PRINTF("Datetime value too large for time_t\n");
+            return false;
+        }
+        data += leading;
+        length = sizeof(uint64_t);
+    }
     timestamp = u64_from_BE(data, length);
     return time_format_to_utc(&timestamp, strings.tmp.tmp, sizeof(strings.tmp.tmp));
 }
@@ -855,7 +826,9 @@ static bool update_calldata_selector(const uint8_t *data,
     buf_shrink_expand(data, length, calldata_info->selector, sizeof(calldata_info->selector));
     calldata_info->selector_state = CALLDATA_INFO_PARAM_SET;
     if (calldata_info->value_state == CALLDATA_INFO_PARAM_SET) {
-        calldata_set_selector(g_parked_calldata, calldata_info->selector);
+        if (!calldata_set_selector(g_parked_calldata, calldata_info->selector)) {
+            return false;
+        }
     }
     return true;
 }
@@ -1070,7 +1043,7 @@ bool ui_712_init(void) {
         apdu_response_code = SWO_INSUFFICIENT_MEMORY;
     } else {
         ui_712_set_filtering_mode(EIP712_FILTERING_BASIC);
-        explicit_bzero(&strings, sizeof(strings));
+        explicit_bzero(strings.tmp.tmp, sizeof(strings.tmp.tmp));
     }
     return ui_ctx != NULL;
 }
@@ -1083,6 +1056,7 @@ static void delete_calldata_info(s_eip712_calldata_info *node) {
  * Deinit function that simply unsets the struct pointer to NULL
  */
 void ui_712_deinit(void) {
+    eip712_hash_strs_cleanup();
     if (ui_ctx != NULL) {
         if (ui_ctx->filters_crc != NULL) {
             flist_clear((flist_node_t **) &ui_ctx->filters_crc,
@@ -1103,25 +1077,6 @@ void ui_712_deinit(void) {
         ui_712_clear_discarded_path();
         APP_MEM_FREE_AND_NULL((void **) &ui_ctx);
     }
-}
-
-/**
- * Approve button handling, calls the common handler function then
- * deinitializes the EIP712 context altogether.
- */
-void ui_712_approve(void) {
-    ui_712_approve_cb();
-    eip712_context_deinit();
-}
-
-/**
- * Reject button handling, calls the common handler function then
- * deinitializes the EIP712 context altogether.
-
- */
-void ui_712_reject(void) {
-    ui_712_reject_cb();
-    eip712_context_deinit();
 }
 
 /**

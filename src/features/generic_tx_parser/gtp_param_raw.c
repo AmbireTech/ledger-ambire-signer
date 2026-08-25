@@ -1,9 +1,9 @@
 #include <inttypes.h>
+#include "os.h"
 #include "os_print.h"
 #include "gtp_param_raw.h"
 #include "gtp_field.h"
 #include "uint256.h"
-#include "read.h"
 #include "gtp_field_table.h"
 #include "utils.h"
 #include "shared_context.h"
@@ -110,48 +110,44 @@ bool format_uint(const s_field *field,
     return *to_be_displayed ? tostring256(&value256, 10, buf, buf_size) : true;
 }
 
-bool format_int(const s_value *def, const s_parsed_value *value, char *buf, size_t buf_size) {
-    uint8_t tmp[INT256_LENGTH];
-    bool ret;
-    union {
-        uint256_t value256;
-        uint128_t value128;
-        int64_t value64;
-        int32_t value32;
-        int16_t value16;
-        int8_t value8;
-    } uv;
+/**
+ * @brief Check if a signed integer value matches any of the field's constraints
+ *
+ * Constraints are compared as canonical decimal strings so the same logic
+ * works regardless of the byte length and sign-extension of either side.
+ */
+static bool check_int_constraint(const s_field *field, const char *formatted_buf) {
+    char constraint_buf[sizeof(strings.tmp.tmp)];
 
-    buf_shrink_expand(value->ptr, value->length, tmp, def->type_size);
-    switch (def->type_size * 8) {
-        case 256:
-            convertUint256BE(tmp, def->type_size, &uv.value256);
-            ret = tostring256_signed(&uv.value256, 10, buf, buf_size);
-            break;
-        case 128:
-            convertUint128BE(tmp, def->type_size, &uv.value128);
-            ret = tostring128_signed(&uv.value128, 10, buf, buf_size);
-            break;
-        case 64:
-            uv.value64 = read_u64_be(tmp, 0);
-            ret = snprintf(buf, buf_size, "%" PRId64, uv.value64) > 0;
-            break;
-        case 32:
-            uv.value32 = read_u32_be(tmp, 0);
-            ret = snprintf(buf, buf_size, "%" PRId32, uv.value32) > 0;
-            break;
-        case 16:
-            uv.value16 = read_u16_be(tmp, 0);
-            ret = snprintf(buf, buf_size, "%u" PRId16, uv.value16) > 0;
-            break;
-        case 8:
-            uv.value8 = value->ptr[0];
-            ret = snprintf(buf, buf_size, "%u" PRId8, uv.value8) > 0;
-            break;
-        default:
-            ret = false;
+    for (s_field_constraint *c_node = field->constraints; c_node != NULL;
+         c_node = (s_field_constraint *) c_node->node.next) {
+        if (!format_signed_int_be(c_node->value,
+                                  c_node->size,
+                                  field->param_raw.value.type_size,
+                                  constraint_buf,
+                                  sizeof(constraint_buf))) {
+            continue;
+        }
+        if (strcmp(formatted_buf, constraint_buf) == 0) {
+            return true;
+        }
     }
-    return ret;
+    return false;
+}
+
+bool format_int(const s_field *field,
+                bool *to_be_displayed,
+                const s_parsed_value *value,
+                char *buf,
+                size_t buf_size) {
+    if (!format_signed_int_be(value->ptr,
+                              value->length,
+                              field->param_raw.value.type_size,
+                              buf,
+                              buf_size)) {
+        return false;
+    }
+    return apply_visibility_constraint(field, to_be_displayed, check_int_constraint(field, buf));
 }
 
 /**
@@ -194,16 +190,40 @@ static bool format_addr(const s_field *field,
                             : true;
 }
 
-static bool format_bool(const s_value *def,
+/**
+ * @brief Check if a bool value matches any of the field's constraints
+ */
+static bool check_bool_constraint(const s_field *field, uint8_t value) {
+    uint8_t cv;
+
+    for (s_field_constraint *c_node = field->constraints; c_node != NULL;
+         c_node = (s_field_constraint *) c_node->node.next) {
+        // Normalize to 0/1 — a constraint may be encoded as any non-zero byte
+        // and may be sign-extended across multiple bytes.
+        cv = 0;
+        for (uint32_t i = 0; i < c_node->size; ++i) {
+            if (c_node->value[i] != 0) {
+                cv = 1;
+                break;
+            }
+        }
+        if (cv == (value ? 1 : 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool format_bool(const s_field *field,
+                        bool *to_be_displayed,
                         const s_parsed_value *value,
                         char *buf,
                         size_t buf_size) {
     uint8_t tmp;
 
-    (void) def;
     buf_shrink_expand(value->ptr, value->length, &tmp, 1);
     snprintf(buf, buf_size, "%s", tmp ? "true" : "false");
-    return true;
+    return apply_visibility_constraint(field, to_be_displayed, check_bool_constraint(field, tmp));
 }
 
 /**
@@ -225,11 +245,17 @@ static bool check_bytes_constraint(const s_field *field,
             PRINTF("Warning: RAW BYTES constraint wrong size!\n");
             continue;
         }
-        memset(constraint, 0, sizeof(constraint));
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat"
-        snprintf(constraint, sizeof(constraint), "0x%.*h", c_node->size, c_node->value);
-#pragma GCC diagnostic pop
+        if (sizeof(constraint) < 3) {
+            continue;
+        }
+        constraint[0] = '0';
+        constraint[1] = 'x';
+        if (bytes_to_lowercase_hex(constraint + 2,
+                                   sizeof(constraint) - 2,
+                                   c_node->value,
+                                   c_node->size) != 0) {
+            continue;
+        }
         if (strcmp(formatted_buf, constraint) == 0) {
             return true;
         }
@@ -244,10 +270,22 @@ static bool format_bytes(const s_field *field,
                          size_t buf_size) {
     LEDGER_ASSERT(sizeof(strings.tmp.tmp) == buf_size, "Buffer too small for bytes formatting");
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat"
-    snprintf(buf, buf_size, "0x%.*h", value->length, value->ptr);
-#pragma GCC diagnostic pop
+    // "0x" prefix + two hex digits per byte + NULL terminator. Reject upfront
+    // so the rejection is self-documenting rather than implied by
+    // bytes_to_lowercase_hex's internal size check, and the caller gets a
+    // clean ERROR APDU instead of a silently truncated review screen.
+    const size_t needed = (size_t) 2 + (size_t) value->length * 2 + 1;
+    if (needed > buf_size) {
+        PRINTF("RAW BYTES value too long for display (%u > %u bytes)\n",
+               (unsigned) needed,
+               (unsigned) buf_size);
+        return false;
+    }
+    buf[0] = '0';
+    buf[1] = 'x';
+    if (bytes_to_lowercase_hex(buf + 2, buf_size - 2, value->ptr, value->length) != 0) {
+        return false;
+    }
 
     if (!apply_visibility_constraint(field,
                                      to_be_displayed,
@@ -255,22 +293,32 @@ static bool format_bytes(const s_field *field,
         return false;
     }
 
-    if (!*to_be_displayed) {
-        return true;
-    }
-
-    // Truncate if needed for display
-    if ((2 + (value->length * 2) + 1) > (int) buf_size) {
-        memmove(&buf[buf_size - 1 - 3], "...", 3);
-    }
     return true;
 }
 
-static bool format_string(const s_value *def,
+/**
+ * @brief Check if a string value matches any of the field's constraints
+ *
+ * Byte-level equality: constraint and parsed value must have the same length
+ * and identical contents. The constraint is treated as the raw bytes from
+ * the TLV, not as a NUL-terminated string.
+ */
+static bool check_string_constraint(const s_field *field, const s_parsed_value *value) {
+    for (s_field_constraint *c_node = field->constraints; c_node != NULL;
+         c_node = (s_field_constraint *) c_node->node.next) {
+        if ((c_node->size == value->length) &&
+            (memcmp(c_node->value, value->ptr, c_node->size) == 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool format_string(const s_field *field,
+                          bool *to_be_displayed,
                           const s_parsed_value *value,
                           char *buf,
                           size_t buf_size) {
-    (void) def;
     if (value->length + 1 > buf_size) {
         PRINTF("RAW STRING value too long for display (%u > %u bytes)\n",
                (unsigned) value->length + 1,
@@ -283,7 +331,9 @@ static bool format_string(const s_value *def,
     }
     memmove(buf, value->ptr, value->length);
     buf[value->length] = '\0';
-    return true;
+    return apply_visibility_constraint(field,
+                                       to_be_displayed,
+                                       check_string_constraint(field, value));
 }
 
 bool format_param_raw(const s_field *field) {
@@ -296,24 +346,28 @@ bool format_param_raw(const s_field *field) {
     ret = value_get(&field->param_raw.value, &collec);
     if (ret) {
         for (int i = 0; i < collec.size && ret == true; ++i) {
+            // Reset on each iteration: PARAM_VISIBILITY_IF_NOT_IN can hide a
+            // single value without disabling display for the rest of the
+            // collection (CWE-451 / CWE-693).
+            to_be_displayed = true;
             switch (field->param_raw.value.type_family) {
                 case TF_UINT:
                     ret = format_uint(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_INT:
-                    ret = format_int(&field->param_raw.value, &collec.value[i], buf, buf_size);
+                    ret = format_int(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_ADDRESS:
                     ret = format_addr(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_BOOL:
-                    ret = format_bool(&field->param_raw.value, &collec.value[i], buf, buf_size);
+                    ret = format_bool(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_BYTES:
                     ret = format_bytes(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_STRING:
-                    ret = format_string(&field->param_raw.value, &collec.value[i], buf, buf_size);
+                    ret = format_string(field, &to_be_displayed, &collec.value[i], buf, buf_size);
                     break;
                 case TF_UFIXED:
                 case TF_FIXED:

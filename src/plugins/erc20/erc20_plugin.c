@@ -30,6 +30,8 @@ typedef struct erc20_parameters_t {
     // data not part of the ABI (usually for tracking purposes)
     char extra_data[MAX_EXTRA_DATA_CHUNKS * CALLDATA_CHUNK_SIZE];
     uint8_t extra_data_len;
+    bool destination_parsed;
+    bool amount_parsed;
 } erc20_parameters_t;
 
 void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
@@ -38,8 +40,10 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
             ethPluginInitContract_t *msg = (ethPluginInitContract_t *) parameters;
             erc20_parameters_t *context = (erc20_parameters_t *) msg->pluginContext;
 
-            explicit_bzero(context->extra_data, sizeof(context->extra_data));
-            context->extra_data_len = 0;
+            // Zero the entire context so a stale destinationAddress/amount/
+            // ticker/decimals from a previous signing flow cannot bleed into
+            // the review screen if the next calldata fails to populate them.
+            explicit_bzero(context, sizeof(*context));
 
             // enforce that ETH amount should be 0
             if (!allzeroes(msg->txContent->value.value, CALLDATA_CHUNK_SIZE)) {
@@ -81,6 +85,7 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
                     memmove(context->destinationAddress,
                             msg->parameter + (CALLDATA_CHUNK_SIZE - ADDRESS_LENGTH),
                             ADDRESS_LENGTH);
+                    context->destination_parsed = true;
                     msg->result = ETH_PLUGIN_RESULT_OK;
                     break;
 
@@ -90,6 +95,7 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
                 //                                    ^^^^^^^^^^^^^^
                 case CALLDATA_SELECTOR_SIZE + CALLDATA_CHUNK_SIZE:
                     memmove(context->amount, msg->parameter, CALLDATA_CHUNK_SIZE);
+                    context->amount_parsed = true;
                     msg->result = ETH_PLUGIN_RESULT_OK;
                     break;
 
@@ -123,6 +129,18 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
             ethPluginFinalize_t *msg = (ethPluginFinalize_t *) parameters;
             erc20_parameters_t *context = (erc20_parameters_t *) msg->pluginContext;
             PRINTF("erc20 plugin finalize %u\n", pluginType);
+            // Refuse to render the review screen unless both mandatory ABI
+            // parameters were observed; without this, malformed calldata
+            // (wrong offsets, truncated payload) would let the contextual
+            // zeros land on screen as a legitimate-looking "transfer 0 to
+            // 0x000...0000" prompt.
+            if (!context->destination_parsed || !context->amount_parsed) {
+                PRINTF("erc20: missing mandatory parameter (dest=%d, amount=%d)\n",
+                       context->destination_parsed,
+                       context->amount_parsed);
+                msg->result = ETH_PLUGIN_RESULT_ERROR;
+                break;
+            }
             msg->tokenLookup1 = msg->txContent->destination;
             msg->numScreens = 2;
             if (context->extra_data_len > 0) {
@@ -131,6 +149,18 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
             if (G_called_from_swap) {
                 char buf[sizeof(strings.common.fullAmount)];
                 const tokenDefinition_t *token_def;
+
+                if (context->selectorIndex != ERC20_TRANSFER) {
+                    PRINTF("erc20 swap: unsupported selector %u\n",
+                           (unsigned int) context->selectorIndex);
+                    msg->result = ETH_PLUGIN_RESULT_ERROR;
+                    break;
+                }
+                if (context->extra_data_len != 0) {
+                    PRINTF("erc20 swap: unexpected extra data\n");
+                    msg->result = ETH_PLUGIN_RESULT_ERROR;
+                    break;
+                }
 
                 if (!getEthDisplayableAddress(context->destinationAddress,
                                               buf,
@@ -229,8 +259,9 @@ void erc20_plugin_call(eth_plugin_msg_t message, void *parameters) {
                                                   msg->msgLength,
                                                   chainConfig->chainId)) {
                         msg->result = ETH_PLUGIN_RESULT_ERROR;
+                    } else {
+                        msg->result = ETH_PLUGIN_RESULT_OK;
                     }
-                    msg->result = ETH_PLUGIN_RESULT_OK;
                     break;
                 case 2: {
                     PRINTF("Extra Data Length %d\n", context->extra_data_len);

@@ -19,6 +19,9 @@
 static void ui_712_start_review(e_eip712_filtering_mode filtering_mode,
                                 nbgl_operationType_t operationType,
                                 nbgl_choiceCallback_t choiceCallback) {
+#ifdef HAVE_TRANSACTION_CHECKS
+    set_tx_simulation_warning();
+#endif
 #ifdef SCREEN_SIZE_WALLET
     const char *tx_check_str = ui_tx_simulation_finish_str();
     const char *title_suffix = " typed message?";
@@ -36,9 +39,6 @@ static void ui_712_start_review(e_eip712_filtering_mode filtering_mode,
         return;
     }
     snprintf(g_finishMsg, finish_len, "%s%s", tx_check_str, title_suffix);
-#ifdef HAVE_TRANSACTION_CHECKS
-    set_tx_simulation_warning();
-#endif
 
     // Use review with skip button in case of raw message
 #ifdef SCREEN_SIZE_WALLET

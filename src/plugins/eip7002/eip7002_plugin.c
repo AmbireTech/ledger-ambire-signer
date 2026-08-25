@@ -62,6 +62,33 @@ static void eip7002_plugin_provider_parameter(ethPluginProvideParameter_t *param
     }
 }
 
+// EIP-7002 charges a dynamic per-request fee paid in native value. In normal
+// operation this fee is in the wei-to-gwei range — showing a "Tx value: 1 wei"
+// screen on every legitimate request is noisy without informing the user.
+// Hide the screen as long as the value stays below this threshold; anything
+// above is worth surfacing because it dwarfs the protocol fee. The attacker
+// budget for a hidden value is therefore capped at TX_VALUE_MIN_DISPLAY_WEI,
+// i.e. dust ($0.000004 at $4000/ETH), instead of the unbounded original CVE.
+#define TX_VALUE_MIN_DISPLAY_WEI 1000000000ULL  // 1 gwei
+
+// Whether the transaction carries a native value worth surfacing to the user.
+// NULL-safe so callers can pass param->txContent directly from either the
+// ETH_PLUGIN_FINALIZE or ETH_PLUGIN_QUERY_CONTRACT_UI message structs.
+static bool has_tx_value(const txContent_t *txContent) {
+    if ((txContent == NULL) || (txContent->value.length == 0)) {
+        return false;
+    }
+    if (txContent->value.length > sizeof(uint64_t)) {
+        // > 2^64 wei is unambiguously larger than the threshold.
+        return true;
+    }
+    uint64_t val = 0;
+    for (uint8_t i = 0; i < txContent->value.length; ++i) {
+        val = (val << 8) | txContent->value.value[i];
+    }
+    return val > TX_VALUE_MIN_DISPLAY_WEI;
+}
+
 static void eip7002_plugin_finalize(ethPluginFinalize_t *param) {
     eip7002_context_t *context = (eip7002_context_t *) param->pluginContext;
 
@@ -71,7 +98,17 @@ static void eip7002_plugin_finalize(ethPluginFinalize_t *param) {
         return;
     }
     param->uiType = ETH_UI_TYPE_GENERIC;
-    param->numScreens = allzeroes(context->raw_amount, sizeof(context->raw_amount)) ? 1 : 2;
+    // Validator screen is always shown. The native tx.value is shown only
+    // when it exceeds the dust threshold defined by has_tx_value, so a
+    // hostile dApp cannot smuggle a meaningful ETH/native value into a
+    // staking-style request that otherwise only renders calldata.
+    param->numScreens = 1;
+    if (has_tx_value(param->txContent)) {
+        param->numScreens++;
+    }
+    if (!allzeroes(context->raw_amount, sizeof(context->raw_amount))) {
+        param->numScreens++;
+    }
     param->result = (context->received == sizeof(context->withdrawal_request))
                         ? ETH_PLUGIN_RESULT_OK
                         : ETH_PLUGIN_RESULT_ERROR;
@@ -93,9 +130,23 @@ static void eip7002_plugin_query_contract_ui(ethQueryContractUI_t *param) {
     eip7002_context_t *context = (eip7002_context_t *) param->pluginContext;
     uint64_t chain_id = get_tx_chain_id();
     const char *ticker = get_displayable_ticker(&chain_id, chainConfig, true);
+    // Map a screen index to a logical screen kind based on which optional
+    // screens are present for this transaction.
+    bool show_tx_value = has_tx_value(param->txContent);
+    bool show_request_amount = !allzeroes(context->raw_amount, sizeof(context->raw_amount));
+    uint8_t idx = param->screenIndex;
+    enum { S_VALIDATOR, S_TX_VALUE, S_REQUEST_AMOUNT, S_UNKNOWN } screen = S_UNKNOWN;
 
-    switch (param->screenIndex) {
-        case 0:
+    if (idx == 0) {
+        screen = S_VALIDATOR;
+    } else if (show_tx_value && idx == 1) {
+        screen = S_TX_VALUE;
+    } else if (show_request_amount && idx == (show_tx_value ? 2 : 1)) {
+        screen = S_REQUEST_AMOUNT;
+    }
+
+    switch (screen) {
+        case S_VALIDATOR:
             if (param->msgLength < 2) {
                 return;
             }
@@ -106,7 +157,19 @@ static void eip7002_plugin_query_contract_ui(ethQueryContractUI_t *param) {
                        &param->msg[2],
                        param->msgLength - 2);
             break;
-        case 1:
+        case S_TX_VALUE:
+            strlcpy(param->title, "Tx value", param->titleLength);
+            if (!amountToString(param->txContent->value.value,
+                                param->txContent->value.length,
+                                WEI_TO_ETHER,
+                                ticker,
+                                param->msg,
+                                param->msgLength)) {
+                param->result = ETH_PLUGIN_RESULT_ERROR;
+                return;
+            }
+            break;
+        case S_REQUEST_AMOUNT:
             strlcpy(param->title, "Amount", param->titleLength);
             if (!amountToString(context->raw_amount,
                                 sizeof(context->raw_amount),
@@ -115,10 +178,10 @@ static void eip7002_plugin_query_contract_ui(ethQueryContractUI_t *param) {
                                 param->msg,
                                 param->msgLength)) {
                 param->result = ETH_PLUGIN_RESULT_ERROR;
-                break;
+                return;
             }
             break;
-        default:
+        case S_UNKNOWN:
             break;
     }
     param->result = ETH_PLUGIN_RESULT_OK;

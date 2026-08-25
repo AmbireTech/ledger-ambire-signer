@@ -298,6 +298,15 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             return APDU_NO_RESPONSE;
         }
     }
+    // Reject pre-EIP-155 LEGACY transactions (no chain_id encoded in V). Their
+    // signature carries the legacy v base of 27/28 and is not domain-separated
+    // by chain, so any other EVM-compatible chain that still accepts
+    // unprotected legacy txs can replay it (CWE-325).
+    if ((context->txType == LEGACY) && (tmpContent.txContent.vLength == 0)) {
+        PRINTF("Rejecting pre-EIP-155 legacy transaction (no chain_id)\n");
+        report_finalize_error();
+        return SWO_NO_RESPONSE;
+    }
     // Store the hash
     if (g_tx_hash_ctx == NULL) {
         error = SWO_INSUFFICIENT_MEMORY;
@@ -325,6 +334,20 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
         goto end;
     }
     PRINTF("FROM address displayed: %s\n", strings.common.fromAddress);
+    // Enforce chain binding for plugin registrations now that the full tx has
+    // been parsed and get_tx_chain_id() is reliable (LEGACY transactions only
+    // expose chain_id through the V field, which is parsed after the plugin
+    // init triggered on the data field).
+    if ((dataContext.tokenContext.pluginStatus >= ETH_PLUGIN_RESULT_SUCCESSFUL) &&
+        (dataContext.tokenContext.pluginChainId != PLUGIN_CHAIN_ID_ANY) &&
+        (dataContext.tokenContext.pluginChainId != chain_id)) {
+        PRINTF("Plugin registered for chain %llu but tx is on chain %llu\n",
+               dataContext.tokenContext.pluginChainId,
+               chain_id);
+        report_finalize_error();
+        error = SWO_NO_RESPONSE;
+        goto end;
+    }
     // Finalize the plugin handling
     if (dataContext.tokenContext.pluginStatus >= ETH_PLUGIN_RESULT_SUCCESSFUL) {
         eth_plugin_prepare_finalize(&pluginFinalize);
@@ -369,14 +392,22 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             PRINTF("pluginFinalize.result %d successful\n", pluginFinalize.result);
             // Handle the right interface
             switch (pluginFinalize.uiType) {
-                case ETH_UI_TYPE_GENERIC:
+                case ETH_UI_TYPE_GENERIC: {
+                    size_t total_items = (size_t) pluginFinalize.numScreens +
+                                         (size_t) pluginProvideInfo.additionalScreens;
+                    if (total_items > MAX_PLUGIN_UI_ITEMS) {
+                        PRINTF("Too many plugin screens requested\n");
+                        report_finalize_error();
+                        error = SWO_NO_RESPONSE;
+                        goto end;
+                    }
                     // Use the dedicated ETH plugin UI
                     tmpContent.txContent.dataPresent = false;
                     // Add the number of screens + the number of additional screens to get the total
                     // number of screens needed.
-                    dataContext.tokenContext.pluginUiMaxItems =
-                        pluginFinalize.numScreens + pluginProvideInfo.additionalScreens;
+                    dataContext.tokenContext.pluginUiMaxItems = (uint8_t) total_items;
                     break;
+                }
 
                 // TODO: needs to be removed from the plugin SDK altogether
                 case ETH_UI_TYPE_AMOUNT_ADDRESS:
@@ -544,6 +575,14 @@ uint16_t finalize_parsing(const txContext_t *context) {
                 PRINTF("Error: swap checks haven't been done!\n");
                 send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                        SWAP_EC_ERROR_GENERIC,
+                                       APP_CODE_DEFAULT);
+                // unreachable
+                os_sched_exit(0);
+            }
+            if (tmpContent.txContent.dataPresent && (G_swap_mode == SWAP_MODE_STANDARD)) {
+                PRINTF("Unvalidated calldata is not allowed in standard swap\n");
+                send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
+                                       SWAP_EC_ERROR_WRONG_METHOD,
                                        APP_CODE_DEFAULT);
                 // unreachable
                 os_sched_exit(0);

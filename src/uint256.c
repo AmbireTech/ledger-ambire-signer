@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "lcx_math.h"
 #include "uint256.h"
 #include "read.h"
 #include "write.h"

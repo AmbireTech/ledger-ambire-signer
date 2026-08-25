@@ -54,6 +54,7 @@ bool eip712_context_init(void) {
 
     struct_state = NOT_INITIALIZED;
 
+    appState = APP_STATE_PREPARING_EIP712;
     return true;
 }
 
@@ -67,5 +68,4 @@ void eip712_context_deinit(void) {
     ui_712_deinit();
     sol_typenames_deinit();
     APP_MEM_FREE_AND_NULL((void **) &eip712_context);
-    reset_app_context();
 }

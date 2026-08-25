@@ -18,6 +18,14 @@ uint16_t handle_set_external_plugin(const uint8_t *workBuffer, uint8_t dataLengt
     uint32_t params[2];
 
     PRINTF("plugin Name Length: %d\n", pluginNameLength);
+    // Reject empty plugin names locally. The payload is also signed by Ledger
+    // PKI and a backend should never sign an empty name, but enforcing the
+    // bound here keeps the device side self-consistent and avoids depending
+    // on a backend invariant we can't observe.
+    if (pluginNameLength == 0) {
+        PRINTF("empty plugin name\n");
+        return SWO_INCORRECT_DATA;
+    }
     const size_t payload_size = 1 + pluginNameLength + ADDRESS_LENGTH + SELECTOR_SIZE;
 
     if (dataLength <= payload_size) {
@@ -79,6 +87,20 @@ uint16_t handle_set_external_plugin(const uint8_t *workBuffer, uint8_t dataLengt
     workBuffer += ADDRESS_LENGTH;
     memmove(dataContext.tokenContext.methodSelector, workBuffer, SELECTOR_SIZE);
     pluginType = PLUGIN_TYPE_EXTERNAL;
+    // External-plugin registration is intentionally chain-unbound: the signed
+    // payload here is [name_len | name | address | selector] and contains no
+    // chain_id field, unlike handle_set_plugin which does carry one. Marking
+    // the binding as PLUGIN_CHAIN_ID_ANY is required so the deferred chain
+    // check in finalize_parsing_helper() lets the registration through.
+    //
+    // Closing the cross-chain replay surface for external plugins (Cerberus
+    // CWE-345 follow-up) requires extending the signed payload format on
+    // both the device and the metadata-signing side, and is intentionally
+    // out of scope of this fix. Tracked separately, do not patch in place:
+    // naively widening payload_size here would either reject every existing
+    // signature (the extra bytes are not yet sent) or accept attacker-
+    // controlled bytes outside the signed range.
+    dataContext.tokenContext.pluginChainId = PLUGIN_CHAIN_ID_ANY;
 
     return SWO_SUCCESS;
 }

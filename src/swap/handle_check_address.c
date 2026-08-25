@@ -15,6 +15,15 @@ void handle_check_address(check_address_parameters_t* params, chain_config_t* ch
         PRINTF("Address to check == 0\n");
         return;
     }
+    // The caller (Exchange app, signed by Ledger) is the only path into this
+    // function, so address_parameters comes from a trusted source. Validate
+    // anyway: if a future caller wires up handle_check_address from a less
+    // trusted context, these checks prevent out-of-bounds reads on the
+    // length byte and unsafe overshoot into bip32_path_read.
+    if (params->address_parameters == NULL || params->address_parameters_length == 0) {
+        PRINTF("Empty address_parameters\n");
+        return;
+    }
 
     char address[ADDRESS_LENGTH_STR];
     uint8_t raw_pubkey[CX_SECP256_PUB_KEY_SIZE];
