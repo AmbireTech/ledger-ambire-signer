@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [1.23.0](../../compare/1.22.2...1.23.0) - xxxx-xx-xx
+## [1.23.0](../../compare/1.22.3...1.23.0) - xxxx-xx-xx
+
+## [1.22.3](../../compare/1.22.2...1.22.3) - 2026-08-25
+
+### Fixed
+
+- Standard swap flow could skip calldata validation when blind signing was enabled
+- Legacy transactions vulnerable to cross-chain replay are now rejected
+- EIP-7702 authorizations without a chain ID were accepted for all chains
+- EIP-7702 authorization review could be tricked into signing with a different key than displayed
+- Staking plugin review could hide a meaningful native value transfer
+- ETH2 deposit screen now shows the full validator public key, and malformed deposits are rejected
+- Privacy export now requires explicit user confirmation with clearer wording
+- "Display hash" setting was ignored for EIP-191 personal messages
+- Clear-signing display could show incorrect values or ignore field constraints
+- Plugin state could leak between consecutive transactions
+- EIP-712 messages with recursive structures could crash the device
+- ERC-20 approve() shown as a standard transfer during swap flows
+- ERC-1155 batch transfers now show individual token IDs and quantities
+- Signed integer values with unusual sizes (e.g. int160) were rejected in EIP-712 messages
+- Memory leak when aborting a transaction signing flow
+- Various parsing and memory-safety issues found by security review and fuzzing
 
 ## [1.22.2](../../compare/1.22.1...1.22.2) - 2026-08-12
 
