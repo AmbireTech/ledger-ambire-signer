@@ -28,7 +28,7 @@ on:
   schedule:
     # TESTING: every 10 minutes (the shortest interval GitHub accepts).
     # Revert to '0 6 * * *' (once a day, 06:00 UTC) before merging.
-    - cron: '*/10 * * * *'
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       tag:
