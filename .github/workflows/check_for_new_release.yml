@@ -66,6 +66,7 @@ jobs:
         id: upstream
         run: |
           set -euo pipefail
+          timestamp=$(date -u +'%Y%m%d%H%M%S')
           git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
           if [ -n "${INPUT_TAG}" ]; then
             tag="${INPUT_TAG}"
@@ -86,7 +87,8 @@ jobs:
           fi
           echo "Latest upstream release tag: ${tag}"
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
-          echo "branch=release/${tag}" >> "${GITHUB_OUTPUT}"
+          echo "timestamp=${timestamp}" >> "${GITHUB_OUTPUT}"
+          echo "branch=release/${tag}_${timestamp}" >> "${GITHUB_OUTPUT}"
         env:
           INPUT_TAG: ${{ inputs.tag }}
 
