@@ -1,0 +1,309 @@
+# Builds the "Ambire Signer" Ledger app for every supported device and syncs the
+# resulting plaintext BOLOS load scripts (app.apdu) into the ambire-app extension,
+# so the sideloader in src/web/modules/hardware-wallet/controllers/LedgerController
+# always ships the load scripts of the latest released app build.
+#
+# This is the ambire-app "Build Ledger Ambire Signer" workflow moved here, to the
+# repo that owns the app sources. It runs when a pull request is MERGED into a
+# release/* branch, i.e. right after the Ambire Signer changes have been replayed
+# on top of a new upstream Ledger release by check_for_new_release.yml.
+#
+# Direction of travel, and why the token differs from the ambire-app original:
+#   * The build reads THIS repo, so `app_repository` is left at its default
+#     (github.repository) and the default GITHUB_TOKEN covers it.
+#   * The pull request is opened in ANOTHER repo (ambire-app), which GITHUB_TOKEN
+#     cannot touch - it is scoped to this repo alone. That step therefore needs
+#     AMBIRE_APP_TOKEN: a fine-grained PAT (or GitHub App installation token) with
+#     Contents: read/write + Pull requests: read/write on ambire-app. Because the
+#     pull request is then authored by that identity rather than by Actions, the
+#     "Allow GitHub Actions to create and approve pull requests" setting does not
+#     apply to it.
+#
+# The device list is read from this repo's ledger_app.toml (apex_p, nanox, nanos+,
+# stax, flex). reusable_build.yml uploads one artifact per device and then merges
+# them into a single "ambire_signer_builds" artifact holding one directory per
+# Ledger SDK build target, each containing "bin/app.apdu".
+
+name: Make new Ambire Signer release 📒
+
+on:
+  pull_request:
+    # `closed` fires on merge AND on a plain close, so every job below is gated on
+    # `merged == true`. There is no `merged` trigger type to filter on directly.
+    types: [closed]
+    branches:
+      - 'release/*'
+  workflow_dispatch: # Manual trigger / re-run of a sync
+    inputs:
+      signer_ref:
+        description: 'Branch, tag or commit to build (defaults to the current branch)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # NOT cancel-in-progress: a cancelled run can leave the artifact branch pushed
+  # to ambire-app with no pull request pointing at it.
+  cancel-in-progress: false
+
+env:
+  # Only consumed by steps. The `env` context is not available in
+  # `jobs.<job_id>.with`, so the build job below repeats what it needs.
+  SIGNER_ARTIFACT: ambire_signer_builds
+  DOWNLOAD_DIR: ledger-artifacts
+  APP_REPOSITORY: AmbireTech/ambire-app
+  APP_BASE_BRANCH: feature/ledger-7702
+  APP_PR_BRANCH: automated/ledger-ambire-signer-apdu
+
+jobs:
+  resolve:
+    name: Resolve the ref to build
+    # The single merge gate for the whole workflow: everything else `needs` this.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      signer_ref: ${{ steps.resolve.outputs.signer_ref }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+    steps:
+      - name: Resolve
+        id: resolve
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = 'pull_request' ]; then
+            # The BASE branch, not github.ref: on a closed pull request github.ref
+            # is refs/pull/<n>/merge, which is not the release branch and is not a
+            # ref reusable_build.yml can check out.
+            signer_ref="${PR_BASE_REF}"
+          else
+            signer_ref="${INPUT_REF:-${GITHUB_REF_NAME}}"
+          fi
+          echo "Building ${signer_ref}"
+          echo "signer_ref=${signer_ref}" >> "${GITHUB_OUTPUT}"
+          # Display only: "release/1.22.3" -> "1.22.3", anything else unchanged.
+          echo "release_tag=${signer_ref#release/}" >> "${GITHUB_OUTPUT}"
+        env:
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          INPUT_REF: ${{ inputs.signer_ref }}
+
+  build:
+    name: Build the Ledger app for all supported devices
+    needs: resolve
+    # `app_repository` is omitted deliberately: it defaults to github.repository,
+    # which is this repo. No `use_case` or `flags` are passed, matching
+    # build_ambire_signer.yml. To whitelist the Ambire delegator in the bundled
+    # load scripts, pass `use_case: use_test_keys` (EIP7702_TEST_WHITELIST=1) -
+    # note that is the name in this repo's ledger_app.toml.
+    uses: LedgerHQ/ledger-app-workflows/.github/workflows/reusable_build.yml@v1
+    # Must grant everything reusable_build.yml declares at its workflow level, as
+    # GitHub validates that statically - even for its jobs that never run here.
+    permissions:
+      contents: read
+      actions: write # To upload the build artifacts
+      pull-requests: write # For its ELF size diff comment, which is pull_request only
+    with:
+      app_branch_name: ${{ needs.resolve.outputs.signer_ref }}
+      upload_app_binaries_artifact: ambire_signer_builds
+
+  sync-apdu-artifacts:
+    name: Sync the built .apdu load scripts and open a pull request
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    steps:
+      # ambire-app is checked out at the workspace root, not this repo: the sync
+      # needs that repo's .nvmrc and artifacts directory, and none of our sources.
+      - name: Checkout ambire-app 🛎️
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.APP_REPOSITORY }}
+          ref: ${{ env.APP_BASE_BRANCH }}
+          # Also used by create-pull-request below, via the remote this sets up.
+          token: ${{ secrets.AMBIRE_APP_TOKEN }}
+
+      - name: Get Node version
+        id: node-version
+        run: echo "NODE_VERSION=$(cat .nvmrc)" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.node-version.outputs.NODE_VERSION }}
+
+      - name: Download the built Ledger app artifact ⬇️
+        # Uploaded by the build job in this same run, so no cross-repo token is
+        # needed. Fails the job when the artifact is missing, which is what we
+        # want - a silent "nothing to do" would look like a successful sync.
+        uses: actions/download-artifact@v6
+        with:
+          name: ${{ env.SIGNER_ARTIFACT }}
+          path: ${{ env.DOWNLOAD_DIR }}
+
+      - name: Write the artifact generator
+        run: |
+          cat > generate-apdu-artifacts.mjs <<'GENERATOR_EOF'
+          import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+          import { join, relative, sep } from 'node:path'
+
+          const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR
+          const ARTIFACT_NAME = process.env.SIGNER_ARTIFACT
+          const ARTIFACTS_DIR =
+            'src/web/modules/hardware-wallet/controllers/LedgerController/artifacts'
+
+          // Keyed by the Ledger SDK build target directory inside the artifact. These
+          // differ from the device names in ledger_app.toml: the "nanos+" device is
+          // built into a "nanos2" directory.
+          const TARGETS = {
+            nanox: {
+              fileName: 'ambireSignerNanoX.ts',
+              constName: 'AMBIRE_SIGNER_NANO_X_APDU',
+              label: 'Nano X'
+            },
+            nanos2: {
+              fileName: 'ambireSignerNanoSPlus.ts',
+              constName: 'AMBIRE_SIGNER_NANO_S_PLUS_APDU',
+              label: 'Nano S Plus'
+            },
+            stax: {
+              fileName: 'ambireSignerStax.ts',
+              constName: 'AMBIRE_SIGNER_STAX_APDU',
+              label: 'Stax'
+            },
+            flex: {
+              fileName: 'ambireSignerFlex.ts',
+              constName: 'AMBIRE_SIGNER_FLEX_APDU',
+              label: 'Flex'
+            },
+            apex_p: {
+              fileName: 'ambireSignerApex.ts',
+              constName: 'AMBIRE_SIGNER_APEX_APDU',
+              label: 'Apex'
+            }
+          }
+
+          const HEX_DIGITS = new Set('0123456789abcdef')
+
+          const isHexApdu = (line) =>
+            line.length > 0 &&
+            line.length % 2 === 0 &&
+            Array.from(line.toLowerCase()).every((char) => HEX_DIGITS.has(char))
+
+          const findApduFiles = (dir) =>
+            readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+              const entryPath = join(dir, entry.name)
+
+              if (entry.isDirectory()) return findApduFiles(entryPath)
+
+              return entry.name === 'app.apdu' ? [entryPath] : []
+            })
+
+          const apduFilePaths = findApduFiles(DOWNLOAD_DIR)
+
+          if (!apduFilePaths.length) {
+            console.error(`No app.apdu found anywhere under ${DOWNLOAD_DIR}.`)
+            process.exit(1)
+          }
+
+          const unrecognizedTargets = []
+          const syncedLabels = []
+
+          apduFilePaths.forEach((apduFilePath) => {
+            const sourcePath = relative(DOWNLOAD_DIR, apduFilePath)
+            const segments = sourcePath.split(sep)
+            // Path shape is "<sdk target>/bin/app.apdu", so the target is always the
+            // directory holding "bin".
+            const sdkTarget = segments[segments.length - 3]
+            const target = TARGETS[sdkTarget]
+
+            if (!target) {
+              unrecognizedTargets.push(`${sdkTarget} (${sourcePath})`)
+              return
+            }
+
+            const apduLines = readFileSync(apduFilePath, 'utf8')
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean)
+
+            const malformedLines = apduLines.filter((line) => !isHexApdu(line))
+
+            if (malformedLines.length) {
+              console.error(
+                `${sourcePath} is not a plaintext load script, ${malformedLines.length} line(s) are not hex-encoded.`
+              )
+              process.exit(1)
+            }
+
+            const fileContent = [
+              '// GENERATED — do not edit by hand.',
+              `// Source: ${ARTIFACT_NAME}.zip -> ${sourcePath} (Ambire Signer, ${target.label}).`,
+              '// Plaintext BOLOS load script: one hex-encoded APDU per line. See ../ledgerAppLoader.ts.',
+              '// ponytail: bundled as a source string. Move to a fetched per-model asset if bundle size matters.',
+              '/* eslint-disable */',
+              `export const ${target.constName} = \``,
+              ...apduLines,
+              '`',
+              ''
+            ].join('\n')
+
+            writeFileSync(join(ARTIFACTS_DIR, target.fileName), fileContent)
+            syncedLabels.push(target.label)
+            console.log(`Synced ${target.label} -> ${target.fileName} (${apduLines.length} APDUs).`)
+          })
+
+          if (unrecognizedTargets.length) {
+            console.error(
+              `Unrecognized Ledger SDK target(s): ${unrecognizedTargets.join(', ')}. Add them to TARGETS and to artifacts/index.ts.`
+            )
+            process.exit(1)
+          }
+
+          const missingLabels = Object.values(TARGETS)
+            .map((target) => target.label)
+            .filter((label) => !syncedLabels.includes(label))
+
+          if (missingLabels.length)
+            console.warn(`::warning::No build was produced for: ${missingLabels.join(', ')}.`)
+
+          writeFileSync(
+            process.env.GITHUB_OUTPUT,
+            `synced-models=${syncedLabels.join(', ')}\n`,
+            { flag: 'a' }
+          )
+          GENERATOR_EOF
+        shell: bash
+
+      - name: Regenerate the .apdu artifacts
+        id: generate
+        run: node generate-apdu-artifacts.mjs
+        shell: bash
+
+      - name: Remove the artifact generator and downloads
+        run: rm -rf generate-apdu-artifacts.mjs "${DOWNLOAD_DIR}"
+        shell: bash
+
+      - name: Open a pull request in ambire-app 🚀
+        uses: peter-evans/create-pull-request@v7
+        with:
+          # NOT GITHUB_TOKEN: this pushes and opens a pull request in ambire-app,
+          # which the per-repo GITHUB_TOKEN has no access to at all. See the header.
+          token: ${{ secrets.AMBIRE_APP_TOKEN }}
+          base: ${{ env.APP_BASE_BRANCH }}
+          branch: ${{ env.APP_PR_BRANCH }}
+          # Reuse the same branch so repeated runs update one pull request instead
+          # of piling up a new one per release.
+          delete-branch: true
+          commit-message: 'chore: sync Ledger "Ambire Signer" .apdu load scripts (${{ needs.resolve.outputs.release_tag }})'
+          title: 'chore: sync Ledger "Ambire Signer" .apdu load scripts (${{ needs.resolve.outputs.release_tag }})'
+          body: |
+            Regenerated the per-device "Ambire Signer" load scripts from a fresh
+            [${{ github.repository }}](${{ github.server_url }}/${{ github.repository }}) build.
+
+            - Synced devices: ${{ steps.generate.outputs.synced-models }}
+            - Built from: `${{ needs.resolve.outputs.signer_ref }}`
+            - Upstream Ledger release: `${{ needs.resolve.outputs.release_tag }}`
+            - Build run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Before merging, validate each build against the checks described in
+            `artifacts/index.ts` (app name "Ambire Signer" + Ambire delegator whitelisted).
+          labels: automated

@@ -1,0 +1,45 @@
+name: Build Ambire Signer for all Ledger devices
+
+# Builds the custom "Ambire Signer" Ethereum app for every side-loadable Ledger
+# device and uploads one artifact per device for side-loading.
+#
+# It does NOT pin `sdk_reference`: the default Ledger builder image already
+# tracks the LATEST MAINTAINED SDK for each device and is kept building against
+# it. This is exactly how the repo's own build_and_functional_tests.yml works.
+#
+# Why not pin a per-device SDK tag?
+#   Per-device firmware tags (e.g. nanox_2.7.1, stax_1.9.1) are SDK snapshots
+#   that are NOT guaranteed to compile with the current builder toolchain
+#   (e.g. nanox_2.7.1 fails with "use of undeclared identifier 'uint'", and
+#   stax_1.9.1 fails to link). So "latest maintained SDK" = leave it unset.
+#
+# ⚠️ These binaries target the latest firmware. If a physical device is on an
+#    OLDER OS, loading fails with status 0x511f until you update that device
+#    (Ledger Live -> My Ledger). That is a device-firmware issue, not something
+#    the build can work around without breaking compilation.
+#
+# The original Nano S is unsupported by this app. The Nano X CANNOT be
+# side-loaded (its firmware blocks unsigned apps over USB) — its build is only
+# useful for Speculos emulation; drop it from the matrix if unwanted.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ambire-signer-changes
+      - ambire-signer-release
+      # Upstream release branches prepared by check_for_new_release.yml, e.g.
+      # release/1.22.3 — built once our changes are merged into them.
+      - 'release/*'
+
+jobs:
+  build:
+    name: Build ${{ matrix.device }}
+    strategy:
+      fail-fast: false
+      matrix:
+        device: ["nanos+", "stax", "flex", "nanox", "apex_p"]
+    uses: LedgerHQ/ledger-app-workflows/.github/workflows/reusable_build.yml@v1
+    with:
+      run_for_devices: '["${{ matrix.device }}"]'
+      upload_app_binaries_artifact: "ambire-signer-${{ matrix.device }}"

@@ -57,7 +57,7 @@ enum {
 
 // settings definition
 static const char *const infoTypes[SETTING_INFO_NB] = {"Version", "Developer", "Copyright"};
-static const char *const infoContents[SETTING_INFO_NB] = {APPVERSION, "Ledger", "Ledger (c) 2025"};
+static const char *const infoContents[SETTING_INFO_NB] = {APPVERSION, "Ambire", "Ambire (c) 2025"};
 
 static nbgl_contentInfoList_t infoList = {0};
 static nbgl_contentSwitch_t switches[SETTINGS_SWITCHES_NB] = {0};
@@ -256,7 +256,6 @@ static void prepare_and_display_home(const char *appname, const char *tagline, u
  * This function prepares the app name & tagline depending on how the application was called
  */
 static void get_appname_and_tagline(const char **appname, const char **tagline) {
-    uint64_t mainnet_chain_id;
 
     if (caller_app) {
         *appname = caller_app->name;
@@ -282,8 +281,10 @@ static void get_appname_and_tagline(const char **appname, const char **tagline) 
             }
         }
     } else {  // Ethereum app
-        mainnet_chain_id = ETHEREUM_MAINNET_CHAINID;
-        *appname = get_network_name_from_chain_id(&mainnet_chain_id);
+        *appname = APPNAME;
+        // Custom home-screen tagline. If left NULL, the SDK auto-generates
+        // "This app enables signing transactions on the <appname> network."
+        *tagline = "This app enables signing transactions in Ambire.";
     }
 }
 

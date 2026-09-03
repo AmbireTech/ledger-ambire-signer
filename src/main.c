@@ -413,6 +413,10 @@ static void storage_init(void) {
 
     explicit_bzero(&storage, sizeof(storage));
     storage.initialized = true;
+    // Ambire defaults: enable these settings on first launch
+    storage.eip7702_enable = true;  // Smart account upgrade (EIP-7702)
+    storage.dataAllowed = true;     // Blind signing
+    storage.displayHash = true;     // Transaction hash
     nvm_write((void *) &N_storage, (void *) &storage, sizeof(internalStorage_t));
 }
 
