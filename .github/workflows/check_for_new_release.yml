@@ -19,9 +19,10 @@ name: Check for new upstream release
 # checked on its own, which is what makes the daily run idempotent. Upstream tags
 # are NOT a usable marker, because a GitHub fork already carries all of them.
 #
-# Opening the PR needs a token allowed to create pull requests. Either enable
-# Settings -> Actions -> General -> "Allow GitHub Actions to create and approve
-# pull requests", or add a PAT as the `RELEASE_BOT_TOKEN` secret.
+# Both the branch and the PR live entirely in THIS repo; nothing is ever pushed
+# to the upstream one. See the GH_REPO note below — that pin is what keeps it so.
+# Opening the PR also needs Settings -> Actions -> General -> Workflow permissions
+# -> "Allow GitHub Actions to create and approve pull requests" enabled.
 
 on:
   schedule:
@@ -36,8 +37,15 @@ on:
         type: string
 
 env:
+  # Only ever read from / compared against; never a target for `gh`.
   UPSTREAM_REPO: LedgerHQ/app-ethereum
   SIGNER_BRANCH: ambire-signer-changes
+  # This repo is a FORK of ${UPSTREAM_REPO}, and in a fork `gh` resolves the base
+  # repo to the PARENT. Without this pin, `gh pr create` tries to open the PR
+  # against LedgerHQ/app-ethereum — where GITHUB_TOKEN has no write access — and
+  # fails with "Resource not accessible by integration (createPullRequest)".
+  # Pinning GH_REPO keeps every `gh` call on our own fork.
+  GH_REPO: ${{ github.repository }}
 
 permissions:
   contents: write
@@ -132,10 +140,10 @@ jobs:
                          --body-file pr-body.md 2>pr-error.txt)"; then
               cat pr-error.txt
               if grep -q 'not accessible by integration' pr-error.txt; then
-                echo "::error::GITHUB_TOKEN may not create pull requests in this repo." \
-                     "Enable Settings -> Actions -> General -> Workflow permissions ->" \
-                     "'Allow GitHub Actions to create and approve pull requests', or set a" \
-                     "RELEASE_BOT_TOKEN secret (PAT with repo scope)."
+                echo "::error::Cannot create the PR in ${GH_REPO}. Check that GH_REPO is" \
+                     "pinned to this fork (not its parent) and that Settings -> Actions ->" \
+                     "General -> Workflow permissions -> 'Allow GitHub Actions to create" \
+                     "and approve pull requests' is enabled."
               fi
               exit 1
             fi
@@ -145,10 +153,9 @@ jobs:
           fi
           echo "url=${url}" >> "${GITHUB_OUTPUT}"
         env:
-          # A PAT (secret RELEASE_BOT_TOKEN) is used when available; otherwise the
-          # built-in token, which only works if the repo/org allows Actions to
-          # create pull requests.
-          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          # Provided automatically by Actions; scoped by the `permissions` block
+          # above. No PAT needed, as base and head are both branches of this repo.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.upstream.outputs.tag }}
           BRANCH: ${{ steps.upstream.outputs.branch }}
 
