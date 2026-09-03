@@ -53,7 +53,7 @@ env:
   SIGNER_ARTIFACT: ambire_signer_builds
   DOWNLOAD_DIR: ledger-artifacts
   APP_REPOSITORY: AmbireTech/ambire-app
-  APP_BASE_BRANCH: v2
+  APP_BASE_BRANCH: feature/ledger-7702
   APP_PR_BRANCH: automated/ledger-ambire-signer-apdu
 
 jobs:
