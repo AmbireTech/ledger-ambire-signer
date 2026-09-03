@@ -236,7 +236,6 @@ jobs:
 
             const fileContent = [
               '// GENERATED — do not edit by hand.',
-              `// Source: ${ARTIFACT_NAME}.zip -> ${sourcePath} (Ambire Signer, ${target.label}).`,
               '// Plaintext BOLOS load script: one hex-encoded APDU per line. See ../ledgerAppLoader.ts.',
               '// ponytail: bundled as a source string. Move to a fetched per-model asset if bundle size matters.',
               '/* eslint-disable */',
@@ -303,7 +302,4 @@ jobs:
             - Built from: `${{ needs.resolve.outputs.signer_ref }}`
             - Upstream Ledger release: `${{ needs.resolve.outputs.release_tag }}`
             - Build run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            Before merging, validate each build against the checks described in
-            `artifacts/index.ts` (app name "Ambire Signer" + Ambire delegator whitelisted).
           labels: automated
