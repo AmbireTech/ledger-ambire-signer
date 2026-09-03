@@ -15,9 +15,13 @@ name: Check for new upstream release
 # release. `release/*` is also a build trigger in build_ambire_signer.yml, so the
 # merge produces side-loadable binaries for every device automatically.
 #
-# The existence of `release/<tag>` is the only state this workflow keeps: it is
-# what makes the daily run idempotent. Upstream tags themselves are NOT a usable
-# marker, because a GitHub fork already carries every upstream tag.
+# The branch and the PR are the only state this workflow keeps, and each is
+# checked on its own, which is what makes the daily run idempotent. Upstream tags
+# are NOT a usable marker, because a GitHub fork already carries all of them.
+#
+# Opening the PR needs a token allowed to create pull requests. Either enable
+# Settings -> Actions -> General -> "Allow GitHub Actions to create and approve
+# pull requests", or add a PAT as the `RELEASE_BOT_TOKEN` secret.
 
 on:
   schedule:
@@ -77,40 +81,38 @@ jobs:
         env:
           INPUT_TAG: ${{ inputs.tag }}
 
-      - name: Check whether we already have the release branch
-        id: state
+      # Branch creation and PR creation are checked independently, so a run that
+      # creates the branch but then fails to open the PR is repaired by the next
+      # run instead of being treated as "already done".
+      - name: Ensure the release branch exists
+        id: branch
         run: |
           set -euo pipefail
           if git ls-remote --exit-code --heads origin "refs/heads/${BRANCH}" >/dev/null; then
-            echo "Branch ${BRANCH} already exists — nothing to do."
-            echo "exists=true" >> "${GITHUB_OUTPUT}"
+            echo "Branch ${BRANCH} already exists."
+            echo "created=false" >> "${GITHUB_OUTPUT}"
           else
-            echo "Branch ${BRANCH} is missing — a new upstream release needs preparing."
-            echo "exists=false" >> "${GITHUB_OUTPUT}"
+            git fetch --no-tags upstream "refs/tags/${TAG}"
+            git push origin "FETCH_HEAD:refs/heads/${BRANCH}"
+            echo "Pushed ${BRANCH} at $(git rev-parse FETCH_HEAD)"
+            echo "created=true" >> "${GITHUB_OUTPUT}"
           fi
-        env:
-          BRANCH: ${{ steps.upstream.outputs.branch }}
-
-      - name: Push upstream tag as release branch
-        if: steps.state.outputs.exists == 'false'
-        run: |
-          set -euo pipefail
-          git fetch --no-tags upstream "refs/tags/${TAG}"
-          git push origin "FETCH_HEAD:refs/heads/${BRANCH}"
-          echo "Pushed ${BRANCH} at $(git rev-parse FETCH_HEAD)"
         env:
           TAG: ${{ steps.upstream.outputs.tag }}
           BRANCH: ${{ steps.upstream.outputs.branch }}
 
-      - name: Open PR from the Ambire Signer branch
-        if: steps.state.outputs.exists == 'false'
+      - name: Ensure the rebase PR exists
+        id: pr
         run: |
           set -euo pipefail
+          # --state all: a PR that was merged (rebase done) or deliberately
+          # closed must NOT be recreated on the next daily run.
           existing="$(gh pr list --base "${BRANCH}" --head "${SIGNER_BRANCH}" \
-                      --state open --json number --jq '.[0].number // empty')"
+                      --state all --json number --jq '.[0].number // empty')"
           if [ -n "${existing}" ]; then
             url="$(gh pr view "${existing}" --json url --jq .url)"
-            echo "PR already open: ${url}"
+            echo "created=false" >> "${GITHUB_OUTPUT}"
+            echo "PR already exists: ${url}"
           else
             {
               printf 'Upstream `%s` released [`%s`](%s).\n\n' \
@@ -122,35 +124,60 @@ jobs:
               printf ' push to `%s` triggers *Build Ambire Signer for all Ledger devices*.\n\n' "${BRANCH}"
               printf 'Opened automatically by `.github/workflows/check_for_new_release.yml`.\n'
             } > pr-body.md
-            url="$(gh pr create \
-                    --base "${BRANCH}" \
-                    --head "${SIGNER_BRANCH}" \
-                    --title "Rebase Ambire Signer onto upstream ${TAG}" \
-                    --body-file pr-body.md)"
-            rm -f pr-body.md
+            if ! url="$(gh pr create \
+                         --base "${BRANCH}" \
+                         --head "${SIGNER_BRANCH}" \
+                         --title "Rebase Ambire Signer onto upstream ${TAG}" \
+                         --body-file pr-body.md 2>pr-error.txt)"; then
+              cat pr-error.txt
+              if grep -q 'not accessible by integration' pr-error.txt; then
+                echo "::error::GITHUB_TOKEN may not create pull requests in this repo." \
+                     "Enable Settings -> Actions -> General -> Workflow permissions ->" \
+                     "'Allow GitHub Actions to create and approve pull requests', or set a" \
+                     "RELEASE_BOT_TOKEN secret (PAT with repo scope)."
+              fi
+              exit 1
+            fi
+            rm -f pr-body.md pr-error.txt
+            echo "created=true" >> "${GITHUB_OUTPUT}"
             echo "Opened ${url}"
           fi
-          echo "pr_url=${url}" >> "${GITHUB_ENV}"
+          echo "url=${url}" >> "${GITHUB_OUTPUT}"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A PAT (secret RELEASE_BOT_TOKEN) is used when available; otherwise the
+          # built-in token, which only works if the repo/org allows Actions to
+          # create pull requests.
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.upstream.outputs.tag }}
           BRANCH: ${{ steps.upstream.outputs.branch }}
 
       - name: Summary
+        if: always()
         run: |
           set -euo pipefail
           {
             echo "### Upstream release check"
             echo ""
             echo "- Upstream: \`${UPSTREAM_REPO}\`"
-            echo "- Latest release tag: \`${TAG}\`"
-            if [ "${EXISTS}" = 'true' ]; then
-              echo "- \`${BRANCH}\` already exists — no action taken."
+            echo "- Latest release tag: \`${TAG:-unresolved}\`"
+            if [ "${BRANCH_CREATED}" = 'true' ]; then
+              echo "- Created branch \`${BRANCH}\` at that tag."
+            elif [ "${BRANCH_CREATED}" = 'false' ]; then
+              echo "- Branch \`${BRANCH}\` already existed."
             else
-              echo "- Created \`${BRANCH}\` and opened ${PR_URL:-a pull request}."
+              echo "- Branch \`${BRANCH:-?}\` was not created (see the job log)."
+            fi
+            if [ -z "${PR_URL}" ]; then
+              echo "- No pull request (see the job log)."
+            elif [ "${PR_CREATED}" = 'true' ]; then
+              echo "- Opened ${PR_URL}"
+            else
+              echo "- Pull request already existed: ${PR_URL}"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
         env:
           TAG: ${{ steps.upstream.outputs.tag }}
           BRANCH: ${{ steps.upstream.outputs.branch }}
-          EXISTS: ${{ steps.state.outputs.exists }}
+          BRANCH_CREATED: ${{ steps.branch.outputs.created }}
+          PR_CREATED: ${{ steps.pr.outputs.created }}
+          PR_URL: ${{ steps.pr.outputs.url }}
