@@ -28,6 +28,9 @@ on:
     branches:
       - ambire-signer-changes
       - ambire-signer-release
+      # Upstream release branches prepared by check_for_new_release.yml, e.g.
+      # release/1.22.3 — built once our changes are merged into them.
+      - 'release/*'
 
 jobs:
   build:

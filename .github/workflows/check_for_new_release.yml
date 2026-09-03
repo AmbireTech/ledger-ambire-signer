@@ -1,0 +1,156 @@
+name: Check for new upstream release
+
+# Watches the upstream Ledger app (LedgerHQ/app-ethereum) for a new release tag
+# and prepares the rebase work for our fork.
+#
+# Once a day it:
+#   1. resolves the latest upstream release tag (plain `X.Y.Z` tags only, so
+#      per-device firmware tags such as `stax_1.9.1_1.22.0_sdk_v25.12.3` and
+#      pre-releases such as `1.21.0-dev` are ignored);
+#   2. if we do not already have a `release/<tag>` branch, pushes that upstream
+#      tag into our repo as `release/<tag>`;
+#   3. opens a PR from `ambire-signer-changes` into `release/<tag>`.
+#
+# Merging that PR replays our Ambire Signer changes on top of the new upstream
+# release. `release/*` is also a build trigger in build_ambire_signer.yml, so the
+# merge produces side-loadable binaries for every device automatically.
+#
+# The existence of `release/<tag>` is the only state this workflow keeps: it is
+# what makes the daily run idempotent. Upstream tags themselves are NOT a usable
+# marker, because a GitHub fork already carries every upstream tag.
+
+on:
+  schedule:
+    # TESTING: every 5 minutes (the shortest interval GitHub accepts).
+    # Revert to '0 6 * * *' (once a day, 06:00 UTC) before merging.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Upstream tag to prepare (defaults to the latest release tag)'
+        required: false
+        type: string
+
+env:
+  UPSTREAM_REPO: LedgerHQ/app-ethereum
+  SIGNER_BRANCH: ambire-signer-changes
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    name: Check upstream and prepare release branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve latest upstream release tag
+        id: upstream
+        run: |
+          set -euo pipefail
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          if [ -n "${INPUT_TAG}" ]; then
+            tag="${INPUT_TAG}"
+            if ! git ls-remote --exit-code --tags upstream "refs/tags/${tag}" >/dev/null; then
+              echo "::error::Tag '${tag}' does not exist in ${UPSTREAM_REPO}"
+              exit 1
+            fi
+          else
+            tag="$(git ls-remote --tags --refs upstream \
+                   | sed 's|.*refs/tags/||' \
+                   | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+                   | sort -V \
+                   | tail -1 || true)"
+          fi
+          if [ -z "${tag}" ]; then
+            echo "::error::Could not resolve any release tag from ${UPSTREAM_REPO}"
+            exit 1
+          fi
+          echo "Latest upstream release tag: ${tag}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "branch=release/${tag}" >> "${GITHUB_OUTPUT}"
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+
+      - name: Check whether we already have the release branch
+        id: state
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "refs/heads/${BRANCH}" >/dev/null; then
+            echo "Branch ${BRANCH} already exists — nothing to do."
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "Branch ${BRANCH} is missing — a new upstream release needs preparing."
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+        env:
+          BRANCH: ${{ steps.upstream.outputs.branch }}
+
+      - name: Push upstream tag as release branch
+        if: steps.state.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags upstream "refs/tags/${TAG}"
+          git push origin "FETCH_HEAD:refs/heads/${BRANCH}"
+          echo "Pushed ${BRANCH} at $(git rev-parse FETCH_HEAD)"
+        env:
+          TAG: ${{ steps.upstream.outputs.tag }}
+          BRANCH: ${{ steps.upstream.outputs.branch }}
+
+      - name: Open PR from the Ambire Signer branch
+        if: steps.state.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          existing="$(gh pr list --base "${BRANCH}" --head "${SIGNER_BRANCH}" \
+                      --state open --json number --jq '.[0].number // empty')"
+          if [ -n "${existing}" ]; then
+            url="$(gh pr view "${existing}" --json url --jq .url)"
+            echo "PR already open: ${url}"
+          else
+            {
+              printf 'Upstream `%s` released [`%s`](%s).\n\n' \
+                "${UPSTREAM_REPO}" "${TAG}" \
+                "https://github.com/${UPSTREAM_REPO}/releases/tag/${TAG}"
+              printf '`%s` has been created at that tag. Merging this PR replays the Ambire' "${BRANCH}"
+              printf ' Signer changes from `%s` on top of it.\n\n' "${SIGNER_BRANCH}"
+              printf 'Expect conflicts — resolving them **is** the rebase work. Once merged, the'
+              printf ' push to `%s` triggers *Build Ambire Signer for all Ledger devices*.\n\n' "${BRANCH}"
+              printf 'Opened automatically by `.github/workflows/check_for_new_release.yml`.\n'
+            } > pr-body.md
+            url="$(gh pr create \
+                    --base "${BRANCH}" \
+                    --head "${SIGNER_BRANCH}" \
+                    --title "Rebase Ambire Signer onto upstream ${TAG}" \
+                    --body-file pr-body.md)"
+            rm -f pr-body.md
+            echo "Opened ${url}"
+          fi
+          echo "pr_url=${url}" >> "${GITHUB_ENV}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.upstream.outputs.tag }}
+          BRANCH: ${{ steps.upstream.outputs.branch }}
+
+      - name: Summary
+        run: |
+          set -euo pipefail
+          {
+            echo "### Upstream release check"
+            echo ""
+            echo "- Upstream: \`${UPSTREAM_REPO}\`"
+            echo "- Latest release tag: \`${TAG}\`"
+            if [ "${EXISTS}" = 'true' ]; then
+              echo "- \`${BRANCH}\` already exists — no action taken."
+            else
+              echo "- Created \`${BRANCH}\` and opened ${PR_URL:-a pull request}."
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+        env:
+          TAG: ${{ steps.upstream.outputs.tag }}
+          BRANCH: ${{ steps.upstream.outputs.branch }}
+          EXISTS: ${{ steps.state.outputs.exists }}
