@@ -89,6 +89,10 @@ jobs:
   build:
     name: Build the Ledger app for all supported devices
     needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        device: ["nanos+", "stax", "flex", "apex_p"]
     # `app_repository` is omitted deliberately: it defaults to github.repository,
     # which is this repo. No `use_case` or `flags` are passed, matching
     # build_ambire_signer.yml. To whitelist the Ambire delegator in the bundled
@@ -154,11 +158,6 @@ jobs:
           // differ from the device names in ledger_app.toml: the "nanos+" device is
           // built into a "nanos2" directory.
           const TARGETS = {
-            nanox: {
-              fileName: 'ambireSignerNanoX.ts',
-              constName: 'AMBIRE_SIGNER_NANO_X_APDU',
-              label: 'Nano X'
-            },
             nanos2: {
               fileName: 'ambireSignerNanoSPlus.ts',
               constName: 'AMBIRE_SIGNER_NANO_S_PLUS_APDU',
