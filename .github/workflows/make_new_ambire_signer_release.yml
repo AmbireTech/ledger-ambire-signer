@@ -280,12 +280,29 @@ jobs:
         run: rm -rf generate-apdu-artifacts.mjs "${DOWNLOAD_DIR}"
         shell: bash
 
+      # Signs the sync commit so it shows as Verified in ambire-app. Must run after
+      # the checkout, as it writes user.signingkey / commit.gpgsign into the git
+      # config of the checked-out repo. The key's public half must be added to the
+      # GitHub account that owns AMBIRE_APP_TOKEN, and its UID email must be a
+      # verified email of that account.
+      - name: Import the commit signing GPG key 🔏
+        id: gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.BOT_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.BOT_GPG_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+
       - name: Open a pull request in ambire-app 🚀
         uses: peter-evans/create-pull-request@v7
         with:
           # NOT GITHUB_TOKEN: this pushes and opens a pull request in ambire-app,
           # which the per-repo GITHUB_TOKEN has no access to at all. See the header.
           token: ${{ secrets.AMBIRE_APP_TOKEN }}
+          # Must match the GPG key's UID, or GitHub shows the commit as Unverified.
+          committer: ${{ steps.gpg.outputs.name }} <${{ steps.gpg.outputs.email }}>
+          author: ${{ steps.gpg.outputs.name }} <${{ steps.gpg.outputs.email }}>
           base: ${{ env.APP_BASE_BRANCH }}
           branch: ${{ env.APP_PR_BRANCH }}
           # Reuse the same branch so repeated runs update one pull request instead
