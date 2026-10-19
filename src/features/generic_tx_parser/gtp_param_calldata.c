@@ -9,7 +9,7 @@
 #include "read.h"
 #include "tx_ctx.h"
 #include "app_mem_utils.h"
-#include "tlv_apdu.h"
+#include "tlv_utils.h"
 
 #define PARAM_CALLDATA_TAGS(X)                                 \
     X(0x00, TAG_VERSION, handle_version, ENFORCE_UNIQUE_TAG)   \
@@ -80,7 +80,16 @@ DEFINE_TLV_PARSER(PARAM_CALLDATA_TAGS, NULL, param_calldata_tlv_parser)
 
 bool handle_param_calldata_struct(const buffer_t *buf, s_param_calldata_context *context) {
     TLV_reception_t received_tags;
-    return param_calldata_tlv_parser(buf, context, &received_tags);
+    if (!param_calldata_tlv_parser(buf, context, &received_tags)) {
+        return false;
+    }
+    // Enforce the sub-structure's mandatory tags: an empty or partial PARAM
+    // payload would otherwise parse fine and never appear in the review
+    if (!TLV_CHECK_RECEIVED_TAGS(received_tags, TAG_VERSION, TAG_VALUE, TAG_CALLEE)) {
+        PRINTF("Error: missing mandatory tag(s) in gtp_param_calldata\n");
+        return false;
+    }
+    return true;
 }
 
 static bool process_nested_calldata(const s_param_calldata *param,
@@ -101,11 +110,22 @@ static bool process_nested_calldata(const s_param_calldata *param,
     uint8_t chain_id_buf[sizeof(chain_id_value)];
 
     if (param->has_chain_id) {
+        // The chain ID is a uint64: reject values with non-zero high bytes instead
+        // of silently truncating them (the full word is signed, the truncated one
+        // would drive the displayed network context).
+        if (chain_id->length > sizeof(chain_id_buf)) {
+            if (!allzeroes(chain_id->ptr, chain_id->length - sizeof(chain_id_buf))) {
+                PRINTF("Error: chain ID too big\n");
+                return false;
+            }
+        }
         buf_shrink_expand(chain_id->ptr, chain_id->length, chain_id_buf, sizeof(chain_id_buf));
         chain_id_value = read_u64_be(chain_id_buf, 0);
     }
 
-    if (calldata->length > 0) {
+    // A zero-argument nested call is a real call when the selector is provided
+    // separately: the calldata context must exist so its TX_INFO can match.
+    if ((calldata->length > 0) || param->has_selector) {
         if (param->has_selector) {
             buf_shrink_expand(selector->ptr, selector->length, selector_buf, sizeof(selector_buf));
             calldata_buf = calldata->ptr;
@@ -123,7 +143,7 @@ static bool process_nested_calldata(const s_param_calldata *param,
             return false;
         }
         if (!calldata_append(new_calldata, calldata_buf, calldata_length)) {
-            APP_MEM_FREE(new_calldata);
+            calldata_delete(new_calldata);
             return false;
         }
     }
@@ -158,23 +178,23 @@ static bool check_param(const s_param_calldata *param,
                         s_parsed_value_collection *spenders) {
     if (!value_get(&param->calldata, calldatas)) return false;
     if (!value_get(&param->contract_addr, contract_addrs)) return false;
-    if (contract_addrs->size != calldatas->size) return false;
+    if (contract_addrs->size != calldatas->size && contract_addrs->size != 1) return false;
 
     if (param->has_chain_id) {
         if (!value_get(&param->chain_id, chain_ids)) return false;
-        if (chain_ids->size != calldatas->size) return false;
+        if (chain_ids->size != calldatas->size && chain_ids->size != 1) return false;
     }
     if (param->has_selector) {
         if (!value_get(&param->selector, selectors)) return false;
-        if (selectors->size != calldatas->size) return false;
+        if (selectors->size != calldatas->size && selectors->size != 1) return false;
     }
     if (param->has_amount) {
         if (!value_get(&param->amount, amounts)) return false;
-        if (amounts->size != calldatas->size) return false;
+        if (amounts->size != calldatas->size && amounts->size != 1) return false;
     }
     if (param->has_spender) {
         if (!value_get(&param->spender, spenders)) return false;
-        if (spenders->size != calldatas->size) return false;
+        if (spenders->size != calldatas->size && spenders->size != 1) return false;
     }
     return true;
 }
@@ -204,11 +224,11 @@ bool format_param_calldata(const s_param_calldata *param, const char *name) {
         for (int i = 0; i < calldatas.size; ++i) {
             if (!process_nested_calldata(param,
                                          &calldatas.value[i],
-                                         &contract_addrs.value[i],
-                                         &chain_ids.value[i],
-                                         &selectors.value[i],
-                                         &amounts.value[i],
-                                         &spenders.value[i])) {
+                                         &contract_addrs.value[contract_addrs.size == 1 ? 0 : i],
+                                         &chain_ids.value[chain_ids.size == 1 ? 0 : i],
+                                         &selectors.value[selectors.size == 1 ? 0 : i],
+                                         &amounts.value[amounts.size == 1 ? 0 : i],
+                                         &spenders.value[spenders.size == 1 ? 0 : i])) {
                 ret = false;
                 break;
             }

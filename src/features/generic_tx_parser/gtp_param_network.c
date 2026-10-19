@@ -16,7 +16,7 @@
 #include "gtp_field_table.h"
 #include "tx_ctx.h"
 #include "apdu_constants.h"
-#include "tlv_apdu.h"
+#include "tlv_utils.h"
 #include "chain_config.h"
 
 /**
@@ -70,7 +70,16 @@ DEFINE_TLV_PARSER(PARAM_NETWORK_TAGS, NULL, param_network_tlv_parser)
 
 bool handle_param_network_struct(const buffer_t *buf, s_param_network_context *context) {
     TLV_reception_t received_tags;
-    return param_network_tlv_parser(buf, context, &received_tags);
+    if (!param_network_tlv_parser(buf, context, &received_tags)) {
+        return false;
+    }
+    // Enforce the sub-structure's mandatory tags: an empty or partial PARAM
+    // payload would otherwise parse fine and never appear in the review
+    if (!TLV_CHECK_RECEIVED_TAGS(received_tags, TAG_VERSION, TAG_VALUE)) {
+        PRINTF("Error: missing mandatory tag(s) in gtp_param_network\n");
+        return false;
+    }
+    return true;
 }
 
 /**

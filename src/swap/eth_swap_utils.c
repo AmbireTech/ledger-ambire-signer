@@ -20,6 +20,7 @@
 #include "eth_swap_utils.h"
 #include "asset_info.h"
 #include "apdu_constants.h"
+#include "main_std_app.h"  // app_exit
 #include "utils.h"
 #include "swap_error_code_helpers.h"
 #include "feature_sign_tx.h"
@@ -27,6 +28,8 @@
 
 // Global flag indicating whether swap parameters have been verified
 bool G_swap_checked;
+bool G_swap_tx_had_calldata;
+bool G_swap_calldata_validated;
 
 /**
  * Helper function to parse a token asset info (ticker + decimals) from config buffer
@@ -151,6 +154,18 @@ bool parse_swap_config(const uint8_t *config, uint8_t config_len, swap_context_t
         }
     }
 
+    // TODO: Remove this check once CAL is updated to always provide the token contract address
+    // Parse token contract address (ERC-20 swaps only)
+    if (offset < config_len) {
+        if ((config_len - offset) < ADDRESS_LENGTH) {
+            PRINTF("Failed to parse token contract address\n");
+            return false;
+        }
+        memcpy(context->token_address, config + offset, ADDRESS_LENGTH);
+        context->has_token_address = true;
+        offset += ADDRESS_LENGTH;
+    }
+
     return true;
 }
 
@@ -175,7 +190,7 @@ void get_asset_info_on_network(bool is_fee,
             // fallback mechanism in the absence of network ticker in swap config
             if (context->chain_id == 0) {
                 // fallback mechanism in the absence of chain ID in swap config
-                context->chain_id = config->chainId;
+                context->chain_id = config->chain_id;
             }
             PRINTF("chain_id = %d\n", (uint32_t) context->chain_id);
             *ticker = (char *) get_displayable_ticker(&context->chain_id, config, false);
@@ -194,29 +209,6 @@ void get_asset_info_on_network(bool is_fee,
 }
 
 /**
- * Local implementation of strcasecmp, workaround for the segfaulting base implementation
- * on return value. Remove once strcasecmp is fixed.
- *
- * @param str1 First string to compare
- * @param str2 Second string to compare
- * @return 0 if strings are equal (case-insensitive), difference otherwise
- */
-static int strcasecmp_workaround(const char *str1, const char *str2) {
-    unsigned char c1, c2;
-
-    LEDGER_ASSERT(str1 != NULL, "strcasecmp_workaround: str1 is NULL");
-    LEDGER_ASSERT(str2 != NULL, "strcasecmp_workaround: str2 is NULL");
-    do {
-        c1 = *str1++;
-        c2 = *str2++;
-        if (toupper(c1) != toupper(c2)) {
-            return toupper(c1) - toupper(c2);
-        }
-    } while (c1 != '\0');
-    return 0;
-}
-
-/**
  * Verify that the destination address matches the previously validated one
  *
  * @param destination Destination address to verify
@@ -227,7 +219,7 @@ bool swap_check_destination(const char *destination) {
         return false;
     }
     // Ensure the values are the same that the ones that have been previously validated
-    if (strcasecmp_workaround(strings.common.toAddress, destination) != 0) {
+    if (strcasecmp(strings.common.toAddress, destination) != 0) {
         PRINTF("Error comparing destination addresses\n");
         send_swap_error_with_string(APDU_RESPONSE_MODE_CHECK_FAILED,
                                     SWAP_EC_ERROR_WRONG_DESTINATION,
@@ -235,9 +227,8 @@ bool swap_check_destination(const char *destination) {
                                     "%s != %s",
                                     strings.common.toAddress,
                                     destination);
-        // unreachable
-        os_sched_exit(0);
-        return false;
+        // unreachable — app_exit is __attribute__((noreturn))
+        app_exit();
     }
     return true;
 }
@@ -261,11 +252,93 @@ bool swap_check_amount(const char *amount) {
                                     "%s != %s",
                                     strings.common.fullAmount,
                                     amount);
+        // unreachable — app_exit is __attribute__((noreturn))
+        app_exit();
+    }
+    return true;
+}
+
+/**
+ * Verify that the transaction's value field holds what was validated in Exchange
+ *
+ * What that is depends on the asset being swapped, as decided by copy_transaction_parameters():
+ * the validated amount when the native currency is spent, zero when a token is spent (see
+ * swap_value_check_t). Neither form tolerates anything else: this value is the only part of the
+ * spend the user validated in Exchange that the app can bind on its own.
+ *
+ * Both forms are checked on the raw value rather than on its formatted form. For the zero case,
+ * the expected "0 <native ticker>" string is built from the swap config's fee asset info while the
+ * observed one is built from the network the transaction declares, so comparing them would make
+ * the signature depend on those two tickers spelling the native currency identically. For the
+ * amount case, the formatted forms of two amounts on different scales collide outright: an asset
+ * declaring 6 decimals makes 1 token and 1 native unit both read "1 <ticker>". The chain ID is
+ * bound separately anyway, in finalize_parsing_helper().
+ *
+ * @param formatted_value Transaction value, formatted the way Exchange formats amounts
+ * @param raw_value Transaction value, as parsed from the transaction
+ * @param raw_value_len Length of raw_value in bytes
+ * @return true if the value matches, false otherwise (exits app on failure)
+ */
+bool swap_check_value(const char *formatted_value,
+                      const uint8_t *raw_value,
+                      uint8_t raw_value_len) {
+    uint8_t observed_value[INT256_LENGTH];
+
+    if ((formatted_value == NULL) || (raw_value == NULL)) {
+        return false;
+    }
+    if (raw_value_len > sizeof(observed_value)) {
+        // Cannot happen: the RLP parser caps the value at a word. Fail closed rather than skip
+        // the check, since the only caller does not read this function's return value.
+        PRINTF("Error: transaction value longer than a word\n");
+        send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
+                               SWAP_EC_ERROR_WRONG_AMOUNT,
+                               APP_CODE_DEFAULT);
         // unreachable
         os_sched_exit(0);
         return false;
     }
-    return true;
+    bool value_is_zero = (allzeroes(raw_value, raw_value_len) == 1);
+
+    // Right-align the value in a full word, the way G_swap_expected_value is staged, so the two
+    // can be compared whatever minimal length each side was encoded with.
+    explicit_bzero(observed_value, sizeof(observed_value));
+    memcpy(observed_value + sizeof(observed_value) - raw_value_len, raw_value, raw_value_len);
+
+    switch (G_swap_expected_value_check) {
+        case SWAP_VALUE_CHECK_ZERO:
+            if (!value_is_zero) {
+                PRINTF("Error: non-zero value for a token swap\n");
+                send_swap_error_with_string(APDU_RESPONSE_MODE_CHECK_FAILED,
+                                            SWAP_EC_ERROR_WRONG_AMOUNT,
+                                            APP_CODE_DEFAULT,
+                                            "expected a zero value, got %s",
+                                            formatted_value);
+                // unreachable
+                os_sched_exit(0);
+                return false;
+            }
+            return true;
+        case SWAP_VALUE_CHECK_AMOUNT:
+        default:
+            if (memcmp(observed_value, G_swap_expected_value, sizeof(observed_value)) != 0) {
+                PRINTF("Error: value differs from the validated amount\n");
+                // Both sides are printed because they can read identically: that two equal
+                // strings can stand for different amounts is what this check exists for
+                send_swap_error_with_string(APDU_RESPONSE_MODE_CHECK_FAILED,
+                                            SWAP_EC_ERROR_WRONG_AMOUNT,
+                                            APP_CODE_DEFAULT,
+                                            "raw value mismatch: expected %s, got %s",
+                                            strings.common.fullAmount,
+                                            formatted_value);
+                // unreachable
+                os_sched_exit(0);
+                return false;
+            }
+            // The raw bytes match; the formatted comparison additionally binds the ticker the two
+            // sides spell the asset with.
+            return swap_check_amount(formatted_value);
+    }
 }
 
 /**
@@ -274,6 +347,17 @@ bool swap_check_amount(const char *amount) {
  * @param fee Fee to verify
  * @return true if fee matches, false otherwise (exits app on failure)
  */
+void swap_abort_session(void) {
+    if (!G_called_from_swap) {
+        return;
+    }
+    PRINTF("Error inside a swap session: ending it\n");
+    G_swap_response_ready = true;
+    send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
+                           SWAP_EC_ERROR_GENERIC,
+                           APP_CODE_DEFAULT);
+}
+
 bool swap_check_fee(const char *fee) {
     if (fee == NULL) {
         return false;
@@ -287,9 +371,8 @@ bool swap_check_fee(const char *fee) {
                                     "%s != %s",
                                     strings.common.maxFee,
                                     fee);
-        // unreachable
-        os_sched_exit(0);
-        return false;
+        // unreachable — app_exit is __attribute__((noreturn))
+        app_exit();
     }
     return true;
 }

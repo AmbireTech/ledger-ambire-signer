@@ -5,10 +5,10 @@
 #include "apdu_constants.h"
 #include "swap_error_code_helpers.h"
 #include "common_ui.h"
-#include "ui_callbacks.h"
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "tx_ctx.h"
+#include "eth_swap_utils.h"
 
 typedef enum {
     SIGN_MODE_BASIC = 0,
@@ -37,6 +37,8 @@ static uint16_t handle_first_sign_chunk(const uint8_t *payload,
     *offset += (length - length_tmp);
 
     tmpContent.txContent.dataPresent = false;
+    G_swap_tx_had_calldata = false;
+    G_swap_calldata_validated = false;
     dataContext.tokenContext.pluginStatus = ETH_PLUGIN_RESULT_UNAVAILABLE;
 
     if (APP_MEM_CALLOC((void **) &g_tx_hash_ctx, sizeof(cx_sha3_t)) == false) {
@@ -75,11 +77,11 @@ static uint16_t handle_first_sign_chunk(const uint8_t *payload,
         txContext.txType = LEGACY;
     }
     PRINTF("TxType: %x\n", txContext.txType);
-    return APDU_NO_RESPONSE;
+    return SWO_NO_RESPONSE;
 }
 
 uint16_t handle_parsing_status(parserStatus_e status) {
-    uint16_t sw = APDU_NO_RESPONSE;
+    uint16_t sw = SWO_NO_RESPONSE;
 
     switch (status) {
         case USTREAM_SUSPENDED:
@@ -98,8 +100,8 @@ uint16_t handle_parsing_status(parserStatus_e status) {
                 send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                        SWAP_EC_ERROR_GENERIC,
                                        APP_CODE_CALLDATA_ISSUE);
-                // unreachable
-                os_sched_exit(0);
+                // unreachable — app_exit is __attribute__((noreturn))
+                app_exit();
             }
             sw = SWO_INCORRECT_DATA;
             break;
@@ -110,12 +112,8 @@ uint16_t handle_parsing_status(parserStatus_e status) {
     return sw;
 }
 
-uint16_t handle_sign(uint8_t p1,
-                     uint8_t p2,
-                     const uint8_t *payload,
-                     uint8_t length,
-                     unsigned int *flags) {
-    uint16_t sw = APDU_NO_RESPONSE;
+uint16_t handle_sign(uint8_t p1, uint8_t p2, const uint8_t *payload, uint8_t length) {
+    uint16_t sw = SWO_NO_RESPONSE;
     uint8_t offset = 0;
 
     switch (p2) {
@@ -124,7 +122,7 @@ uint16_t handle_sign(uint8_t p1,
             switch (p1) {
                 case P1_FIRST:
                     if ((sw = handle_first_sign_chunk(payload, length, &offset, p2)) !=
-                        APDU_NO_RESPONSE) {
+                        SWO_NO_RESPONSE) {
                         return sw;
                     }
                     break;
@@ -168,8 +166,7 @@ uint16_t handle_sign(uint8_t p1,
                 ui_gcs_cleanup();
                 return SWO_NOT_SUPPORTED_ERROR_NO_INFO;
             }
-            *flags |= IO_ASYNCH_REPLY;
-            return APDU_NO_RESPONSE;
+            return SWO_NO_RESPONSE;
         default:
             return SWO_WRONG_P1_P2;
     }
@@ -183,17 +180,16 @@ uint16_t handle_sign(uint8_t p1,
     if ((e_sign_mode) tmpCtx.transactionContext.sign_mode == SIGN_MODE_BASIC) {
         if ((pstatus == USTREAM_FINISHED) && (sw == SWO_SUCCESS)) {
             // don't respond now, will be done after review
-            sw = APDU_NO_RESPONSE;
+            sw = SWO_NO_RESPONSE;
         }
     }
-    if (sw != APDU_NO_RESPONSE) {
+    if (sw != SWO_NO_RESPONSE) {
         if ((sw != SWO_SUCCESS) && (g_tx_hash_ctx != NULL)) {
             APP_MEM_FREE_AND_NULL((void **) &g_tx_hash_ctx);
         }
         return sw;
     }
 
-    *flags |= IO_ASYNCH_REPLY;
     // Return code will be sent after UI approve/cancel
     return sw;
 }

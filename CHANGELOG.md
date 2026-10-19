@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.23.0](../../compare/1.22.5...1.23.0) - 2026-09-30
+
+### Added
+
+- Address Book support
+- TLV format (Ledger PKI signed) for ERC-20 token information
+- Interoperable addresses (EIP-7930) in generic clear-signing
+- Map, group, separator and iteration formatters in generic clear-signing
+- Nonce display in EIP-7702 authorization review
+- Nonce and transaction hash display in generic clear-signing review
+
+### Changed
+
+- Token and token amount fields of unknown tokens are now clickable
+- Contacts and trusted names that cannot be displayed fall back to the address
+- A review left on screen is dismissed when a command ends on an error
+
+### Fixed
+
+- EIP-191 messages could be partially hidden when too long for the review page count
+- EIP-712 array elements could bypass display filters, or be signed without being declared
+- EIP-712 amount-join could omit repeated amounts of the same token
+- EIP-712 and generic clear-signing dates could be displayed wrongly (e.g. far deadlines shown in 1969)
+- Short fixed-size bytes values were displayed differently from the signed value
+- ETH2 withdrawal index could change between validation and deposit approval
+- ERC-721 transfers could hide attached ETH, ERC-1155 transfers could hide their data payload
+- External plugin reviews did not show the signing account
+- Token/NFT metadata could be applied to the wrong asset type or to an unsupported chain
+- Generic clear-signing lookups (trusted names, maps, enums) could ignore the chain or contract binding
+- Empty nested transactions used the outer chain for ticker and trusted-name resolution
+- Privacy shared secret was not computed on the published X25519 key
+- Address retrieval failing on some clones
+- Various parsing and memory-safety issues found by security review and fuzzing
+
+## [1.22.5](../../compare/1.22.4...1.22.5) - 2026-09-17
+
+### Fixed
+
+- Swaps could be signed as a native transfer of the same number of units instead of the token spend
+- Crosschain swaps could be signed spending the network's native currency on top of the swapped token
+- Crosschain swaps spending a token whose ticker matches the network's native currency were rejected at signature
+
+## [1.22.4](../../compare/1.22.3...1.22.4) - 2026-09-08
+
+### Changed
+
+- Reviews now always show the signing account and the transaction's native value
+- NFT reviews show the actual recipient from the calldata
+
+### Fixed
+
+- Swap flows could skip calldata validation once a plugin handled the transaction
+- Swap validation was not bound to the promised token contract and chain ID
+- Asset metadata signed for one chain could be reused on another EVM chain
+- ETH2 deposit review was not bound to the deposit data root
+- EIP-7702 authorizations could overwrite a pending transaction's signing data
+- Multi-packet EIP-7702 authorizations were rejected
+- EIP-7702 all-chains requests could match chain-specific whitelist entries
+- EIP-712 sign command could be replayed during the review
+- EIP-712 filters could be replayed, arrive mid-value, or target missing array entries
+- EIP-712 now rejects ambiguous schema names, bad type/size pairs, oversized chain IDs and embedded NULs
+- Nested calls could inherit wrong defaults, hide their chain, or lose zero-argument selectors
+- Enum labels from a different contract could be displayed
+- Reviews could silently drop values on memory errors
+- Fee formatting failure could show an empty fee
+- Transactions with a nonce too large to display are now rejected
+- Missing plugin data could lead to an empty review
+- Overlong caller-app names could corrupt the home screen title
+- Sensitive data is now wiped when a privacy export is aborted
+- Replacing a network descriptor could leave stale state
+- Large raw values were rejected instead of being shown truncated with an ellipsis
+- Various parsing and memory-safety issues found by security review and fuzzing
+
 ## [1.22.3](../../compare/1.22.2...1.22.3) - 2026-08-25
 
 ### Fixed

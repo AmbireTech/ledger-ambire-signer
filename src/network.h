@@ -5,6 +5,7 @@
 #include "chain_config.h"
 #include "nbgl_types.h"
 #include "lists.h"
+#include "caller_app.h"
 
 #define MAX_NETWORK_LEN 32  // 31 characters + '\0'
 
@@ -16,9 +17,9 @@ typedef struct network_info_s {
     nbgl_icon_details_t icon;
 } network_info_t;
 
-#define UNSUPPORTED_CHAIN_ID_MSG(chain_id)                                                  \
-    do {                                                                                    \
-        PRINTF("Unsupported chain ID: %llu (app: %llu)\n", chain_id, chainConfig->chainId); \
+#define UNSUPPORTED_CHAIN_ID_MSG(a)                                                      \
+    do {                                                                                 \
+        PRINTF("Unsupported chain ID: %llu (app: %llu)\n", a, g_chain_config->chain_id); \
     } while (0)
 
 extern const char g_unknown_ticker[];
@@ -38,8 +39,17 @@ bool get_network_as_string(char *out, size_t out_size);
 bool chain_is_ethereum_compatible(const uint64_t *chain_id);
 bool app_compatible_with_chain_id(const uint64_t *chain_id);
 
+/**
+ * @brief Checks whether this app could ever sign for the given chain ID
+ *
+ * @param[in] chain_id The chain ID to check
+ * @return whether a transaction on that chain could be signed by this app
+ */
+bool chain_id_is_signable(uint64_t chain_id);
+
 uint64_t get_tx_chain_id(void);
 
 const char *get_displayable_ticker(const uint64_t *chain_id,
                                    const chain_config_t *chain_cfg,
                                    bool dynamic);
+const char *get_clone_network_name(const caller_app_t *caller_app);

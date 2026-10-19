@@ -1,6 +1,6 @@
 #include "apdu_constants.h"
 #include "shared_context.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "feature_perform_privacy_operation.h"
 
 // The shared-secret review path renders the X25519 derived secret as hex into
@@ -11,6 +11,16 @@
 static void scrub_privacy_strings(void) {
     explicit_bzero(strings.common.fullAmount, sizeof(strings.common.fullAmount));
     explicit_bzero(strings.common.toAddress, sizeof(strings.common.toAddress));
+}
+
+void privacy_operation_cleanup(void) {
+    scrub_privacy_strings();
+    // The raw secret sits in tmpCtx until the result is copied out; wipe it on
+    // paths that never reach that point
+    explicit_bzero(&tmpCtx.publicKeyContext, sizeof(tmpCtx.publicKeyContext));
+    if (appState == APP_STATE_PERFORMING_PRIVACY_OP) {
+        appState = APP_STATE_IDLE;
+    }
 }
 
 unsigned int io_seproxyhal_touch_privacy_ok(void) {

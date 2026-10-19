@@ -11,7 +11,20 @@ typedef struct erc721_context_t {
     uint8_t address[ADDRESS_LENGTH];
     uint8_t tokenId[INT256_LENGTH];
 
+    // Calldata `from`: the account being debited, not necessarily the signer
+    uint8_t ownerAddress[ADDRESS_LENGTH];
+
+    // safeTransferFrom(...,bytes) receiver payload; forwarded to the
+    // recipient's onERC721Received hook, so its presence must be shown
+    uint32_t data_offset;
+    uint32_t data_length;
+
     bool approved;
+
+    // Screen index of the attached-value row, 0 when there is none. Every selector
+    // has several rows before it, so index 0 is never a valid position for it: a
+    // zero-initialised context therefore means "no value row" on its own.
+    uint8_t amount_screen;
 
     uint8_t next_param;
     uint8_t selectorIndex;

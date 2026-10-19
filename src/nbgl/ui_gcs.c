@@ -1,12 +1,14 @@
 #include <string.h>
+#include "os_utils.h"
 #include "shared_context.h"
 #include "ui_nbgl.h"
+#include "ui_icons.h"
 #include "gtp_tx_info.h"
 #include "gtp_field_table.h"
 #include "app_mem_utils.h"
 #include "mem_utils.h"
 #include "network.h"
-#include "ui_callbacks.h"
+#include "common_ui.h"
 #include "feature_sign_tx.h"
 #include "apdu_constants.h"
 #include "cmd_get_tx_simulation.h"
@@ -15,20 +17,23 @@
 #include "proxy_info.h"
 #include "trusted_name.h"
 #include "tx_ctx.h"
+#include "token_info.h"
+#include "nft_info.h"
+#include "common_ui.h"
+#ifdef HAVE_ADDRESS_BOOK
+#include "handle_contacts.h"
+#endif  // HAVE_ADDRESS_BOOK
 
 static bool *index_allocated = NULL;
 
 static void review_choice(bool confirm) {
+    ui_gcs_cleanup();
     if (confirm) {
         io_seproxyhal_touch_tx_ok();
-#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_SIGNED, ui_idle);
-#endif
     } else {
         io_seproxyhal_touch_tx_cancel();
-#ifndef FUZZ
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_REJECTED, ui_idle);
-#endif
     }
 }
 
@@ -147,7 +152,7 @@ static bool prepare_infos(nbgl_contentInfoList_t *infos) {
     if (!getEthDisplayableAddress((uint8_t *) get_contract_addr(get_current_tx_info()),
                                   tmp_buf,
                                   tmp_buf_size,
-                                  chainConfig->chainId)) {
+                                  g_chain_config->chain_id)) {
         return false;
     }
     if ((keys[count] = APP_MEM_STRDUP("Contract address")) == NULL) {
@@ -176,13 +181,16 @@ static bool prepare_infos(nbgl_contentInfoList_t *infos) {
         if (APP_MEM_CALLOC((void **) &extensions, sizeof(*extensions) * count) == false) {
             return false;
         }
+        // The extension array is only `count` long: nbInfos must match before any
+        // fallible operation, otherwise an error-path cleanup would index past it
+        infos->nbInfos = count;
         infos->infoExtensions = extensions;
         infos->withExtensions = true;
 
         if (!getEthDisplayableAddress((uint8_t *) get_contract_addr(get_current_tx_info()),
                                       tmp_buf,
                                       tmp_buf_size,
-                                      chainConfig->chainId)) {
+                                      g_chain_config->chain_id)) {
             return false;
         }
         if ((extensions[contract_idx].title = APP_MEM_STRDUP(tmp_buf)) == NULL) {
@@ -297,7 +305,7 @@ static const nbgl_contentValueExt_t *handle_extra_data_trusted_name(
     if (!getEthDisplayableAddress(tname->addr,
                                   formatted_addr,
                                   sizeof(formatted_addr),
-                                  chainConfig->chainId)) {
+                                  g_chain_config->chain_id)) {
         return NULL;
     }
     if (alias_type == INFO_LIST_ALIAS) {
@@ -321,34 +329,90 @@ static const nbgl_contentValueExt_t *handle_extra_data_trusted_name(
     return extension;
 }
 
+#ifdef HAVE_ADDRESS_BOOK
+/**
+ * @brief Build the alias extension for an Address Book field.
+ *
+ * Populates an ADDRESS_BOOK_ALIAS extension so that tapping the field opens a
+ * detail view showing the contact name, optional scope, and the full hex address.
+ * If a Trusted Name also exists for the same address, it is stored in
+ * @c explanation so the detail view can display both names simultaneously.
+ *
+ * @param[in] field  Field table entry whose extra_data points to an s_ab_contact
+ * @return Allocated extension, or NULL on allocation / formatting failure
+ */
+static const nbgl_contentValueExt_t *handle_extra_data_address_book(
+    const s_field_table_entry *field) {
+    nbgl_contentValueExt_t *extension;
+    const s_ab_contact *ab_contact = (const s_ab_contact *) field->extra_data;
+    char formatted_addr[ADDRESS_LENGTH_HEX_STR];
+
+    if (!getEthDisplayableAddress((uint8_t *) ab_contact->identifier,
+                                  formatted_addr,
+                                  sizeof(formatted_addr),
+                                  g_chain_config->chain_id)) {
+        return NULL;
+    }
+    if (APP_MEM_CALLOC((void **) &extension, sizeof(*extension)) == false) {
+        return NULL;
+    }
+    if ((extension->fullValue = APP_MEM_STRDUP(formatted_addr)) == NULL) {
+        APP_MEM_FREE(extension);
+        return NULL;
+    }
+    extension->title = ab_contact->contact_name;
+    extension->aliasType = ADDRESS_BOOK_ALIAS;
+    // NULL suppresses the scope line in the detail view; an empty string would still render it
+    extension->aliasSubName = (ab_contact->scope[0] != '\0') ? ab_contact->scope : NULL;
+
+    // If a Trusted Name also exists for this address, store it in explanation so the
+    // detail view can show both the Address Book name and the Trusted Name together.
+    {
+        uint64_t chain_id = get_tx_chain_id();
+        e_name_type types[] = {TN_TYPE_ACCOUNT};
+        e_name_source sources[] = {TN_SOURCE_ENS, TN_SOURCE_LAB, TN_SOURCE_MAB};
+        const s_trusted_name *tname = get_trusted_name(ARRAYLEN(types),
+                                                       types,
+                                                       ARRAYLEN(sources),
+                                                       sources,
+                                                       &chain_id,
+                                                       ab_contact->identifier);
+        if (tname != NULL) {
+            extension->explanation = tname->name;
+        }
+    }
+    return extension;
+}
+#endif  // HAVE_ADDRESS_BOOK
+
 static const nbgl_contentValueExt_t *handle_extra_data_token(const s_field_table_entry *field) {
-    const tokenDefinition_t *token_def = (tokenDefinition_t *) field->extra_data;
+    const s_token_info *token_info = field->extra_data;
     char formatted_addr[ADDRESS_LENGTH_HEX_STR];
     const char *keys[] = {"Contract address"};
     const char *values[] = {formatted_addr};
 
-    if (!getEthDisplayableAddress(token_def->address,
+    if (!getEthDisplayableAddress(token_info->address,
                                   formatted_addr,
                                   sizeof(formatted_addr),
-                                  chainConfig->chainId)) {
+                                  token_info->chain_id)) {
         return NULL;
     }
-    return get_infolist_extension(token_def->ticker, ARRAYLEN(keys), keys, values);
+    return get_infolist_extension(token_info->ticker, ARRAYLEN(keys), keys, values);
 }
 
 static const nbgl_contentValueExt_t *handle_extra_data_nft(const s_field_table_entry *field) {
-    const nftInfo_t *nft_def = (nftInfo_t *) field->extra_data;
+    const s_nft_info *nft_info = (s_nft_info *) field->extra_data;
     char formatted_addr[ADDRESS_LENGTH_HEX_STR];
     const char *keys[] = {"Contract address"};
     const char *values[] = {formatted_addr};
 
-    if (!getEthDisplayableAddress(nft_def->contractAddress,
+    if (!getEthDisplayableAddress(nft_info->address,
                                   formatted_addr,
                                   sizeof(formatted_addr),
-                                  chainConfig->chainId)) {
+                                  nft_info->chain_id)) {
         return NULL;
     }
-    return get_infolist_extension(nft_def->collectionName, ARRAYLEN(keys), keys, values);
+    return get_infolist_extension(nft_info->collection_name, ARRAYLEN(keys), keys, values);
 }
 
 static const nbgl_contentValueExt_t *handle_extra_data_enum(const s_field_table_entry *field) {
@@ -371,6 +435,13 @@ static bool handle_extra_data(const s_field_table_entry *field, nbgl_contentTagV
                 return false;
             }
             break;
+#ifdef HAVE_ADDRESS_BOOK
+        case PARAM_TYPE_ADDRESS_BOOK:
+            if ((pair->extension = handle_extra_data_address_book(field)) == NULL) {
+                return false;
+            }
+            break;
+#endif  // HAVE_ADDRESS_BOOK
         case PARAM_TYPE_TOKEN_AMOUNT:
         case PARAM_TYPE_TOKEN:
             if ((pair->extension = handle_extra_data_token(field)) == NULL) {
@@ -400,12 +471,17 @@ bool ui_gcs(void) {
     size_t tmp_buf_size = sizeof(strings.tmp.tmp);
     const s_field_table_entry *field;
     bool show_network;
+    bool show_root_value;
+    bool show_root_from;
+    bool show_nonce;
+    bool show_hash;
     nbgl_contentValueExt_t *ext = NULL;
     nbgl_contentInfoList_t *infolist = NULL;
     size_t nbPairs = 0;
     size_t pair = 0;
     size_t table_size = 0;
     uint8_t tx_idx = 0;
+    bool had_separator = false;
     const s_tx_info *info_tx = get_current_tx_info();
 
     explicit_bzero(&warning, sizeof(nbgl_warning_t));
@@ -432,27 +508,44 @@ bool ui_gcs(void) {
 
     // Get the number of TX fields to display
     table_size = field_table_size();
+    // Sender account, unless a descriptor field already shows it (CP_FROM)
+    show_root_from = !gcs_is_root_from_shown();
+    if (show_root_from) {
+        nbPairs += 1;
+    }
     // Contract info
     nbPairs += 1;
+    // Root transaction native value, unless a descriptor field already shows it (CP_VALUE)
+    show_root_value = !gcs_is_root_value_shown() && !allzeroes(tmpContent.txContent.value.value,
+                                                               tmpContent.txContent.value.length);
+    if (show_root_value) {
+        nbPairs += 1;
+    }
+    // Nonce and transaction hash: both are covered by the signature, so they follow
+    // the same settings as the standard review rather than being unconditionally
+    // dropped from the clear-signing one.
+    show_nonce = N_storage.displayNonce;
+    if (show_nonce) {
+        nbPairs += 1;
+    }
+    show_hash = N_storage.displayHash;
+    if (show_hash) {
+        nbPairs += 1;
+    }
     // Batch transactions
     if (txContext.batch_nb_tx > 1) {
         nbPairs += txContext.batch_nb_tx;  // one page per sub-tx
     }
     // TX fields
     nbPairs += table_size;
-    show_network = get_tx_chain_id() != chainConfig->chainId;
+    show_network = get_tx_chain_id() != g_chain_config->chain_id;
     if (show_network) {
         nbPairs += 1;
     }
     // Fees
     nbPairs += 1;
 
-    if (nbPairs > UINT8_MAX) {
-        PRINTF("Error: Too many review fields: %u\n", (unsigned) nbPairs);
-        return false;
-    }
-
-    if (!ui_pairs_init((uint8_t) nbPairs)) {
+    if (!ui_pairs_init(nbPairs)) {
         return false;
     }
 
@@ -462,8 +555,9 @@ bool ui_gcs(void) {
     }
 
     // First pair: contract info
-    index_allocated[pair] = true;
-    g_pairs[pair].item = APP_MEM_STRDUP("Interaction with");
+    if ((g_pairs[pair].item = APP_MEM_STRDUP("Interaction with")) == NULL) {
+        return false;
+    }
     g_pairs[pair].value = get_creator_name(info_tx);
     if (g_pairs[pair].value == NULL) {
         // not great, but this cannot be NULL
@@ -471,6 +565,10 @@ bool ui_gcs(void) {
     } else {
         g_pairs[pair].value = APP_MEM_STRDUP(g_pairs[pair].value);
     }
+    if (g_pairs[pair].value == NULL) {
+        return false;
+    }
+    index_allocated[pair] = true;
     if (APP_MEM_CALLOC((void **) &ext, sizeof(*ext)) == false) {
         return false;
     }
@@ -490,8 +588,31 @@ bool ui_gcs(void) {
     } else {
         ext->backText = APP_MEM_STRDUP(ext->backText);
     }
+    if (ext->backText == NULL) {
+        return false;
+    }
     g_pairs[pair].aliasValue = true;
     pair++;
+
+    // Sender account, right after the clickable contract info — the BIP32 path
+    // comes from the host, so the user must be able to verify which account signs.
+    // Format from the tx context (strings.common.fromAddress shares its memory
+    // with strings.tmp.tmp, already clobbered by the title above).
+    if (show_root_from) {
+        const uint8_t *from = get_current_tx_from();
+
+        if ((from == NULL) ||
+            !getEthDisplayableAddress(from, tmp_buf, tmp_buf_size, g_chain_config->chain_id)) {
+            PRINTF("Error: no sender address!\n");
+            return false;
+        }
+        if (((g_pairs[pair].item = APP_MEM_STRDUP("From")) == NULL) ||
+            ((g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf)) == NULL)) {
+            return false;
+        }
+        index_allocated[pair] = true;
+        pair++;
+    }
 
     // TX fields
     for (size_t i = 0; i < table_size; ++i) {
@@ -507,11 +628,21 @@ bool ui_gcs(void) {
             // Batch intermediate page
             tx_idx++;
             snprintf(tmp_buf, tmp_buf_size, "%d of %d", tx_idx, txContext.batch_nb_tx);
-            g_pairs[pair].item = APP_MEM_STRDUP("Review transaction");
-            g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf);
+            if (((g_pairs[pair].item = APP_MEM_STRDUP("Review transaction")) == NULL) ||
+                ((g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf)) == NULL)) {
+                return false;
+            }
             index_allocated[pair] = true;
             g_pairs[pair].centeredInfo = true;
             pair++;
+        }
+        if (field->is_separator) {
+            had_separator = true;
+            g_pairs[pair].item = field->key;
+            g_pairs[pair].value = field->value;
+            g_pairs[pair].centeredInfo = true;
+            pair++;
+            continue;
         }
         g_pairs[pair].item = field->key;
         g_pairs[pair].value = field->value;
@@ -529,16 +660,62 @@ bool ui_gcs(void) {
         }
     }
 
+    // Native value of the root transaction, taken from the RLP content (device-side
+    // source of truth) so the host cannot hide it by omitting it from the metadata.
+    if (show_root_value) {
+        uint64_t chain_id = get_tx_chain_id();
+        const char *ticker = get_displayable_ticker(&chain_id, g_chain_config, true);
+
+        if (!amountToString(tmpContent.txContent.value.value,
+                            tmpContent.txContent.value.length,
+                            WEI_TO_ETHER,
+                            ticker,
+                            tmp_buf,
+                            tmp_buf_size)) {
+            return false;
+        }
+        if (((g_pairs[pair].item = APP_MEM_STRDUP("Amount")) == NULL) ||
+            ((g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf)) == NULL)) {
+            return false;
+        }
+        index_allocated[pair] = true;
+        pair++;
+    }
+
+    // Format from the tx context: strings.common.nonce shares its memory with
+    // strings.tmp.tmp, already clobbered by the title above.
+    if (show_nonce) {
+        if (pair >= g_pairsList->nbPairs) {
+            PRINTF("Error: No more pairs available for nonce!\n");
+            return false;
+        }
+        if (!nonce_to_string(&tmpContent.txContent.nonce, tmp_buf, tmp_buf_size)) {
+            PRINTF("Error: Could not format the nonce!\n");
+            return false;
+        }
+        if (((g_pairs[pair].item = APP_MEM_STRDUP("Nonce")) == NULL) ||
+            ((g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf)) == NULL)) {
+            return false;
+        }
+        index_allocated[pair] = true;
+        pair++;
+    }
+
+    if (had_separator) {
+        g_pairs[pair].forcePageStart = true;
+    }
     if (show_network) {
         if (pair >= g_pairsList->nbPairs - 1) {
             PRINTF("Error: No more pairs available for network!\n");
             return false;
         }
-        g_pairs[pair].item = APP_MEM_STRDUP("Network");
         if (get_network_as_string(tmp_buf, tmp_buf_size) != true) {
             return false;
         }
-        g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf);
+        if (((g_pairs[pair].item = APP_MEM_STRDUP("Network")) == NULL) ||
+            ((g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf)) == NULL)) {
+            return false;
+        }
         index_allocated[pair] = true;
         pair++;
     }
@@ -548,17 +725,50 @@ bool ui_gcs(void) {
         PRINTF("Error: No more pairs available for fees!\n");
         return false;
     }
-    g_pairs[pair].item = APP_MEM_STRDUP("Max fees");
     if (max_transaction_fee_to_string(&tmpContent.txContent.gasprice,
                                       &tmpContent.txContent.startgas,
                                       tmp_buf,
                                       tmp_buf_size) == false) {
         PRINTF("Error: Could not format the max fees!\n");
+        return false;
     }
-    g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf);
+    if (((g_pairs[pair].item = APP_MEM_STRDUP("Max fees")) == NULL) ||
+        ((g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf)) == NULL)) {
+        return false;
+    }
     index_allocated[pair] = true;
+    pair++;
 
-#ifndef FUZZ
+    if (show_hash) {
+        if (pair >= g_pairsList->nbPairs) {
+            PRINTF("Error: No more pairs available for tx hash!\n");
+            return false;
+        }
+        strlcpy(tmp_buf, "0x", tmp_buf_size);
+        if (bytes_to_lowercase_hex(tmp_buf + 2,
+                                   tmp_buf_size - 2,
+                                   tmpCtx.transactionContext.hash,
+                                   INT256_LENGTH) < 0) {
+            PRINTF("Error: Could not format the tx hash!\n");
+            return false;
+        }
+#ifdef SCREEN_SIZE_WALLET
+        g_pairs[pair].item = APP_MEM_STRDUP("Transaction hash");
+#else
+        g_pairs[pair].item = APP_MEM_STRDUP("Tx hash");
+#endif
+        if ((g_pairs[pair].item == NULL) ||
+            ((g_pairs[pair].value = APP_MEM_STRDUP(tmp_buf)) == NULL)) {
+            return false;
+        }
+        index_allocated[pair] = true;
+        pair++;
+    }
+
+    // Correct the pair count: empty separators are in the field table but
+    // do not consume a pair slot, so nbPairs may over-estimate.
+    g_pairsList->nbPairs = pair;
+
     nbgl_useCaseAdvancedReview(TYPE_TRANSACTION,
                                g_pairsList,
                                get_tx_icon(false),
@@ -568,6 +778,5 @@ bool ui_gcs(void) {
                                NULL,
                                &warning,
                                review_choice);
-#endif
     return true;
 }

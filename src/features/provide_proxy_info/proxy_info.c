@@ -5,7 +5,7 @@
 #include "ui_utils.h"
 #include "app_mem_utils.h"
 #include "hash_bytes.h"
-#include "tlv_apdu.h"
+#include "tlv_utils.h"
 #include "lcx_ecdsa.h"
 
 #define TYPE_PROXY_INFO 0x26
@@ -29,7 +29,11 @@ static s_proxy_info *g_proxy_info = NULL;
  */
 static bool handle_struct_type(const tlv_data_t *data, s_proxy_info_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_type(data, TYPE_PROXY_INFO);
+    if (!tlv_enforce_u8_value(data, TYPE_PROXY_INFO)) {
+        PRINTF("Invalid STRUCTURE_TYPE value\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -41,7 +45,11 @@ static bool handle_struct_type(const tlv_data_t *data, s_proxy_info_ctx *context
  */
 static bool handle_struct_version(const tlv_data_t *data, s_proxy_info_ctx *context) {
     UNUSED(context);
-    return tlv_check_struct_version(data, STRUCT_VERSION);
+    if (!tlv_enforce_u8_value(data, STRUCT_VERSION)) {
+        PRINTF("Invalid STRUCT_VERSION value\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -223,6 +231,7 @@ bool verify_proxy_info_struct(const s_proxy_info_ctx *context) {
 static bool check_proxy_params(const uint64_t *chain_id,
                                const uint8_t *addr,
                                const uint8_t *selector,
+                               bool descriptor_has_selector,
                                const uint64_t *ref_chain_id,
                                const uint8_t *ref_addr,
                                const uint8_t *ref_selector) {
@@ -232,8 +241,8 @@ static bool check_proxy_params(const uint64_t *chain_id,
     if (memcmp(addr, ref_addr, ADDRESS_LENGTH) != 0) {
         return false;
     }
-    if (selector != NULL) {
-        if (memcmp(selector, ref_selector, CALLDATA_SELECTOR_SIZE) != 0) {
+    if (descriptor_has_selector) {
+        if ((selector == NULL) || (memcmp(selector, ref_selector, CALLDATA_SELECTOR_SIZE) != 0)) {
             return false;
         }
     }
@@ -250,7 +259,8 @@ const uint8_t *get_proxy_contract(const uint64_t *chain_id,
 
     if (!check_proxy_params(chain_id,
                             addr,
-                            g_proxy_info->has_selector ? selector : NULL,
+                            selector,
+                            g_proxy_info->has_selector,
                             &g_proxy_info->chain_id,
                             g_proxy_info->implem_address,
                             g_proxy_info->selector)) {
@@ -269,7 +279,8 @@ const uint8_t *get_implem_contract(const uint64_t *chain_id,
 
     if (!check_proxy_params(chain_id,
                             addr,
-                            g_proxy_info->has_selector ? selector : NULL,
+                            selector,
+                            g_proxy_info->has_selector,
                             &g_proxy_info->chain_id,
                             g_proxy_info->address,
                             g_proxy_info->selector)) {

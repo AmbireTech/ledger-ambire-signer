@@ -5,7 +5,6 @@
 #include "eth_plugin_handler.h"
 #include "network.h"
 #include "common_ui.h"
-#include "ui_callbacks.h"
 #include "apdu_constants.h"
 #include "format.h"
 #include "manage_asset_info.h"
@@ -37,13 +36,28 @@ static uint32_t split_binary_parameter_part(char *result, size_t result_size, ui
     }
 }
 
+// Whether the field currently being parsed is the transaction's data/calldata
+// field, whose RLP index depends on the transaction type.
+static bool is_rlp_data_field(const txContext_t *context) {
+    switch (context->txType) {
+        case LEGACY:
+            return context->currentField == LEGACY_RLP_DATA;
+        case EIP2930:
+            return context->currentField == EIP2930_RLP_DATA;
+        case EIP1559:
+            return context->currentField == EIP1559_RLP_DATA;
+        case EIP7702:
+            return context->currentField == EIP7702_RLP_DATA;
+        default:
+            return false;
+    }
+}
+
 customStatus_e custom_processor(txContext_t *context) {
-    if (((context->txType == LEGACY && context->currentField == LEGACY_RLP_DATA) ||
-         (context->txType == EIP2930 && context->currentField == EIP2930_RLP_DATA) ||
-         (context->txType == EIP1559 && context->currentField == EIP1559_RLP_DATA) ||
-         (context->txType == EIP7702 && context->currentField == EIP7702_RLP_DATA)) &&
-        (context->currentFieldLength != 0)) {
+    if (is_rlp_data_field(context) && (context->currentFieldLength != 0)) {
         context->content->dataPresent = true;
+        // Plugins clear dataPresent for their own review; keep the raw fact
+        G_swap_tx_had_calldata = true;
         // If handling a new contract rather than a function call, abort immediately
         if (tmpContent.txContent.destinationLength == 0) {
             return CUSTOM_NOT_HANDLED;
@@ -97,8 +111,7 @@ customStatus_e custom_processor(txContext_t *context) {
                 if (!N_storage.dataAllowed) {
                     PRINTF("Data field forbidden\n");
                     ui_error_blind_signing();
-                    // An error screen is already displayed; only reset the state
-                    // so the main loop's error handling does not overwrite it
+                    ui_hold_error_screen();
                     appState = APP_STATE_IDLE;
                     return CUSTOM_FAULT;
                 }
@@ -216,10 +229,10 @@ static uint16_t address_to_string(uint8_t *in,
     return SWO_SUCCESS;
 }
 
-static void raw_fee_to_string(uint256_t *rawFee, char *out_buffer, uint32_t out_buffer_size) {
+static bool raw_fee_to_string(uint256_t *rawFee, char *out_buffer, uint32_t out_buffer_size) {
     // Fees are always in the base currency, this is why we need to use the chain_id
     uint64_t chain_id = get_tx_chain_id();
-    const char *ticker = get_displayable_ticker(&chain_id, chainConfig, true);
+    const char *ticker = get_displayable_ticker(&chain_id, g_chain_config, true);
     uint8_t fee_len = 0;
     uint8_t ticker_len = 0;
     char raw_fee_buffer[100] = {0};
@@ -229,7 +242,7 @@ static void raw_fee_to_string(uint256_t *rawFee, char *out_buffer, uint32_t out_
     // Convert the fee to decimal string first
     if (tostring256(rawFee, 10, (char *) raw_fee_buffer, sizeof(raw_fee_buffer)) == false) {
         PRINTF("tostring256 failed\n");
-        return;
+        return false;
     }
     // Adjust the decimal position, store the result in out_buffer
     fee_len = strnlen(raw_fee_buffer, sizeof(raw_fee_buffer));
@@ -237,18 +250,19 @@ static void raw_fee_to_string(uint256_t *rawFee, char *out_buffer, uint32_t out_
     if (adjustDecimals(raw_fee_buffer, fee_len, out_buffer, out_buffer_size, WEI_TO_ETHER) ==
         false) {
         PRINTF("adjustDecimals failed\n");
-        return;
+        return false;
     }
 
     // out_buffer will contain the fee, a space and the ticker, ended with \0
     if ((strlen(out_buffer) + 1 + ticker_len + 1) > out_buffer_size) {
         PRINTF("Not enough space for ticker\n");
-        return;
+        return false;
     }
     // Append a space and the ticker to the out_buffer
     // strlcat cannot fail here as we checked boundaries above
     strlcat(out_buffer, " ", out_buffer_size);
     strlcat(out_buffer, ticker, out_buffer_size);
+    return true;
 }
 
 // Compute the fees, transform it to a string, prepend a ticker to it and copy everything to
@@ -265,38 +279,53 @@ bool max_transaction_fee_to_string(const txInt256_t *BEGasPrice,
 
     PRINTF("Gas price %.*H\n", BEGasPrice->length, BEGasPrice->value);
     PRINTF("Gas limit %.*H\n", BEGasLimit->length, BEGasLimit->value);
-    convertUint256BE(BEGasPrice->value, BEGasPrice->length, &gasPrice);
-    convertUint256BE(BEGasLimit->value, BEGasLimit->length, &gasLimit);
+    // RLP encodes a zero value as an empty field; treat it as 0
+    if (((BEGasPrice->length > 0) &&
+         !convertUint256BE(BEGasPrice->value, BEGasPrice->length, &gasPrice)) ||
+        ((BEGasLimit->length > 0) &&
+         !convertUint256BE(BEGasLimit->value, BEGasLimit->length, &gasLimit))) {
+        return false;
+    }
     if (mul256(&gasPrice, &gasLimit, &rawFee) == false) {
         return false;
     }
-    raw_fee_to_string(&rawFee, displayBuffer, displayBufferSize);
-    return true;
+    return raw_fee_to_string(&rawFee, displayBuffer, displayBufferSize);
 }
 
-static void nonce_to_string(const txInt256_t *nonce, char *out, size_t out_size) {
-    uint256_t nonce_uint256;
-    convertUint256BE(nonce->value, nonce->length, &nonce_uint256);
-    tostring256(&nonce_uint256, 10, out, out_size);
+bool nonce_to_string(const txInt256_t *nonce, char *out, size_t out_size) {
+    uint256_t nonce_uint256 = {0};
+    // RLP encodes a zero value as an empty field; treat it as 0
+    if ((nonce->length > 0) && !convertUint256BE(nonce->value, nonce->length, &nonce_uint256)) {
+        return false;
+    }
+    return tostring256(&nonce_uint256, 10, out, out_size);
 }
 
 __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContext_t *context) {
     char displayBuffer[50];
     uint8_t decimals = WEI_TO_ETHER;
     uint64_t chain_id = get_tx_chain_id();
-    const char *ticker = get_displayable_ticker(&chain_id, chainConfig, true);
+    const char *ticker = get_displayable_ticker(&chain_id, g_chain_config, true);
     ethPluginFinalize_t pluginFinalize;
     cx_err_t error = CX_INTERNAL_ERROR;
 
     // Verify the chain
-    if (chainConfig->chainId != ETHEREUM_MAINNET_CHAINID) {
-        chain_id = get_tx_chain_id();
-
-        if (chainConfig->chainId != chain_id) {
-            PRINTF("Invalid chainID %llu expected %llu\n", chain_id, chainConfig->chainId);
+    if (g_chain_config->chain_id != ETHEREUM_MAINNET_CHAINID) {
+        if (g_chain_config->chain_id != chain_id) {
+            PRINTF("Invalid chainID %llu expected %llu\n", chain_id, g_chain_config->chain_id);
             report_finalize_error();
-            return APDU_NO_RESPONSE;
+            return SWO_NO_RESPONSE;
         }
+    }
+    if (G_called_from_swap && (chain_id != G_swap_expected_chain_id)) {
+        PRINTF("Swap: chain ID mismatch, expected %llu, got %llu\n",
+               G_swap_expected_chain_id,
+               chain_id);
+        send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
+                               SWAP_EC_ERROR_GENERIC,
+                               APP_CODE_DEFAULT);
+        // unreachable
+        os_sched_exit(0);
     }
     // Reject pre-EIP-155 LEGACY transactions (no chain_id encoded in V). Their
     // signature carries the legacy v base of 27/28 and is not domain-separated
@@ -325,11 +354,12 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
         goto end;
     }
 
+    memcpy(strings.common.fromAddressRaw, msg_sender, ADDRESS_LENGTH);
     error = address_to_string(msg_sender,
                               ADDRESS_LENGTH,
                               strings.common.fromAddress,
                               sizeof(strings.common.fromAddress),
-                              chainConfig->chainId);
+                              g_chain_config->chain_id);
     if (error != SWO_SUCCESS) {
         goto end;
     }
@@ -358,32 +388,36 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             ETH_PLUGIN_RESULT_SUCCESSFUL) {
             PRINTF("Plugin finalize call failed\n");
             report_finalize_error();
-            error = APDU_NO_RESPONSE;
+            error = SWO_NO_RESPONSE;
             goto end;
         }
+
+        // store the lookup addresses
+        // not needed to set them for PLUGIN_PROVIDE_INFO since it is done within this function,
+        // but required for PLUGIN_QUERY_CONTRACT_UI
+        dataContext.tokenContext.token_lookup1 = pluginFinalize.tokenLookup1;
+        dataContext.tokenContext.token_lookup2 = pluginFinalize.tokenLookup2;
+
         // Lookup tokens if requested
         ethPluginProvideInfo_t pluginProvideInfo;
         eth_plugin_prepare_provide_info(&pluginProvideInfo);
-        if ((pluginFinalize.tokenLookup1 != NULL) || (pluginFinalize.tokenLookup2 != NULL)) {
-            if (pluginFinalize.tokenLookup1 != NULL) {
-                PRINTF("Lookup1: %.*H\n", ADDRESS_LENGTH, pluginFinalize.tokenLookup1);
-                pluginProvideInfo.item1 = get_asset_info_by_addr(pluginFinalize.tokenLookup1);
-                if (pluginProvideInfo.item1 != NULL) {
-                    PRINTF("Token1 ticker: %s\n", pluginProvideInfo.item1->token.ticker);
-                }
-            }
-            if (pluginFinalize.tokenLookup2 != NULL) {
-                PRINTF("Lookup2: %.*H\n", ADDRESS_LENGTH, pluginFinalize.tokenLookup2);
-                pluginProvideInfo.item2 = get_asset_info_by_addr(pluginFinalize.tokenLookup2);
-                if (pluginProvideInfo.item2 != NULL) {
-                    PRINTF("Token2 ticker: %s\n", pluginProvideInfo.item2->token.ticker);
-                }
-            }
+        pluginProvideInfo.item1 =
+            get_matching_asset_info(&chain_id, dataContext.tokenContext.token_lookup1);
+        if (pluginProvideInfo.item1 != NULL) {
+            PRINTF("Asset1 ticker: %s\n", pluginProvideInfo.item1->token.ticker);
+        }
+        pluginProvideInfo.item2 =
+            get_matching_asset_info(&chain_id, dataContext.tokenContext.token_lookup2);
+        if (pluginProvideInfo.item2 != NULL) {
+            PRINTF("Asset2 ticker: %s\n", pluginProvideInfo.item2->token.ticker);
+        }
+        if ((dataContext.tokenContext.token_lookup1 != NULL) ||
+            (dataContext.tokenContext.token_lookup2 != NULL)) {
             if (eth_plugin_call(ETH_PLUGIN_PROVIDE_INFO, (void *) &pluginProvideInfo) <=
                 ETH_PLUGIN_RESULT_UNSUCCESSFUL) {
                 PRINTF("Plugin provide token call failed\n");
                 report_finalize_error();
-                error = APDU_NO_RESPONSE;
+                error = SWO_NO_RESPONSE;
                 goto end;
             }
             pluginFinalize.result = pluginProvideInfo.result;
@@ -414,14 +448,28 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
                 default:
                     PRINTF("ui type %d not supported\n", pluginFinalize.uiType);
                     report_finalize_error();
-                    error = APDU_NO_RESPONSE;
+                    error = SWO_NO_RESPONSE;
                     goto end;
             }
         } else if (G_called_from_swap && G_swap_mode == SWAP_MODE_CROSSCHAIN_SUCCESS) {
             PRINTF("Plugin swap_with_calldata fell back for UI with success\n");
             // We are not bling signing, the data has been validated by the plugin
             tmpContent.txContent.dataPresent = false;
+            G_swap_calldata_validated = true;
+        } else {
+            // A plugin that fell back produced no UI items; hand the transaction
+            // to the standard review path instead of an empty plugin review
+            PRINTF("Plugin fell back, reverting to the generic transaction review\n");
+            pluginType = PLUGIN_TYPE_NONE;
         }
+    } else if (!G_called_from_swap && (pluginType != PLUGIN_TYPE_NONE) &&
+               (pluginType != PLUGIN_TYPE_SWAP_WITH_CALLDATA)) {
+        // A registered plugin that did not run (e.g. chain mismatch at init) must
+        // not select the plugin UI: it would show no decoded items and suppress
+        // the standard To/Amount/hash rows
+        PRINTF("Plugin unavailable, using standard blind signing\n");
+        pluginType = PLUGIN_TYPE_NONE;
+        dataContext.tokenContext.pluginUiMaxItems = 0;
     }
 
     if (G_called_from_swap) {
@@ -441,8 +489,8 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                    SWAP_EC_ERROR_WRONG_METHOD,
                                    APP_CODE_NO_STANDARD_UI);
-            // unreachable
-            os_sched_exit(0);
+            // unreachable — app_exit is __attribute__((noreturn))
+            app_exit();
         }
         // Two success cases: we are in standard mode and no calldata was received
         // We are in crosschain mode and the correct calldata has been received
@@ -450,8 +498,8 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                    SWAP_EC_ERROR_CROSSCHAIN_WRONG_MODE,
                                    APP_CODE_DEFAULT);
-            // unreachable
-            os_sched_exit(0);
+            // unreachable — app_exit is __attribute__((noreturn))
+            app_exit();
         }
     }
 
@@ -460,7 +508,7 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
             PRINTF("Data is present but not allowed\n");
             report_finalize_error();
             ui_error_blind_signing();
-            error = APDU_NO_RESPONSE;
+            error = SWO_NO_RESPONSE;
             goto end;
         }
     }
@@ -473,7 +521,7 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
                                   tmpContent.txContent.destinationLength,
                                   displayBuffer,
                                   sizeof(displayBuffer),
-                                  chainConfig->chainId);
+                                  g_chain_config->chain_id);
         if (error != SWO_SUCCESS) {
             goto end;
         }
@@ -498,7 +546,11 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
         }
 
         if (G_called_from_swap) {
-            swap_check_amount(displayBuffer);
+            // What the value must hold depends on the asset being swapped, which Exchange only
+            // describes by ticker and decimals: see swap_value_check_t
+            swap_check_value(displayBuffer,
+                             tmpContent.txContent.value.value,
+                             tmpContent.txContent.value.length);
         } else {
             strlcpy(strings.common.fullAmount, displayBuffer, sizeof(strings.common.fullAmount));
         }
@@ -524,9 +576,13 @@ __attribute__((noinline)) static uint16_t finalize_parsing_helper(const txContex
     PRINTF("Fees displayed: %s\n", strings.common.maxFee);
 
     // Prepare nonce to display
-    nonce_to_string(&tmpContent.txContent.nonce,
-                    strings.common.nonce,
-                    sizeof(strings.common.nonce));
+    if (!nonce_to_string(&tmpContent.txContent.nonce,
+                         strings.common.nonce,
+                         sizeof(strings.common.nonce))) {
+        PRINTF("Error: could not format the nonce!\n");
+        error = SWO_INCORRECT_DATA;
+        goto end;
+    }
     PRINTF("Nonce: %s\n", strings.common.nonce);
 
     // Prepare network field
@@ -576,16 +632,18 @@ uint16_t finalize_parsing(const txContext_t *context) {
                 send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                        SWAP_EC_ERROR_GENERIC,
                                        APP_CODE_DEFAULT);
-                // unreachable
-                os_sched_exit(0);
+                // unreachable — app_exit is __attribute__((noreturn))
+                app_exit();
             }
-            if (tmpContent.txContent.dataPresent && (G_swap_mode == SWAP_MODE_STANDARD)) {
-                PRINTF("Unvalidated calldata is not allowed in standard swap\n");
+            // Calldata may only be auto-signed once checked against the swap
+            // promise, in any mode; plugins clear dataPresent for their own UI.
+            if (G_swap_tx_had_calldata && !G_swap_calldata_validated) {
+                PRINTF("Unvalidated calldata is not allowed in swap\n");
                 send_swap_error_simple(APDU_RESPONSE_MODE_CHECK_FAILED,
                                        SWAP_EC_ERROR_WRONG_METHOD,
                                        APP_CODE_DEFAULT);
-                // unreachable
-                os_sched_exit(0);
+                // unreachable — app_exit is __attribute__((noreturn))
+                app_exit();
             }
             io_seproxyhal_touch_tx_ok();
             sw = SWO_SUCCESS;
