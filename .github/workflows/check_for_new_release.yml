@@ -61,6 +61,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # The pushed upstream tag almost always changes files under
+          # .github/workflows/, and GitHub refuses such pushes from GITHUB_TOKEN
+          # (it can never be granted the `workflows` permission). This token is
+          # persisted by checkout and used for the `git push` below. It must be a
+          # fine-grained PAT on this repo with Contents: Read and write and
+          # Workflows: Read and write (or a classic PAT with `repo` + `workflow`).
+          token: ${{ secrets.RELEASE_BRANCH_TOKEN }}
 
       - name: Resolve latest upstream release tag
         id: upstream
