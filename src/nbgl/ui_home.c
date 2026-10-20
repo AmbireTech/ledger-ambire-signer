@@ -224,8 +224,7 @@ static void get_appname_and_tagline(const char **appname, const char **tagline) 
         if ((g_caller_app->name == NULL) ||
             (strnlen(g_caller_app->name, MAX_CALLER_NAME_LEN + 1) > MAX_CALLER_NAME_LEN)) {
             PRINTF("invalid caller_app->name; falling back to the default appname\n");
-            mainnet_chain_id = ETHEREUM_MAINNET_CHAINID;
-            *appname = get_network_name_from_chain_id(&mainnet_chain_id);
+            *appname = APPNAME;
             return;
         }
         *appname = g_caller_app->name;
