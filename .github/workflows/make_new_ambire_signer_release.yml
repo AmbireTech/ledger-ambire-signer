@@ -105,6 +105,7 @@ jobs:
       contents: read
       actions: write # To upload the build artifacts
       pull-requests: write # For its ELF size diff comment, which is pull_request only
+      packages: read # To pull the app-builder image
     with:
       app_branch_name: ${{ needs.resolve.outputs.signer_ref }}
       upload_app_binaries_artifact: ambire_signer_builds
