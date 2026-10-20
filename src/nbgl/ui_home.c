@@ -52,18 +52,8 @@ enum {
 };
 
 // settings definition
-static const char *const infoTypes[SETTING_INFO_NB] = {"Version",
-#ifdef DEV_VERSION
-                                                       "Commit",
-#endif
-                                                       "Developer",
-                                                       "Copyright"};
-static const char *const infoContents[SETTING_INFO_NB] = {APPVERSION,
-#ifdef DEV_VERSION
-                                                          GIT_COMMIT,
-#endif
-                                                          "Ledger",
-                                                          ("Ledger (c) " COPYRIGHT_YEAR)};
+static const char *const infoTypes[SETTING_INFO_NB] = {"Version", "Developer", "Copyright"};
+static const char *const infoContents[SETTING_INFO_NB] = {APPVERSION, "Ambire", ("Ambire (c)" COPYRIGHT_YEAR)};
 
 static nbgl_contentInfoList_t infoList = {0};
 static nbgl_contentSwitch_t switches[SETTINGS_SWITCHES_NB] = {0};
@@ -228,15 +218,13 @@ static void prepare_and_display_home(const char *appname, const char *tagline, u
  * This function prepares the app name & tagline depending on how the application was called
  */
 static void get_appname_and_tagline(const char **appname, const char **tagline) {
-    uint64_t mainnet_chain_id;
 
     if (g_caller_app) {
         // g_caller_app->name is untrusted; NBGL renders it with no length bound
         if ((g_caller_app->name == NULL) ||
             (strnlen(g_caller_app->name, MAX_CALLER_NAME_LEN + 1) > MAX_CALLER_NAME_LEN)) {
             PRINTF("invalid caller_app->name; falling back to the default appname\n");
-            mainnet_chain_id = ETHEREUM_MAINNET_CHAINID;
-            *appname = get_network_name_from_chain_id(&mainnet_chain_id);
+            *appname = APPNAME;
             return;
         }
         *appname = g_caller_app->name;
@@ -262,8 +250,10 @@ static void get_appname_and_tagline(const char **appname, const char **tagline) 
             }
         }
     } else {  // Ethereum app
-        mainnet_chain_id = ETHEREUM_MAINNET_CHAINID;
-        *appname = get_network_name_from_chain_id(&mainnet_chain_id);
+        *appname = APPNAME;
+        // Custom home-screen tagline. If left NULL, the SDK auto-generates
+        // "This app enables signing transactions on the <appname> network."
+        *tagline = "This app enables signing transactions in Ambire.";
     }
 }
 
