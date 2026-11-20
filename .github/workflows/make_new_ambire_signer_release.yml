@@ -1,6 +1,6 @@
 # Builds the "Ambire Signer" Ledger app for every supported device and syncs the
 # resulting plaintext BOLOS load scripts (app.apdu) into the ambire-app extension,
-# so the sideloader in src/web/modules/hardware-wallet/controllers/LedgerController
+# so the installer in src/common/modules/hardware-wallet/libs/ledgerAppInstall
 # always ships the load scripts of the latest released app build.
 #
 # This is the ambire-app "Build Ledger Ambire Signer" workflow moved here, to the
@@ -153,7 +153,7 @@ jobs:
           const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR
           const ARTIFACT_NAME = process.env.SIGNER_ARTIFACT
           const ARTIFACTS_DIR =
-            'src/web/modules/hardware-wallet/controllers/LedgerController/artifacts'
+            'src/common/modules/hardware-wallet/libs/ledgerAppInstall/artifacts'
 
           // Keyed by the Ledger SDK build target directory inside the artifact. These
           // differ from the device names in ledger_app.toml: the "nanos+" device is
