@@ -89,10 +89,6 @@ jobs:
   build:
     name: Build the Ledger app for all supported devices
     needs: resolve
-    strategy:
-      fail-fast: false
-      matrix:
-        device: ["nanos+", "stax", "flex", "apex_p"]
     # `app_repository` is omitted deliberately: it defaults to github.repository,
     # which is this repo. No `use_case` or `flags` are passed, matching
     # build_ambire_signer.yml. To whitelist the Ambire delegator in the bundled
@@ -108,6 +104,12 @@ jobs:
       packages: read # To pull the app-builder image
     with:
       app_branch_name: ${{ needs.resolve.outputs.signer_ref }}
+      # One call for all devices, NOT a matrix: each reusable_build.yml call merges
+      # its per-device uploads into `ambire_signer_builds`, so a matrix would run
+      # several calls racing on that one artifact name. Without this input it
+      # builds every device in ledger_app.toml, which includes nanox - the Nano X
+      # cannot side-load unsigned apps, and the sync step has no target for it.
+      run_for_devices: '["nanos+", "stax", "flex", "apex_p"]'
       upload_app_binaries_artifact: ambire_signer_builds
 
   sync-apdu-artifacts:
