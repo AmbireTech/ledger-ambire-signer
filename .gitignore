@@ -46,3 +46,16 @@ compile_commands.json
 
 # Doxygen
 doxygen/
+
+# Local side-loading virtualenv
+ledger/
+
+build*
+core*
+pyvenv.cfg
+lib
+include
+or
+python3.12
+.DS_Store
+**/.DS_Store
