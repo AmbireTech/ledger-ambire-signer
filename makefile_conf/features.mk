@@ -55,7 +55,8 @@ endif
 
 
 # EIP-7702: authorization signing and type 4 transactions
-EIP7702_SUPPORT ?= 0
+# Enabled by default: Ambire Signer requires smart account upgrades
+EIP7702_SUPPORT ?= 1
 ifneq ($(EIP7702_SUPPORT),0)
     DEFINES += HAVE_7702_SUPPORT
 endif
